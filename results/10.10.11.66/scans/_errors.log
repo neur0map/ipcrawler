@@ -1,5 +1,0 @@
-[*] Service scan whatweb (tcp/80/http/whatweb) ran a command which returned a non-zero exit code (1).
-[-] Command: whatweb --color=never --no-errors -a 3 -v http://10.10.11.66:80 2>&1
-[-] Error Output:
-
-

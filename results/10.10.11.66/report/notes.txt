@@ -1,8 +1,0 @@
-[*] ssh found on tcp/22.
-
-
-
-[*] http found on tcp/80.
-
-
-
