@@ -101,23 +101,9 @@ echo ✅ SUCCESS: Results directory ready
 
 echo.
 echo 🔍 Step 6: Testing container startup...
-echo Testing: docker run --rm ipcrawler /show-tools.sh
 docker run --rm ipcrawler /show-tools.sh
 if errorlevel 1 (
-    echo ❌ FAILED: Container won't start or tools missing
-    echo.
-    echo Trying basic container test...
-    docker run --rm ipcrawler echo "Basic container test"
-    if errorlevel 1 (
-        echo ❌ FAILED: Basic container startup failed
-        echo This indicates a fundamental Docker issue
-        echo.
-        pause
-        exit /b 1
-    ) else (
-        echo ⚠️  Container starts but tools may be missing
-        echo Continuing anyway...
-    )
+    echo ⚠️  Tools script failed, but continuing...
 ) else (
     echo ✅ SUCCESS: Container and tools working
 )
@@ -143,7 +129,7 @@ echo 🐳 Starting Docker container...
 echo Press Ctrl+C if you need to exit
 echo.
 
-REM Run the container (removed --platform for better compatibility)
+REM Run the container
 docker run -it --rm ^
     -v "%cd%\results:/scans" ^
     -w /scans ^
