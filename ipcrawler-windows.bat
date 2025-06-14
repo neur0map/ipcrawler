@@ -101,15 +101,25 @@ echo ✅ SUCCESS: Results directory ready
 
 echo.
 echo 🔍 Step 6: Testing container startup...
-echo Testing: docker run --rm ipcrawler echo "Container test successful"
-docker run --rm ipcrawler echo "Container test successful"
+echo Testing: docker run --rm ipcrawler /show-tools.sh
+docker run --rm ipcrawler /show-tools.sh
 if errorlevel 1 (
-    echo ❌ FAILED: Container won't start
+    echo ❌ FAILED: Container won't start or tools missing
     echo.
-    pause
-    exit /b 1
+    echo Trying basic container test...
+    docker run --rm ipcrawler echo "Basic container test"
+    if errorlevel 1 (
+        echo ❌ FAILED: Basic container startup failed
+        echo This indicates a fundamental Docker issue
+        echo.
+        pause
+        exit /b 1
+    ) else (
+        echo ⚠️  Container starts but tools may be missing
+        echo Continuing anyway...
+    )
 ) else (
-    echo ✅ SUCCESS: Container starts correctly
+    echo ✅ SUCCESS: Container and tools working
 )
 
 echo.
@@ -133,12 +143,11 @@ echo 🐳 Starting Docker container...
 echo Press Ctrl+C if you need to exit
 echo.
 
-REM Run the container
+REM Run the container (removed --platform for better compatibility)
 docker run -it --rm ^
     -v "%cd%\results:/scans" ^
     -w /scans ^
     --name "ipcrawler-session-%timestamp%" ^
-    --platform linux/amd64 ^
     ipcrawler bash
 
 echo.
