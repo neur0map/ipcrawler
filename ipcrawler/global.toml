@@ -1,0 +1,41 @@
+# ========================================
+# Global Plugin Options & Pattern Matching
+# ========================================
+# 
+# 💡 These settings apply to multiple plugins
+#    For plugin-specific settings, edit config.toml
+# ========================================
+
+# ========================================
+# Wordlist Settings
+# ========================================
+[global.username-wordlist]
+default = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
+help = 'Username wordlist for bruteforce attacks. Default: %(default)s'
+
+[global.password-wordlist]
+default = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
+help = 'Password wordlist for bruteforce attacks. Default: %(default)s'
+
+# ========================================
+# Target Information
+# ========================================
+[global.domain]
+help = 'Target domain for DNS enumeration and Active Directory. Default: %(default)s'
+
+# ========================================
+# Output Pattern Detection
+# ========================================
+# Automatically highlight important findings in scan output
+
+[[pattern]]
+description = 'Vulnerability detected: {match}'
+pattern = 'State: (?:(?:LIKELY\_?)?VULNERABLE)'
+
+[[pattern]]
+description = 'Unauthorized access'
+pattern = '(?i)unauthorized'
+
+[[pattern]]
+description = 'CVE found: {match}'
+pattern = '(CVE-\d{4}-\d{4,7})'

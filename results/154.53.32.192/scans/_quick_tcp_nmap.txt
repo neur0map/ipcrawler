@@ -1,0 +1,92 @@
+# Nmap 7.97 scan initiated Fri Jun 13 19:50:55 2025 as: nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN /Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_quick_tcp_nmap.txt -oX /Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_quick_tcp_nmap.xml 154.53.32.192
+Nmap scan report for vmi2439677.contaboserver.net (154.53.32.192)
+Host is up, received user-set (0.016s latency).
+Scanned at 2025-06-13 19:50:55 EDT for 26s
+Not shown: 996 closed tcp ports (reset)
+PORT     STATE SERVICE  REASON         VERSION
+22/tcp   open  ssh      syn-ack ttl 56 OpenSSH 9.6p1 Ubuntu 3ubuntu13.11 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   256 16:59:40:79:67:2f:5c:b0:0e:15:9e:54:9b:e5:70:0a (ECDSA)
+| ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBFghttS15tD+jXl0Z6IF1OKnNkeof833pZf3i8+ZBHesS83huIXOaRv+L82W4EX+0Qm55Hl/wYsVmcWCVf7tbm8=
+|   256 cd:9c:60:5d:a6:34:bf:49:88:b4:5e:09:18:31:c2:f7 (ED25519)
+|_ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBsvFuDtuSBg/tS7/WZusvcbPdVjXVYmHKy6nPSjeDAm
+80/tcp   open  http     syn-ack ttl 55 Golang net/http server (Go-IPFS json-rpc or InfluxDB API)
+|_http-title: Site doesn't have a title (text/plain; charset=utf-8).
+443/tcp  open  ssl/http syn-ack ttl 55 Golang net/http server (Go-IPFS json-rpc or InfluxDB API)
+|_http-title: Site doesn't have a title (text/plain; charset=utf-8).
+| ssl-cert: Subject: commonName=TRAEFIK DEFAULT CERT
+| Subject Alternative Name: DNS:92a8e3eca47640004e1b9fbd08701f34.2b001d09123d4d4856b781659afe5f85.traefik.default
+| Issuer: commonName=TRAEFIK DEFAULT CERT
+| Public Key type: rsa
+| Public Key bits: 2048
+| Signature Algorithm: sha256WithRSAEncryption
+| Not valid before: 2025-06-12T22:37:31
+| Not valid after:  2026-06-12T22:37:31
+| MD5:     8368 4700 29a2 c793 83a3 6bb2 fd38 1c86
+| SHA-1:   0278 48b5 4395 04fa b847 b37d 4831 7562 6896 cfe3
+| SHA-256: e0d1 6417 f76e e99e f5f4 1226 267c 5596 d17a 09e7 f86e cca4 9024 e398 32f6 cf5c
+| -----BEGIN CERTIFICATE-----
+| MIIDXTCCAkWgAwIBAgIQVlqYFrGLemxPl0Y/uevHYzANBgkqhkiG9w0BAQsFADAf
+| MR0wGwYDVQQDExRUUkFFRklLIERFRkFVTFQgQ0VSVDAeFw0yNTA2MTIyMjM3MzFa
+| Fw0yNjA2MTIyMjM3MzFaMB8xHTAbBgNVBAMTFFRSQUVGSUsgREVGQVVMVCBDRVJU
+| MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA08BVsOvs6kLG8NwTp2CO
+| auPw06RrMZoLx5s59incYDMVqChfxkziplkoOspq4mqWSNHDLv58dhOw07cd94pN
+| O4r3cfgFgdVO+9M7rFrrLxd2p5tw+qnllg9g411Wd8wY7fKmWkOsIVoMJylEXAs6
+| 0kiM0stVn1e8VOB19EfpQIRY5OE9ANzrRHXnWnzO9HEOESiUIIUsqUbtQftpQvg7
+| kXDOqmloNycS+5xzxcc3KB5N2lMBe9biE735Ky5YqnzTMBxJRHdMEacM0/SMNBhG
+| 5xXC3Ut/wrUkohBkE0r7246pHfXHqIuxLFMeClff50N6r8Ak1UxRHiOn77YQInda
+| AwIDAQABo4GUMIGRMA4GA1UdDwEB/wQEAwIDuDATBgNVHSUEDDAKBggrBgEFBQcD
+| ATAMBgNVHRMBAf8EAjAAMFwGA1UdEQRVMFOCUTkyYThlM2VjYTQ3NjQwMDA0ZTFi
+| OWZiZDA4NzAxZjM0LjJiMDAxZDA5MTIzZDRkNDg1NmI3ODE2NTlhZmU1Zjg1LnRy
+| YWVmaWsuZGVmYXVsdDANBgkqhkiG9w0BAQsFAAOCAQEAZhMPBOHgcjqsmeK+3WtM
+| N9/zvLTpPi55eZ+64e2WZCAsIQljOwcvbBrnii0Uh3vaOPhwrdZFyo968EEv11jk
+| TBBRup/nn8JlCvD/6ep2iNBL8nsmkJ4tEOVLKBJ39NQlgZ+s6mBwzPMrVkaZ2sBC
+| gvNUtI5fBvd+Oj6fei4tVSg9rg+hZ4ogrBa5HXq4xFMBNt4ETCSgtNa4+z0PBl8p
+| QEibsV1zAj3EvCGWujro1J7n8raNXNdnjPN7lmXWFHANhgbhV6k6VUjYFEe1N37G
+| s1OxBGJaRMZr6jfgPDJiet6Ec67uGkQ6l3zAVRz0GlRD6ByMkf48JCN7tO/cIN7n
+| lw==
+|_-----END CERTIFICATE-----
+3000/tcp open  http     syn-ack ttl 54 Samsung AllShare httpd
+| http-methods: 
+|_  Supported Methods: GET HEAD POST
+| http-robots.txt: 1 disallowed entry 
+|_/
+|_http-title: Dokploy
+Device type: general purpose|router
+Running: Linux 5.X, MikroTik RouterOS 7.X
+OS CPE: cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linux_kernel:5.6.3
+OS details: Linux 5.0 - 5.14, MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)
+TCP/IP fingerprint:
+OS:SCAN(V=7.97%E=4%D=6/13%OT=22%CT=1%CU=42569%PV=N%DS=10%DC=T%G=N%TM=684CB9
+OS:79%P=arm-apple-darwin24.4.0)SEQ(SP=104%GCD=1%ISR=109%TI=Z%CI=Z%II=I%TS=A
+OS:)SEQ(SP=106%GCD=1%ISR=108%TI=Z%CI=Z%II=I%TS=A)OPS(O1=M5B4ST11NW7%O2=M5B4
+OS:ST11NW7%O3=M5B4NNT11NW7%O4=M5B4ST11NW7%O5=M5B4ST11NW7%O6=M5B4ST11)WIN(W1
+OS:=FE88%W2=FE88%W3=FE88%W4=FE88%W5=FE88%W6=FE88)ECN(R=Y%DF=Y%TG=40%W=FAF0%
+OS:O=M5B4NNSNW7%CC=Y%Q=)ECN(R=Y%DF=Y%T=41%W=FAF0%O=M5B4NNSNW7%CC=Y%Q=)T1(R=
+OS:Y%DF=Y%TG=40%S=O%A=S+%F=AS%RD=0%Q=)T1(R=Y%DF=Y%T=40%S=O%A=S+%F=AS%RD=0%Q
+OS:=)T2(R=N)T3(R=N)T4(R=Y%DF=Y%TG=40%W=0%S=A%A=Z%F=R%O=%RD=0%Q=)T4(R=Y%DF=Y
+OS:%T=41%W=0%S=A%A=Z%F=R%O=%RD=0%Q=)T5(R=Y%DF=Y%TG=40%W=0%S=Z%A=S+%F=AR%O=%
+OS:RD=0%Q=)T5(R=Y%DF=Y%T=40%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)T6(R=Y%DF=Y%TG=40%
+OS:W=0%S=A%A=Z%F=R%O=%RD=0%Q=)T6(R=Y%DF=Y%T=40%W=0%S=A%A=Z%F=R%O=%RD=0%Q=)T
+OS:7(R=N)U1(R=N)U1(R=Y%DF=N%T=41%IPL=164%UN=0%RIPL=G%RID=G%RIPCK=G%RUCK=G%R
+OS:UD=G)IE(R=Y%DFI=N%TG=40%CD=S)IE(R=Y%DFI=N%T=41%CD=S)
+
+Uptime guess: 48.442 days (since Sat Apr 26 09:15:25 2025)
+Network Distance: 10 hops
+TCP Sequence Prediction: Difficulty=260 (Good luck!)
+IP ID Sequence Generation: All zeros
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE (using port 587/tcp)
+HOP RTT      ADDRESS
+1   2.53 ms  192.168.110.1
+2   6.90 ms  lo0-100.PRVDRI-VFTTP-311.verizon-gni.net (96.233.157.1)
+3   5.81 ms  100.41.26.112
+4   ... 6
+7   12.91 ms GIGA-HOSTIN.edge5.Newark1.Level3.net (4.59.210.54)
+8   ... 9
+10  13.12 ms vmi2439677.contaboserver.net (154.53.32.192)
+
+Read data files from: /opt/homebrew/bin/../share/nmap
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Fri Jun 13 19:51:21 2025 -- 1 IP address (1 host up) scanned in 26.10 seconds

@@ -1,0 +1,4 @@
+Ignoring racc-1.8.1 because its extensions are not built. Try: gem pristine racc --version 1.8.1
+/System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/lib/ruby/2.6.0/rubygems/core_ext/kernel_require.rb:54:in `require': cannot load such file -- lib/whatweb (LoadError)
+	from /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/lib/ruby/2.6.0/rubygems/core_ext/kernel_require.rb:54:in `require'
+	from /usr/local/bin/whatweb:37:in `<main>'

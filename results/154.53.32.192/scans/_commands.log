@@ -1,0 +1,292 @@
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_quick_tcp_nmap.xml" 154.53.32.192
+
+nmap -vv --reason -Pn -T4 -sV -p 22 --script="banner,ssh2-enum-algos,ssh-hostkey,ssh-auth-methods" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/tcp_22_ssh_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/xml/tcp_22_ssh_nmap.xml" 154.53.32.192
+
+gobuster dir -u http://154.53.32.192:80/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:80/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:80/robots.txt
+
+curl -sSik http://154.53.32.192:80/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:80 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 80 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/xml/tcp_80_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+
+gobuster dir -u https://154.53.32.192:443/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_gobuster_dirbuster.txt"
+
+curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+
+curl -sSikf https://154.53.32.192:443/robots.txt
+
+curl -sSik https://154.53.32.192:443/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host https://154.53.32.192:443 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 443 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/xml/tcp_443_https_nmap.xml" 154.53.32.192
+
+sslscan --show-certificate --no-colour 154.53.32.192:443 2>&1
+
+whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+
+gobuster dir -u http://154.53.32.192:3000/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:3000/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:3000/robots.txt
+
+curl -sSik http://154.53.32.192:3000/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:3000 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 3000 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/xml/tcp_3000_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_quick_tcp_nmap.xml" 154.53.32.192
+
+nmap -vv --reason -Pn -T4 -sV -p 22 --script="banner,ssh2-enum-algos,ssh-hostkey,ssh-auth-methods" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/tcp_22_ssh_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/xml/tcp_22_ssh_nmap.xml" 154.53.32.192
+
+gobuster dir -u http://154.53.32.192:80/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:80/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:80/robots.txt
+
+curl -sSik http://154.53.32.192:80/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:80 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 80 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/xml/tcp_80_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+
+gobuster dir -u https://154.53.32.192:443/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_gobuster_dirbuster.txt"
+
+curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+
+curl -sSikf https://154.53.32.192:443/robots.txt
+
+curl -sSik https://154.53.32.192:443/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host https://154.53.32.192:443 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 443 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/xml/tcp_443_https_nmap.xml" 154.53.32.192
+
+sslscan --show-certificate --no-colour 154.53.32.192:443 2>&1
+
+whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+
+gobuster dir -u http://154.53.32.192:3000/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:3000/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:3000/robots.txt
+
+curl -sSik http://154.53.32.192:3000/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:3000 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 3000 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/xml/tcp_3000_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_quick_tcp_nmap.xml" 154.53.32.192
+
+nmap -vv --reason -Pn -T4 -sV -p 22 --script="banner,ssh2-enum-algos,ssh-hostkey,ssh-auth-methods" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/tcp_22_ssh_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/xml/tcp_22_ssh_nmap.xml" 154.53.32.192
+
+gobuster dir -u http://154.53.32.192:80/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:80/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:80/robots.txt
+
+curl -sSik http://154.53.32.192:80/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:80 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 80 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/xml/tcp_80_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+
+gobuster dir -u https://154.53.32.192:443/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_gobuster_dirbuster.txt"
+
+curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+
+curl -sSikf https://154.53.32.192:443/robots.txt
+
+curl -sSik https://154.53.32.192:443/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host https://154.53.32.192:443 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 443 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/xml/tcp_443_https_nmap.xml" 154.53.32.192
+
+sslscan --show-certificate --no-colour 154.53.32.192:443 2>&1
+
+whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+
+gobuster dir -u http://154.53.32.192:3000/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:3000/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:3000/robots.txt
+
+curl -sSik http://154.53.32.192:3000/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:3000 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 3000 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/xml/tcp_3000_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_quick_tcp_nmap.xml" 154.53.32.192
+
+nmap -vv --reason -Pn -T4 -sV -p 22 --script="banner,ssh2-enum-algos,ssh-hostkey,ssh-auth-methods" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/tcp_22_ssh_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/xml/tcp_22_ssh_nmap.xml" 154.53.32.192
+
+gobuster dir -u http://154.53.32.192:80/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:80/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:80/robots.txt
+
+curl -sSik http://154.53.32.192:80/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:80 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 80 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/xml/tcp_80_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+
+gobuster dir -u https://154.53.32.192:443/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_gobuster_dirbuster.txt"
+
+curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+
+curl -sSikf https://154.53.32.192:443/robots.txt
+
+curl -sSik https://154.53.32.192:443/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host https://154.53.32.192:443 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 443 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/xml/tcp_443_https_nmap.xml" 154.53.32.192
+
+sslscan --show-certificate --no-colour 154.53.32.192:443 2>&1
+
+whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+
+gobuster dir -u http://154.53.32.192:3000/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:3000/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:3000/robots.txt
+
+curl -sSik http://154.53.32.192:3000/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:3000 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 3000 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/xml/tcp_3000_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_quick_tcp_nmap.xml" 154.53.32.192
+
+nmap -vv --reason -Pn -T4 -sV -p 22 --script="banner,ssh2-enum-algos,ssh-hostkey,ssh-auth-methods" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/tcp_22_ssh_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/xml/tcp_22_ssh_nmap.xml" 154.53.32.192
+
+gobuster dir -u http://154.53.32.192:80/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:80/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:80/robots.txt
+
+curl -sSik http://154.53.32.192:80/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:80 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 80 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/xml/tcp_80_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+
+gobuster dir -u https://154.53.32.192:443/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_gobuster_dirbuster.txt"
+
+curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+
+curl -sSikf https://154.53.32.192:443/robots.txt
+
+curl -sSik https://154.53.32.192:443/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host https://154.53.32.192:443 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 443 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/xml/tcp_443_https_nmap.xml" 154.53.32.192
+
+sslscan --show-certificate --no-colour 154.53.32.192:443 2>&1
+
+whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+
+gobuster dir -u http://154.53.32.192:3000/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:3000/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:3000/robots.txt
+
+curl -sSik http://154.53.32.192:3000/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:3000 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 3000 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/xml/tcp_3000_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_quick_tcp_nmap.xml" 154.53.32.192
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_quick_tcp_nmap.xml" 154.53.32.192
+
+nmap -vv --reason -Pn -T4 -sU -A --top-ports 100 -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_top_100_udp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_top_100_udp_nmap.xml" 154.53.32.192
+
+nmap -vv --reason -Pn -T4 -sV -p 22 --script="banner,ssh2-enum-algos,ssh-hostkey,ssh-auth-methods" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/tcp_22_ssh_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp22/xml/tcp_22_ssh_nmap.xml" 154.53.32.192
+
+gobuster dir -u http://154.53.32.192:80/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:80/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:80/robots.txt
+
+curl -sSik http://154.53.32.192:80/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:80 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 80 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/xml/tcp_80_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+
+gobuster dir -u https://154.53.32.192:443/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_gobuster_dirbuster.txt"
+
+curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+
+curl -sSikf https://154.53.32.192:443/robots.txt
+
+curl -sSik https://154.53.32.192:443/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host https://154.53.32.192:443 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 443 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/xml/tcp_443_https_nmap.xml" 154.53.32.192
+
+sslscan --show-certificate --no-colour 154.53.32.192:443 2>&1
+
+whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+
+gobuster dir -u http://154.53.32.192:3000/ -t 10 -w "/Users/carlosm/Library/Application Support/ipcrawler/wordlists/dirbuster.txt" -e -k -x "txt,html,php,asp,aspx,jsp" -z -r -o "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_gobuster_dirbuster.txt"
+
+curl -sSikf http://154.53.32.192:3000/.well-known/security.txt
+
+curl -sSikf http://154.53.32.192:3000/robots.txt
+
+curl -sSik http://154.53.32.192:3000/
+
+nikto -ask=no -Tuning=x4567890ac -nointeractive -host http://154.53.32.192:3000 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nikto.txt"
+
+nmap -vv --reason -Pn -T4 -sV -p 3000 --script="banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/tcp_3000_http_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp3000/xml/tcp_3000_http_nmap.xml" 154.53.32.192
+
+whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+

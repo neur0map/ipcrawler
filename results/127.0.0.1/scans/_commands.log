@@ -1,0 +1,8 @@
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/127.0.0.1/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/127.0.0.1/scans/xml/_quick_tcp_nmap.xml" 127.0.0.1
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/127.0.0.1/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/127.0.0.1/scans/xml/_quick_tcp_nmap.xml" 127.0.0.1
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/127.0.0.1/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/127.0.0.1/scans/xml/_quick_tcp_nmap.xml" 127.0.0.1
+
+nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN "/Users/carlosm/Documents/ipcrawler/results/127.0.0.1/scans/_quick_tcp_nmap.txt" -oX "/Users/carlosm/Documents/ipcrawler/results/127.0.0.1/scans/xml/_quick_tcp_nmap.xml" 127.0.0.1
+

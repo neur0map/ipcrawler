@@ -1,0 +1,135 @@
+[*] Service scan whatweb (tcp/80/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+[-] Error Output:
+
+
+[*] Service scan Known Security (tcp/443/http/known-security) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan Curl Robots (tcp/443/http/curl-robots) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/robots.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan whatweb (tcp/443/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/3000/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/80/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+[-] Error Output:
+
+
+[*] Service scan Known Security (tcp/443/http/known-security) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan Curl Robots (tcp/443/http/curl-robots) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/robots.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan whatweb (tcp/443/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/3000/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/80/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+[-] Error Output:
+
+
+[*] Service scan Known Security (tcp/443/http/known-security) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan Curl Robots (tcp/443/http/curl-robots) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/robots.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan whatweb (tcp/443/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/3000/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/80/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+[-] Error Output:
+
+
+[*] Service scan Known Security (tcp/443/http/known-security) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan Curl Robots (tcp/443/http/curl-robots) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/robots.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan whatweb (tcp/443/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/3000/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/80/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:80 2>&1
+[-] Error Output:
+
+
+[*] Service scan Known Security (tcp/443/http/known-security) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/.well-known/security.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan Curl Robots (tcp/443/http/curl-robots) ran a command which returned a non-zero exit code (56).
+[-] Command: curl -sSikf https://154.53.32.192:443/robots.txt
+[-] Error Output:
+curl: (56) The requested URL returned error: 404
+
+
+[*] Service scan whatweb (tcp/443/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v https://154.53.32.192:443 2>&1
+[-] Error Output:
+
+
+[*] Service scan whatweb (tcp/3000/http/whatweb) ran a command which returned a non-zero exit code (1).
+[-] Command: whatweb --color=never --no-errors -a 3 -v http://154.53.32.192:3000 2>&1
+[-] Error Output:
+
+

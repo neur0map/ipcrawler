@@ -1,0 +1,40 @@
+[*] http on tcp/80
+
+	[-] (gobuster v3) Multi-threaded directory/file enumeration for web servers using various wordlists:
+
+		gobuster dir -u http://example.com:80/ -t 10 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -e -k -x "txt,html,php,asp,aspx,jsp" -r -o "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp80/tcp_80_http_gobuster_dirbuster.txt"
+
+	[-] Credential bruteforcing commands (don't run these without modifying them):
+
+		hydra -L "/usr/share/seclists/Usernames/top-usernames-shortlist.txt" -P "/usr/share/seclists/Passwords/darkweb2017-top100.txt" -e nsr -s 80 -o "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp80/tcp_80_http_auth_hydra.txt" http-get://example.com/path/to/auth/area
+
+		medusa -U "/usr/share/seclists/Usernames/top-usernames-shortlist.txt" -P "/usr/share/seclists/Passwords/darkweb2017-top100.txt" -e ns -n 80 -O "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp80/tcp_80_http_auth_medusa.txt" -M http -h example.com -m DIR:/path/to/auth/area
+
+		hydra -L "/usr/share/seclists/Usernames/top-usernames-shortlist.txt" -P "/usr/share/seclists/Passwords/darkweb2017-top100.txt" -e nsr -s 80 -o "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp80/tcp_80_http_form_hydra.txt" http-post-form://example.com/path/to/login.php:"username=^USER^&password=^PASS^":"invalid-login-message"
+
+		medusa -U "/usr/share/seclists/Usernames/top-usernames-shortlist.txt" -P "/usr/share/seclists/Passwords/darkweb2017-top100.txt" -e ns -n 80 -O "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp80/tcp_80_http_form_medusa.txt" -M web-form -h example.com -m FORM:/path/to/login.php -m FORM-DATA:"post?username=&password=" -m DENY-SIGNAL:"invalid login message"
+
+	[-] (wpscan) WordPress Security Scanner (useful if WordPress is found):
+
+		wpscan --url http://example.com:80/ --no-update -e vp,vt,tt,cb,dbe,u,m --plugins-detection aggressive --plugins-version-detection aggressive -f cli-no-color 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp80/tcp_80_http_wpscan.txt"
+
+[*] http on tcp/443
+
+	[-] (gobuster v3) Multi-threaded directory/file enumeration for web servers using various wordlists:
+
+		gobuster dir -u https://example.com:443/ -t 10 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -e -k -x "txt,html,php,asp,aspx,jsp" -r -o "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp443/tcp_443_https_gobuster_dirbuster.txt"
+
+	[-] Credential bruteforcing commands (don't run these without modifying them):
+
+		hydra -L "/usr/share/seclists/Usernames/top-usernames-shortlist.txt" -P "/usr/share/seclists/Passwords/darkweb2017-top100.txt" -e nsr -s 443 -o "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp443/tcp_443_https_auth_hydra.txt" https-get://example.com/path/to/auth/area
+
+		medusa -U "/usr/share/seclists/Usernames/top-usernames-shortlist.txt" -P "/usr/share/seclists/Passwords/darkweb2017-top100.txt" -e ns -n 443 -O "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp443/tcp_443_https_auth_medusa.txt" -M http -h example.com -m DIR:/path/to/auth/area
+
+		hydra -L "/usr/share/seclists/Usernames/top-usernames-shortlist.txt" -P "/usr/share/seclists/Passwords/darkweb2017-top100.txt" -e nsr -s 443 -o "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp443/tcp_443_https_form_hydra.txt" https-post-form://example.com/path/to/login.php:"username=^USER^&password=^PASS^":"invalid-login-message"
+
+		medusa -U "/usr/share/seclists/Usernames/top-usernames-shortlist.txt" -P "/usr/share/seclists/Passwords/darkweb2017-top100.txt" -e ns -n 443 -O "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp443/tcp_443_https_form_medusa.txt" -M web-form -h example.com -m FORM:/path/to/login.php -m FORM-DATA:"post?username=&password=" -m DENY-SIGNAL:"invalid login message"
+
+	[-] (wpscan) WordPress Security Scanner (useful if WordPress is found):
+
+		wpscan --url https://example.com:443/ --no-update -e vp,vt,tt,cb,dbe,u,m --plugins-detection aggressive --plugins-version-detection aggressive -f cli-no-color 2>&1 | tee "/Users/carlosm/Documents/ipcrawler/results/example.com/scans/tcp443/tcp_443_https_wpscan.txt"
+

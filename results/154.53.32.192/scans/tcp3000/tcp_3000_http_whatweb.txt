@@ -1,0 +1,55 @@
+Ignoring racc-1.8.1 because its extensions are not built. Try: gem pristine racc --version 1.8.1
+WhatWeb report for http://154.53.32.192:3000
+Status    : 200 OK
+Title     : <None>
+IP        : 154.53.32.192
+Country   : UNITED STATES, US
+
+Summary   : X-Powered-By[Next.js], Script[application/json], Email[john@example.com], HTML5, PasswordField[password]
+
+Detected Plugins:
+[ Email ]
+	Extract email addresses. Find valid email address and
+	syntactically invalid email addresses from mailto: link
+	tags. We match syntactically invalid links containing
+	mailto: to catch anti-spam email addresses, eg. bob at
+	gmail.com. This uses the simplified email regular
+	expression from
+	http://www.regular-expressions.info/email.html for valid
+	email address matching.
+
+	String       : john@example.com
+
+[ HTML5 ]
+	HTML version 5, detected by the doctype declaration
+
+
+[ PasswordField ]
+	find password fields
+
+	String       : password (from field name)
+
+[ Script ]
+	This plugin detects instances of script HTML elements and
+	returns the script language/type.
+
+	String       : application/json
+
+[ X-Powered-By ]
+	X-Powered-By HTTP header
+
+	String       : Next.js (from x-powered-by string)
+
+HTTP Headers:
+	HTTP/1.1 200 OK
+	X-Powered-By: Next.js
+	Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+	ETag: "9lsv81260chou"
+	Content-Type: text/html; charset=utf-8
+	Vary: Accept-Encoding
+	Content-Encoding: gzip
+	Date: Fri, 13 Jun 2025 23:51:24 GMT
+	Connection: close
+	Transfer-Encoding: chunked
+
+

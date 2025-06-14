@@ -1,0 +1,16 @@
+services:
+  ipcrawler:
+    build: .
+    container_name: ipcrawler-scanner
+    volumes:
+      - ./results:/scans
+    stdin_open: true
+    tty: true
+    network_mode: host  # Needed for local network scanning
+    
+    # Uncomment below to run a specific command
+    # command: ipcrawler 10.10.10.1
+    
+    # Environment variables (optional)
+    environment:
+      - PYTHONUNBUFFERED=1 

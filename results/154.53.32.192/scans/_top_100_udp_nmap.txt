@@ -1,0 +1,141 @@
+# Nmap 7.97 scan initiated Fri Jun 13 19:50:55 2025 as: nmap -vv --reason -Pn -T4 -sU -A --top-ports 100 -oN /Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/_top_100_udp_nmap.txt -oX /Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/xml/_top_100_udp_nmap.xml 154.53.32.192
+Warning: 154.53.32.192 giving up on port because retransmission cap hit (6).
+Increasing send delay for 154.53.32.192 from 100 to 200 due to 11 out of 15 dropped probes since last increase.
+Increasing send delay for 154.53.32.192 from 200 to 400 due to 11 out of 13 dropped probes since last increase.
+Increasing send delay for 154.53.32.192 from 400 to 800 due to 11 out of 17 dropped probes since last increase.
+adjust_timeouts2: packet supposedly had rtt of -332493 microseconds.  Ignoring time.
+adjust_timeouts2: packet supposedly had rtt of -332493 microseconds.  Ignoring time.
+adjust_timeouts2: packet supposedly had rtt of -498782 microseconds.  Ignoring time.
+adjust_timeouts2: packet supposedly had rtt of -498782 microseconds.  Ignoring time.
+Nmap scan report for vmi2439677.contaboserver.net (154.53.32.192)
+Host is up, received user-set (0.028s latency).
+Scanned at 2025-06-13 19:50:55 EDT for 249s
+
+PORT      STATE         SERVICE         REASON              VERSION
+7/udp     closed        echo            port-unreach ttl 56
+9/udp     open|filtered discard         no-response
+17/udp    open|filtered qotd            no-response
+19/udp    open|filtered chargen         no-response
+49/udp    closed        tacacs          port-unreach ttl 56
+53/udp    open|filtered domain          no-response
+67/udp    open|filtered dhcps           no-response
+68/udp    closed        dhcpc           port-unreach ttl 56
+69/udp    closed        tftp            port-unreach ttl 56
+80/udp    open|filtered http            no-response
+88/udp    closed        kerberos-sec    port-unreach ttl 56
+111/udp   open|filtered rpcbind         no-response
+120/udp   closed        cfdptkt         port-unreach ttl 56
+123/udp   closed        ntp             port-unreach ttl 56
+135/udp   closed        msrpc           port-unreach ttl 56
+136/udp   closed        profile         port-unreach ttl 56
+137/udp   open|filtered netbios-ns      no-response
+138/udp   closed        netbios-dgm     port-unreach ttl 56
+139/udp   closed        netbios-ssn     port-unreach ttl 56
+158/udp   closed        pcmail-srv      port-unreach ttl 56
+161/udp   closed        snmp            port-unreach ttl 56
+162/udp   closed        snmptrap        port-unreach ttl 56
+177/udp   closed        xdmcp           port-unreach ttl 56
+427/udp   open|filtered svrloc          no-response
+443/udp   closed        https           port-unreach ttl 55
+445/udp   closed        microsoft-ds    port-unreach ttl 56
+497/udp   open|filtered retrospect      no-response
+500/udp   closed        isakmp          port-unreach ttl 56
+514/udp   open|filtered syslog          no-response
+515/udp   closed        printer         port-unreach ttl 56
+518/udp   closed        ntalk           port-unreach ttl 56
+520/udp   closed        route           port-unreach ttl 56
+593/udp   closed        http-rpc-epmap  port-unreach ttl 56
+623/udp   closed        asf-rmcp        port-unreach ttl 56
+626/udp   closed        serialnumberd   port-unreach ttl 56
+631/udp   open|filtered ipp             no-response
+996/udp   closed        vsinet          port-unreach ttl 56
+997/udp   open|filtered maitrd          no-response
+998/udp   open|filtered puparp          no-response
+999/udp   closed        applix          port-unreach ttl 56
+1022/udp  closed        exp2            port-unreach ttl 56
+1023/udp  closed        unknown         port-unreach ttl 56
+1025/udp  closed        blackjack       port-unreach ttl 56
+1026/udp  closed        win-rpc         port-unreach ttl 56
+1027/udp  closed        unknown         port-unreach ttl 56
+1028/udp  closed        ms-lsa          port-unreach ttl 56
+1029/udp  closed        solid-mux       port-unreach ttl 56
+1030/udp  open|filtered iad1            no-response
+1433/udp  open|filtered ms-sql-s        no-response
+1434/udp  open|filtered ms-sql-m        no-response
+1645/udp  closed        radius          port-unreach ttl 56
+1646/udp  closed        radacct         port-unreach ttl 56
+1701/udp  closed        L2TP            port-unreach ttl 56
+1718/udp  open|filtered h225gatedisc    no-response
+1719/udp  open|filtered h323gatestat    no-response
+1812/udp  closed        radius          port-unreach ttl 56
+1813/udp  open|filtered radacct         no-response
+1900/udp  open|filtered upnp            no-response
+2000/udp  closed        cisco-sccp      port-unreach ttl 56
+2048/udp  closed        dls-monitor     port-unreach ttl 56
+2049/udp  closed        nfs             port-unreach ttl 56
+2222/udp  closed        msantipiracy    port-unreach ttl 56
+2223/udp  closed        rockwell-csp2   port-unreach ttl 56
+3283/udp  closed        netassistant    port-unreach ttl 56
+3456/udp  closed        IISrpc-or-vat   port-unreach ttl 56
+3703/udp  closed        adobeserver-3   port-unreach ttl 56
+4444/udp  closed        krb524          port-unreach ttl 56
+4500/udp  closed        nat-t-ike       port-unreach ttl 56
+5000/udp  closed        upnp            port-unreach ttl 56
+5060/udp  closed        sip             port-unreach ttl 56
+5353/udp  open|filtered zeroconf        no-response
+5632/udp  closed        pcanywherestat  port-unreach ttl 56
+9200/udp  closed        wap-wsp         port-unreach ttl 56
+10000/udp closed        ndmp            port-unreach ttl 56
+17185/udp closed        wdbrpc          port-unreach ttl 56
+20031/udp open|filtered bakbonenetvault no-response
+30718/udp closed        unknown         port-unreach ttl 56
+31337/udp closed        BackOrifice     port-unreach ttl 56
+32768/udp closed        omad            port-unreach ttl 56
+32769/udp closed        filenet-rpc     port-unreach ttl 56
+32771/udp closed        sometimes-rpc6  port-unreach ttl 56
+32815/udp closed        unknown         port-unreach ttl 56
+33281/udp closed        unknown         port-unreach ttl 56
+49152/udp closed        unknown         port-unreach ttl 56
+49153/udp closed        unknown         port-unreach ttl 56
+49154/udp open|filtered unknown         no-response
+49156/udp closed        unknown         port-unreach ttl 56
+49181/udp closed        unknown         port-unreach ttl 56
+49182/udp closed        unknown         port-unreach ttl 56
+49185/udp open|filtered unknown         no-response
+49186/udp closed        unknown         port-unreach ttl 56
+49188/udp closed        unknown         port-unreach ttl 56
+49190/udp closed        unknown         port-unreach ttl 56
+49191/udp closed        unknown         port-unreach ttl 56
+49192/udp closed        unknown         port-unreach ttl 56
+49193/udp closed        unknown         port-unreach ttl 56
+49194/udp open|filtered unknown         no-response
+49200/udp closed        unknown         port-unreach ttl 56
+49201/udp closed        unknown         port-unreach ttl 56
+65024/udp closed        unknown         port-unreach ttl 56
+Too many fingerprints match this host to give specific OS details
+TCP/IP fingerprint:
+SCAN(V=7.97%E=4%D=6/13%OT=%CT=%CU=7%PV=N%DS=10%DC=T%G=N%TM=684CBA58%P=arm-apple-darwin24.4.0)
+SEQ(CI=Z)
+T5(R=Y%DF=Y%T=40%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)
+T5(R=Y%DF=Y%T=41%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)
+T6(R=Y%DF=Y%T=40%W=0%S=A%A=Z%F=R%O=%RD=0%Q=)
+T6(R=Y%DF=Y%T=41%W=0%S=A%A=Z%F=R%O=%RD=0%Q=)
+U1(R=Y%DF=N%T=41%IPL=164%UN=0%RIPL=G%RID=G%RIPCK=G%RUCK=G%RUD=G)
+IE(R=Y%DFI=N%T=41%CD=S)
+
+Network Distance: 10 hops
+
+TRACEROUTE (using port 996/udp)
+HOP RTT      ADDRESS
+1   2.43 ms  192.168.110.1
+2   4.15 ms  lo0-100.PRVDRI-VFTTP-311.verizon-gni.net (96.233.157.1)
+3   5.69 ms  100.41.26.110
+4   ... 5
+6   13.82 ms ae1.3510.edge5.Newark1.net.lumen.tech (4.69.209.70)
+7   13.85 ms GIGA-HOSTIN.edge5.Newark1.Level3.net (4.59.210.54)
+8   ... 9
+10  29.60 ms vmi2439677.contaboserver.net (154.53.32.192)
+
+Read data files from: /opt/homebrew/bin/../share/nmap
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Fri Jun 13 19:55:04 2025 -- 1 IP address (1 host up) scanned in 249.02 seconds

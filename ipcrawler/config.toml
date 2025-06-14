@@ -1,0 +1,57 @@
+# ========================================
+# ipcrawler Configuration File
+# ========================================
+# 
+# 💡 To see all available plugins and their tags:
+#    Run: ipcrawler --list
+#
+# For detailed help and examples:
+#    Run: ipcrawler --help-all
+# ========================================
+
+# Uncomment and modify these basic settings as needed:
+# nmap-append = '-T3'          # Add custom nmap options
+# verbose = 1                  # Verbosity level (0-3)
+# max-scans = 30              # Maximum concurrent scans
+
+# ========================================
+# Plugin Selection
+# ========================================
+# Controls which scanning tools run automatically
+# 
+# Examples:
+#   tags = 'default'              # Run all standard tools (slow + fast)
+#   tags = 'default+safe+quick'   # Only fast, safe tools  
+#   tags = 'default+safe'         # Safe tools only
+#   tags = 'default-long'         # Exclude slow tools like directory busting
+#
+tags = 'default'
+
+# ========================================
+# Virtual Host Discovery
+# ========================================
+[vhost_discovery]
+enabled = true                   # Enable VHost discovery
+interactive_mode = true          # Allow user prompts (disable for automation)
+auto_add_hosts = true           # Auto-add to /etc/hosts if root/sudo, otherwise prompt
+request_timeout = 10            # HTTP request timeout (seconds)
+backup_hosts_file = true        # Backup /etc/hosts before changes
+
+# ========================================
+# Plugin-Specific Options
+# ========================================
+# Uncomment sections below to customize specific tools:
+
+# [global]
+# username-wordlist = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
+# password-wordlist = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
+# domain = 'example.com'         # Domain for DNS/AD enumeration
+
+# [dirbuster]
+# threads = 50                   # Number of threads
+# wordlist = ['/usr/share/seclists/Discovery/Web-Content/common.txt']
+
+# [nikto] 
+# threads = 10                   # Number of threads
+
+# Run 'ipcrawler --help' for all available options

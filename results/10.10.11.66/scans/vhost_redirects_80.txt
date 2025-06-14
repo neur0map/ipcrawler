@@ -1,0 +1,4 @@
+Status: 301
+Location: http://furni.htb/
+Original URL: http://10.10.11.66:80/
+Extracted Hostname: furni.htb

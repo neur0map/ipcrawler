@@ -1,0 +1,14 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: public, max-age=0
+Last-Modified: Sun, 18 May 2025 08:36:37 GMT
+ETag: W/"1b-196e289b208"
+Content-Type: text/plain; charset=UTF-8
+Content-Length: 27
+Vary: Accept-Encoding
+Date: Fri, 13 Jun 2025 23:51:22 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+User-agent: *
+Disallow: /

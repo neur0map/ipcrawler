@@ -1,0 +1,71 @@
+# Nmap 7.97 scan initiated Fri Jun 13 19:49:49 2025 as: nmap -vv --reason -Pn -T4 -sV -sC --version-all -A --osscan-guess -oN /Users/carlosm/Documents/ipcrawler/results/example.com/scans/_quick_tcp_nmap.txt -oX /Users/carlosm/Documents/ipcrawler/results/example.com/scans/xml/_quick_tcp_nmap.xml example.com
+Warning: Hostname example.com resolves to 12 IPs. Using 23.192.228.80.
+Nmap scan report for example.com (23.192.228.80)
+Host is up, received user-set (0.072s latency).
+Other addresses for example.com (not scanned): 96.7.128.198 96.7.128.175 23.215.0.138 23.215.0.136 23.192.228.84 2600:1408:ec00:36::1736:7f24 2600:1408:ec00:36::1736:7f31 2600:1406:3a00:21::173e:2e65 2600:1406:3a00:21::173e:2e66 2600:1406:bc00:53::b81e:94c8 2600:1406:bc00:53::b81e:94ce
+rDNS record for 23.192.228.80: a23-192-228-80.deploy.static.akamaitechnologies.com
+Scanned at 2025-06-13 19:49:49 EDT for 69s
+Not shown: 998 filtered tcp ports (no-response)
+PORT    STATE SERVICE  REASON  VERSION
+80/tcp  open  http     syn-ack AkamaiGHost (Akamai's HTTP Acceleration/Mirror service)
+|_http-title: Example Domain
+| http-methods: 
+|_  Supported Methods: GET HEAD POST
+443/tcp open  ssl/http syn-ack AkamaiGHost (Akamai's HTTP Acceleration/Mirror service)
+| http-methods: 
+|_  Supported Methods: GET HEAD POST
+|_http-title: Example Domain
+|_ssl-date: TLS randomness does not represent time
+| tls-alpn: 
+|   http/1.1
+|_  http/1.0
+| tls-nextprotoneg: 
+|   http/1.1
+|_  http/1.0
+| ssl-cert: Subject: commonName=*.example.com/organizationName=Internet Corporation for Assigned Names and Numbers/stateOrProvinceName=California/countryName=US/localityName=Los Angeles
+| Subject Alternative Name: DNS:*.example.com, DNS:example.com
+| Issuer: commonName=DigiCert Global G3 TLS ECC SHA384 2020 CA1/organizationName=DigiCert Inc/countryName=US
+| Public Key type: ec
+| Public Key bits: 256
+| Signature Algorithm: ecdsa-with-SHA384
+| Not valid before: 2025-01-15T00:00:00
+| Not valid after:  2026-01-15T23:59:59
+| MD5:     c339 79ff 8bc1 9a94 820d 6804 b368 1881
+| SHA-1:   310d b7af 4b2b c904 0c83 4470 1aca 08d0 c693 81e3
+| SHA-256: 4559 43cf 8194 2576 1d1f 9502 63eb f547 55d8 d684 c255 3594 3976 f488 bc79 d23b
+| -----BEGIN CERTIFICATE-----
+| MIIFmzCCBSGgAwIBAgIQCtiTuvposLf7ekBPBuyvmjAKBggqhkjOPQQDAzBZMQsw
+| CQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMTMwMQYDVQQDEypEaWdp
+| Q2VydCBHbG9iYWwgRzMgVExTIEVDQyBTSEEzODQgMjAyMCBDQTEwHhcNMjUwMTE1
+| MDAwMDAwWhcNMjYwMTE1MjM1OTU5WjCBjjELMAkGA1UEBhMCVVMxEzARBgNVBAgT
+| CkNhbGlmb3JuaWExFDASBgNVBAcTC0xvcyBBbmdlbGVzMTwwOgYDVQQKEzNJbnRl
+| cm5ldCBDb3Jwb3JhdGlvbiBmb3IgQXNzaWduZWQgTmFtZXMgYW5kIE51bWJlcnMx
+| FjAUBgNVBAMMDSouZXhhbXBsZS5jb20wWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC
+| AASaSJeELWFsCMlqFKDIOIDmAMCH+plXDhsA4tiHklfnCPs8XrDThCg3wSQRjtMg
+| cXS9k49OCQPOAjuw5GZzz6/uo4IDkzCCA48wHwYDVR0jBBgwFoAUiiPrnmvX+Tdd
+| +W0hOXaaoWfeEKgwHQYDVR0OBBYEFPDBajIN7NrH6o/NDW0ZElnRvnLtMCUGA1Ud
+| EQQeMByCDSouZXhhbXBsZS5jb22CC2V4YW1wbGUuY29tMD4GA1UdIAQ3MDUwMwYG
+| Z4EMAQICMCkwJwYIKwYBBQUHAgEWG2h0dHA6Ly93d3cuZGlnaWNlcnQuY29tL0NQ
+| UzAOBgNVHQ8BAf8EBAMCA4gwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMC
+| MIGfBgNVHR8EgZcwgZQwSKBGoESGQmh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9E
+| aWdpQ2VydEdsb2JhbEczVExTRUNDU0hBMzg0MjAyMENBMS0yLmNybDBIoEagRIZC
+| aHR0cDovL2NybDQuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0R2xvYmFsRzNUTFNFQ0NT
+| SEEzODQyMDIwQ0ExLTIuY3JsMIGHBggrBgEFBQcBAQR7MHkwJAYIKwYBBQUHMAGG
+| GGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBRBggrBgEFBQcwAoZFaHR0cDovL2Nh
+| Y2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0R2xvYmFsRzNUTFNFQ0NTSEEzODQy
+| MDIwQ0ExLTIuY3J0MAwGA1UdEwEB/wQCMAAwggF7BgorBgEEAdZ5AgQCBIIBawSC
+| AWcBZQB0AA5XlLzzrqk+MxssmQez95Dfm8I9cTIl3SGpJaxhxU4hAAABlGd6v8cA
+| AAQDAEUwQwIfJBcPWkx80ik7uLYW6OGvNYvJ4NmOR2RXc9uviFPH6QIgUtuuUenH
+| IT5UNWJffBBRq31tUGi7ZDTSrrM0f4z1Va4AdQBkEcRspBLsp4kcogIuALyrTygH
+| 1B41J6vq/tUDyX3N8AAAAZRnesAFAAAEAwBGMEQCIHCu6NgHhV1Qvif/G7BHq7ci
+| MGH8jdch/xy4LzrYlesXAiByMFMvDhGg4sYm1MsrDGVedcwpE4eN0RuZcFGmWxwJ
+| cgB2AEmcm2neHXzs/DbezYdkprhbrwqHgBnRVVL76esp3fjDAAABlGd6wBkAAAQD
+| AEcwRQIgaFh67yEQ2lwgm3X16n2iWjEQFII2b2fpONtBVibZVWwCIQD5psqjXDYs
+| IEb1hyh0S8bBN3O4u2sA9zisKIlYjZg8wjAKBggqhkjOPQQDAwNoADBlAjEA+aaC
+| RlPbb+VY+u4avPyaG7fvUDJqN8KwlrXD4XptT7QL+D03+BA/FUEo3dD1iz37AjBk
+| Y3jhsuLAW7pWsDbtX/Qwxp6kNsK4jh1/RjvV/260sxQwM/GM7t0+T0uP2L+Y12U=
+|_-----END CERTIFICATE-----
+
+Read data files from: /opt/homebrew/bin/../share/nmap
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Fri Jun 13 19:50:58 2025 -- 1 IP address (1 host up) scanned in 69.21 seconds

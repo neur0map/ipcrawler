@@ -1,0 +1,128 @@
+# Nmap 7.97 scan initiated Fri Jun 13 19:51:22 2025 as: nmap -vv --reason -Pn -T4 -sV -p 443 "--script=banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN /Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/tcp_443_https_nmap.txt -oX /Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp443/xml/tcp_443_https_nmap.xml 154.53.32.192
+Nmap scan report for vmi2439677.contaboserver.net (154.53.32.192)
+Host is up, received user-set (0.097s latency).
+Scanned at 2025-06-13 19:51:22 EDT for 244s
+
+PORT    STATE SERVICE  REASON         VERSION
+443/tcp open  ssl/http syn-ack ttl 54 Golang net/http server (Go-IPFS json-rpc or InfluxDB API)
+| ssl-enum-ciphers: 
+|   TLSv1.2: 
+|     ciphers: 
+|       TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 (secp256r1) - A
+|       TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 (secp256r1) - A
+|       TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 (secp256r1) - A
+|       TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA (secp256r1) - A
+|       TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA (secp256r1) - A
+|     compressors: 
+|       NULL
+|     cipher preference: server
+|   TLSv1.3: 
+|     ciphers: 
+|       TLS_AKE_WITH_AES_128_GCM_SHA256 (ecdh_x25519) - A
+|       TLS_AKE_WITH_AES_256_GCM_SHA384 (ecdh_x25519) - A
+|       TLS_AKE_WITH_CHACHA20_POLY1305_SHA256 (ecdh_x25519) - A
+|     cipher preference: server
+|_  least strength: A
+|_http-malware-host: Host appears to be clean
+| http-useragent-tester: 
+|   Status for browser useragent: 404
+|   Allowed User Agents: 
+|     Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)
+|     libwww
+|     lwp-trivial
+|     libcurl-agent/1.0
+|     PHP/
+|     Python-urllib/2.5
+|     GT::WWW
+|     Snoopy
+|     MFC_Tear_Sample
+|     HTTP::Lite
+|     PHPCrawl
+|     URI::Fetch
+|     Zend_Http_Client
+|     http client
+|     PECL::HTTP
+|     Wget/1.13.4 (linux-gnu)
+|_    WWW-Mechanize/1.34
+| http-headers: 
+|   Content-Type: text/plain; charset=utf-8
+|   X-Content-Type-Options: nosniff
+|   Date: Fri, 13 Jun 2025 23:51:42 GMT
+|   Content-Length: 19
+|   Connection: close
+|   
+|_  (Request type: GET)
+|_http-mobileversion-checker: No mobile version detected.
+|_http-jsonp-detection: Couldn't find any JSONP endpoints.
+|_http-comments-displayer: Couldn't find any comments.
+|_http-litespeed-sourcecode-download: Request with null byte did not work. This web server might not be vulnerable
+| http-sitemap-generator: 
+|   Directory structure:
+|   Longest directory structure:
+|     Depth: 0
+|     Dir: /
+|   Total files found (by extension):
+|_    
+| http-security-headers: 
+|   Strict_Transport_Security: 
+|     HSTS not configured in HTTPS Server
+|   X_Content_Type_Options: 
+|     Header: X-Content-Type-Options: nosniff
+|_    Description: Will prevent the browser from MIME-sniffing a response away from the declared content-type. 
+|_http-drupal-enum: Nothing found amongst the top 100 resources,use --script-args number=<number|all> for deeper analysis)
+|_http-date: Fri, 13 Jun 2025 23:51:40 GMT; 0s from local time.
+|_http-referer-checker: Couldn't find any cross-domain scripts.
+| ssl-cert: Subject: commonName=TRAEFIK DEFAULT CERT
+| Subject Alternative Name: DNS:92a8e3eca47640004e1b9fbd08701f34.2b001d09123d4d4856b781659afe5f85.traefik.default
+| Issuer: commonName=TRAEFIK DEFAULT CERT
+| Public Key type: rsa
+| Public Key bits: 2048
+| Signature Algorithm: sha256WithRSAEncryption
+| Not valid before: 2025-06-12T22:37:31
+| Not valid after:  2026-06-12T22:37:31
+| MD5:     8368 4700 29a2 c793 83a3 6bb2 fd38 1c86
+| SHA-1:   0278 48b5 4395 04fa b847 b37d 4831 7562 6896 cfe3
+| SHA-256: e0d1 6417 f76e e99e f5f4 1226 267c 5596 d17a 09e7 f86e cca4 9024 e398 32f6 cf5c
+| -----BEGIN CERTIFICATE-----
+| MIIDXTCCAkWgAwIBAgIQVlqYFrGLemxPl0Y/uevHYzANBgkqhkiG9w0BAQsFADAf
+| MR0wGwYDVQQDExRUUkFFRklLIERFRkFVTFQgQ0VSVDAeFw0yNTA2MTIyMjM3MzFa
+| Fw0yNjA2MTIyMjM3MzFaMB8xHTAbBgNVBAMTFFRSQUVGSUsgREVGQVVMVCBDRVJU
+| MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA08BVsOvs6kLG8NwTp2CO
+| auPw06RrMZoLx5s59incYDMVqChfxkziplkoOspq4mqWSNHDLv58dhOw07cd94pN
+| O4r3cfgFgdVO+9M7rFrrLxd2p5tw+qnllg9g411Wd8wY7fKmWkOsIVoMJylEXAs6
+| 0kiM0stVn1e8VOB19EfpQIRY5OE9ANzrRHXnWnzO9HEOESiUIIUsqUbtQftpQvg7
+| kXDOqmloNycS+5xzxcc3KB5N2lMBe9biE735Ky5YqnzTMBxJRHdMEacM0/SMNBhG
+| 5xXC3Ut/wrUkohBkE0r7246pHfXHqIuxLFMeClff50N6r8Ak1UxRHiOn77YQInda
+| AwIDAQABo4GUMIGRMA4GA1UdDwEB/wQEAwIDuDATBgNVHSUEDDAKBggrBgEFBQcD
+| ATAMBgNVHRMBAf8EAjAAMFwGA1UdEQRVMFOCUTkyYThlM2VjYTQ3NjQwMDA0ZTFi
+| OWZiZDA4NzAxZjM0LjJiMDAxZDA5MTIzZDRkNDg1NmI3ODE2NTlhZmU1Zjg1LnRy
+| YWVmaWsuZGVmYXVsdDANBgkqhkiG9w0BAQsFAAOCAQEAZhMPBOHgcjqsmeK+3WtM
+| N9/zvLTpPi55eZ+64e2WZCAsIQljOwcvbBrnii0Uh3vaOPhwrdZFyo968EEv11jk
+| TBBRup/nn8JlCvD/6ep2iNBL8nsmkJ4tEOVLKBJ39NQlgZ+s6mBwzPMrVkaZ2sBC
+| gvNUtI5fBvd+Oj6fei4tVSg9rg+hZ4ogrBa5HXq4xFMBNt4ETCSgtNa4+z0PBl8p
+| QEibsV1zAj3EvCGWujro1J7n8raNXNdnjPN7lmXWFHANhgbhV6k6VUjYFEe1N37G
+| s1OxBGJaRMZr6jfgPDJiet6Ec67uGkQ6l3zAVRz0GlRD6ByMkf48JCN7tO/cIN7n
+| lw==
+|_-----END CERTIFICATE-----
+|_http-fetch: Please enter the complete path of the directory to save data in.
+|_http-title: Site doesn't have a title (text/plain; charset=utf-8).
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+| http-vhosts: 
+|_128 names had status 404
+|_http-wordpress-enum: Nothing found amongst the top 100 resources,use --script-args search-limit=<number|all> for deeper analysis)
+|_http-feed: Couldn't find any feeds.
+|_http-wordpress-users: [Error] Wordpress installation was not found. We couldn't find wp-login.php
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+| http-errors: 
+| Spidering limited to: maxpagecount=40; withinhost=vmi2439677.contaboserver.net
+|   Found the following error pages: 
+|   
+|   Error Code: 404
+|_  	https://vmi2439677.contaboserver.net:443/
+|_http-chrono: Request times for /; avg: 247.22ms; min: 213.72ms; max: 320.16ms
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+|_http-devframework: Couldn't determine the underlying framework or CMS. Try increasing 'httpspider.maxpagecount' value to spider more pages.
+
+Read data files from: /opt/homebrew/bin/../share/nmap
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Fri Jun 13 19:55:26 2025 -- 1 IP address (1 host up) scanned in 244.44 seconds

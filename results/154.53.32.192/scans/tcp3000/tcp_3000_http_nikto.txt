@@ -1,0 +1,13 @@
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          154.53.32.192
++ Target Hostname:    154.53.32.192
++ Target Port:        3000
++ Start Time:         2025-06-13 19:51:23 (GMT-4)
+---------------------------------------------------------------------------
++ Server: No banner retrieved
++ /: Retrieved x-powered-by header: Next.js.
++ /: The anti-clickjacking X-Frame-Options header is not present. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
++ /: The X-Content-Type-Options header is not set. This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/
++ /GOdk4AhX/: Uncommon header 'refresh' found, with contents: 0;url=/GOdk4AhX.
++ No CGI Directories found (use '-C all' to force check all possible dirs)

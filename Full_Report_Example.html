@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ipcrawler Report - 10.10.10.100</title>
+    <style>
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header h2 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .info-item {
+            background: rgba(255,255,255,0.1);
+            padding: 10px 15px;
+            border-radius: 5px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .collapsible {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            font-weight: bold;
+            transition: background 0.3s;
+            margin: 0;
+        }
+        
+        .collapsible:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .collapsible-content {
+            padding: 20px;
+            display: block;
+            background: #f9f9f9;
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #4facfe;
+        }
+        
+        .summary-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #4facfe;
+            margin-bottom: 5px;
+        }
+        
+        .summary-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .services-discovered {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .services-discovered h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .services-list {
+            background: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #4facfe;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .service-card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #00c851;
+            text-align: center;
+        }
+        
+        .service-port {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #00c851;
+            margin-bottom: 5px;
+        }
+        
+        .service-name {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .scan-item, .service-group, .special-file, .file-group, .result-file {
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .scan-header, .service-header, .file-header, .dir-header {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 1.1em;
+            color: #333;
+            transition: background 0.3s;
+        }
+        
+        .scan-header:hover, .service-header:hover, .file-header:hover, .dir-header:hover {
+            background: #e9ecef;
+        }
+        
+        .scan-content, .service-scans-content, .file-content, .dir-content {
+            padding: 15px;
+        }
+        
+        .commands-executed h4, .commands-executed h5 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .command {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        
+        .command code {
+            background: none;
+            color: inherit;
+            padding: 0;
+        }
+        
+        .file-text {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .file-info {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .results-table th {
+            background: #4facfe;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .results-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .results-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .results-table tr:hover {
+            background: #e3f2fd;
+        }
+        
+        .target-section {
+            margin-bottom: 40px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 40px;
+            padding: 20px;
+        }
+        
+        .footer hr {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #ddd, transparent);
+            margin-bottom: 20px;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .summary-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+            
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+            }
+            
+            .container {
+                box-shadow: none;
+                margin: 0;
+            }
+            
+            .collapsible-content {
+                display: block !important;
+            }
+        }
+        
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <div class="header">
+            <h1>🕷️ ipcrawler Rich Summary Report</h1>
+            <div class="target-info">
+                <h2>🎯 Target: 10.10.10.100</h2>
+                <div class="info-grid">
+                    <div class="info-item"><strong>IP Address:</strong> 10.10.10.100</div>
+                    <div class="info-item"><strong>IP Version:</strong> IPv4</div>
+                    <div class="info-item"><strong>Scan Time:</strong> 2025-06-10 21:26:39</div>
+                    <div class="info-item"><strong>Report Generated:</strong> 2025-06-10 21:26:39</div>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="section">
+            <h2 onclick="toggleSection('executive-summary')" class="collapsible">📊 Executive Summary</h2>
+            <div id="executive-summary" class="collapsible-content">
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <div class="summary-number">5</div>
+                        <div class="summary-label">Services Discovered</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-number">2</div>
+                        <div class="summary-label">Port Scans Executed</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-number">3</div>
+                        <div class="summary-label">Service Scans Executed</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-number">2</div>
+                        <div class="summary-label">Result Files Generated</div>
+                    </div>
+                </div>
+                
+                <div class="services-discovered">
+                    <h3>🔍 Discovered Services</h3>
+                    <div class="services-list">tcp/22/ssh, tcp/80/http, tcp/443/https, tcp/3389/rdp, udp/53/dns</div>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="section">
+            <h2 onclick="toggleSection('services')" class="collapsible">🔍 Discovered Services (5)</h2>
+            <div id="services" class="collapsible-content">
+                <div class="services-grid">
+
+                    <div class="service-card">
+                        <div class="service-port">TCP/22</div>
+                        <div class="service-name">ssh</div>
+                    </div>
+
+                    <div class="service-card">
+                        <div class="service-port">TCP/80</div>
+                        <div class="service-name">http</div>
+                    </div>
+
+                    <div class="service-card">
+                        <div class="service-port">TCP/443</div>
+                        <div class="service-name">https</div>
+                    </div>
+
+                    <div class="service-card">
+                        <div class="service-port">TCP/3389</div>
+                        <div class="service-name">rdp</div>
+                    </div>
+
+                    <div class="service-card">
+                        <div class="service-port">UDP/53</div>
+                        <div class="service-name">dns</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="section">
+            <h2 onclick="toggleSection('port-scans')" class="collapsible">🔍 Port Scans (2)</h2>
+            <div id="port-scans" class="collapsible-content">
+
+                <div class="scan-item">
+                    <h3 onclick="toggleSection('port-nmap-fast-tcp')" class="scan-header">
+                        🔍 TCP Fast Scan (nmap-fast-tcp)
+                    </h3>
+                    <div id="port-nmap-fast-tcp" class="scan-content">
+                        <div class="commands-executed">
+                            <h4>Commands Executed:</h4>
+<div class="command"><code>nmap -vv --reason -Pn -T4 --top-ports 1000 --max-retries 1 --max-scan-delay 20 --defeat-rst-ratelimit --open -oN /scans/tcp_1000.txt -oX /scans/xml/tcp_1000.xml 10.10.10.100</code></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="scan-item">
+                    <h3 onclick="toggleSection('port-nmap-tcp-all')" class="scan-header">
+                        🔍 TCP All Ports (nmap-tcp-all)
+                    </h3>
+                    <div id="port-nmap-tcp-all" class="scan-content">
+                        <div class="commands-executed">
+                            <h4>Commands Executed:</h4>
+<div class="command"><code>nmap -vv --reason -Pn -A --script=default,discovery,vuln -p 22,80,443,3389 -oN /scans/tcp_ports.txt -oX /scans/xml/tcp_ports.xml 10.10.10.100</code></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        
+        <div class="section">
+            <h2 onclick="toggleSection('service-scans')" class="collapsible">🔧 Service Scans (3)</h2>
+            <div id="service-scans" class="collapsible-content">
+
+                <div class="service-group">
+                    <h3 onclick="toggleSection('service-tcp-22-ssh')" class="service-header">
+                        🎯 tcp/22/ssh (1 scans)
+                    </h3>
+                    <div id="service-tcp-22-ssh" class="service-scans-content">
+
+                        <div class="scan-item">
+                            <h4 onclick="toggleSection('service-scan-ssh-enum')" class="scan-header">
+                                🔧 SSH Enumeration (ssh-enum)
+                            </h4>
+                            <div id="service-scan-ssh-enum" class="scan-content">
+                                <div class="commands-executed">
+                                    <h5>Commands Executed:</h5>
+<div class="command"><code>ssh-audit 10.10.10.100</code></div><div class="command"><code>nmap --script ssh-hostkey,ssh-auth-methods -p 22 10.10.10.100</code></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="service-group">
+                    <h3 onclick="toggleSection('service-tcp-80-http')" class="service-header">
+                        🎯 tcp/80/http (2 scans)
+                    </h3>
+                    <div id="service-tcp-80-http" class="service-scans-content">
+
+                        <div class="scan-item">
+                            <h4 onclick="toggleSection('service-scan-nikto')" class="scan-header">
+                                🔧 Nikto Web Scanner (nikto)
+                            </h4>
+                            <div id="service-scan-nikto" class="scan-content">
+                                <div class="commands-executed">
+                                    <h5>Commands Executed:</h5>
+<div class="command"><code>nikto -h http://10.10.10.100 -output /scans/tcp80/nikto.txt</code></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="scan-item">
+                            <h4 onclick="toggleSection('service-scan-dirb')" class="scan-header">
+                                🔧 Directory Brute Force (dirb)
+                            </h4>
+                            <div id="service-scan-dirb" class="scan-content">
+                                <div class="commands-executed">
+                                    <h5>Commands Executed:</h5>
+<div class="command"><code>dirb http://10.10.10.100/ /usr/share/wordlists/dirb/common.txt -o /scans/tcp80/dirb.txt</code></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        
+        <div class="section">
+            <h2 onclick="toggleSection('special-files')" class="collapsible">📋 Key Files & Logs (3)</h2>
+            <div id="special-files" class="collapsible-content">
+
+                <div class="special-file">
+                    <h3 onclick="toggleSection('file-manual-commands')" class="file-header">
+                        📄 Manual Commands (4 lines)
+                    </h3>
+                    <div id="file-manual-commands" class="file-content">
+                        <pre class="file-text"># Manual commands to run:
+ssh root@10.10.10.100
+hydra -l admin -P /usr/share/wordlists/rockyou.txt 10.10.10.100 ssh
+gobuster dir -u http://10.10.10.100 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+</pre>
+                    </div>
+                </div>
+
+                <div class="special-file">
+                    <h3 onclick="toggleSection('file-pattern-matches')" class="file-header">
+                        📄 Pattern Matches (3 lines)
+                    </h3>
+                    <div id="file-pattern-matches" class="file-content">
+                        <pre class="file-text">[PATTERN] Password found in config: admin:password123
+[PATTERN] Interesting file detected: /backup/database.sql
+[PATTERN] Potential vulnerability: SQL injection in login form
+</pre>
+                    </div>
+                </div>
+
+                <div class="special-file">
+                    <h3 onclick="toggleSection('file-all-commands')" class="file-header">
+                        📄 All Commands (4 lines)
+                    </h3>
+                    <div id="file-all-commands" class="file-content">
+                        <pre class="file-text">[2024-01-15 14:30:22] nmap -vv --reason -Pn -T4 --top-ports 1000 10.10.10.100
+[2024-01-15 14:32:15] nmap -vv --reason -Pn -A --script=default,discovery,vuln -p 22,80,443,3389 10.10.10.100
+[2024-01-15 14:35:30] nikto -h http://10.10.10.100
+[2024-01-15 14:37:45] dirb http://10.10.10.100/ /usr/share/wordlists/dirb/common.txt
+</pre>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        
+        <div class="section">
+            <h2 onclick="toggleSection('detailed-results')" class="collapsible">📁 Detailed Scan Results (2 files)</h2>
+            <div id="detailed-results" class="collapsible-content">
+                <div class="files-grid">
+
+                <div class="file-group">
+                    <h3 onclick="toggleSection('dir-tcp80')" class="dir-header">
+                        📁 tcp80/ (2 files)
+                    </h3>
+                    <div id="dir-tcp80" class="dir-content">
+
+                        <div class="result-file">
+                            <h4 onclick="toggleSection('file-tcp80-nikto-txt')" class="file-header">
+                                📄 nikto.txt (854 chars)
+                            </h4>
+                            <div id="file-tcp80-nikto-txt" class="file-content">
+                                <div class="file-info">
+                                    <strong>Path:</strong> tcp80/nikto.txt<br>
+                                    <strong>Size:</strong> 854 characters, 17 lines
+                                </div>
+                                <pre class="file-text">- Nikto v2.1.6
+---------------------------------------------------------------------------
++ Target IP:          10.10.10.100
++ Target Hostname:    10.10.10.100
++ Target Port:        80
++ Start Time:         2024-01-15 14:35:30 (GMT-5)
+---------------------------------------------------------------------------
++ Server: Apache/2.4.41 (Ubuntu)
++ The anti-clickjacking X-Frame-Options header is not present.
++ The X-XSS-Protection header is not defined.
++ Uncommon header &#x27;x-ob_mode&#x27; found, with contents: 1
++ No CGI Directories found (use &#x27;-C all&#x27; to force check all possible dirs)
++ Apache/2.4.41 appears to be outdated (current is at least Apache/2.4.46).
++ Allowed HTTP Methods: GET, POST, OPTIONS, HEAD 
++ /admin/: Admin login page/section found.
++ /backup/: Backup directory found.
++ 7889 requests: 0 error(s) and 6 item(s) reported on remote host
+</pre>
+                            </div>
+                        </div>
+
+                        <div class="result-file">
+                            <h4 onclick="toggleSection('file-tcp80-dirb-txt')" class="file-header">
+                                📄 dirb.txt (681 chars)
+                            </h4>
+                            <div id="file-tcp80-dirb-txt" class="file-content">
+                                <div class="file-info">
+                                    <strong>Path:</strong> tcp80/dirb.txt<br>
+                                    <strong>Size:</strong> 681 characters, 22 lines
+                                </div>
+                                <pre class="file-text">DIRB v2.22    
+By The Dark Raver
+
+START_TIME: Mon Jan 15 14:37:45 2024
+URL_BASE: http://10.10.10.100/
+WORDLIST_FILES: /usr/share/wordlists/dirb/common.txt
+
+-----------------
+
+GENERATED WORDS: 4612                                                          
+
+---- Scanning URL: http://10.10.10.100/ ----
++ http://10.10.10.100/admin (CODE:200|SIZE:1234)
++ http://10.10.10.100/backup (CODE:301|SIZE:312)  
++ http://10.10.10.100/config (CODE:403|SIZE:277)
++ http://10.10.10.100/images (CODE:301|SIZE:313)
++ http://10.10.10.100/index (CODE:200|SIZE:10918)
++ http://10.10.10.100/uploads (CODE:301|SIZE:314)
+
+-----------------
+END_TIME: Mon Jan 15 14:40:12 2024
+DOWNLOADED: 4612 - FOUND: 6
+</pre>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="footer">
+            <hr>
+            <p>📋 Generated by <strong>ipcrawler Rich Summary</strong> plugin on 2025-06-10 at 21:26:39</p>
+            <p>🔍 Based on AutoRecon by Tib3rius | Enhanced for OSCP & CTF environments</p>
+        </div>
+        
+    </div>
+    
+    <script>
+        
+        function toggleSection(sectionId) {
+            const content = document.getElementById(sectionId);
+            if (content) {
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                } else {
+                    content.style.display = 'none';
+                }
+            }
+        }
+        
+        // Initialize all sections as expanded
+        document.addEventListener('DOMContentLoaded', function() {
+            const collapsibleContents = document.querySelectorAll('.collapsible-content');
+            collapsibleContents.forEach(content => {
+                content.style.display = 'block';
+            });
+        });
+        
+    </script>
+</body>
+</html>

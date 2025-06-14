@@ -1,0 +1,36 @@
+Ignoring racc-1.8.1 because its extensions are not built. Try: gem pristine racc --version 1.8.1
+WhatWeb report for https://example.com:443
+Status    : 200 OK
+Title     : Example Domain
+IP        : 96.7.128.175
+Country   : UNITED STATES, US
+
+Summary   : HTML5, UncommonHeaders[alt-svc]
+
+Detected Plugins:
+[ HTML5 ]
+	HTML version 5, detected by the doctype declaration
+
+
+[ UncommonHeaders ]
+	Uncommon HTTP server headers. The blacklist includes all
+	the standard headers and many non standard but common ones.
+	Interesting but fairly common headers should have their own
+	plugins, eg. x-powered-by, server and x-aspnet-version.
+	Info about headers can be found at www.http-stats.com
+
+	String       : alt-svc (from headers)
+
+HTTP Headers:
+	HTTP/1.1 200 OK
+	Accept-Ranges: bytes
+	Content-Type: text/html
+	ETag: "84238dfc8092e5d9c0dac8ef93371a07:1736799080.121134"
+	Last-Modified: Mon, 13 Jan 2025 20:11:20 GMT
+	Content-Length: 1256
+	Cache-Control: max-age=1388
+	Date: Fri, 13 Jun 2025 23:51:01 GMT
+	Alt-Svc: h3=":443"; ma=93600,h3-29=":443"; ma=93600,quic=":443"; ma=93600; v="43"
+	Connection: close
+
+

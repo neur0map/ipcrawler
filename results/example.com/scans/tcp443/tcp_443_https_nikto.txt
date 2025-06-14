@@ -1,0 +1,23 @@
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Multiple IPs found: 96.7.128.198, 23.215.0.136, 23.215.0.138, 23.192.228.80, 23.192.228.84, 96.7.128.175
++ Target IP:          96.7.128.198
++ Target Hostname:    example.com
++ Target Port:        443
+---------------------------------------------------------------------------
++ SSL Info:        Subject:  /C=US/ST=California/L=Los Angeles/O=Internet Corporation for Assigned Names and Numbers/CN=*.example.com
+                   Altnames: *.example.com, example.com
+                   Ciphers:  AEAD-CHACHA20-POLY1305-SHA256
+                   Issuer:   /C=US/O=DigiCert Inc/CN=DigiCert Global G3 TLS ECC SHA384 2020 CA1
++ Start Time:         2025-06-13 19:50:59 (GMT-4)
+---------------------------------------------------------------------------
++ Server: No banner retrieved
++ /: The anti-clickjacking X-Frame-Options header is not present. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
++ /: The site uses TLS and the Strict-Transport-Security HTTP header is not defined. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
++ /: An alt-svc header was found which is advertising HTTP/3. The endpoint is: ':443'. Nikto cannot test HTTP/3 over QUIC. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/alt-svc
++ /: The X-Content-Type-Options header is not set. This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/
++ No CGI Directories found (use '-C all' to force check all possible dirs)
++ Server is using a wildcard certificate: *.example.com. See: https://en.wikipedia.org/wiki/Wildcard_certificate
++ : Server banner changed from 'AkamaiNetStorage' to 'AkamaiGHost'.
++ /: The Content-Encoding header is set to "deflate" which may mean that the server is vulnerable to the BREACH attack. See: http://breachattack.com/
++ Storage - Try to login with 'admin' or 'monitor'.

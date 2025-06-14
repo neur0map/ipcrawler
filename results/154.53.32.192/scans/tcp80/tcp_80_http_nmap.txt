@@ -1,0 +1,76 @@
+# Nmap 7.97 scan initiated Fri Jun 13 19:51:21 2025 as: nmap -vv --reason -Pn -T4 -sV -p 80 "--script=banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)" -oN /Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/tcp_80_http_nmap.txt -oX /Users/carlosm/Documents/ipcrawler/results/154.53.32.192/scans/tcp80/xml/tcp_80_http_nmap.xml 154.53.32.192
+Nmap scan report for vmi2439677.contaboserver.net (154.53.32.192)
+Host is up, received user-set (0.013s latency).
+Scanned at 2025-06-13 19:51:22 EDT for 96s
+
+PORT   STATE SERVICE REASON         VERSION
+80/tcp open  http    syn-ack ttl 55 Golang net/http server (Go-IPFS json-rpc or InfluxDB API)
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+|_http-date: Fri, 13 Jun 2025 23:51:33 GMT; 0s from local time.
+|_http-drupal-enum: Nothing found amongst the top 100 resources,use --script-args number=<number|all> for deeper analysis)
+|_http-referer-checker: Couldn't find any cross-domain scripts.
+|_http-fetch: Please enter the complete path of the directory to save data in.
+|_http-comments-displayer: Couldn't find any comments.
+|_http-litespeed-sourcecode-download: Request with null byte did not work. This web server might not be vulnerable
+| http-security-headers: 
+|   X_Content_Type_Options: 
+|     Header: X-Content-Type-Options: nosniff
+|_    Description: Will prevent the browser from MIME-sniffing a response away from the declared content-type. 
+| http-useragent-tester: 
+|   Status for browser useragent: 404
+|   Allowed User Agents: 
+|     Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)
+|     libwww
+|     lwp-trivial
+|     libcurl-agent/1.0
+|     PHP/
+|     Python-urllib/2.5
+|     GT::WWW
+|     Snoopy
+|     MFC_Tear_Sample
+|     HTTP::Lite
+|     PHPCrawl
+|     URI::Fetch
+|     Zend_Http_Client
+|     http client
+|     PECL::HTTP
+|     Wget/1.13.4 (linux-gnu)
+|_    WWW-Mechanize/1.34
+|_http-jsonp-detection: Couldn't find any JSONP endpoints.
+|_http-wordpress-users: [Error] Wordpress installation was not found. We couldn't find wp-login.php
+|_http-mobileversion-checker: No mobile version detected.
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+| http-headers: 
+|   Content-Type: text/plain; charset=utf-8
+|   X-Content-Type-Options: nosniff
+|   Date: Fri, 13 Jun 2025 23:51:34 GMT
+|   Content-Length: 19
+|   Connection: close
+|   
+|_  (Request type: GET)
+|_http-chrono: Request times for /; avg: 237.22ms; min: 163.78ms; max: 393.97ms
+| http-errors: 
+| Spidering limited to: maxpagecount=40; withinhost=vmi2439677.contaboserver.net
+|   Found the following error pages: 
+|   
+|   Error Code: 404
+|_  	http://vmi2439677.contaboserver.net:80/
+| http-sitemap-generator: 
+|   Directory structure:
+|   Longest directory structure:
+|     Depth: 0
+|     Dir: /
+|   Total files found (by extension):
+|_    
+|_http-devframework: Couldn't determine the underlying framework or CMS. Try increasing 'httpspider.maxpagecount' value to spider more pages.
+|_http-feed: Couldn't find any feeds.
+|_http-wordpress-enum: Nothing found amongst the top 100 resources,use --script-args search-limit=<number|all> for deeper analysis)
+|_http-title: Site doesn't have a title (text/plain; charset=utf-8).
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+| http-vhosts: 
+|_128 names had status 404
+|_http-malware-host: Host appears to be clean
+
+Read data files from: /opt/homebrew/bin/../share/nmap
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Fri Jun 13 19:52:58 2025 -- 1 IP address (1 host up) scanned in 96.69 seconds
