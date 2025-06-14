@@ -87,7 +87,7 @@ echo 🔧 Verifying all security tools are working...
 echo.
 
 REM Test key tools in a temporary container
-docker run --rm ipcrawler bash -c "echo 'Testing critical tools...' && if command -v sslscan >/dev/null 2>&1; then echo 'checkmark sslscan: Available'; else echo 'cross sslscan: Missing'; fi && if command -v whatweb >/dev/null 2>&1; then if whatweb --help >/dev/null 2>&1; then echo 'checkmark whatweb: Working'; else echo 'cross whatweb: Available but broken'; fi; else echo 'cross whatweb: Missing'; fi && if command -v nikto >/dev/null 2>&1; then echo 'checkmark nikto: Available'; else echo 'cross nikto: Missing'; fi && if command -v feroxbuster >/dev/null 2>&1; then echo 'checkmark feroxbuster: Available'; else echo 'cross feroxbuster: Missing'; fi && echo '' && echo 'Tool verification complete!'"
+docker run --rm ipcrawler /show-tools.sh
 
 echo.
 echo 🚀 Starting ipcrawler Docker terminal...
@@ -115,7 +115,7 @@ echo.
 REM Run the container with Windows-optimized settings
 docker run -it --rm ^
     -v "%cd%\results:/scans" ^
-    -w /opt/ipcrawler ^
+    -w /scans ^
     --name "ipcrawler-session-%timestamp%" ^
     --platform linux/amd64 ^
     ipcrawler bash

@@ -123,42 +123,8 @@ build_ipcrawler_image() {
 verify_tools_in_container() {
     echo "🔧 Verifying all security tools are working..."
     
-    # Test key tools in a temporary container
-    docker run --rm ipcrawler bash -c "
-        echo '🧪 Testing critical tools...'
-        
-        # Test tools that were causing issues
-        if command -v sslscan >/dev/null 2>&1; then
-            echo '✅ sslscan: Available'
-        else
-            echo '❌ sslscan: Missing'
-        fi
-        
-        if command -v whatweb >/dev/null 2>&1; then
-            if whatweb --help >/dev/null 2>&1; then
-                echo '✅ whatweb: Working'
-            else
-                echo '❌ whatweb: Available but broken'
-            fi
-        else
-            echo '❌ whatweb: Missing'
-        fi
-        
-        if command -v nikto >/dev/null 2>&1; then
-            echo '✅ nikto: Available'
-        else
-            echo '❌ nikto: Missing'
-        fi
-        
-        if command -v feroxbuster >/dev/null 2>&1; then
-            echo '✅ feroxbuster: Available'
-        else
-            echo '❌ feroxbuster: Missing'
-        fi
-        
-        echo ''
-        echo '🎯 Tool verification complete!'
-    "
+    # Use the comprehensive tool verification script
+    docker run --rm ipcrawler /show-tools.sh
 }
 
 get_platform_info() {
@@ -223,7 +189,7 @@ start_docker_terminal() {
     # Run the container with platform-optimized settings
     docker run -it --rm \
         -v "$RESULTS_DIR:/scans" \
-        -w /opt/ipcrawler \
+        -w /scans \
         --name "ipcrawler-session-$(date +%s)" \
         --platform linux/amd64 \
         ipcrawler bash

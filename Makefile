@@ -21,7 +21,8 @@ docker-cmd:
 	@echo "Results will be saved to: $$(pwd)/results"
 	@echo "Type 'exit' to leave the container"
 	@echo ""
-	docker run -it --rm -v "$$(pwd)/results:/scans" ipcrawler || true
+	@mkdir -p results
+	docker run -it --rm -v "$$(pwd)/results:/scans" -w /scans ipcrawler || true
 
 help:
 	@echo "Available make commands:"
