@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo       ipcrawler Windows Launcher
+echo       ipcrawler Windows Launcher DEBUG
 echo ========================================
 echo 🪟 Cross-Platform Docker Setup for Windows
 echo.
