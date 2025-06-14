@@ -1,0 +1,114 @@
+name: 🚀 Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: 🎯 Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐍 Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+        pip install -r requirements.txt
+
+    - name: 🏗️ Build distribution packages
+      run: |
+        python -m build
+
+    - name: 📝 Extract release notes
+      id: extract-release-notes
+      run: |
+        # Extract version from tag
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        
+        # Try to extract release notes from CHANGELOG.md
+        if [ -f CHANGELOG.md ]; then
+          # Extract the section for this version
+          awk "/^## \[?v?$VERSION\]?|^## $VERSION/{flag=1; next} /^## /{flag=0} flag" CHANGELOG.md > release-notes.md
+          if [ -s release-notes.md ]; then
+            echo "Found release notes in CHANGELOG.md"
+          else
+            echo "No specific release notes found, using generic message"
+            echo "Release version $VERSION" > release-notes.md
+          fi
+        else
+          echo "Release version $VERSION" > release-notes.md
+        fi
+
+    - name: 🎉 Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: IPCrawler ${{ steps.extract-release-notes.outputs.VERSION }}
+        body_path: release-notes.md
+        draft: false
+        prerelease: false
+
+    - name: 📤 Upload release assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: dist/
+        asset_name: ipcrawler-${{ steps.extract-release-notes.outputs.VERSION }}-dist.tar.gz
+        asset_content_type: application/gzip
+
+  docker-release:
+    name: 🐳 Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: release
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🔐 Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: 📝 Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKERHUB_USERNAME }}/ipcrawler
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+
+    - name: 🏗️ Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max 

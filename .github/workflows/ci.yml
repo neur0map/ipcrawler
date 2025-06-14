@@ -1,0 +1,187 @@
+name: 🔍 Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-and-security:
+    name: 🧹 Lint & Security Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, '3.10', '3.11']
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐍 Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black pylint bandit safety mypy
+        pip install -r requirements.txt
+
+    - name: 🎨 Check code formatting with Black
+      run: |
+        black --check --diff ipcrawler/
+      continue-on-error: false
+
+    - name: 📏 Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 ipcrawler/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings. GitHub editor is 127 chars wide
+        flake8 ipcrawler/ --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
+
+    - name: 🔍 Advanced linting with Pylint
+      run: |
+        pylint ipcrawler/ --exit-zero --score=yes --reports=yes
+      continue-on-error: true
+
+    - name: 🔒 Security scan with Bandit
+      run: |
+        bandit -r ipcrawler/ -f json -o bandit-report.json || true
+        bandit -r ipcrawler/ -ll --exit-zero
+
+    - name: 🛡️ Check dependencies for vulnerabilities
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check --short-report
+
+    - name: 📝 Type checking with mypy
+      run: |
+        mypy ipcrawler/ --ignore-missing-imports --no-strict-optional
+      continue-on-error: true
+
+    - name: 📊 Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports-py${{ matrix.python-version }}
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  validate-structure:
+    name: 🏗️ Validate Project Structure
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐍 Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: 📦 Install project
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: ✅ Check if main module imports correctly
+      run: |
+        python -c "import ipcrawler; print('✅ Main module imports successfully')"
+
+    - name: 🔧 Validate configuration files
+      run: |
+        python -c "
+        import toml
+        import os
+        
+        # Check if config files are valid TOML
+        config_files = ['ipcrawler/config.toml', 'ipcrawler/global.toml']
+        for config_file in config_files:
+            if os.path.exists(config_file):
+                try:
+                    toml.load(config_file)
+                    print(f'✅ {config_file} is valid TOML')
+                except Exception as e:
+                    print(f'❌ {config_file} is invalid: {e}')
+                    exit(1)
+        "
+
+    - name: 📋 Check project metadata
+      run: |
+        python -c "
+        import toml
+        
+        # Validate pyproject.toml
+        pyproject = toml.load('pyproject.toml')
+        
+        required_fields = ['name', 'version', 'description', 'authors']
+        for field in required_fields:
+            if field not in pyproject['tool']['poetry']:
+                print(f'❌ Missing required field: {field}')
+                exit(1)
+            else:
+                print(f'✅ Found {field}: {pyproject[\"tool\"][\"poetry\"][field]}')
+        
+        print('✅ Project metadata is valid')
+        "
+
+  docker-test:
+    name: 🐳 Docker Build Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🏗️ Build Docker image
+      run: |
+        docker build -t ipcrawler:test .
+
+    - name: 🧪 Test Docker image
+      run: |
+        # Test if the container can be created and basic commands work
+        docker run --rm ipcrawler:test python -c "import ipcrawler; print('✅ Docker image works')"
+
+  code-quality:
+    name: 📊 Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐍 Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: 📦 Install analysis tools
+      run: |
+        pip install radon vulture complexity
+
+    - name: 📏 Calculate code complexity
+      run: |
+        echo "## Code Complexity Report" >> complexity-report.md
+        echo "### Cyclomatic Complexity" >> complexity-report.md
+        radon cc ipcrawler/ -a -s >> complexity-report.md
+        echo "" >> complexity-report.md
+        echo "### Maintainability Index" >> complexity-report.md
+        radon mi ipcrawler/ -s >> complexity-report.md
+
+    - name: 🔍 Find dead code
+      run: |
+        vulture ipcrawler/ --exclude=venv --min-confidence=80
+      continue-on-error: true
+
+    - name: 📊 Upload complexity report
+      uses: actions/upload-artifact@v3
+      with:
+        name: code-quality-report
+        path: complexity-report.md 
