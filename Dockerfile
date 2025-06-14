@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3-slim
 
 # Install core system tools and available security tools
 RUN apt-get update && apt-get install -y \
