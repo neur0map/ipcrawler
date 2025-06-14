@@ -11,7 +11,6 @@ urllib3.disable_warnings()
 
 
 class VHostRedirectHunter(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "VHost Redirect Hunter"

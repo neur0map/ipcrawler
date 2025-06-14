@@ -19,7 +19,6 @@ except ImportError:
 
 
 class VHostPostProcessor:
-
     def __init__(self, scan_directories):
         # Handle both single directory (string) and multiple directories (list)
         if isinstance(scan_directories, str):

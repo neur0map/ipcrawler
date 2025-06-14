@@ -6,14 +6,12 @@ from ipcrawler.targets import Service
 
 
 class Pattern:
-
     def __init__(self, pattern, description=None):
         self.pattern = pattern
         self.description = description
 
 
 class Plugin(object):
-
     def __init__(self):
         self.name = None
         self.slug = None
@@ -114,7 +112,6 @@ class Plugin(object):
 
 
 class PortScan(Plugin):
-
     def __init__(self):
         super().__init__()
         self.type = None
@@ -125,7 +122,6 @@ class PortScan(Plugin):
 
 
 class ServiceScan(Plugin):
-
     def __init__(self):
         super().__init__()
         self.ports = {"tcp": [], "udp": []}
@@ -221,13 +217,11 @@ class ServiceScan(Plugin):
 
 
 class Report(Plugin):
-
     def __init__(self):
         super().__init__()
 
 
 class ipcrawler(object):
-
     def __init__(self):
         self.pending_targets = []
         self.scanning_targets = []
@@ -320,7 +314,6 @@ class ipcrawler(object):
             fail('Error: plugin slug "' + plugin.slug + '" in ' + filename + " is a protected string. Please change.")
 
         if plugin.slug not in self.plugins:
-
             for _, loaded_plugin in self.plugins.items():
                 if plugin is loaded_plugin:
                     fail(

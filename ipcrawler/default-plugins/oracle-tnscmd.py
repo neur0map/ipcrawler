@@ -3,7 +3,6 @@ from shutil import which
 
 
 class OracleTNScmd(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Oracle TNScmd"

@@ -3,7 +3,6 @@ from shutil import which
 
 
 class Enum4Linux(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Enum4Linux"

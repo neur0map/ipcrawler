@@ -2,7 +2,6 @@ from ipcrawler.plugins import ServiceScan
 
 
 class WhatWeb(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "whatweb"

@@ -3,7 +3,6 @@ from shutil import which
 
 
 class DnsRecon(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "DnsRecon Default Scan"

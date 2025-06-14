@@ -2,7 +2,6 @@ from ipcrawler.plugins import ServiceScan
 
 
 class BruteforceHTTP(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Bruteforce HTTP"

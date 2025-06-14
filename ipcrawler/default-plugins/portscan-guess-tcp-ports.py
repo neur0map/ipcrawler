@@ -4,7 +4,6 @@ import re
 
 
 class GuessPortScan(PortScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Guess TCP Ports"

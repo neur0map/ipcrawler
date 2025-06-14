@@ -3,7 +3,6 @@ from shutil import which
 
 
 class DnsReconSubdomainBruteforce(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "DnsRecon Bruteforce Subdomains"

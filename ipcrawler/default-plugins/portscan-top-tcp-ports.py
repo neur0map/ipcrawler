@@ -4,7 +4,6 @@ import requests
 
 
 class QuickTCPPortScan(PortScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Top TCP Ports"

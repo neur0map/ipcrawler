@@ -5,7 +5,6 @@ from datetime import datetime
 
 
 class RichSummary(Report):
-
     def __init__(self):
         super().__init__()
         self.name = "Rich Summary"
@@ -197,10 +196,10 @@ class RichSummary(Report):
             data = all_data[target.address]
             html_doc += f"""
             <div class="target-section">
-                <h3 onclick="toggleSection('target-{target.address.replace('.', '-')}')" class="collapsible">
-                    🎯 {target.address} {data['target_info']['ip']}
+                <h3 onclick="toggleSection('target-{target.address.replace(".", "-")}')" class="collapsible">
+                    🎯 {target.address} {data["target_info"]["ip"]}
                 </h3>
-                <div id="target-{target.address.replace('.', '-')}" class="collapsible-content">
+                <div id="target-{target.address.replace(".", "-")}" class="collapsible-content">
                     {self.generate_executive_summary(target, data)}
                     {self.generate_services_section(data)}
                     {self.generate_port_scans_section(data)}
@@ -231,10 +230,10 @@ class RichSummary(Report):
             <div class="target-info">
                 <h2>🎯 Target: {target.address}</h2>
                 <div class="info-grid">
-                    <div class="info-item"><strong>IP Address:</strong> {data['target_info']['ip']}</div>
-                    <div class="info-item"><strong>IP Version:</strong> {data['target_info']['ipversion']}</div>
-                    <div class="info-item"><strong>Scan Time:</strong> {data['target_info']['scan_time']}</div>
-                    <div class="info-item"><strong>Report Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+                    <div class="info-item"><strong>IP Address:</strong> {data["target_info"]["ip"]}</div>
+                    <div class="info-item"><strong>IP Version:</strong> {data["target_info"]["ipversion"]}</div>
+                    <div class="info-item"><strong>Scan Time:</strong> {data["target_info"]["scan_time"]}</div>
+                    <div class="info-item"><strong>Report Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
                 </div>
             </div>
         </div>
@@ -471,8 +470,8 @@ class RichSummary(Report):
                 <h2>📊 Scanning Summary</h2>
                 <div class="info-grid">
                     <div class="info-item"><strong>Total Targets:</strong> {len(targets)}</div>
-                    <div class="info-item"><strong>Targets:</strong> {', '.join([t.address for t in targets])}</div>
-                    <div class="info-item"><strong>Report Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+                    <div class="info-item"><strong>Targets:</strong> {", ".join([t.address for t in targets])}</div>
+                    <div class="info-item"><strong>Report Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
                 </div>
             </div>
         </div>
@@ -572,9 +571,9 @@ class RichSummary(Report):
             html_overview += f"""
                             <tr>
                                 <td><strong>{target.address}</strong></td>
-                                <td>{data['target_info']['ip']}</td>
+                                <td>{data["target_info"]["ip"]}</td>
                                 <td>{services_count}</td>
-                                <td>{key_services or 'None'}</td>
+                                <td>{key_services or "None"}</td>
                             </tr>
 """
 
@@ -596,7 +595,7 @@ class RichSummary(Report):
 
         html_content = f"""
         <div class="section">
-            <h2 onclick="toggleSection('services')" class="collapsible">🔍 Discovered Services ({len(data['discovered_services'])})</h2>
+            <h2 onclick="toggleSection('services')" class="collapsible">🔍 Discovered Services ({len(data["discovered_services"])})</h2>
             <div id="services" class="collapsible-content">
                 <div class="services-grid">
 """
@@ -638,7 +637,7 @@ class RichSummary(Report):
 
         html_content = f"""
         <div class="section">
-            <h2 onclick="toggleSection('scan-results')" class="collapsible">📊 Scan Results & Findings ({len(data['file_results'])} files)</h2>
+            <h2 onclick="toggleSection('scan-results')" class="collapsible">📊 Scan Results & Findings ({len(data["file_results"])} files)</h2>
             <div id="scan-results" class="collapsible-content">
 """
 
@@ -772,7 +771,7 @@ class RichSummary(Report):
             html_content += f"""
                 <div class="commands-group">
                     <h3 onclick="toggleSection('port-commands')" class="commands-header">
-                        🔍 Port Scan Commands ({len(data['port_scans'])})
+                        🔍 Port Scan Commands ({len(data["port_scans"])})
                     </h3>
                     <div id="port-commands" class="commands-content" style="display: none;">
 """
@@ -780,7 +779,7 @@ class RichSummary(Report):
             for scan_slug, scan_info in data["port_scans"].items():
                 html_content += f"""
                         <div class="command-item">
-                            <h4>{scan_info['plugin_name']} ({scan_slug})</h4>
+                            <h4>{scan_info["plugin_name"]} ({scan_slug})</h4>
 """
 
                 for command in scan_info["commands"]:
@@ -811,7 +810,7 @@ class RichSummary(Report):
                 for plugin_slug, plugin_info in service_scans.items():
                     html_content += f"""
                             <div class="command-item">
-                                <h5>{plugin_info['plugin_name']} ({plugin_slug})</h5>
+                                <h5>{plugin_info["plugin_name"]} ({plugin_slug})</h5>
 """
 
                     for command in plugin_info["commands"]:
@@ -839,7 +838,7 @@ class RichSummary(Report):
 
         html_content = f"""
         <div class="section">
-            <h2 onclick="toggleSection('special-files')" class="collapsible">📋 Key Files & Logs ({len(data['special_files'])})</h2>
+            <h2 onclick="toggleSection('special-files')" class="collapsible">📋 Key Files & Logs ({len(data["special_files"])})</h2>
             <div id="special-files" class="collapsible-content">
 """
 
@@ -848,10 +847,10 @@ class RichSummary(Report):
 
             html_content += f"""
                 <div class="special-file">
-                    <h3 onclick="toggleSection('file-{display_name.replace(' ', '-').lower()}')" class="file-header">
+                    <h3 onclick="toggleSection('file-{display_name.replace(" ", "-").lower()}')" class="file-header">
                         📄 {display_name} ({len(content.splitlines())} lines)
                     </h3>
-                    <div id="file-{display_name.replace(' ', '-').lower()}" class="file-content">
+                    <div id="file-{display_name.replace(" ", "-").lower()}" class="file-content">
                         <pre class="file-text">{content_escaped}</pre>
                     </div>
                 </div>
@@ -872,7 +871,7 @@ class RichSummary(Report):
 
         html_content = f"""
         <div class="section">
-            <h2 onclick="toggleSection('detailed-results')" class="collapsible">📁 Detailed Scan Results ({len(data['file_results'])} files)</h2>
+            <h2 onclick="toggleSection('detailed-results')" class="collapsible">📁 Detailed Scan Results ({len(data["file_results"])} files)</h2>
             <div id="detailed-results" class="collapsible-content">
                 <div class="files-grid">
 """
@@ -933,7 +932,7 @@ class RichSummary(Report):
         return f"""
         <div class="footer">
             <hr>
-            <p>📋 Generated by <strong>ipcrawler Rich Summary</strong> plugin on {datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}</p>
+            <p>📋 Generated by <strong>ipcrawler Rich Summary</strong> plugin on {datetime.now().strftime("%Y-%m-%d at %H:%M:%S")}</p>
             <p>🔍 Based on AutoRecon by Tib3rius | Enhanced for OSCP & CTF environments</p>
         </div>
         """

@@ -609,7 +609,7 @@ class ProgressManager:
     def start(self):
         """Start the progress manager"""
         debug(
-            f'ProgressManager.start() called - RICH_AVAILABLE: {RICH_AVAILABLE}, accessible: {config.get("accessible", False)}',
+            f"ProgressManager.start() called - RICH_AVAILABLE: {RICH_AVAILABLE}, accessible: {config.get('accessible', False)}",
             verbosity=3,
         )
 
@@ -697,7 +697,7 @@ class ProgressManager:
             # Show text progress update occasionally
             if self.tasks[task_id]["completed"] % 20 == 0:  # Every 20%
                 progress_percent = min(100, self.tasks[task_id]["completed"])
-                info(f'⏳ Progress: {self.tasks[task_id]["description"]} - {progress_percent:.0f}%', verbosity=2)
+                info(f"⏳ Progress: {self.tasks[task_id]['description']} - {progress_percent:.0f}%", verbosity=2)
 
     def complete_task(self, task_id):
         """Complete a task and schedule its removal"""
@@ -721,7 +721,7 @@ class ProgressManager:
             # Let Rich handle the completion display
         else:
             # Show text completion message
-            info(f'✅ Completed: {task["description"]} (took {elapsed:.1f}s)', verbosity=2)
+            info(f"✅ Completed: {task['description']} (took {elapsed:.1f}s)", verbosity=2)
 
         # Schedule removal
         asyncio.create_task(self._remove_task_after_delay(task_id))
@@ -794,7 +794,7 @@ class ProgressManager:
 
                     # Show progress updates every 30% or so
                     if progress_percent - last_progress_report >= 30:
-                        info(f'⏳ Progress: {self.tasks[task_id]["description"]} - {progress_percent:.0f}%', verbosity=2)
+                        info(f"⏳ Progress: {self.tasks[task_id]['description']} - {progress_percent:.0f}%", verbosity=2)
                         last_progress_report = progress_percent
                         update_count += 1
 
@@ -993,7 +993,6 @@ vhost_manager = VHostManager()
 
 
 class CommandStreamReader(object):
-
     def __init__(self, stream, target, tag, patterns=None, outfile=None):
         self.stream = stream
         self.target = target

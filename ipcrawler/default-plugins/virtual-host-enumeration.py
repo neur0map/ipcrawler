@@ -6,7 +6,6 @@ urllib3.disable_warnings()
 
 
 class VirtualHost(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Virtual Host Enumeration"

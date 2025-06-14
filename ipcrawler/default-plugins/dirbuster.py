@@ -5,7 +5,6 @@ import os
 
 
 class DirBuster(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Directory Buster"

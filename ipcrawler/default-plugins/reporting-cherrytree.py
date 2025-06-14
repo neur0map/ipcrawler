@@ -5,7 +5,6 @@ import os, glob
 
 
 class CherryTree(Report):
-
     def __init__(self):
         super().__init__()
         self.name = "CherryTree"

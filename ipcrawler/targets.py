@@ -5,7 +5,6 @@ from ipcrawler.io import e, info, warn, error
 
 
 class Target:
-
     def __init__(self, address, ip, ipversion, type, ipcrawler):
         self.address = address
         self.ip = ip
@@ -118,7 +117,6 @@ class Target:
 
 
 class Service:
-
     def __init__(self, protocol, port, name, secure=False):
         self.target = None
         self.protocol = protocol.lower()

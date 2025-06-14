@@ -29,73 +29,10 @@ ipcrawler = "ipcrawler.main:main"
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-# Black code formatting configuration
-[tool.black]
+# Ruff - Modern Python linting and formatting
+[tool.ruff]
+target-version = "py39"
 line-length = 127
-target-version = ['py38', 'py39', 'py310', 'py311']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | __pycache__
-)/
-'''
-
-# Flake8 configuration
-[tool.flake8]
-max-line-length = 127
-max-complexity = 15
-exclude = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    "venv",
-    ".venv",
-    ".eggs",
-    "*.egg",
-]
-ignore = [
-    "E203",  # whitespace before ':'
-    "E501",  # line too long (handled by black)
-    "W503",  # line break before binary operator
-]
-
-# Pylint configuration
-[tool.pylint.messages_control]
-disable = [
-    "C0103",  # invalid-name
-    "C0114",  # missing-module-docstring
-    "C0115",  # missing-class-docstring
-    "C0116",  # missing-function-docstring
-    "R0903",  # too-few-public-methods
-    "R0913",  # too-many-arguments
-    "W0613",  # unused-argument
-]
-
-[tool.pylint.format]
-max-line-length = 127
-
-# MyPy configuration
-[tool.mypy]
-python_version = "3.8"
-ignore_missing_imports = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-check_untyped_defs = false
-warn_redundant_casts = true
-warn_unused_ignores = true
-show_error_codes = true
 
 # Bandit security configuration
 [tool.bandit]

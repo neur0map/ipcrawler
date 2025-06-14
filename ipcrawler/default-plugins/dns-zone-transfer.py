@@ -2,7 +2,6 @@ from ipcrawler.plugins import ServiceScan
 
 
 class DNSZoneTransfer(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "DNS Zone Transfer"

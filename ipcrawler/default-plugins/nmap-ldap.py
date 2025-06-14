@@ -2,7 +2,6 @@ from ipcrawler.plugins import ServiceScan
 
 
 class NmapLDAP(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Nmap LDAP"

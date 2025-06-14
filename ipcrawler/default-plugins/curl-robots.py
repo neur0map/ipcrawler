@@ -3,7 +3,6 @@ from ipcrawler.io import fformat
 
 
 class CurlRobots(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Curl Robots"

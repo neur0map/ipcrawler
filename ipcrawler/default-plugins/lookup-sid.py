@@ -2,7 +2,6 @@ from ipcrawler.plugins import ServiceScan
 
 
 class LookupSID(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "lookupsid"

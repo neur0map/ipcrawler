@@ -878,7 +878,6 @@ async def get_semaphore(ipcrawler):
         # If service scan semaphore is locked, see if we can use port scan semaphore.
         if semaphore.locked():
             if semaphore != ipcrawler.port_scan_semaphore:  # This will be true unless user sets max_scans == max_port_scans
-
                 port_scan_task_count = 0
                 for target in ipcrawler.scanning_targets:
                     for process_list in target.running_tasks.values():
@@ -1839,7 +1838,6 @@ async def scan_target(target):
     elapsed_time = calculate_elapsed_time(start_time)
 
     if timed_out:
-
         for task in pending:
             task.cancel()
 
@@ -2140,7 +2138,6 @@ async def run():
     for plugins_dir in plugins_dirs:
         for plugin_file in sorted(os.listdir(plugins_dir)):
             if not plugin_file.startswith("_") and plugin_file.endswith(".py"):
-
                 dirname, filename = os.path.split(os.path.join(plugins_dir, plugin_file))
                 dirname = os.path.abspath(dirname)
 
@@ -2815,7 +2812,6 @@ async def run():
             else:
                 fail("This should never happen unless IPv8 is invented.")
         except ValueError:
-
             try:
                 target_range = ipaddress.ip_network(target, strict=False)
                 if not args.disable_sanity_checks and target_range.num_addresses > 256:
@@ -2847,7 +2843,6 @@ async def run():
                             fail("This should never happen unless IPv8 is invented.")
 
             except ValueError:
-
                 try:
                     addresses = socket.getaddrinfo(target, None, socket.AF_INET)
                     ip = addresses[0][4][0]

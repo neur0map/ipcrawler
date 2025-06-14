@@ -3,7 +3,6 @@ from ipcrawler.io import fformat
 
 
 class WinRMDetection(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "WinRM Detection"

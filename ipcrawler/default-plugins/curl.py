@@ -5,7 +5,6 @@ import re
 
 
 class Curl(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Curl"
@@ -52,7 +51,6 @@ class Curl(ServiceScan):
                             and not hostname.startswith("www.example")
                             and not hostname.endswith(".local")
                         ):
-
                             service.info(f"🌐 Potential VHost detected in response: {hostname}")
 
                             # Try to auto-add if conditions are met

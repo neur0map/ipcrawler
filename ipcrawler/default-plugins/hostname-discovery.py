@@ -7,7 +7,6 @@ urllib3.disable_warnings()
 
 
 class RedirectHostnameDiscovery(ServiceScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Redirect Hostname Discovery"

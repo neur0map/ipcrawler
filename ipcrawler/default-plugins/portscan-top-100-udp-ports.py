@@ -4,7 +4,6 @@ import os, re
 
 
 class Top100UDPPortScan(PortScan):
-
     def __init__(self):
         super().__init__()
         self.name = "Top 100 UDP Ports"
