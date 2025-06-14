@@ -11,6 +11,12 @@ RUN apt-get update && apt-get install -y \
     netcat-traditional dnsutils whois host \
     # Additional tools available in Debian
     hydra john binwalk exiftool \
+    # SNMP tools
+    snmp snmp-mibs-downloader \
+    # NFS tools  
+    nfs-common \
+    # RPC tools
+    rpcbind \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -20,7 +26,10 @@ RUN echo "Installing additional security tools..." && \
     echo "deb http://http.kali.org/kali kali-rolling main non-free contrib" > /etc/apt/sources.list.d/kali.list && \
     curl -fsSL https://archive.kali.org/archive-key.asc | apt-key add - && \
     apt-get update && \
-    apt-get install -y --no-install-recommends nikto enum4linux sqlmap 2>/dev/null || \
+    apt-get install -y --no-install-recommends \
+        nikto enum4linux enum4linux-ng smbmap onesixtyone \
+        dirb dirsearch ffuf medusa wpscan sipvicious \
+        oscanner tnscmd10g 2>/dev/null || \
     echo "Some Kali tools unavailable, continuing..." && \
     rm -f /etc/apt/sources.list.d/kali.list && \
     apt-get clean && \
@@ -39,6 +48,10 @@ RUN echo "Installing feroxbuster..." && \
     curl -sL https://github.com/epi052/feroxbuster/releases/latest/download/x86_64-linux-feroxbuster.tar.gz | tar -xz -C /usr/local/bin 2>/dev/null && \
     chmod +x /usr/local/bin/feroxbuster
 
+# Install Python-based tools via pip
+RUN echo "Installing Python security tools..." && \
+    pip install --no-cache-dir impacket
+
 # Copy the local ipcrawler source code
 COPY . /app
 WORKDIR /app
@@ -55,11 +68,16 @@ RUN echo '#!/bin/bash\n\
 echo "🔍 Comprehensive security toolkit installed:"\n\
 echo ""\n\
 echo "✅ Port Scanning: nmap, nbtscan"\n\
-echo "✅ Web Discovery: gobuster, feroxbuster, nikto"\n\
-echo "✅ Web Analysis: whatweb, sslscan"\n\
-echo "✅ SMB/Network: smbclient, enum4linux, redis-tools"\n\
+echo "✅ Web Discovery: gobuster, feroxbuster, dirb, dirsearch, ffuf, nikto"\n\
+echo "✅ Web Analysis: whatweb, sslscan, wpscan"\n\
+echo "✅ SMB/Network: smbclient, smbmap, enum4linux, enum4linux-ng, redis-tools"\n\
 echo "✅ DNS: dnsrecon, dnsutils, host, whois"\n\
-echo "✅ Exploitation: hydra, john, sqlmap"\n\
+echo "✅ SNMP: onesixtyone, snmpwalk"\n\
+echo "✅ RPC/Windows: impacket tools, rpcclient"\n\
+echo "✅ NFS: showmount"\n\
+echo "✅ Oracle: oscanner, tnscmd10g"\n\
+echo "✅ SIP: sipvicious (svwar)"\n\
+echo "✅ Exploitation: hydra, medusa, john"\n\
 echo "✅ Forensics: binwalk, exiftool"\n\
 echo "✅ Network: netcat"\n\
 echo ""\n\
