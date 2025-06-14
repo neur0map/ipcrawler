@@ -139,7 +139,7 @@ for /f "tokens=1-4 delims=:.," %%a in ("%time%") do (
 
 echo 🐳 Starting Docker container...
 echo Command: docker run -it --rm -v "%cd%\results:/scans" -w /scans --name "ipcrawler-session-%timestamp%" ipcrawler bash
-echo Press Ctrl+C if you need to exit
+echo Press Ctrl+C to exit the container, or type 'exit' and press Enter
 echo.
 
 REM Run the container with debug info
