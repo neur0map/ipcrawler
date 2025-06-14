@@ -1,6 +1,9 @@
-# 🕷️ ipcrawler
+# 🕷️ IPCrawler
 
-**Automated network reconnaissance tool** - A streamlined fork of [AutoRecon](https://github.com/Tib3rius/AutoRecon) with easier setup and enhanced output.
+**Automated network reconnaissance tool for penetration testing and CTFs**
+
+⚡ Originally based on [AutoRecon](https://github.com/Tib3rius/AutoRecon) by [Tib3rius](https://github.com/Tib3rius).  
+IPCrawler has since evolved into a standalone tool with simplified setup and enhanced output.
 
 ![Version](https://img.shields.io/badge/Version-v2.1.0-brightgreen) ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
 
@@ -136,7 +139,10 @@ make clean  # Removes everything except scan results
 
 ## 🙏 Credits
 
-Built on [AutoRecon](https://github.com/Tib3rius/AutoRecon) by [Tib3rius](https://github.com/Tib3rius) - all core functionality and plugins are thanks to his brilliant work.
+⚡ Originally based on [AutoRecon](https://github.com/Tib3rius/AutoRecon) by [Tib3rius](https://github.com/Tib3rius).  
+IPCrawler has since evolved into a standalone tool with simplified setup and enhanced output.
+
+Core reconnaissance concepts and plugin architecture inspired by the excellent foundation provided by AutoRecon.
 
 ## ⚠️ Legal Notice
 
