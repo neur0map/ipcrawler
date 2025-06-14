@@ -52,14 +52,15 @@ if errorlevel 1 (
 
 echo.
 echo 🔍 Step 3: Checking current directory...
+echo Current directory contents:
+dir /b
+echo.
 if not exist "Dockerfile" (
     echo ❌ FAILED: Dockerfile not found in current directory
     echo Current directory: %cd%
     echo.
     echo Please make sure you're running this from the ipcrawler directory
     echo The directory should contain: Dockerfile, ipcrawler-windows.bat, etc.
-    echo.
-    dir /b | findstr /i "dockerfile ipcrawler"
     echo.
     pause
     exit /b 1
@@ -69,43 +70,75 @@ if not exist "Dockerfile" (
 
 echo.
 echo 🔍 Step 4: Checking for existing Docker image...
+echo Running: docker images -q ipcrawler
+docker images -q ipcrawler
 for /f %%i in ('docker images -q ipcrawler 2^>nul') do set "IMAGE_ID=%%i"
+echo Image ID found: "%IMAGE_ID%"
 
 if "%IMAGE_ID%"=="" (
     echo ℹ️  No existing ipcrawler image found - will build new one
     echo.
     echo 🔨 Building ipcrawler Docker image...
+    echo Command: docker build -t ipcrawler .
     echo This will take several minutes on first run
     echo.
-    docker build -t ipcrawler .
+    
+    REM Build with verbose output
+    docker build -t ipcrawler . --progress=plain
+    
     if errorlevel 1 (
-        echo ❌ FAILED: Docker build failed
+        echo ❌ FAILED: Docker build failed with exit code %errorlevel%
         echo.
-        echo Common causes:
-        echo   • No internet connection
-        echo   • Insufficient disk space
-        echo   • Antivirus blocking Docker
+        echo Checking if image was partially created...
+        docker images ipcrawler
         echo.
         pause
         exit /b 1
     )
     echo ✅ SUCCESS: Docker image built
+    
+    REM Verify the image was created
+    echo Verifying image creation...
+    docker images ipcrawler
+    
 ) else (
-    echo ✅ SUCCESS: Existing ipcrawler image found
+    echo ✅ SUCCESS: Existing ipcrawler image found (ID: %IMAGE_ID%)
 )
 
 echo.
 echo 🔍 Step 5: Creating results directory...
-if not exist "results" mkdir results
+if not exist "results" (
+    echo Creating results directory...
+    mkdir results
+) else (
+    echo Results directory already exists
+)
 echo ✅ SUCCESS: Results directory ready
 
 echo.
 echo 🔍 Step 6: Testing container startup...
+echo Testing: docker run --rm ipcrawler echo "Basic test"
+docker run --rm ipcrawler echo "Basic test"
+if errorlevel 1 (
+    echo ❌ FAILED: Basic container test failed with exit code %errorlevel%
+    echo.
+    echo Trying to get more info about the image...
+    docker inspect ipcrawler
+    echo.
+    pause
+    exit /b 1
+) else (
+    echo ✅ SUCCESS: Basic container test passed
+)
+
+echo.
+echo Testing: docker run --rm ipcrawler /show-tools.sh
 docker run --rm ipcrawler /show-tools.sh
 if errorlevel 1 (
     echo ⚠️  Tools script failed, but continuing...
+    echo Exit code: %errorlevel%
 ) else (
-    echo ✅ SUCCESS: Container and tools working
+    echo ✅ SUCCESS: Tools script works
 )
 
 echo.
@@ -126,10 +159,11 @@ for /f "tokens=1-4 delims=:.," %%a in ("%time%") do (
 )
 
 echo 🐳 Starting Docker container...
+echo Command: docker run -it --rm -v "%cd%\results:/scans" -w /scans --name "ipcrawler-session-%timestamp%" ipcrawler bash
 echo Press Ctrl+C if you need to exit
 echo.
 
-REM Run the container
+REM Run the container with debug info
 docker run -it --rm ^
     -v "%cd%\results:/scans" ^
     -w /scans ^
@@ -137,7 +171,7 @@ docker run -it --rm ^
     ipcrawler bash
 
 echo.
-echo 👋 Session ended
+echo 👋 Session ended with exit code: %errorlevel%
 echo 📁 Results saved to: %cd%\results\
 echo.
 pause 
