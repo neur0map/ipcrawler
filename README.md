@@ -4,10 +4,13 @@
 
 ⚡ Originally based on [AutoRecon](https://github.com/Tib3rius/AutoRecon) by [Tib3rius](https://github.com/Tib3rius).  
 IPCrawler has since evolved into a standalone tool with simplified setup and enhanced output.
+### Changes from AutoRecon
+ see changes here --> [ipcrawler-legacy](https://github.com/neur0map/ipcrawler-legacy)
 
 ![Version](https://img.shields.io/badge/Version-v2.1.0-brightgreen) ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
 
-## 🚀 Quick Start
+
+
 
 ### 🎥 Video Tutorials
 
