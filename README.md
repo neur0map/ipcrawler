@@ -4,13 +4,45 @@
 
 ⚡ Originally based on [AutoRecon](https://github.com/Tib3rius/AutoRecon) by [Tib3rius](https://github.com/Tib3rius).  
 IPCrawler has since evolved into a standalone tool with simplified setup and enhanced output.
+
 ### Changes from AutoRecon
    see changes here (Migrated since Version 2.1.0 --> [ipcrawler-legacy](https://github.com/neur0map/ipcrawler-legacy)
 
 ![Version](https://img.shields.io/badge/Version-v2.1.0-brightgreen) ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
 
+## 🚀 Quick Start
 
+### 🐧 Linux/macOS (Recommended)
+```bash
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+make setup                  # If make not installed: ./bootstrap.sh first
+ipcrawler 10.10.10.1
+```
 
+### 🪟 Windows
+```cmd
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+windows-scripts\ipcrawler-windows.bat
+```
+
+> 📁 **Windows users**: See `windows-scripts/README.md` for detailed setup instructions and troubleshooting.
+
+### 🐳 Docker (All Platforms)
+```bash
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+
+# Linux/macOS with make
+make setup-docker
+
+# Universal commands (all platforms)
+docker build -t ipcrawler .
+docker run -it --rm -v "$(pwd)/results:/scans" -w /scans ipcrawler    # Linux/macOS
+docker run -it --rm -v "%cd%\results:/scans" -w /scans ipcrawler      # Windows CMD
+docker run -it --rm -v "${PWD}\results:/scans" -w /scans ipcrawler    # Windows PowerShell
+```
 
 ### 🎥 Video Tutorials
 
@@ -22,28 +54,6 @@ IPCrawler has since evolved into a standalone tool with simplified setup and enh
 | **Complete setup on HTB machines** | **Docker installation & usage on macOS** |
 
 </div>
-
-### 🐧 Linux/macOS (Recommended)
-```bash
-git clone https://github.com/neur0map/ipcrawler.git
-cd ipcrawler
-make setup                  # If make not installed: ./bootstrap.sh first
-ipcrawler 10.10.10.1
-```
-
-### 🪟 Windows (Docker)
-```cmd
-git clone https://github.com/neur0map/ipcrawler.git
-cd ipcrawler
-ipcrawler-windows.bat
-```
-
-### 🐳 Docker (All Platforms)
-```bash
-git clone https://github.com/neur0map/ipcrawler.git
-cd ipcrawler
-make setup-docker
-```
 
 ## ✨ What It Does
 
@@ -69,6 +79,9 @@ ipcrawler 10.10.10.1 10.10.10.2
 
 # Custom timing
 ipcrawler --nmap-append '-T3' 10.10.10.1
+
+# Docker usage (replace with platform-specific volume syntax from above)
+docker run -it --rm -v "$(pwd)/results:/scans" -w /scans ipcrawler 10.10.10.1
 ```
 
 ## 📁 Output Structure
@@ -106,6 +119,15 @@ nmap-append = '-T3'        # Conservative timing
 tags = 'default+safe'      # Only safe, fast tools
 ```
 
+## 🔍 Verbosity Levels
+
+| Flag | Output |
+|------|--------|
+| (none) | Minimal |
+| `-v` | 🔍 Visual progress with icons |
+| `-vv` | ✅ Completion status & timing |
+| `-vvv` | Live command output |
+
 ## 🎓 Perfect for OSCP & CTFs
 
 - **OSCP Exam**: Run on all targets while focusing on one
@@ -115,9 +137,9 @@ tags = 'default+safe'      # Only safe, fast tools
 ## 🛠️ Setup Details
 
 ### Prerequisites
-- **Python 3.8+** (Linux/macOS)
-- **Docker** (Windows/optional for others)
-- **make** (usually pre-installed)
+- **Python 3.8+** (Linux/macOS native install)
+- **Docker** (Windows or cross-platform)
+- **make** (usually pre-installed on Linux/macOS)
 
 ### What `make setup` does:
 1. Creates Python virtual environment
@@ -131,21 +153,9 @@ tags = 'default+safe'      # Only safe, fast tools
 make clean  # Removes everything except scan results
 ```
 
-## 🔍 Verbosity Levels
-
-| Flag | Output |
-|------|--------|
-| (none) | Minimal |
-| `-v` | 🔍 Visual progress with icons |
-| `-vv` | ✅ Completion status & timing |
-| `-vvv` | Live command output |
-
 ## 🙏 Credits
 
-⚡ Originally based on [AutoRecon](https://github.com/Tib3rius/AutoRecon) by [Tib3rius](https://github.com/Tib3rius).  
-IPCrawler has since evolved into a standalone tool with simplified setup and enhanced output.
-
-Core reconnaissance concepts and plugin architecture inspired by the excellent foundation provided by AutoRecon.
+Core reconnaissance concepts and plugin architecture inspired by [AutoRecon](https://github.com/Tib3rius/AutoRecon) by [Tib3rius](https://github.com/Tib3rius).
 
 ## ⚠️ Legal Notice
 

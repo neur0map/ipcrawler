@@ -26,7 +26,13 @@ if /i not "%confirm%"=="y" (
 )
 
 echo.
-echo 🔍 Step 1: Checking Docker availability...
+echo 📁 Step 1: Switching to IPCrawler root directory...
+echo Current directory: %cd%
+cd ..
+echo Switched to IPCrawler root: %cd%
+
+echo.
+echo 🔍 Step 2: Checking Docker availability...
 docker --version >nul 2>&1
 if errorlevel 1 (
     echo ⚠️  Docker not found - skipping Docker cleanup
@@ -36,7 +42,7 @@ if errorlevel 1 (
 echo ✅ Docker found - proceeding with Docker cleanup
 echo.
 
-echo 🐳 Step 2: Stopping Docker Compose services...
+echo 🐳 Step 3: Stopping Docker Compose services...
 if exist "docker-compose.yml" (
     echo Found docker-compose.yml - stopping services...
     docker-compose down --remove-orphans --volumes 2>nul
@@ -46,7 +52,7 @@ if exist "docker-compose.yml" (
 )
 
 echo.
-echo 🛑 Step 3: Stopping all running IPCrawler containers...
+echo 🛑 Step 4: Stopping all running IPCrawler containers...
 for /f "tokens=1" %%i in ('docker ps -q --filter "name=ipcrawler" 2^>nul') do (
     echo Stopping container: %%i
     docker stop %%i
@@ -59,7 +65,7 @@ for /f "tokens=1" %%i in ('docker ps -q --filter "name=ipcrawler-scanner" 2^>nul
 )
 
 echo.
-echo 🗑️  Step 4: Removing all IPCrawler containers...
+echo 🗑️  Step 5: Removing all IPCrawler containers...
 for /f "tokens=1" %%i in ('docker ps -aq --filter "name=ipcrawler" 2^>nul') do (
     echo Removing container: %%i
     docker rm -f %%i
@@ -72,7 +78,7 @@ for /f "tokens=1" %%i in ('docker ps -aq --filter "name=ipcrawler-scanner" 2^>nu
 )
 
 echo.
-echo 🖼️  Step 5: Removing ALL IPCrawler Docker images...
+echo 🖼️  Step 6: Removing ALL IPCrawler Docker images...
 REM Remove by repository name
 for /f "tokens=1" %%i in ('docker images -q ipcrawler 2^>nul') do (
     echo Removing image: %%i
@@ -92,14 +98,14 @@ for /f "tokens=1" %%i in ('docker images -q "*ipcrawler*" 2^>nul') do (
 )
 
 echo.
-echo 🌐 Step 6: Removing IPCrawler Docker networks...
+echo 🌐 Step 7: Removing IPCrawler Docker networks...
 for /f "tokens=1" %%i in ('docker network ls -q --filter "name=ipcrawler" 2^>nul') do (
     echo Removing network: %%i
     docker network rm %%i
 )
 
 echo.
-echo 💾 Step 7: Removing IPCrawler Docker volumes...
+echo 💾 Step 8: Removing IPCrawler Docker volumes...
 for /f "tokens=1" %%i in ('docker volume ls -q --filter "name=ipcrawler" 2^>nul') do (
     echo Removing volume: %%i
     docker volume rm -f %%i
@@ -112,7 +118,7 @@ for /f "tokens=1" %%i in ('docker volume ls -q ^| findstr "ipcrawler" 2^>nul') d
 )
 
 echo.
-echo 🧽 Step 8: Aggressive Docker cleanup...
+echo 🧽 Step 9: Aggressive Docker cleanup...
 echo Removing dangling images...
 docker image prune -f >nul 2>&1
 
@@ -129,14 +135,14 @@ echo Removing ALL unused containers, networks, images...
 docker system prune -f >nul 2>&1
 
 echo.
-echo 📊 Step 9: Docker cleanup summary...
+echo 📊 Step 10: Docker cleanup summary...
 echo Current Docker usage:
 docker system df
 
 :skip_docker
 
 echo.
-echo 📁 Step 10: Cleaning local files...
+echo 📁 Step 11: Cleaning local files...
 
 if exist "results" (
     echo Removing results directory...
@@ -157,14 +163,14 @@ if exist "docker-compose.override.yml" (
 )
 
 echo.
-echo 🔍 Step 11: Checking for any remaining IPCrawler processes...
+echo 🔍 Step 12: Checking for any remaining IPCrawler processes...
 tasklist /fi "imagename eq docker.exe" /fi "windowtitle eq *ipcrawler*" >nul 2>&1
 if not errorlevel 1 (
     echo ⚠️  Found running IPCrawler processes - you may need to restart Docker Desktop
 )
 
 echo.
-echo 📋 Step 12: Final comprehensive verification...
+echo 📋 Step 13: Final comprehensive verification...
 echo Checking for remaining IPCrawler Docker components...
 
 set "found_items=0"

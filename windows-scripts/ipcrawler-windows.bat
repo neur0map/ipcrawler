@@ -35,16 +35,23 @@ if errorlevel 1 (
 )
 
 echo.
-echo 🔍 Step 3: Checking current directory...
-echo Current directory contents:
-dir /b
+echo 🔍 Step 3: Checking project structure...
+echo Current directory: %cd%
+echo Parent directory contents:
+dir /b ..
 echo.
+
+REM Change to parent directory where Dockerfile is located
+cd ..
+echo Switched to IPCrawler root: %cd%
+
 if not exist "Dockerfile" (
-    echo ❌ FAILED: Dockerfile not found in current directory
+    echo ❌ FAILED: Dockerfile not found in IPCrawler root directory
+    echo Make sure you're running this script from the IPCrawler project directory
     pause
     exit /b 1
 ) else (
-    echo ✅ SUCCESS: Dockerfile found
+    echo ✅ SUCCESS: Dockerfile found in IPCrawler root
 )
 
 echo.
