@@ -6,113 +6,134 @@ echo       ipcrawler Windows Launcher
 echo ========================================
 echo 🪟 Cross-Platform Docker Setup for Windows
 echo.
-echo This script provides:
-echo   • Docker Desktop and WSL2 support
-echo   • Comprehensive security toolkit
-echo   • Cross-platform container compatibility
-echo   • Windows-optimized file path handling
+
+echo 🔍 Step 1: Checking Docker installation...
+echo Current directory: %cd%
 echo.
 
-REM Check if Docker is installed and running
-docker --version >nul 2>&1
-if errorlevel 1 (
-    echo ❌ Docker is not installed or not in PATH
-    echo.
-    echo Please install Docker for Windows:
-    echo.
-    echo 🎯 Recommended: Docker Desktop for Windows
-    echo   • Download: https://docs.docker.com/desktop/install/windows/
-    echo   • Requires Windows 10/11 with WSL2
-    echo.
-    echo 🔧 Alternative: Docker in WSL2 only
-    echo   • Install WSL2: wsl --install
-    echo   • Install Docker inside WSL2 distribution
-    echo.
-    echo 📋 After installation, restart this script
-    echo.
-    pause
-    exit /b 1
-)
-
-REM Check if Docker daemon is running
-docker ps >nul 2>&1
-if errorlevel 1 (
-    echo ❌ Docker is installed but not running
-    echo.
-    echo Please start Docker and try again:
-    echo.
-    echo 🖥️  Docker Desktop users:
-    echo   • Start Docker Desktop from Start Menu
-    echo   • Wait for Docker to be "Running" in system tray
-    echo.
-    echo 🐧 WSL2 Docker Engine users:
-    echo   • Open WSL2 terminal
-    echo   • Run: sudo service docker start
-    echo   • Or: sudo dockerd (if installed manually)
-    echo.
-    pause
-    exit /b 1
-)
-
-echo ✅ Docker is ready!
+REM Test Docker version first
+echo Testing: docker --version
 docker --version
-echo.
+if errorlevel 1 (
+    echo ❌ FAILED: Docker command not found
+    echo.
+    echo This means Docker is either:
+    echo   • Not installed
+    echo   • Not added to PATH
+    echo   • Command Prompt needs restart after Docker install
+    echo.
+    echo Please ensure Docker Desktop is installed and restart Command Prompt
+    echo.
+    pause
+    exit /b 1
+) else (
+    echo ✅ SUCCESS: Docker command works
+)
 
-REM Check if ipcrawler image exists
+echo.
+echo 🔍 Step 2: Testing Docker daemon...
+echo Testing: docker ps
+docker ps
+if errorlevel 1 (
+    echo ❌ FAILED: Docker daemon not accessible
+    echo.
+    echo This means Docker Desktop is either:
+    echo   • Not running (check system tray for whale icon)
+    echo   • Still starting up (wait a few minutes)
+    echo   • Having permission issues
+    echo.
+    echo Please start Docker Desktop and wait for it to be ready
+    echo.
+    pause
+    exit /b 1
+) else (
+    echo ✅ SUCCESS: Docker daemon is running
+)
+
+echo.
+echo 🔍 Step 3: Checking current directory...
+if not exist "Dockerfile" (
+    echo ❌ FAILED: Dockerfile not found in current directory
+    echo Current directory: %cd%
+    echo.
+    echo Please make sure you're running this from the ipcrawler directory
+    echo The directory should contain: Dockerfile, ipcrawler-windows.bat, etc.
+    echo.
+    dir /b | findstr /i "dockerfile ipcrawler"
+    echo.
+    pause
+    exit /b 1
+) else (
+    echo ✅ SUCCESS: Dockerfile found
+)
+
+echo.
+echo 🔍 Step 4: Checking for existing Docker image...
 for /f %%i in ('docker images -q ipcrawler 2^>nul') do set "IMAGE_ID=%%i"
 
 if "%IMAGE_ID%"=="" (
-    echo ℹ️ ipcrawler Docker image not found
+    echo ℹ️  No existing ipcrawler image found - will build new one
     echo.
-    echo 🔨 Building ipcrawler Docker image (this may take a few minutes)...
+    echo 🔨 Building ipcrawler Docker image...
+    echo This will take several minutes on first run
     echo.
     docker build -t ipcrawler .
     if errorlevel 1 (
-        echo ❌ Docker build failed
+        echo ❌ FAILED: Docker build failed
+        echo.
+        echo Common causes:
+        echo   • No internet connection
+        echo   • Insufficient disk space
+        echo   • Antivirus blocking Docker
+        echo.
         pause
         exit /b 1
     )
-    echo ✅ Docker image built successfully!
-    echo.
+    echo ✅ SUCCESS: Docker image built
 ) else (
-    echo ✅ ipcrawler Docker image found
-    echo 🚀 Image ready! Starting Docker terminal...
-    echo.
+    echo ✅ SUCCESS: Existing ipcrawler image found
 )
 
-REM Create results directory if it doesn't exist
+echo.
+echo 🔍 Step 5: Creating results directory...
 if not exist "results" mkdir results
-
-echo 🔧 Verifying all security tools are working...
-echo.
-
-REM Test key tools in a temporary container
-docker run --rm ipcrawler /show-tools.sh
+echo ✅ SUCCESS: Results directory ready
 
 echo.
-echo 🚀 Starting ipcrawler Docker terminal...
-echo 🖥️  Platform: Windows
+echo 🔍 Step 6: Testing container startup...
+echo Testing: docker run --rm ipcrawler echo "Container test successful"
+docker run --rm ipcrawler echo "Container test successful"
+if errorlevel 1 (
+    echo ❌ FAILED: Container won't start
+    echo.
+    pause
+    exit /b 1
+) else (
+    echo ✅ SUCCESS: Container starts correctly
+)
+
+echo.
+echo 🚀 All checks passed! Starting interactive session...
 echo.
 echo 📋 Available commands once inside:
 echo   • /show-tools.sh            (List all available tools)
 echo   • ipcrawler --help          (Show help)
 echo   • ipcrawler 127.0.0.1       (Test scan)
-echo   • ipcrawler target.com      (Scan target)
-echo   • ls /scans                 (View results)
 echo   • exit                      (Leave container)
 echo.
 echo 💾 Results will be saved to: %cd%\results\
 echo.
 
-REM Generate unique container name for Windows
+REM Generate unique container name
 for /f "tokens=1-4 delims=:.," %%a in ("%time%") do (
     set "timestamp=%%a%%b%%c%%d"
 )
 
-echo 🐳 Launching cross-platform Docker container...
+echo 🐳 Starting Docker container...
+echo Press Ctrl+C if you need to exit
 echo.
 
-REM Run the container with Windows-optimized settings
+REM Run the container
 docker run -it --rm ^
     -v "%cd%\results:/scans" ^
     -w /scans ^
@@ -121,12 +142,7 @@ docker run -it --rm ^
     ipcrawler bash
 
 echo.
-echo 👋 ipcrawler session ended
-echo 📁 Check your results in: %cd%\results\
-echo.
-echo 💡 Windows result viewing options:
-echo   • explorer %cd%\results
-echo   • Open in File Explorer from current directory
-echo   • Or navigate to: %cd%\results
+echo 👋 Session ended
+echo 📁 Results saved to: %cd%\results\
 echo.
 pause 
