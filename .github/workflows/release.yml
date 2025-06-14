@@ -51,25 +51,13 @@ jobs:
         fi
 
     - name: 🎉 Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: IPCrawler ${{ steps.extract-release-notes.outputs.VERSION }}
+        name: IPCrawler ${{ steps.extract-release-notes.outputs.VERSION }}
         body_path: release-notes.md
+        files: dist/*
         draft: false
         prerelease: false
-
-    - name: 📤 Upload release assets
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/
-        asset_name: ipcrawler-${{ steps.extract-release-notes.outputs.VERSION }}-dist.tar.gz
-        asset_content_type: application/gzip
 
   docker-release:
     name: 🐳 Build & Push Docker Image
