@@ -53,8 +53,8 @@ jobs:
 
     - name: 🛡️ Check dependencies for vulnerabilities
       run: |
-        safety check --json --output safety-report.json || true
-        safety check --short-report
+        safety scan --json --output safety-report.json || true
+        safety scan --short-report
 
     - name: 📝 Type checking with mypy
       run: |

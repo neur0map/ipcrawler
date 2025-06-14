@@ -26,9 +26,11 @@ RUN echo "Installing additional security tools..." && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install WhatWeb from source since apt version is often broken
-RUN git clone https://github.com/urbanadventurer/WhatWeb.git /tmp/whatweb && \
+# Install Ruby gems and WhatWeb from source since apt version is often broken
+RUN gem install bundler && \
+    git clone https://github.com/urbanadventurer/WhatWeb.git /tmp/whatweb && \
     cd /tmp/whatweb && \
+    bundle install && \
     make install && \
     rm -rf /tmp/whatweb
 
