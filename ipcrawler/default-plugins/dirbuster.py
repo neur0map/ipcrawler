@@ -15,13 +15,13 @@ class DirBuster(ServiceScan):
     def configure(self):
         self.add_choice_option(
             "tool",
+            choices=["feroxbuster", "gobuster", "ffuf", "dirsearch", "dirb"],
             default="feroxbuster",
-            choices=["feroxbuster", "gobuster", "dirsearch", "ffuf", "dirb"],
             help="The tool to use for directory busting. Default: %(default)s",
         )
         self.add_list_option(
             "wordlist",
-            default=[os.path.join(config["data_dir"], "wordlists", "dirbuster.txt")],
+            default=["/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"],
             help="The wordlist(s) to use when directory busting. Separate multiple wordlists with spaces. Default: %(default)s",
         )
         self.add_option(
@@ -30,11 +30,18 @@ class DirBuster(ServiceScan):
         self.add_option(
             "ext",
             default="txt,html,php,asp,aspx,jsp",
-            help="The extensions you wish to fuzz (no dot, comma separated). Default: %(default)s",
+            help="The extensions you wish to fuzz (comma separated). Default: %(default)s",
         )
-        self.add_true_option(
-            "recursive",
-            help="Enables recursive searching (where available). Warning: This may cause significant increases to scan times. Default: %(default)s",
+        self.add_true_option("recursive", help="Enable recursive directory busting. Default: %(default)s")
+        self.add_option(
+            "timeout",
+            default=1800,
+            help="Maximum time in seconds for directory busting (30 minutes). Default: %(default)s",
+        )
+        self.add_option(
+            "max_depth",
+            default=4,
+            help="Maximum recursion depth to prevent infinite loops. Default: %(default)s",
         )
         self.add_option(
             "extras",
@@ -85,27 +92,31 @@ class DirBuster(ServiceScan):
 
     async def run(self, service):
         dot_extensions = ",".join(["." + x for x in self.get_option("ext").split(",")])
+        timeout_seconds = self.get_option("timeout")
+        max_depth = self.get_option("max_depth")
+        
         for wordlist in self.get_option("wordlist"):
             name = os.path.splitext(os.path.basename(wordlist))[0]
             if self.get_option("tool") == "feroxbuster":
-                await service.execute(
-                    "feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t "
+                cmd = (
+                    "timeout " + str(timeout_seconds) + " feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t "
                     + str(self.get_option("threads"))
                     + ' -w "'
                     + wordlist
                     + '" -x "'
                     + self.get_option("ext")
                     + '" -v -k '
-                    + ("" if self.get_option("recursive") else "-n ")
+                    + ("--depth " + str(max_depth) + " " if self.get_option("recursive") else "-n ")
                     + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_'
                     + name
                     + '.txt"'
                     + (" " + self.get_option("extras") if self.get_option("extras") else "")
                 )
+                await service.execute(cmd)
 
             elif self.get_option("tool") == "gobuster":
-                await service.execute(
-                    "gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t "
+                cmd = (
+                    "timeout " + str(timeout_seconds) + " gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t "
                     + str(self.get_option("threads"))
                     + ' -w "'
                     + wordlist
@@ -116,18 +127,19 @@ class DirBuster(ServiceScan):
                     + '.txt"'
                     + (" " + self.get_option("extras") if self.get_option("extras") else "")
                 )
+                await service.execute(cmd)
 
             elif self.get_option("tool") == "dirsearch":
                 if service.target.ipversion == "IPv6":
                     service.error("dirsearch does not support IPv6.")
                 else:
-                    await service.execute(
-                        "dirsearch -u {http_scheme}://{address}:{port}/ -t "
+                    cmd = (
+                        "timeout " + str(timeout_seconds) + " dirsearch -u {http_scheme}://{address}:{port}/ -t "
                         + str(self.get_option("threads"))
                         + ' -e "'
                         + self.get_option("ext")
                         + '" -f -q -F '
-                        + ("-r " if self.get_option("recursive") else "")
+                        + ("-r --max-recursion-depth=" + str(max_depth) + " " if self.get_option("recursive") else "")
                         + '-w "'
                         + wordlist
                         + '" --format=plain -o "{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_'
@@ -135,27 +147,29 @@ class DirBuster(ServiceScan):
                         + '.txt"'
                         + (" " + self.get_option("extras") if self.get_option("extras") else "")
                     )
+                    await service.execute(cmd)
 
             elif self.get_option("tool") == "ffuf":
-                await service.execute(
-                    "ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t "
+                cmd = (
+                    "timeout " + str(timeout_seconds) + " ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t "
                     + str(self.get_option("threads"))
                     + ' -w "'
                     + wordlist
                     + '" -e "'
                     + dot_extensions
                     + '" -v -r '
-                    + ("-recursion " if self.get_option("recursive") else "")
+                    + ("-recursion -recursion-depth " + str(max_depth) + " " if self.get_option("recursive") else "")
                     + "-noninteractive"
                     + (" " + self.get_option("extras") if self.get_option("extras") else "")
                     + " | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_"
                     + name
                     + ".txt"
                 )
+                await service.execute(cmd)
 
             elif self.get_option("tool") == "dirb":
-                await service.execute(
-                    'dirb {http_scheme}://{addressv6}:{port}/ "'
+                cmd = (
+                    'timeout ' + str(timeout_seconds) + ' dirb {http_scheme}://{addressv6}:{port}/ "'
                     + wordlist
                     + '" -l '
                     + ("" if self.get_option("recursive") else "-r ")
@@ -166,6 +180,7 @@ class DirBuster(ServiceScan):
                     + '.txt"'
                     + (" " + self.get_option("extras") if self.get_option("extras") else "")
                 )
+                await service.execute(cmd)
 
     def manual(self, service, plugin_was_run):
         dot_extensions = ",".join(["." + x for x in self.get_option("ext").split(",")])

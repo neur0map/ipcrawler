@@ -22,10 +22,16 @@ class SubdomainEnumeration(ServiceScan):
         self.add_option(
             "threads", default=10, help="The number of threads to use when enumerating subdomains. Default: %(default)s"
         )
+        self.add_option(
+            "timeout",
+            default=1800,
+            help="Maximum time in seconds for subdomain enumeration (30 minutes). Default: %(default)s",
+        )
         self.match_service_name("^domain")
 
     async def run(self, service):
         domains = []
+        timeout_seconds = self.get_option("timeout")
 
         if self.get_option("domain"):
             domains.append(self.get_option("domain"))
@@ -39,7 +45,7 @@ class SubdomainEnumeration(ServiceScan):
                 name = os.path.splitext(os.path.basename(wordlist))[0]
                 for domain in domains:
                     await service.execute(
-                        "gobuster dns -d "
+                        "timeout " + str(timeout_seconds) + " gobuster dns -d "
                         + domain
                         + " -r {addressv6} -w "
                         + wordlist

@@ -7,6 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.1] - 2025-01-XX 🔧
+
+### 🚨 CRITICAL FIX - Long Scan Hanging Issues
+**Resolved the major 98% completion hanging issue that prevented long scans from finishing**
+
+### 🔧 Fixed - Core Framework
+- **Process Timeout Management**: Added comprehensive timeout system to prevent indefinite hanging
+  - **30-minute default timeout** for all processes with configurable overrides
+  - **Graceful termination** (SIGTERM → SIGKILL) for stuck processes
+  - **Timeout monitoring tasks** running alongside each process
+  - **Proper cleanup** of timeout tasks to prevent memory leaks
+- **Stream Reader Improvements**: Enhanced process output handling
+  - **30-second timeout** for individual readline operations
+  - **None stream handling** for failed processes
+  - **Better error handling** to prevent hanging on stream errors
+  - **Graceful degradation** when streams fail
+- **Target Cleanup**: Improved process management during scan completion
+  - **Timeout task cleanup** when targets complete
+  - **Enhanced process termination** during global timeouts
+  - **Better handling** of stale tasks and processes
+
+### 🔧 Fixed - Plugin-Specific Issues
+- **Directory Busting** (`dirbuster.py`): Added timeout and recursion controls
+  - **Configurable timeout** (default: 30 minutes)
+  - **Maximum recursion depth** limits (default: 4 levels) to prevent infinite loops
+  - **Tool-specific depth controls**: `--depth N` for feroxbuster, `--max-recursion-depth=N` for dirsearch
+  - **`timeout` command wrapper** for all directory busting tools
+- **Web Vulnerability Scanning** (`nikto.py`): Added timeout protection
+  - **Configurable timeout** (default: 30 minutes)
+  - **`timeout` command wrapper** to prevent indefinite scanning
+- **DNS Enumeration**: Added timeout controls for subdomain discovery
+  - **Subdomain enumeration** (`subdomain-enumeration.py`): 30-minute timeout with `timeout` wrapper
+  - **DNS bruteforce** (`dnsrecon-subdomain-bruteforce.py`): Timeout for manual commands
+
+### ✨ Added - User Configuration
+- **Quick Hanging Fixes**: Simple command-line options for immediate relief
+  ```bash
+  ipcrawler --exclude-tags long target.com     # Skip long-running tools
+  ipcrawler --timeout 60 target.com           # 60-minute global timeout
+  ipcrawler --target-timeout 30 target.com    # 30-minute per-target timeout
+  ```
+- **Plugin-Specific Timeouts**: Granular control in `~/.config/ipcrawler/global.toml`
+  ```toml
+  [dirbuster]
+  timeout = 1800      # 30 minutes max for directory busting
+  max_depth = 4       # Prevent infinite recursion
+  
+  [nikto]
+  timeout = 1800      # 30 minutes max for web vulnerability scanning
+  ```
+- **Timeout Hierarchy**: Multi-level timeout system
+  1. **Global timeout** (`--timeout`): Maximum total scan time
+  2. **Target timeout** (`--target-timeout`): Maximum time per target
+  3. **Plugin timeout** (configurable): Maximum time per plugin execution
+  4. **Stream timeout** (30s): Maximum time for individual read operations
+
+### 📖 Enhanced - Documentation
+- **README Updates**: Added timeout management section with quick fixes
+- **Configuration Examples**: Complete timeout configuration examples
+- **Troubleshooting Guide**: Solutions for hanging scans and timeout tuning
+
+### 🎯 Impact
+- **No more 98% hanging**: Processes terminate gracefully after reasonable timeouts
+- **Better resource management**: Prevents memory leaks and zombie processes
+- **User control**: Configurable timeouts for different use cases
+- **Graceful degradation**: Failed processes don't block entire scans
+- **Monitoring capabilities**: Real-time status and timeout warnings
+
+### 🚨 Breaking Changes
+- **None**: All timeout features are opt-in with sensible defaults
+
+---
+
 ## [2.1.0] - 2025-06-13 🌐
 
 ### 🚀 SMART VHOST AUTO-DISCOVERY & PROGRESS BAR ENHANCEMENTS

@@ -1009,11 +1009,21 @@ class CommandStreamReader(object):
 
     # Read lines from the stream until it ends.
     async def _read(self):
+        # Handle None stream (dummy process)
+        if self.stream is None:
+            self.ended = True
+            return
+            
         while True:
             if self.stream.at_eof():
                 break
             try:
-                line = (await self.stream.readline()).decode("utf8").rstrip()
+                # Add timeout to readline to prevent hanging
+                line_bytes = await asyncio.wait_for(self.stream.readline(), timeout=30)
+                line = line_bytes.decode("utf8").rstrip()
+            except asyncio.TimeoutError:
+                warn(f"Stream readline timeout for {self.target.address}/{self.tag}", verbosity=2)
+                break
             except ValueError:
                 error(
                     "{bright}[{yellow}"
@@ -1023,6 +1033,9 @@ class CommandStreamReader(object):
                     + "{crst}]{rst} A line was longer than 64 KiB and cannot be processed. Ignoring."
                 )
                 continue
+            except Exception as e:
+                warn(f"Stream read error for {self.target.address}/{self.tag}: {e}", verbosity=2)
+                break
 
             if line != "":
                 # For verbosity 3, enhance with feroxbuster-style output

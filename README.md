@@ -120,6 +120,34 @@ tags = 'default+safe'      # Only safe tools
 exclude-tags = 'long'      # Exclude slow tools like nikto, dirbuster
 ```
 
+### 🔧 Long Scan Timeout Management
+
+**New in v2.1.0**: Fixed hanging issues at 98% completion with comprehensive timeout management.
+
+**Quick fixes for hanging scans:**
+```bash
+# Exclude long-running tools (recommended for most scans)
+ipcrawler --exclude-tags long target.com
+
+# Set global timeout (60 minutes total)
+ipcrawler --timeout 60 target.com
+
+# Set per-target timeout (30 minutes per target)
+ipcrawler --target-timeout 30 target.com
+```
+
+**Plugin-specific timeouts** in `~/.config/ipcrawler/global.toml`:
+```toml
+[dirbuster]
+timeout = 1800      # 30 minutes max for directory busting
+max_depth = 4       # Prevent infinite recursion
+
+[nikto]
+timeout = 1800      # 30 minutes max for web vulnerability scanning
+```
+
+> 📖 **Detailed guide**: See `LONG_SCAN_FIXES.md` for complete timeout configuration and troubleshooting.
+
 ## 🔍 Verbosity Levels
 
 | Flag | Output |

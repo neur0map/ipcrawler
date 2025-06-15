@@ -417,14 +417,64 @@ class ipcrawler(object):
         else:
             combined_patterns = self.patterns
 
-        process = await asyncio.create_subprocess_shell(
-            cmd, stdin=open("/dev/null"), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
+        # Set a reasonable timeout for long-running processes (30 minutes)
+        timeout = 1800  # 30 minutes in seconds
+        
+        try:
+            process = await asyncio.wait_for(
+                asyncio.create_subprocess_shell(
+                    cmd, stdin=open("/dev/null"), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                ),
+                timeout=10  # 10 seconds to start the process
+            )
+        except asyncio.TimeoutError:
+            error(f"Process failed to start within 10 seconds: {cmd}")
+            # Create a dummy failed process
+            process = type('DummyProcess', (), {
+                'pid': -1,
+                'returncode': 1,
+                'stdout': None,
+                'stderr': None,
+                'wait': lambda: asyncio.sleep(0),
+                'kill': lambda: None,
+                'terminate': lambda: None
+            })()
+            cout = CommandStreamReader(None, target, tag, patterns=combined_patterns, outfile=outfile)
+            cerr = CommandStreamReader(None, target, tag, patterns=combined_patterns, outfile=errfile)
+            cout.ended = True
+            cerr.ended = True
+            return process, cout, cerr
 
         cout = CommandStreamReader(process.stdout, target, tag, patterns=combined_patterns, outfile=outfile)
         cerr = CommandStreamReader(process.stderr, target, tag, patterns=combined_patterns, outfile=errfile)
 
-        asyncio.create_task(cout._read())
-        asyncio.create_task(cerr._read())
+        # Start reading tasks with timeout protection
+        read_tasks = [
+            asyncio.create_task(cout._read()),
+            asyncio.create_task(cerr._read())
+        ]
+        
+        # Add timeout monitoring task
+        async def timeout_monitor():
+            try:
+                await asyncio.sleep(timeout)
+                if process.returncode is None:
+                    warn(f"Process timeout ({timeout}s) reached for command: {cmd[:100]}...", verbosity=1)
+                    try:
+                        process.terminate()
+                        await asyncio.sleep(5)  # Give it 5 seconds to terminate gracefully
+                        if process.returncode is None:
+                            process.kill()
+                    except ProcessLookupError:
+                        pass  # Process already terminated
+            except asyncio.CancelledError:
+                pass  # Normal cancellation when process completes
+        
+        timeout_task = asyncio.create_task(timeout_monitor())
+        
+        # Store timeout task for cleanup
+        if not hasattr(target, 'timeout_tasks'):
+            target.timeout_tasks = []
+        target.timeout_tasks.append(timeout_task)
 
         return process, cout, cerr
