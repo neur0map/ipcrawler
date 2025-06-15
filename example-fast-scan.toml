@@ -1,0 +1,53 @@
+# ========================================
+# ipcrawler Fast Scan Configuration
+# ========================================
+# Optimized for HTB machines and CTF environments
+# Copy to config.toml or use with: ipcrawler --config example-fast-scan.toml
+
+# ========================================
+# Fast Nmap Configuration
+# ========================================
+# Aggressive scanning for speed (use with caution on production)
+syn-stealth = true                      # Use SYN stealth scan (-sS) - faster, requires root
+min-rate = 1000                         # Minimum 1000 packets/sec for speed
+max-rate = 5000                         # Maximum 5000 packets/sec to prevent overwhelming
+
+# Additional nmap options for speed
+nmap-append = '-T4 --max-retries 1 --max-scan-delay 20'
+
+# ========================================
+# Plugin Selection - Fast Scans Only
+# ========================================
+tags = 'default+quick'                  # Only fast, essential tools
+exclude-tags = 'long+slow'              # Skip directory busting, subdomain enum
+
+# ========================================
+# Plugin-Specific Fast Settings
+# ========================================
+[top-tcp-ports]
+syn-stealth = true                      # Force SYN stealth for this plugin
+min-rate = 1500                         # Even faster for port scanning
+max-rate = 6000                         # Higher rate for port discovery
+
+[nikto]
+timeout = 300                           # 5 minute timeout for web scans
+
+[dirbuster]
+timeout = 600                           # 10 minute timeout for directory busting
+threads = 20                            # More threads for speed
+
+# ========================================
+# Usage Examples
+# ========================================
+# 
+# 🚀 FAST HTB SCAN:
+#    ipcrawler --config example-fast-scan.toml 10.10.11.55
+#
+# ⚡ ULTRA FAST (skip service detection):
+#    ipcrawler --config example-fast-scan.toml --tags quick 10.10.11.55
+#
+# 🎯 CUSTOM RATE:
+#    ipcrawler --top-tcp-ports.min-rate 2000 10.10.11.55
+#
+# 🔧 DISABLE SYN STEALTH (if not root):
+#    ipcrawler --top-tcp-ports.syn-stealth false 10.10.11.55 
