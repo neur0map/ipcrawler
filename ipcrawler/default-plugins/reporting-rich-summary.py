@@ -124,15 +124,70 @@ class RichSummary(Report):
                         if file in special_files:
                             continue
 
+                        # Skip files that are clearly not scan results
+                        if not self.is_valid_scan_result_file(rel_path, file):
+                            continue
+
                         try:
                             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                                 content = f.read()
-                                if content.strip():  # Only include non-empty files
+                                if content.strip() and len(content) > 50:  # Only include substantial files
                                     data["file_results"][rel_path] = content
                         except Exception:
                             pass  # Skip files that can't be read
 
         return data
+
+    def is_valid_scan_result_file(self, rel_path, filename):
+        """Check if a file should be included in the scan results"""
+        
+        # Skip temporary or system files
+        skip_patterns = [
+            "/.well-known/",
+            "/wordlists/",
+            "/tools/",
+            "directory-list-2.3-medium.txt",
+            ".tmp",
+            ".cache",
+            ".lock",
+        ]
+        
+        for pattern in skip_patterns:
+            if pattern in rel_path:
+                return False
+        
+        # Include files that are clearly scan results
+        include_patterns = [
+            "_nmap",
+            "_feroxbuster",
+            "_gobuster",
+            "_nikto",
+            "_dirsearch",
+            "_ffuf",
+            "_dirb",
+            "_curl",
+            "_whatweb",
+            "_enum4linux",
+            "_smbclient",
+            "_dnsrecon",
+            "tcp",
+            "udp",
+            "http",
+            "https",
+        ]
+        
+        filename_lower = filename.lower()
+        rel_path_lower = rel_path.lower()
+        
+        for pattern in include_patterns:
+            if pattern in filename_lower or pattern in rel_path_lower:
+                return True
+        
+        # Include files in port-specific directories (like tcp80, udp53)
+        if re.match(r".*(tcp|udp)\d+.*", rel_path_lower):
+            return True
+        
+        return False
 
     def generate_html_report(self, target, data, single_target=True):
         """Generate the main HTML report"""
@@ -262,27 +317,32 @@ class RichSummary(Report):
                     service_name = parts[2] if len(parts) > 2 else "unknown"
                     findings["open_ports"].append(f"{protocol}/{port} ({service_name})")
 
-        # Process all file results to extract findings
-        all_content = ""
-        for content in data["file_results"].values():
-            all_content += content + "\n"
+        # Process only scan result files (not local system files)
+        scan_content = ""
+        for file_path, content in data["file_results"].items():
+            # Skip files that are clearly local system paths or config files
+            if not self.is_scan_result_file(file_path):
+                continue
+            scan_content += content + "\n"
+        
+        # Also include special files (these are always scan results)
         for content in data["special_files"].values():
-            all_content += content + "\n"
+            scan_content += content + "\n"
 
         # Extract URLs and domains
         import re
 
-        # URLs
+        # URLs - only from scan results
         url_patterns = [
-            r'https?://[^\s<>"]+',
-            r'http://[^\s<>"]+',
-            r'https://[^\s<>"]+',
+            r'https?://[^\s<>"\']+',
         ]
         for pattern in url_patterns:
-            urls = re.findall(pattern, all_content, re.IGNORECASE)
-            findings["urls"].update(urls)
+            urls = re.findall(pattern, scan_content, re.IGNORECASE)
+            # Filter out local/system URLs
+            filtered_urls = [url for url in urls if self.is_relevant_url(url)]
+            findings["urls"].update(filtered_urls)
 
-        # Domain patterns
+        # Domain patterns - focus on target-related domains
         domain_patterns = [
             r"([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\.htb",
             r"([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\.local",
@@ -292,7 +352,7 @@ class RichSummary(Report):
             r"[a-zA-Z0-9][a-zA-Z0-9\-]*\.thm",
         ]
         for pattern in domain_patterns:
-            domains = re.findall(pattern, all_content, re.IGNORECASE)
+            domains = re.findall(pattern, scan_content, re.IGNORECASE)
             findings["domains"].update([d[0] if isinstance(d, tuple) else d for d in domains])
 
         # Extract technologies and versions
@@ -307,7 +367,7 @@ class RichSummary(Report):
             r"Joomla\s*([0-9.]+)",
         ]
         for pattern in tech_patterns:
-            matches = re.findall(pattern, all_content, re.IGNORECASE)
+            matches = re.findall(pattern, scan_content, re.IGNORECASE)
             for match in matches:
                 if isinstance(match, tuple):
                     findings["technologies"].add(match[0])
@@ -322,31 +382,36 @@ class RichSummary(Report):
             r"Exploit available[^\r\n]*",
         ]
         for pattern in vuln_patterns:
-            vulns = re.findall(pattern, all_content, re.IGNORECASE)
+            vulns = re.findall(pattern, scan_content, re.IGNORECASE)
             findings["vulnerabilities"].extend(vulns)
 
-        # Extract credentials
+        # Extract credentials - be more specific
         cred_patterns = [
-            r"username[^\r\n]*:\s*([^\s\r\n]+)",
-            r"password[^\r\n]*:\s*([^\s\r\n]+)",
+            r"(?:username|user|login)[^\r\n]*:\s*([^\s\r\n]+)",
+            r"(?:password|pass|pwd)[^\r\n]*:\s*([^\s\r\n]+)",
             r"admin:([^\s\r\n]+)",
             r"root:([^\s\r\n]+)",
         ]
         for pattern in cred_patterns:
-            creds = re.findall(pattern, all_content, re.IGNORECASE)
+            creds = re.findall(pattern, scan_content, re.IGNORECASE)
             findings["credentials"].extend(creds)
 
-        # Extract interesting files
+        # Extract interesting files - only from web scans, not local paths
         file_patterns = [
             r"/[a-zA-Z0-9_\-./]*\.(?:txt|log|conf|config|xml|json|sql|db|backup|bak)(?:\s|$)",
             r"/admin[^\s]*",
             r"/backup[^\s]*",
             r"/config[^\s]*",
             r"/uploads[^\s]*",
+            r"\.php[^\s]*",
+            r"\.asp[^\s]*",
+            r"\.jsp[^\s]*",
         ]
         for pattern in file_patterns:
-            files = re.findall(pattern, all_content, re.IGNORECASE)
-            findings["interesting_files"].extend(files)
+            files = re.findall(pattern, scan_content, re.IGNORECASE)
+            # Filter out local system paths
+            filtered_files = [f for f in files if self.is_interesting_web_file(f)]
+            findings["interesting_files"].extend(filtered_files)
 
         # Clean up findings
         findings["urls"] = sorted(list(findings["urls"]))[:20]  # Limit to top 20
@@ -357,6 +422,58 @@ class RichSummary(Report):
         findings["interesting_files"] = list(set(findings["interesting_files"]))[:15]
 
         return findings
+
+    def is_scan_result_file(self, file_path):
+        """Check if a file path represents a scan result (not a local system file)"""
+        # Skip files that are clearly local system paths
+        local_indicators = [
+            "/home/",
+            "/usr/share/",
+            "/opt/",
+            "/etc/",
+            "/var/",
+            "/.well-known/",
+            "/tools/",
+            "ipcrawler/",
+            "wordlists/",
+        ]
+        
+        for indicator in local_indicators:
+            if indicator in file_path:
+                return False
+        
+        return True
+
+    def is_relevant_url(self, url):
+        """Check if a URL is relevant to the scan (not a local/system URL)"""
+        irrelevant_indicators = [
+            "localhost",
+            "127.0.0.1",
+            "file://",
+            "/usr/share/",
+            "/home/",
+            "/opt/",
+            "wordlists",
+            "tools",
+        ]
+        
+        for indicator in irrelevant_indicators:
+            if indicator in url.lower():
+                return False
+        
+        return True
+
+    def is_interesting_web_file(self, file_path):
+        """Check if a file path represents an interesting web file (not a local system file)"""
+        # Skip local system paths
+        if any(indicator in file_path for indicator in ["/home/", "/usr/", "/opt/", "/etc/", "/var/"]):
+            return False
+        
+        # Must start with / (web path) and not be too long
+        if not file_path.startswith("/") or len(file_path) > 100:
+            return False
+        
+        return True
 
     def generate_key_findings_section(self, target, data):
         """Generate key findings section at the top"""
@@ -711,27 +828,32 @@ class RichSummary(Report):
         lines = content.splitlines()
         interesting = []
 
-        # Patterns for interesting information
+        # Patterns for interesting information - more specific and focused
         patterns = [
-            r"http[s]?://[^\s]+",  # URLs
-            r"\d+/tcp\s+open",  # Open ports
+            r"https?://[^\s]+",  # URLs
+            r"\d+/tcp\s+open",  # Open TCP ports
             r"\d+/udp\s+open",  # Open UDP ports
             r"CVE-\d{4}-\d{4,7}",  # CVEs
             r"VULNERABLE",  # Vulnerabilities
             r"Server:\s*[^\r\n]+",  # Server headers
             r"Location:\s*[^\r\n]+",  # Redirects
             r"Title:\s*[^\r\n]+",  # Page titles
-            r"/[a-zA-Z0-9_\-/]+\.(php|asp|aspx|jsp|cgi|pl)",  # Interesting files
-            r"admin|login|password|config|backup",  # Interesting keywords
+            r"200\s+\d+\s+[^\s]+\.(php|asp|aspx|jsp|cgi|pl)",  # Interesting web files with 200 status
+            r"301\s+\d+\s+[^\s]+",  # Redirects
+            r"403\s+\d+\s+[^\s]+",  # Forbidden (might be interesting)
             r"Directory listing|Index of",  # Directory listings
-            r"Error|Exception|Warning.*:",  # Errors that might reveal info
-            r"SQL|MySQL|PostgreSQL|Oracle",  # Database info
             r"WordPress|Drupal|Joomla",  # CMS detection
+            r"admin|login|config|backup",  # Interesting keywords in context
+            r"SQL|MySQL|PostgreSQL|Oracle",  # Database info
         ]
 
         for line in lines:
             line = line.strip()
-            if len(line) < 5:  # Skip very short lines
+            if len(line) < 10:  # Skip very short lines
+                continue
+            
+            # Skip lines that are clearly local system paths or tool output
+            if self.is_local_system_line(line):
                 continue
 
             for pattern in patterns:
@@ -739,17 +861,44 @@ class RichSummary(Report):
                     interesting.append(line)
                     break
 
-        # Also include lines with specific keywords
-        keyword_lines = []
-        keywords = ["discovered", "found", "detected", "identified", "vulnerable", "exploit", "shell", "flag"]
+        # Also include lines with specific scan result keywords
+        result_keywords = ["discovered", "found", "detected", "identified", "vulnerable", "exploit"]
         for line in lines:
-            if any(keyword in line.lower() for keyword in keywords):
-                keyword_lines.append(line.strip())
-
-        interesting.extend(keyword_lines)
+            line = line.strip()
+            if len(line) < 10:
+                continue
+                
+            if self.is_local_system_line(line):
+                continue
+                
+            if any(keyword in line.lower() for keyword in result_keywords):
+                # Make sure it's not just a tool status message
+                if not any(skip in line.lower() for skip in ["scanning", "starting", "finished", "completed"]):
+                    interesting.append(line)
 
         # Remove duplicates and return
         return list(dict.fromkeys(interesting))
+
+    def is_local_system_line(self, line):
+        """Check if a line contains local system information that should be filtered out"""
+        local_indicators = [
+            "/home/",
+            "/usr/share/",
+            "/opt/",
+            "/etc/",
+            "/var/",
+            "ipcrawler/",
+            "wordlists/",
+            "tools/",
+            "/.well-known/security.txt",
+            "directory-list-2.3-medium.txt",
+        ]
+        
+        for indicator in local_indicators:
+            if indicator in line:
+                return True
+        
+        return False
 
     def generate_commands_reference_section(self, data):
         """Generate commands reference section - moved to bottom"""
