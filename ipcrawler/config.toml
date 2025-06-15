@@ -96,12 +96,6 @@ backup_hosts_file = true        # Backup /etc/hosts before changes
 # 💡 RECOMMENDATION: Edit global.toml for wordlist settings (affects all plugins)
 # ⚠️  WARNING: Large wordlists can cause scans to hang - use with timeouts
 
-# [naabu-tcp-ports]
-# rate = 1000                    # Packets per second for Naabu (default: 1000)
-# timeout = 10                   # Timeout in seconds for Naabu scan (default: 10)
-# top-ports = true               # Scan only top 1000 ports instead of full range (default: false)
-# skip-nmap = false              # Skip Nmap service detection, only do port discovery (default: false)
-
 # [dirbuster]
 # threads = 50                   # Number of threads
 # wordlist = ['/usr/share/seclists/Discovery/Web-Content/common.txt']  # Override global wordlist
