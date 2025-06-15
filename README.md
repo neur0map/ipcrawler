@@ -136,14 +136,18 @@ ipcrawler --timeout 60 target.com
 ipcrawler --target-timeout 30 target.com
 ```
 
-**Plugin-specific timeouts** in `~/.config/ipcrawler/global.toml`:
+**Plugin-specific timeouts** in `~/.config/ipcrawler/config.toml`:
 ```toml
+# Uncomment and customize these timeout settings:
 [dirbuster]
 timeout = 1800      # 30 minutes max for directory busting
 max_depth = 4       # Prevent infinite recursion
 
 [nikto]
 timeout = 1800      # 30 minutes max for web vulnerability scanning
+
+[subdomain-enum]
+timeout = 1800      # 30 minutes max for subdomain enumeration
 ```
 
 > 📖 **Detailed guide**: See `LONG_SCAN_FIXES.md` for complete timeout configuration and troubleshooting.

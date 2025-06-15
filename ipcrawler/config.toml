@@ -48,6 +48,30 @@ backup_hosts_file = true        # Backup /etc/hosts before changes
 # password-wordlist = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
 # domain = 'example.com'         # Domain for DNS/AD enumeration
 
+# ========================================
+# Timeout Configuration (New in v2.1.1)
+# ========================================
+# Prevents long scans from hanging at 98% completion
+# All timeouts are in seconds (1800 = 30 minutes)
+
+# [dirbuster]
+# timeout = 1800                 # Maximum time for directory busting (30 minutes)
+# max_depth = 4                  # Maximum recursion depth to prevent infinite loops
+# threads = 10                   # Number of threads
+
+# [nikto]
+# timeout = 1800                 # Maximum time for web vulnerability scanning (30 minutes)
+
+# [subdomain-enum]
+# timeout = 1800                 # Maximum time for subdomain enumeration (30 minutes)
+# threads = 10                   # Number of threads
+
+# [dnsrecon-brute]
+# timeout = 1800                 # Maximum time for DNS subdomain bruteforce (30 minutes)
+
+# ========================================
+# Legacy Plugin Options
+# ========================================
 # [dirbuster]
 # threads = 50                   # Number of threads
 # wordlist = ['/usr/share/seclists/Discovery/Web-Content/common.txt']

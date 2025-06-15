@@ -48,8 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ipcrawler --timeout 60 target.com           # 60-minute global timeout
   ipcrawler --target-timeout 30 target.com    # 30-minute per-target timeout
   ```
-- **Plugin-Specific Timeouts**: Granular control in `~/.config/ipcrawler/global.toml`
+- **Plugin-Specific Timeouts**: Granular control in `~/.config/ipcrawler/config.toml`
   ```toml
+  # Uncomment and customize these timeout settings:
   [dirbuster]
   timeout = 1800      # 30 minutes max for directory busting
   max_depth = 4       # Prevent infinite recursion
