@@ -3046,36 +3046,81 @@ async def run():
             done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED, timeout=1)
 
     if timed_out:
-        for task in pending:
-            task.cancel()
+        cancel_all_tasks(None, None)
 
-        for process_list in target.running_tasks.values():
-            for process_dict in process_list["processes"]:
-                try:
-                    process_dict["process"].kill()
-                except ProcessLookupError:
-                    pass
-
+        elapsed_time = calculate_elapsed_time(start_time)
         warn(
-            "{byellow}Scanning target "
-            + target.address
-            + " took longer than the specified target period ("
-            + str(config["target_timeout"])
-            + " min). Cancelling scans and moving to next target.{rst}"
+            "{byellow}ipcrawler took longer than the specified timeout period ("
+            + str(config["timeout"])
+            + " min). Cancelling all scans and exiting.{rst}"
         )
     else:
-        info("Finished scanning target {byellow}" + target.address + "{rst} in " + elapsed_time)
+        while len(asyncio.all_tasks()) > 1:  # this code runs in the main() task so it will be the only task left running
+            await asyncio.sleep(1)
 
-    # Clean up timeout tasks
-    if hasattr(target, 'timeout_tasks'):
-        for timeout_task in target.timeout_tasks:
-            if not timeout_task.done():
-                timeout_task.cancel()
-        target.timeout_tasks.clear()
+        elapsed_time = calculate_elapsed_time(start_time)
 
-    async with ipcrawler.lock:
-        ipcrawler.completed_targets.append(target)
-        ipcrawler.scanning_targets.remove(target)
+        # Use enhanced scan summary
+        target_count = len(ipcrawler.completed_targets)
+        show_scan_summary(target_count, elapsed_time)
+
+        # Fallback to standard message if Rich not available
+        if not RICH_AVAILABLE or config["accessible"]:
+            info("{bright}Finished scanning all targets in " + elapsed_time + "!{rst}")
+            info(
+                "{bright}Don't forget to check out more commands to run manually in the _manual_commands.txt file in each target's scans directory!"
+            )
+
+        # VHost Discovery Post-Processing
+        if config.get("vhost_discovery", {}).get("enabled", True):
+            try:
+                from ipcrawler.vhost_post_processor import VHostPostProcessor
+                from ipcrawler.io import vhost_manager
+
+                # Check if any VHost files were created and collect all scan directories
+                vhost_files_found = False
+                scan_directories = []
+
+                for target in ipcrawler.completed_targets:
+                    scan_directories.append(target.scandir)
+                    for root, dirs, files in os.walk(target.scandir):
+                        if any(f.startswith("vhost_redirects_") and f.endswith(".txt") for f in files):
+                            vhost_files_found = True
+
+                # Run post-processing if:
+                # 1. VHost files were found AND
+                # 2. Auto-add was disabled in config OR auto-add failed due to no privileges
+                vhost_config = config.get("vhost_discovery", {})
+                auto_add_setting = vhost_config.get("auto_add_hosts", True)
+
+                if vhost_files_found and (not auto_add_setting or not vhost_manager.auto_add_enabled):
+                    if not auto_add_setting:
+                        info("{bright}🌐 Running VHost Discovery Post-Processing (auto-add disabled)...{rst}")
+                    else:
+                        info("{bright}🌐 Running VHost Discovery Post-Processing (no privileges for auto-add)...{rst}")
+
+                    # Pass all scan directories to the processor
+                    processor = VHostPostProcessor(scan_directories)
+                    processor.run_interactive_session()
+                elif vhost_files_found and auto_add_setting and vhost_manager.auto_add_enabled:
+                    info("{bright}🌐 VHosts discovered and auto-added during scanning. Check /etc/hosts for entries.{rst}")
+
+            except ImportError:
+                warn("VHost post-processor not available. Skipping VHost management.")
+            except Exception as e:
+                warn(f"VHost post-processing failed: {e}")
+
+    if ipcrawler.missing_services:
+        warn(
+            "{byellow}ipcrawler identified the following services, but could not match them to any plugins based on the service name. Please report these to neur0map: "
+            + ", ".join(ipcrawler.missing_services)
+            + "{rst}"
+        )
+
+    if not config["disable_keyboard_control"]:
+        # Restore original terminal settings.
+        if terminal_settings is not None:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, terminal_settings)
 
 
 def main():
