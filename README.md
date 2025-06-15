@@ -143,6 +143,15 @@ ipcrawler --timeout 60 target.com
 
 # Set per-target timeout (30 minutes per target)
 ipcrawler --target-timeout 30 target.com
+
+# Enable parallel port scanning if TCP scan hangs
+ipcrawler --top-tcp-ports.parallel-scan target.com
+
+# Enable parallel wordlists if directory busting hangs  
+ipcrawler --dirbuster.parallel-wordlists target.com
+
+# Combine both for maximum reliability
+ipcrawler --top-tcp-ports.parallel-scan --dirbuster.parallel-wordlists target.com
 ```
 
 **Plugin-specific timeouts** in `~/.config/ipcrawler/config.toml`:

@@ -40,8 +40,12 @@ class DirBuster(ServiceScan):
         self.add_true_option("recursive", help="Enable recursive directory busting. Default: %(default)s")
         self.add_option(
             "timeout",
-            default=1800,
-            help="Maximum time in seconds for directory busting (30 minutes). Default: %(default)s",
+            default=1200,
+            help="Maximum time in seconds for directory busting (20 minutes). Default: %(default)s",
+        )
+        self.add_true_option(
+            "parallel-wordlists",
+            help="Run multiple wordlists in parallel instead of sequentially. Default: %(default)s"
         )
         self.add_option(
             "max_depth",
@@ -122,6 +126,14 @@ class DirBuster(ServiceScan):
         
         self.info(f"Starting directory busting with {len(valid_wordlists)} wordlist(s)")
         
+        # Check if parallel wordlists is enabled
+        if self.get_option("parallel-wordlists") and len(valid_wordlists) > 1:
+            await self._run_parallel_wordlists(service, valid_wordlists, timeout_seconds, max_depth, dot_extensions)
+        else:
+            await self._run_sequential_wordlists(service, valid_wordlists, timeout_seconds, max_depth, dot_extensions)
+
+    async def _run_sequential_wordlists(self, service, valid_wordlists, timeout_seconds, max_depth, dot_extensions):
+        """Run wordlists sequentially (original behavior)"""
         for wordlist in valid_wordlists:
             name = os.path.splitext(os.path.basename(wordlist))[0]
             if self.get_option("tool") == "feroxbuster":
@@ -279,3 +291,120 @@ class DirBuster(ServiceScan):
                     + (" " + self.get_option("extras") if self.get_option("extras") else "")
                 ],
             )
+
+    async def _run_parallel_wordlists(self, service, valid_wordlists, timeout_seconds, max_depth, dot_extensions):
+        """Run multiple wordlists in parallel"""
+        import asyncio
+        
+        service.info(f"🔄 Running {len(valid_wordlists)} wordlists in parallel")
+        
+        # Create tasks for each wordlist
+        tasks = []
+        for wordlist in valid_wordlists:
+            task = self._run_single_wordlist(service, wordlist, timeout_seconds, max_depth, dot_extensions)
+            tasks.append(task)
+        
+        # Run all wordlists in parallel
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Report results
+        successful = 0
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                service.error(f"Wordlist {valid_wordlists[i]} failed: {result}")
+            else:
+                successful += 1
+        
+        service.info(f"✅ Completed parallel directory busting - {successful}/{len(valid_wordlists)} wordlists successful")
+
+    async def _run_single_wordlist(self, service, wordlist, timeout_seconds, max_depth, dot_extensions):
+        """Run directory busting with a single wordlist"""
+        name = os.path.splitext(os.path.basename(wordlist))[0]
+        
+        # Reduce timeout for parallel runs to prevent one wordlist from blocking others
+        parallel_timeout = min(timeout_seconds // 2, 600)  # Max 10 minutes per wordlist in parallel mode
+        
+        if self.get_option("tool") == "feroxbuster":
+            cmd = (
+                "timeout " + str(parallel_timeout) + " feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t "
+                + str(self.get_option("threads"))
+                + ' -w "'
+                + wordlist
+                + '" -x "'
+                + self.get_option("ext")
+                + '" -v -k '
+                + ("--depth " + str(max_depth) + " " if self.get_option("recursive") else "-n ")
+                + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_'
+                + name
+                + '.txt"'
+                + (" " + self.get_option("extras") if self.get_option("extras") else "")
+            )
+            await service.execute(cmd)
+
+        elif self.get_option("tool") == "gobuster":
+            cmd = (
+                "timeout " + str(parallel_timeout) + " gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t "
+                + str(self.get_option("threads"))
+                + ' -w "'
+                + wordlist
+                + '" -e -k -x "'
+                + self.get_option("ext")
+                + '" -z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_'
+                + name
+                + '.txt"'
+                + (" " + self.get_option("extras") if self.get_option("extras") else "")
+            )
+            await service.execute(cmd)
+
+        elif self.get_option("tool") == "dirsearch":
+            if service.target.ipversion == "IPv6":
+                service.error("dirsearch does not support IPv6.")
+            else:
+                cmd = (
+                    "timeout " + str(parallel_timeout) + " dirsearch -u {http_scheme}://{address}:{port}/ -t "
+                    + str(self.get_option("threads"))
+                    + ' -e "'
+                    + self.get_option("ext")
+                    + '" -f -q -F '
+                    + ("-r --max-recursion-depth=" + str(max_depth) + " " if self.get_option("recursive") else "")
+                    + '-w "'
+                    + wordlist
+                    + '" --format=plain -o "{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_'
+                    + name
+                    + '.txt"'
+                    + (" " + self.get_option("extras") if self.get_option("extras") else "")
+                )
+                await service.execute(cmd)
+
+        elif self.get_option("tool") == "ffuf":
+            cmd = (
+                "timeout " + str(parallel_timeout) + " ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t "
+                + str(self.get_option("threads"))
+                + ' -w "'
+                + wordlist
+                + '" -e "'
+                + dot_extensions
+                + '" -v -r '
+                + ("-recursion -recursion-depth " + str(max_depth) + " " if self.get_option("recursive") else "")
+                + "-noninteractive"
+                + (" " + self.get_option("extras") if self.get_option("extras") else "")
+                + " | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_"
+                + name
+                + ".txt"
+            )
+            await service.execute(cmd)
+
+        elif self.get_option("tool") == "dirb":
+            cmd = (
+                'timeout ' + str(parallel_timeout) + ' dirb {http_scheme}://{addressv6}:{port}/ "'
+                + wordlist
+                + '" -l '
+                + ("" if self.get_option("recursive") else "-r ")
+                + '-S -X ",'
+                + dot_extensions
+                + '" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_'
+                + name
+                + '.txt"'
+                + (" " + self.get_option("extras") if self.get_option("extras") else "")
+            )
+            await service.execute(cmd)

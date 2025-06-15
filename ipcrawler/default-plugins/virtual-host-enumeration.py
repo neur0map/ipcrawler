@@ -48,8 +48,8 @@ class VirtualHost(ServiceScan):
         valid_wordlists = self.get_validated_wordlists("wordlist", "virtual host", fallback_wordlists)
         
         if not valid_wordlists:
-            self.error("No valid virtual host wordlists found - skipping virtual host enumeration")
-            self.error("Please check your wordlist paths in global.toml or config.toml")
+            self.warn("Skipping virtual host enumeration - no valid wordlists found")
+            self.info("💡 Install SecLists: sudo apt install seclists")
             return
         
         if self.get_option("hostname"):
@@ -58,10 +58,22 @@ class VirtualHost(ServiceScan):
             hostnames.append(service.target.address)
         if self.get_global("domain") and self.get_global("domain") not in hostnames:
             hostnames.append(self.get_global("domain"))
+        
+        # Check for hostnames discovered by VHost Redirect Hunter
+        if hasattr(service.target, "discovered_vhosts") and service.target.discovered_vhosts:
+            for vhost_info in service.target.discovered_vhosts:
+                discovered_hostname = vhost_info.get("hostname")
+                if discovered_hostname and discovered_hostname not in hostnames:
+                    hostnames.append(discovered_hostname)
+                    self.info(f"Using hostname discovered by VHost Redirect Hunter: {discovered_hostname}")
 
         if not hostnames:
-            self.error("No hostname specified for virtual host enumeration.")
-            self.error("Please specify a hostname using --vhost-enum.hostname or set domain in global.toml")
+            self.warn("Skipping virtual host enumeration - no hostname available")
+            self.info("💡 VHost Redirect Hunter should have discovered hostnames automatically")
+            self.info("💡 Alternative options to enable virtual host enumeration:")
+            self.info("   1. Use --vhost-enum.hostname=example.com")
+            self.info("   2. Set domain in global.toml: [global.domain] default = 'example.com'")
+            self.info("   3. Or scan a hostname target instead of an IP")
             return
 
         self.info(f"Starting virtual host enumeration with {len(valid_wordlists)} wordlist(s) for {len(hostnames)} hostname(s)")
