@@ -96,6 +96,10 @@ backup_hosts_file = true        # Backup /etc/hosts before changes
 # 💡 RECOMMENDATION: Edit global.toml for wordlist settings (affects all plugins)
 # ⚠️  WARNING: Large wordlists can cause scans to hang - use with timeouts
 
+# [top-tcp-ports]
+# single-scan = false            # Use single Nmap scan instead of parallel (default: false)
+#                                # Note: Parallel scan (2x 500 ports) is now the default for better reliability
+
 # [dirbuster]
 # threads = 50                   # Number of threads
 # wordlist = ['/usr/share/seclists/Discovery/Web-Content/common.txt']  # Override global wordlist
