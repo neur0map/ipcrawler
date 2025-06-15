@@ -1865,6 +1865,13 @@ async def scan_target(target):
                 timeout_task.cancel()
         target.timeout_tasks.clear()
 
+    # Clean up any remaining progress tasks for this target
+    async with target.lock:
+        for task_info in list(target.running_tasks.values()):
+            if "progress_task" in task_info and task_info["progress_task"]:
+                progress_manager.complete_task(task_info["progress_task"])
+        target.running_tasks.clear()
+
     async with ipcrawler.lock:
         ipcrawler.completed_targets.append(target)
         ipcrawler.scanning_targets.remove(target)

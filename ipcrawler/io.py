@@ -713,10 +713,11 @@ class ProgressManager:
 
         # Mark as completed to prevent duplicate completion
         task["completed_flag"] = True
+        task["scan_completed"] = True  # Signal to progress updater to stop
         elapsed = time.time() - task["started"]
 
         if task.get("rich_task", False) and self.progress:
-            # Complete Rich progress bar
+            # Complete Rich progress bar to 100%
             self.progress.update(task_id, completed=task["total"])
             # Let Rich handle the completion display
         else:
@@ -746,6 +747,7 @@ class ProgressManager:
 
             # Remove from our internal tracking
             del self.tasks[task_id]
+            debug(f"Progress task {task_id} removed from tracking", verbosity=3)
 
     def simulate_progress(self, task_id, duration=10):
         """Simulate progress for long-running tasks"""
@@ -769,6 +771,12 @@ class ProgressManager:
             try:
                 # Check if task still exists before accessing it
                 if task_id not in self.tasks:
+                    debug(f"Progress updater: task {task_id} no longer exists, stopping", verbosity=3)
+                    break
+
+                # Check if scan has completed
+                if self.tasks[task_id].get("scan_completed", False):
+                    debug(f"Progress updater: scan completed for task {task_id}, stopping", verbosity=3)
                     break
 
                 elapsed = time.time() - start_time
@@ -804,10 +812,17 @@ class ProgressManager:
 
             await asyncio.sleep(1.0)  # Update every second
 
+        debug(f"Progress updater for task {task_id} finished", verbosity=3)
+
     def stop(self):
         """Stop the progress manager"""
         if self.active:
             self.active = False
+
+            # Complete any remaining tasks
+            for task_id in list(self.tasks.keys()):
+                if not self.tasks[task_id].get("completed_flag", False):
+                    self.tasks[task_id]["scan_completed"] = True
 
             # Stop Rich live display
             if self.live:
@@ -818,7 +833,7 @@ class ProgressManager:
             self.progress = None
             self.tasks.clear()
             self.task_keys.clear()
-            debug("Progress manager stopped", verbosity=3)
+            debug("Progress manager stopped and all tasks cleared", verbosity=3)
 
 
 # Global progress manager instance
