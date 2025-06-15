@@ -10,7 +10,7 @@ class QuickTCPPortScan(PortScan):
         self.name = "Top TCP Ports"
         self.description = "Performs an Nmap scan of the top 1000 TCP ports."
         self.type = "tcp"
-        self.tags = ["default", "default-port-scan", "safe", "quick"]
+        self.tags = ["disabled", "nmap-legacy", "safe", "quick"]
         self.priority = 0
 
     def configure(self):
