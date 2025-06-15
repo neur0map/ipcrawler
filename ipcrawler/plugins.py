@@ -53,14 +53,15 @@ class Plugin(object):
         # TODO: make sure name is simple.
         name = self.slug.replace("-", "_") + "." + slugify(name).replace("-", "_")
 
-        if name in vars(self.ipcrawler.args):
-            if vars(self.ipcrawler.args)[name] is None:
+        if hasattr(self.ipcrawler.args, name):
+            value = getattr(self.ipcrawler.args, name)
+            if value is None:
                 if default:
                     return default
                 else:
                     return None
             else:
-                return vars(self.ipcrawler.args)[name]
+                return value
         else:
             if default:
                 return default
@@ -70,14 +71,15 @@ class Plugin(object):
     def get_global_option(self, name, default=None):
         name = "global." + slugify(name).replace("-", "_")
 
-        if name in vars(self.ipcrawler.args):
-            if vars(self.ipcrawler.args)[name] is None:
+        if hasattr(self.ipcrawler.args, name):
+            value = getattr(self.ipcrawler.args, name)
+            if value is None:
                 if default:
                     return default
                 else:
                     return None
             else:
-                return vars(self.ipcrawler.args)[name]
+                return value
         else:
             if default:
                 return default
@@ -311,7 +313,7 @@ class ipcrawler(object):
         self.scanning_targets = []
         self.completed_targets = []
         self.plugins = {}
-        self.__slug_regex = re.compile("^[a-z0-9\-]+$")
+        self.__slug_regex = re.compile(r"^[a-z0-9\-]+$")
         self.plugin_types = {"port": [], "service": [], "report": []}
         self.port_scan_semaphore = None
         self.service_scan_semaphore = None
@@ -340,7 +342,7 @@ class ipcrawler(object):
 
     def extract_service(self, line, regex):
         if regex is None:
-            regex = "^(?P<port>\d+)\/(?P<protocol>(tcp|udp))(.*)open(\s*)(?P<service>[\w\-\/]+)(\s*)(.*)$"
+            regex = r"^(?P<port>\d+)\/(?P<protocol>(tcp|udp))(.*)open(\s*)(?P<service>[\w\-\/]+)(\s*)(.*)$"
         match = re.search(regex, line)
         if match:
             protocol = match.group("protocol").lower()
