@@ -47,7 +47,7 @@ from ipcrawler.io import (
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.targets import Target, Service
 
-VERSION = "2.1.0"
+VERSION = "2.1.2"
 
 
 def show_rich_help():

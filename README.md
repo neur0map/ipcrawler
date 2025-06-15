@@ -65,8 +65,17 @@ docker run -it --rm -v "${PWD}\results:/scans" -w /scans ipcrawler    # Windows 
 ## 📊 Example Usage
 
 ```bash
-# Basic scan
-ipcrawler 10.10.10.1
+# Basic scan with default plugins (excludes slow 'long' plugins)
+ipcrawler 10.10.10.10
+
+# Include long-running scans (directory busting, subdomain enum)
+ipcrawler --tags 'default' 10.10.10.10
+
+# Quick scan - only fast, safe tools
+ipcrawler --tags 'default+safe+quick' 10.10.10.10
+
+# Scan with custom timeout (prevent hanging)
+ipcrawler --timeout 60 10.10.10.10
 
 # Verbose output with progress
 ipcrawler -v 10.10.10.1
@@ -197,3 +206,23 @@ For authorized testing only. No automated exploitation by default (OSCP complian
 ---
 
 **⭐ Star this repo if ipcrawler helps with your security testing!**
+
+## 🎯 Wordlist Configuration
+
+**Global wordlists take priority** over plugin defaults and can significantly speed up scans:
+
+```bash
+# Edit global wordlists (recommended for faster scans)
+nano ipcrawler/global.toml
+```
+
+**Default global wordlists** (smaller, faster):
+- **Directory busting**: `/usr/share/seclists/Discovery/Web-Content/common.txt` (~4.6K entries)
+- **Subdomain enum**: `/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt` (~5K entries)  
+- **Virtual hosts**: `/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt` (~5K entries)
+
+**Plugin defaults** (larger, slower):
+- **Directory busting**: `directory-list-2.3-medium.txt` (~220K entries)
+- **Subdomain enum**: `subdomains-top1million-110000.txt` (~110K entries)
+
+💡 **Tip**: The global wordlists prevent long scans from hanging and provide faster results for most scenarios.

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ipcrawler"
-version = "2.1.0"
+version = "2.1.2"
 description = "A multi-threaded network reconnaissance tool which performs automated enumeration of services."
 authors = ["neur0map"]
 license = "GNU GPL v3"

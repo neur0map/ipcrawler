@@ -9,6 +9,12 @@
 # ========================================
 # Wordlist Settings
 # ========================================
+# 🛡️ WORDLIST VALIDATION: ipcrawler now validates wordlist paths automatically
+#    - Missing wordlists are reported with helpful error messages
+#    - Plugins skip gracefully if no valid wordlists are found
+#    - Built-in fallbacks are used when external wordlists are missing
+#    - Install SecLists for comprehensive wordlists: sudo apt install seclists
+
 [global.username-wordlist]
 default = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
 help = 'Username wordlist for bruteforce attacks. Default: %(default)s'
@@ -16,6 +22,18 @@ help = 'Username wordlist for bruteforce attacks. Default: %(default)s'
 [global.password-wordlist]
 default = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
 help = 'Password wordlist for bruteforce attacks. Default: %(default)s'
+
+[global.directory-wordlist]
+default = '/usr/share/seclists/Discovery/Web-Content/common.txt'
+help = 'Directory/file wordlist for web enumeration (dirbuster, feroxbuster, gobuster). Smaller wordlist for faster scans. Built-in fallback available. Default: %(default)s'
+
+[global.subdomain-wordlist]
+default = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
+help = 'Subdomain wordlist for DNS enumeration. Smaller subset for faster scans. Default: %(default)s'
+
+[global.vhost-wordlist]
+default = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
+help = 'Virtual host wordlist for HTTP host header enumeration. Smaller subset for faster scans. Default: %(default)s'
 
 # ========================================
 # Target Information

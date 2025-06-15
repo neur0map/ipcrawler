@@ -19,10 +19,15 @@ class DirBuster(ServiceScan):
             default="feroxbuster",
             help="The tool to use for directory busting. Default: %(default)s",
         )
+        
+        # Check for global directory wordlist first, fallback to plugin default
+        global_wordlist = self.get_global("directory-wordlist")
+        default_wordlist = [global_wordlist] if global_wordlist else ["/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"]
+        
         self.add_list_option(
             "wordlist",
-            default=["/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"],
-            help="The wordlist(s) to use when directory busting. Separate multiple wordlists with spaces. Default: %(default)s",
+            default=default_wordlist,
+            help="The wordlist(s) to use when directory busting. Separate multiple wordlists with spaces. Global setting takes priority. Default: %(default)s",
         )
         self.add_option(
             "threads", default=10, help="The number of threads to use when directory busting. Default: %(default)s"
@@ -95,7 +100,29 @@ class DirBuster(ServiceScan):
         timeout_seconds = self.get_option("timeout")
         max_depth = self.get_option("max_depth")
         
-        for wordlist in self.get_option("wordlist"):
+        # Validate wordlists before running
+        fallback_wordlists = [
+            "/usr/share/seclists/Discovery/Web-Content/common.txt",
+            "/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt",
+            "/usr/share/wordlists/dirb/common.txt",
+            "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
+        ]
+        
+        # Add built-in wordlist as final fallback
+        builtin_wordlist = os.path.join(os.path.dirname(__file__), "..", "wordlists", "dirbuster.txt")
+        if os.path.isfile(builtin_wordlist):
+            fallback_wordlists.append(builtin_wordlist)
+        
+        valid_wordlists = self.get_validated_wordlists("wordlist", "directory", fallback_wordlists)
+        
+        if not valid_wordlists:
+            self.error("No valid directory wordlists found - skipping directory busting")
+            self.error("Please check your wordlist paths in global.toml or config.toml")
+            return
+        
+        self.info(f"Starting directory busting with {len(valid_wordlists)} wordlist(s)")
+        
+        for wordlist in valid_wordlists:
             name = os.path.splitext(os.path.basename(wordlist))[0]
             if self.get_option("tool") == "feroxbuster":
                 cmd = (

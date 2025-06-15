@@ -305,6 +305,7 @@ class RichSummary(Report):
             "technologies": set(),
             "cms_versions": [],
             "open_ports": [],
+            "robots_findings": [],  # New: specific robots.txt findings
         }
 
         # Extract from discovered services
@@ -324,6 +325,12 @@ class RichSummary(Report):
             if not self.is_scan_result_file(file_path):
                 continue
             scan_content += content + "\n"
+            
+            # Special handling for robots.txt files
+            if "robots" in file_path.lower() and "curl-robots" in file_path:
+                robots_content = self.extract_robots_findings(content)
+                if robots_content:
+                    findings["robots_findings"].extend(robots_content)
         
         # Also include special files (these are always scan results)
         for content in data["special_files"].values():
@@ -406,12 +413,17 @@ class RichSummary(Report):
             r"\.php[^\s]*",
             r"\.asp[^\s]*",
             r"\.jsp[^\s]*",
+            r"/robots\.txt",  # Add specific robots.txt pattern
         ]
         for pattern in file_patterns:
             files = re.findall(pattern, scan_content, re.IGNORECASE)
             # Filter out local system paths
             filtered_files = [f for f in files if self.is_interesting_web_file(f)]
             findings["interesting_files"].extend(filtered_files)
+
+        # Add robots.txt findings to interesting files if found
+        if findings["robots_findings"]:
+            findings["interesting_files"].extend([f"robots.txt: {finding}" for finding in findings["robots_findings"][:5]])
 
         # Clean up findings
         findings["urls"] = sorted(list(findings["urls"]))[:20]  # Limit to top 20
@@ -421,6 +433,52 @@ class RichSummary(Report):
         findings["credentials"] = list(set(findings["credentials"]))[:10]
         findings["interesting_files"] = list(set(findings["interesting_files"]))[:15]
 
+        return findings
+
+    def extract_robots_findings(self, robots_content):
+        """Extract meaningful findings from robots.txt content"""
+        findings = []
+        lines = robots_content.splitlines()
+        
+        # Skip HTTP headers and get to the actual robots.txt content
+        content_started = False
+        for line in lines:
+            line = line.strip()
+            
+            # Skip empty lines and HTTP headers
+            if not line or line.startswith("HTTP/") or ":" in line and not content_started:
+                if line.startswith("User-agent:") or line.startswith("Disallow:") or line.startswith("Allow:"):
+                    content_started = True
+                else:
+                    continue
+            else:
+                content_started = True
+            
+            # Extract robots.txt directives
+            if content_started:
+                if line.startswith("Disallow:"):
+                    path = line.split(":", 1)[1].strip()
+                    if path and path != "/":
+                        findings.append(f"Disallowed path: {path}")
+                    elif path == "/":
+                        findings.append("All paths disallowed")
+                elif line.startswith("Allow:"):
+                    path = line.split(":", 1)[1].strip()
+                    if path:
+                        findings.append(f"Allowed path: {path}")
+                elif line.startswith("Sitemap:"):
+                    sitemap = line.split(":", 1)[1].strip()
+                    if sitemap:
+                        findings.append(f"Sitemap found: {sitemap}")
+                elif line.startswith("Crawl-delay:"):
+                    delay = line.split(":", 1)[1].strip()
+                    if delay:
+                        findings.append(f"Crawl delay: {delay} seconds")
+                elif line.startswith("User-agent:"):
+                    agent = line.split(":", 1)[1].strip()
+                    if agent and agent != "*":
+                        findings.append(f"Specific user-agent: {agent}")
+        
         return findings
 
     def is_scan_result_file(self, file_path):
@@ -537,6 +595,20 @@ class RichSummary(Report):
 """
             for tech in findings["technologies"]:
                 html_content += f'<div class="finding-item tech-item">{html.escape(tech)}</div>'
+            html_content += """
+                        </div>
+                    </div>
+"""
+
+        # Robots.txt Findings Section
+        if findings.get("robots_findings"):
+            html_content += f"""
+                    <div class="finding-card">
+                        <h3>🤖 robots.txt Findings</h3>
+                        <div class="finding-list">
+"""
+            for finding in findings["robots_findings"]:
+                html_content += f'<div class="finding-item robots-item">{html.escape(finding)}</div>'
             html_content += """
                         </div>
                     </div>
@@ -845,6 +917,11 @@ class RichSummary(Report):
             r"WordPress|Drupal|Joomla",  # CMS detection
             r"admin|login|config|backup",  # Interesting keywords in context
             r"SQL|MySQL|PostgreSQL|Oracle",  # Database info
+            r"User-agent:\s*[^\r\n]+",  # robots.txt user-agent directives
+            r"Disallow:\s*[^\r\n]+",  # robots.txt disallow directives
+            r"Allow:\s*[^\r\n]+",  # robots.txt allow directives
+            r"Sitemap:\s*[^\r\n]+",  # robots.txt sitemap directives
+            r"Crawl-delay:\s*[^\r\n]+",  # robots.txt crawl delay directives
         ]
 
         for line in lines:
@@ -1475,6 +1552,13 @@ class RichSummary(Report):
             border-left-color: #ff6348;
             background: #fff8f5;
             color: #d63031;
+            font-weight: bold;
+        }
+        
+        .finding-item.robots-item {
+            border-left-color: #17a2b8;
+            background: #f0f9ff;
+            color: #0c5460;
             font-weight: bold;
         }
         

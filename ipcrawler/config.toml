@@ -2,6 +2,11 @@
 # ipcrawler Configuration File
 # ========================================
 # 
+# 🚀 QUICK REFERENCE:
+#    Current setting: Fast scans only (excludes directory busting, subdomain enum)
+#    To enable ALL scans: Set exclude-tags = '' (empty string, NOT 'none')
+#    For timeouts: Use --timeout 60 or uncomment timeout settings below
+#
 # 💡 To see all available plugins and their tags:
 #    Run: ipcrawler --list
 #
@@ -19,14 +24,29 @@
 # ========================================
 # Controls which scanning tools run automatically
 # 
-# Examples:
-#   tags = 'default'              # Run all standard tools (slow + fast)
-#   tags = 'default+safe+quick'   # Only fast, safe tools  
-#   tags = 'default+safe'         # Safe tools only
+# 🚀 CURRENT CONFIGURATION: Fast scans only (excludes long-running tools)
+#    - Runs: nmap, curl, whatweb, nikto (with timeout), basic enumeration
+#    - Skips: directory busting, subdomain enumeration, virtual host discovery
+#    - Result: Faster scans, less comprehensive coverage
 #
+# 🎯 TO ENABLE ALL SCANS (including long-running tools):
+#    Set exclude-tags to empty string (NOT the word 'none'):
+#    exclude-tags = ''
+#
+# 📋 CONFIGURATION OPTIONS:
+#   tags = 'default'                    # All standard tools (recommended for thorough scans)
+#   exclude-tags = 'long'               # Skip slow tools (current setting - faster scans)
+#   exclude-tags = ''                   # Include ALL tools (empty string disables exclusions)
+#   tags = 'default+safe+quick'         # Only fast, safe tools (quickest scans)
+#   tags = 'default+safe'               # Safe tools only (no aggressive scans)
+#
+# 💡 PERFORMANCE TIPS:
+#   - With 'exclude-tags = long': Scans complete in 5-15 minutes
+#   - With 'exclude-tags = ""': Scans may take 30-60+ minutes (includes directory busting)
+
 # Default configuration: Run all default tools but exclude slow ones
 tags = 'default'
-exclude-tags = 'long'
+exclude-tags = 'long'                   # 🔧 CHANGE TO '' TO ENABLE ALL SCANS (directory busting, etc.)
 
 # ========================================
 # Virtual Host Discovery
@@ -43,16 +63,16 @@ backup_hosts_file = true        # Backup /etc/hosts before changes
 # ========================================
 # Uncomment sections below to customize specific tools:
 
-# [global]
-# username-wordlist = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
-# password-wordlist = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
-# domain = 'example.com'         # Domain for DNS/AD enumeration
-
 # ========================================
-# Timeout Configuration (New in v2.1.1)
+# Timeout Configuration
 # ========================================
-# Prevents long scans from hanging at 98% completion
-# All timeouts are in seconds (1800 = 30 minutes)
+# 🚨 PREVENTS HANGING: Stops long scans from getting stuck at 98% completion
+# 💡 WHEN TO USE: If scans still hang despite automatic wordlist validation
+# ⚙️ All timeouts are in seconds (1800 = 30 minutes)
+#
+# 🔧 QUICK FIXES FOR HANGING SCANS:
+#    Command line: ipcrawler --timeout 60 target.com
+#    OR uncomment the plugin timeouts below:
 
 # [dirbuster]
 # timeout = 1800                 # Maximum time for directory busting (30 minutes)
@@ -70,13 +90,52 @@ backup_hosts_file = true        # Backup /etc/hosts before changes
 # timeout = 1800                 # Maximum time for DNS subdomain bruteforce (30 minutes)
 
 # ========================================
-# Legacy Plugin Options
+# Advanced Plugin Options
 # ========================================
+# 🔧 PLUGIN-SPECIFIC OVERRIDES: These settings override global defaults
+# 💡 RECOMMENDATION: Edit global.toml for wordlist settings (affects all plugins)
+# ⚠️  WARNING: Large wordlists can cause scans to hang - use with timeouts
+
 # [dirbuster]
 # threads = 50                   # Number of threads
-# wordlist = ['/usr/share/seclists/Discovery/Web-Content/common.txt']
+# wordlist = ['/usr/share/seclists/Discovery/Web-Content/common.txt']  # Override global wordlist
+# tool = 'feroxbuster'           # Choose: feroxbuster, gobuster, ffuf, dirsearch, dirb
+
+# [subdomain-enum]
+# threads = 10                   # Number of threads  
+# wordlist = ['/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt']  # Override global
 
 # [nikto] 
 # threads = 10                   # Number of threads
 
-# Run 'ipcrawler --help' for all available options
+# 📖 For all available options: ipcrawler --help-all
+
+# 🔧 TO ENABLE COMPREHENSIVE SCANNING:
+# Uncomment the line below to include directory busting, subdomain enum, etc.
+# exclude-tags = ''
+
+# ========================================
+# Common Configuration Examples
+# ========================================
+# 
+# 🚀 FAST SCANS (current setting):
+#    tags = 'default'
+#    exclude-tags = 'long'
+#    Result: 5-15 minute scans, basic enumeration only
+#
+# 🎯 COMPREHENSIVE SCANS (recommended for thorough testing):
+#    tags = 'default' 
+#    exclude-tags = ''                   # ← EMPTY STRING enables all scans
+#    Result: 30-60+ minute scans, includes directory busting & subdomain enum
+#
+# ⚡ QUICK SCANS (fastest):
+#    tags = 'default+safe+quick'
+#    exclude-tags = ''
+#    Result: 2-5 minute scans, only essential tools
+#
+# 🛡️ SAFE SCANS (no aggressive tools):
+#    tags = 'default+safe'
+#    exclude-tags = ''
+#    Result: 10-20 minute scans, avoids potentially disruptive tools
+
+# ⚠️  IMPORTANT: Use empty string '', NOT the word 'none' to disable exclusions

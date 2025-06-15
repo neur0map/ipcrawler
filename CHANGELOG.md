@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.2] - 2025-01-XX 🎯
+
+### 🚨 CRITICAL FIX - Global Wordlist Priority System
+**Resolved major cause of long scan hanging by implementing global wordlist priority over plugin defaults**
+
+### 🔧 Fixed - Wordlist Configuration System
+- **Global Wordlist Priority**: `global.toml` wordlist settings now take priority over plugin defaults
+  - **Root Cause**: Long scans were using massive default wordlists (220K+ entries) instead of user-configured smaller ones
+  - **Solution**: Plugins now check `global.toml` first, then fall back to plugin defaults
+  - **Impact**: Prevents scans from hanging due to oversized wordlists
+- **New Global Wordlist Settings** in `ipcrawler/global.toml`:
+  ```toml
+  [global.directory-wordlist]
+  default = '/usr/share/seclists/Discovery/Web-Content/common.txt'  # ~4.6K entries (was 220K)
+  
+  [global.subdomain-wordlist] 
+  default = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'  # ~5K entries (was 110K)
+  
+  [global.vhost-wordlist]
+  default = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'  # ~5K entries (was 110K)
+  ```
+
+### 🔧 Enhanced - Plugin Wordlist Handling
+- **Directory Busting** (`dirbuster.py`): Now uses global directory-wordlist if configured
+  - **Before**: Always used `directory-list-2.3-medium.txt` (~220K entries)
+  - **After**: Uses `common.txt` (~4.6K entries) from global config by default
+  - **Speed Improvement**: ~98% reduction in wordlist size = dramatically faster scans
+- **Subdomain Enumeration** (`subdomain-enumeration.py`): Now uses global subdomain-wordlist
+  - **Before**: Always used `subdomains-top1million-110000.txt` (~110K entries)  
+  - **After**: Uses `subdomains-top1million-5000.txt` (~5K entries) from global config
+  - **Speed Improvement**: ~95% reduction in wordlist size
+- **Virtual Host Enumeration** (`virtual-host-enumeration.py`): Now uses global vhost-wordlist
+  - **Before**: Always used `subdomains-top1million-110000.txt` (~110K entries)
+  - **After**: Uses `subdomains-top1million-5000.txt` (~5K entries) from global config
+  - **Speed Improvement**: ~95% reduction in wordlist size
+
+### ✨ Added - Wordlist Configuration Control
+- **Global Priority System**: All wordlist-using plugins now check global settings first
+- **Fallback Protection**: Plugins gracefully fall back to original defaults if global settings unavailable
+- **User Override**: Plugin-specific and command-line wordlist options still override global settings
+- **Configuration Hierarchy**: 
+  1. **Command-line**: `--dirbuster.wordlist /path/to/custom.txt` (highest priority)
+  2. **Plugin config**: `[dirbuster] wordlist = [...]` in `config.toml`
+  3. **Global config**: `[global.directory-wordlist]` in `global.toml` ⭐ **NEW**
+  4. **Plugin default**: Hard-coded fallback (lowest priority)
+
+### 📖 Enhanced - Documentation
+- **README**: Added wordlist configuration section explaining global priority system
+- **Global Config**: Enhanced `global.toml` with comprehensive wordlist documentation
+- **Performance Tips**: Clear guidance on wordlist sizes and scan speed impact
+
+### 🎯 Impact
+- **Dramatically Faster Scans**: 95-98% reduction in default wordlist sizes
+- **Prevents Hanging**: Smaller wordlists complete in reasonable time
+- **Better Defaults**: Sensible wordlist sizes for most penetration testing scenarios
+- **User Control**: Easy global configuration without editing individual plugins
+- **Backwards Compatible**: Existing configurations continue to work
+
+### 💡 Migration Guide
+**No action required** - the new global wordlists are automatically active and provide faster, more reasonable defaults.
+
+**To customize wordlists**:
+```bash
+# Edit global wordlists (affects all plugins)
+nano ipcrawler/global.toml
+
+# Or override per plugin in config.toml
+nano ~/.config/ipcrawler/config.toml
+```
+
+---
+
 ## [2.1.1] - 2025-01-XX 🔧
 
 ### 🚨 CRITICAL FIX - Long Scan Hanging Issues

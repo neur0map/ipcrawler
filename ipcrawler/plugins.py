@@ -110,6 +110,90 @@ class Plugin(object):
     def error(self, msg, verbosity=0):
         error("{bright}[{bgreen}" + self.slug + "{crst}]{rst} " + msg)
 
+    @final
+    def validate_wordlists(self, wordlists, wordlist_type="wordlist"):
+        """
+        Validate that wordlist files exist and are readable.
+        Returns a list of valid wordlists and logs errors for missing ones.
+        
+        Args:
+            wordlists: List of wordlist file paths to validate
+            wordlist_type: Type of wordlist for error messages (e.g., "directory", "subdomain")
+        
+        Returns:
+            List of valid wordlist paths, or empty list if none are valid
+        """
+        import os
+        
+        if not wordlists:
+            self.warn(f"No {wordlist_type} wordlists specified")
+            return []
+        
+        if not isinstance(wordlists, list):
+            wordlists = [wordlists]
+        
+        valid_wordlists = []
+        missing_wordlists = []
+        
+        for wordlist in wordlists:
+            if not wordlist or not wordlist.strip():
+                continue
+                
+            wordlist = wordlist.strip()
+            
+            if os.path.isfile(wordlist) and os.access(wordlist, os.R_OK):
+                valid_wordlists.append(wordlist)
+                self.info(f"Using {wordlist_type} wordlist: {wordlist}")
+            else:
+                missing_wordlists.append(wordlist)
+        
+        # Report missing wordlists
+        if missing_wordlists:
+            self.error(f"Missing or unreadable {wordlist_type} wordlists:")
+            for missing in missing_wordlists:
+                self.error(f"  ❌ {missing}")
+            
+            if not valid_wordlists:
+                self.error(f"No valid {wordlist_type} wordlists found - plugin will be skipped")
+                self.error("💡 Fix suggestions:")
+                self.error("  1. Check wordlist paths in global.toml and config.toml")
+                self.error("  2. Install SecLists: sudo apt install seclists")
+                self.error("  3. Or download from: https://github.com/danielmiessler/SecLists")
+                return []
+            else:
+                self.warn(f"Continuing with {len(valid_wordlists)} valid {wordlist_type} wordlist(s)")
+        
+        return valid_wordlists
+
+    @final
+    def get_validated_wordlists(self, option_name, wordlist_type=None, fallback_wordlists=None):
+        """
+        Get and validate wordlists from plugin options with automatic fallback.
+        
+        Args:
+            option_name: Name of the plugin option containing wordlists
+            wordlist_type: Type description for error messages
+            fallback_wordlists: List of fallback wordlists to try if configured ones fail
+        
+        Returns:
+            List of valid wordlist paths, or empty list if none are valid
+        """
+        if wordlist_type is None:
+            wordlist_type = option_name
+        
+        # Get configured wordlists
+        configured_wordlists = self.get_option(option_name, [])
+        
+        # Validate configured wordlists
+        valid_wordlists = self.validate_wordlists(configured_wordlists, wordlist_type)
+        
+        # If no valid wordlists and fallbacks are provided, try them
+        if not valid_wordlists and fallback_wordlists:
+            self.warn(f"Trying fallback {wordlist_type} wordlists...")
+            valid_wordlists = self.validate_wordlists(fallback_wordlists, f"fallback {wordlist_type}")
+        
+        return valid_wordlists
+
 
 class PortScan(Plugin):
     def __init__(self):
