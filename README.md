@@ -116,7 +116,8 @@ ipcrawler --list
 verbose = 1                 # Default verbosity
 max-scans = 20             # Concurrent scans
 nmap-append = '-T3'        # Conservative timing
-tags = 'default+safe'      # Only safe, fast tools
+tags = 'default+safe'      # Only safe tools
+exclude-tags = 'long'      # Exclude slow tools like nikto, dirbuster
 ```
 
 ## 🔍 Verbosity Levels

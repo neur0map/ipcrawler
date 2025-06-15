@@ -23,9 +23,10 @@
 #   tags = 'default'              # Run all standard tools (slow + fast)
 #   tags = 'default+safe+quick'   # Only fast, safe tools  
 #   tags = 'default+safe'         # Safe tools only
-#   tags = 'default-long'         # Exclude slow tools like directory busting
 #
+# Default configuration: Run all default tools but exclude slow ones
 tags = 'default'
+exclude-tags = 'long'
 
 # ========================================
 # Virtual Host Discovery
