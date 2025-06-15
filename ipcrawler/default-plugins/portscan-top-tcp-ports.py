@@ -18,6 +18,18 @@ class QuickTCPPortScan(PortScan):
             "single-scan",
             help="Use single Nmap scan instead of parallel (legacy mode). Default: %(default)s"
         )
+        self.add_true_option(
+            "syn-stealth",
+            help="Use SYN stealth scan (-sS) instead of connect scan (-sT). Requires root. Default: %(default)s"
+        )
+        self.add_option(
+            "min-rate",
+            help="Minimum packet rate (packets/sec) for faster scanning. Default: %(default)s"
+        )
+        self.add_option(
+            "max-rate", 
+            help="Maximum packet rate (packets/sec) to prevent overwhelming target. Default: %(default)s"
+        )
         # Note: Parallel scan is now the default behavior
 
     async def run(self, target):
@@ -36,6 +48,9 @@ class QuickTCPPortScan(PortScan):
         else:
             traceroute_os = " -A --osscan-guess"
 
+        # Build nmap options based on configuration
+        nmap_options = self._build_nmap_options(target)
+        
         # Add timeout and host timeout to prevent hanging
         timeout_options = " --host-timeout 10m --max-scan-delay 20s"
         
@@ -43,15 +58,51 @@ class QuickTCPPortScan(PortScan):
         # Use single scan only if explicitly requested
         if self.get_option("single-scan"):
             target.info("🔧 Using single Nmap scan (legacy mode)", verbosity=1)
-            return await self._run_normal_scan(target, traceroute_os, timeout_options)
+            return await self._run_normal_scan(target, traceroute_os, timeout_options, nmap_options)
         else:
             target.info("🚀 Using parallel port scan (2x 500 ports) for optimal performance", verbosity=1)
-            return await self._run_parallel_scan(target, traceroute_os, timeout_options)
+            return await self._run_parallel_scan(target, traceroute_os, timeout_options, nmap_options)
 
-    async def _run_normal_scan(self, target, traceroute_os, timeout_options):
+    def _build_nmap_options(self, target):
+        """Build nmap options based on configuration"""
+        options = []
+        
+        # SYN stealth scan option
+        syn_stealth = self.get_option("syn-stealth")
+        if syn_stealth is None:
+            # Check config file
+            syn_stealth = config.get("syn-stealth", True)  # Default to True
+        
+        if syn_stealth and not config["proxychains"]:
+            options.append("-sS")
+            target.info("🎯 Using SYN stealth scan (-sS) for faster scanning", verbosity=1)
+        elif config["proxychains"]:
+            target.info("🔗 Using TCP connect scan (-sT) due to proxychains", verbosity=1)
+        else:
+            options.append("-sT")
+            target.info("🔗 Using TCP connect scan (-sT)", verbosity=1)
+        
+        # Rate limiting options
+        min_rate = self.get_option("min-rate")
+        if min_rate is None:
+            min_rate = config.get("min-rate")
+        if min_rate:
+            options.append(f"--min-rate {min_rate}")
+            target.info(f"⚡ Minimum scan rate: {min_rate} packets/sec", verbosity=1)
+        
+        max_rate = self.get_option("max-rate") 
+        if max_rate is None:
+            max_rate = config.get("max-rate")
+        if max_rate:
+            options.append(f"--max-rate {max_rate}")
+            target.info(f"🛡️  Maximum scan rate: {max_rate} packets/sec", verbosity=1)
+        
+        return " " + " ".join(options) if options else ""
+
+    async def _run_normal_scan(self, target, traceroute_os, timeout_options, nmap_options):
         """Run normal single nmap scan"""
         process, stdout, stderr = await target.execute(
-            "timeout 1800 nmap {nmap_extra} -sV -sC --version-all"
+            "timeout 1800 nmap {nmap_extra}" + nmap_options + " -sV -sC --version-all"
             + traceroute_os
             + timeout_options
             + ' -oN "{scandir}/_quick_tcp_nmap.txt" -oX "{scandir}/xml/_quick_tcp_nmap.xml" {address}',
@@ -62,7 +113,7 @@ class QuickTCPPortScan(PortScan):
         await process.wait()
         return services
 
-    async def _run_parallel_scan(self, target, traceroute_os, timeout_options):
+    async def _run_parallel_scan(self, target, traceroute_os, timeout_options, nmap_options):
         """Run parallel port scans on two halves of the top 1000 ports"""
         target.info("⚡ Starting parallel port scan: 2 concurrent scans of 500 ports each")
         target.info("🎯 This prevents hanging and improves scan reliability", verbosity=1)
@@ -75,8 +126,8 @@ class QuickTCPPortScan(PortScan):
         
         # Run both scans in parallel
         tasks = [
-            self._run_port_range_scan(target, traceroute_os, timeout_options, first_half_ports, "first_half"),
-            self._run_port_range_scan(target, traceroute_os, timeout_options, second_half_ports, "second_half")
+            self._run_port_range_scan(target, traceroute_os, timeout_options, nmap_options, first_half_ports, "first_half"),
+            self._run_port_range_scan(target, traceroute_os, timeout_options, nmap_options, second_half_ports, "second_half")
         ]
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -92,13 +143,13 @@ class QuickTCPPortScan(PortScan):
         await self._check_winrm_services(all_services, target)
         return all_services
 
-    async def _run_port_range_scan(self, target, traceroute_os, timeout_options, port_range, scan_name):
+    async def _run_port_range_scan(self, target, traceroute_os, timeout_options, nmap_options, port_range, scan_name):
         """Run nmap scan on specific port range"""
         scan_display = "first 500 ports" if scan_name == "first_half" else "second 500 ports"
         target.info(f"🔍 Scanning {scan_display} ({scan_name})...")
         
         process, stdout, stderr = await target.execute(
-            f"timeout 900 nmap {{nmap_extra}} -sV -sC --version-all"
+            f"timeout 900 nmap {{nmap_extra}}" + nmap_options + " -sV -sC --version-all"
             + traceroute_os
             + timeout_options
             + f' -p {port_range}'

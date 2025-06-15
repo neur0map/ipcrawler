@@ -1022,7 +1022,7 @@ class CommandStreamReader(object):
                 line_bytes = await asyncio.wait_for(self.stream.readline(), timeout=30)
                 line = line_bytes.decode("utf8").rstrip()
             except asyncio.TimeoutError:
-                warn(f"Stream readline timeout for {self.target.address}/{self.tag}", verbosity=2)
+                # Silently handle timeout - no warning needed as this is normal for long-running scans
                 break
             except ValueError:
                 error(

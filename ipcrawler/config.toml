@@ -14,10 +14,25 @@
 #    Run: ipcrawler --help-all
 # ========================================
 
-# Uncomment and modify these basic settings as needed:
-# nmap-append = '-T3'          # Add custom nmap options
-# verbose = 1                  # Verbosity level (0-3)
-# max-scans = 30              # Maximum concurrent scans
+# ========================================
+# Nmap Scan Configuration
+# ========================================
+# Controls nmap scanning behavior and performance
+
+# nmap-append = '-T3'                    # Add custom nmap options
+# syn-stealth = true                     # Use SYN stealth scan (-sS) - faster but requires root (default: true)
+# min-rate = 1000                        # Minimum packet rate (packets/sec) - speeds up scans (default: none)
+# max-rate = 5000                        # Maximum packet rate (packets/sec) - prevents overwhelming targets
+
+# 💡 SCAN SPEED RECOMMENDATIONS:
+#   Fast scans (HTB/CTF):     min-rate = 1000, max-rate = 5000
+#   Stealth scans:            min-rate = 100, max-rate = 500  
+#   Default (balanced):       min-rate = 500, max-rate = 2000
+#
+# ⚠️  NOTE: Higher rates may trigger IDS/firewalls or cause packet loss
+
+# verbose = 1                            # Verbosity level (0-3)
+# max-scans = 30                         # Maximum concurrent scans
 
 # ========================================
 # Plugin Selection
@@ -99,6 +114,9 @@ backup_hosts_file = true        # Backup /etc/hosts before changes
 # [top-tcp-ports]
 # single-scan = false            # Use single Nmap scan instead of parallel (default: false)
 #                                # Note: Parallel scan (2x 500 ports) is now the default for better reliability
+# syn-stealth = true             # Use SYN stealth scan (-sS) instead of connect scan (-sT)
+# min-rate = 1000                # Minimum packet rate for faster scanning
+# max-rate = 5000                # Maximum packet rate to prevent overwhelming target
 
 # [dirbuster]
 # threads = 50                   # Number of threads
