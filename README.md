@@ -131,7 +131,7 @@ exclude-tags = 'long'      # Exclude slow tools like nikto, dirbuster
 
 ### 🔧 Long Scan Timeout Management
 
-**New in v2.1.0**: Fixed hanging issues at 98% completion with comprehensive timeout management.
+**New in v2.1.2**: Fixed hanging issues at 98% completion with comprehensive timeout management.
 
 **Quick fixes for hanging scans:**
 ```bash
