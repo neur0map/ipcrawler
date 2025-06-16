@@ -40,11 +40,11 @@ threads = 15
 # File extensions to test (comma-separated)
 ext = 'txt,html,php,asp,aspx,jsp'
 # Enable recursive directory scanning
-recursive = false
+recursive = true
 # Maximum scan time (seconds)
 timeout = 600
 # Run multiple wordlists in parallel
-parallel-wordlists = false
+parallel-wordlists = true
 
 # ========================================
 # Web Vulnerability Scanning

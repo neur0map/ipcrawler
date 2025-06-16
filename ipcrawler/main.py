@@ -2347,7 +2347,7 @@ async def run():
                                         + "] "
                                         + slugify(pkey)
                                         + ": invalid value: '"
-                                        + pval
+                                        + str(pval)
                                         + "' (should be "
                                         + str(action.const).lower()
                                         + " {no quotes})"
@@ -2359,7 +2359,7 @@ async def run():
                                         + "] "
                                         + slugify(pkey)
                                         + ": invalid value: '"
-                                        + pval
+                                        + str(pval)
                                         + "' (should be "
                                         + str(action.const)
                                         + ")"
@@ -2372,7 +2372,7 @@ async def run():
                                     + "] "
                                     + slugify(pkey)
                                     + ": invalid choice: '"
-                                    + pval
+                                    + str(pval)
                                     + "' (choose from '"
                                     + "', '".join(action.choices)
                                     + "')"
@@ -2385,9 +2385,9 @@ async def run():
                                     + "] "
                                     + slugify(pkey)
                                     + ": invalid value: '"
-                                    + pval
+                                    + str(pval)
                                     + "' (should be a list e.g. ['"
-                                    + pval
+                                    + str(pval)
                                     + "'])"
                                 )
                                 errors = True
