@@ -9,7 +9,7 @@ class GuessPortScan(PortScan):
         self.name = "Guess TCP Ports"
         self.type = "tcp"
         self.description = "Performs an Nmap scan of the all TCP ports but guesses services based off the port found. Can be quicker. Proper service matching is performed at the end of the scan."
-        self.tags = ["guess-port-scan", "long"]
+        self.tags = ["default", "guess-port-scan", "long"]
         self.priority = 0
 
     async def run(self, target):

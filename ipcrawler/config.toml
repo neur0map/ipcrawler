@@ -8,9 +8,11 @@
 # Scan Control
 # ========================================
 [scan]
-# Which tools to run (use 'default' for recommended tools)
+# Which tools to run (ALL plugins now have 'default' tag)
 tags = 'default'
 # Skip slow tools like directory busting (set to '' to include all tools)
+# Common exclusions: 'long' (slow scans), 'unsafe' (potentially harmful)
+# to add more than one tag, use a comma-separated list and tag list is found using ipcrawler --list-tags
 exclude-tags = 'long'
 # Maximum concurrent scans
 max-scans = 30

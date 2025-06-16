@@ -23,7 +23,7 @@ class CurlLFITest(ServiceScan):
     def __init__(self):
         super().__init__()
         self.name = "curl-lfi-test"
-        self.tags = ["web", "http", "lfi", "vulnerability"]
+        self.tags = ["default", "web", "http", "lfi", "vulnerability"]
         self.priority = 3  # Run after directory busting
 
     def configure(self):

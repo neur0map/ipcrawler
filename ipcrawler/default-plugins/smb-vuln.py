@@ -5,7 +5,7 @@ class SMBVuln(ServiceScan):
     def __init__(self):
         super().__init__()
         self.name = "SMB Vulnerabilities"
-        self.tags = ["unsafe", "smb", "active-directory"]
+        self.tags = ["default", "unsafe", "smb", "active-directory"]
 
     def configure(self):
         self.match_service_name(["^smb", "^microsoft\-ds", "^netbios"])
