@@ -133,11 +133,23 @@ jobs:
         EOF
         )
         
-        # Send to Discord webhook
-        curl -X POST \
+        # Send to Discord webhook with error handling
+        echo "Sending Discord notification..."
+        response=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
           -H "Content-Type: application/json" \
           -d "$DISCORD_PAYLOAD" \
-          "${{ secrets.DISCORD_WEBHOOK_URL }}"
+          "${{ secrets.DISCORD_WEBHOOK_URL }}")
+        
+        http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+        echo "Discord API Response Code: $http_code"
+        
+        if [ "$http_code" != "204" ] && [ "$http_code" != "200" ]; then
+          echo "Discord webhook failed with code: $http_code"
+          echo "Response: $response"
+          exit 1
+        else
+          echo "Discord notification sent successfully!"
+        fi
 
   notify-pr:
     runs-on: ubuntu-latest
