@@ -1,4 +1,4 @@
-.PHONY: setup clean setup-docker docker-cmd help update
+.PHONY: setup clean setup-docker docker-cmd help update reset
 
 setup:
 	@echo "Setting up ipcrawler..." && \
@@ -12,6 +12,18 @@ setup:
 
 clean:
 	@./scripts/cleanup.sh
+
+reset:
+	@echo "🔄 Resetting ipcrawler - clearing all cache and rebuilding..."
+	@if [ -f "scripts/reset-cache.sh" ]; then \
+		./scripts/reset-cache.sh; \
+	elif [ -f "windows-scripts/reset-cache.bat" ]; then \
+		echo "⚠️  Windows detected - please run: windows-scripts\\reset-cache.bat"; \
+		echo "   Or use WSL/Git Bash to run: ./scripts/reset-cache.sh"; \
+	else \
+		echo "❌ No reset script found for this platform"; \
+		exit 1; \
+	fi
 
 setup-docker:
 	@./scripts/setup-docker.sh
@@ -29,6 +41,7 @@ help:
 	@echo ""
 	@echo "  setup         - Set up local Python virtual environment + install 25+ security tools"
 	@echo "  clean         - Remove local setup, virtual environment, and Docker resources"
+	@echo "  reset         - Clear all Python/ipcrawler cache and rebuild application (OS-aware)"
 	@echo "  setup-docker  - Build Docker image + open interactive terminal for ipcrawler"
 	@echo "  update        - Update repository, tools, and Docker image"
 	@echo "  docker-cmd    - Run interactive Docker container"
@@ -47,6 +60,12 @@ help:
 	@echo "  2. Double-click: ipcrawler-windows.bat    # Easy GUI setup"
 	@echo "  3. Or use: make setup-docker              # Command line setup"
 	@echo "  4. Inside container: /show-tools.sh       # Verify 25+ tools installed"
+	@echo ""
+	@echo "Cache Reset (Cross-Platform):"
+	@echo "  • Linux/macOS/WSL: make reset             # Uses scripts/reset-cache.sh"
+	@echo "  • Windows (native): windows-scripts\\reset-cache.bat"
+	@echo "  • Clears: Python cache, app cache, venv, build artifacts, Docker cache"
+	@echo "  • OS-specific paths: Kali, HTB, macOS, Windows AppData, WSL integration"
 	@echo ""
 	@echo "Docker Usage (Recommended for non-Kali systems):"
 	@echo "  1. Install Docker manually for your OS first"

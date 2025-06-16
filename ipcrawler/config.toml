@@ -92,7 +92,7 @@ backup_hosts_file = true        # Backup /etc/hosts before changes
 [dirbuster]
 timeout = 600                  # Maximum time for directory busting (10 minutes instead of 20)
 max_depth = 4                  # Maximum recursion depth to prevent infinite loops
-threads = 20                   # Increase threads for faster scanning
+threads = 15                   # Optimized for HTB - avoids rate limiting and connection issues
 
 # [nikto]
 # timeout = 1800                 # Maximum time for web vulnerability scanning (30 minutes)

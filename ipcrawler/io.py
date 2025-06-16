@@ -74,6 +74,8 @@ def get_config_display_table(targets=None):
         return None
 
     from ipcrawler.main import VERSION
+    import os
+    import toml
 
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("Setting", style="dim blue", width=20)
@@ -88,20 +90,106 @@ def get_config_display_table(targets=None):
     else:
         target_display = "Not specified"
 
-    # Build realistic config display from actual values
+    # Read TOML files directly (no caching)
+    try:
+        # Find config files
+        config_dir = os.path.dirname(os.path.abspath(__file__))
+        global_toml_path = os.path.join(config_dir, "global.toml")
+        config_toml_path = os.path.join(config_dir, "config.toml")
+        
+        # Read global.toml directly
+        global_config = {}
+        if os.path.exists(global_toml_path):
+            with open(global_toml_path, 'r') as f:
+                global_config = toml.load(f)
+        
+        # Read config.toml directly  
+        local_config = {}
+        if os.path.exists(config_toml_path):
+            with open(config_toml_path, 'r') as f:
+                local_config = toml.load(f)
+        
+        # Get directory wordlist (show configured wordlist, not just existing ones)
+        configured_wordlist = global_config.get("global", {}).get("directory-wordlist", {}).get("default", "/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt")
+        
+        # Show the configured wordlist (shortened if too long)
+        if configured_wordlist:
+            if len(configured_wordlist) > 50:
+                directory_wordlist = "..." + configured_wordlist[-47:]
+            else:
+                directory_wordlist = os.path.basename(configured_wordlist)
+        else:
+            directory_wordlist = "Built-in fallback"
+        
+        # Add indicator if configured wordlist doesn't exist
+        if configured_wordlist and not os.path.isfile(configured_wordlist):
+            directory_wordlist += " (missing)"
+        
+        # Get other settings from TOML files
+        dirbuster_config = local_config.get("dirbuster", {})
+        threads = dirbuster_config.get("threads", 15)
+        timeout_minutes = local_config.get("timeout", "None")
+        if timeout_minutes != "None":
+            timeout_minutes = f"{timeout_minutes}m"
+        
+        recursion_depth = dirbuster_config.get("max_depth", 4)
+        
+        # Get more dynamic settings from TOML
+        dirbuster_timeout_secs = dirbuster_config.get("timeout", 600) // 60  # Convert to minutes for display
+        
+        # Get HTTP method settings (check if POST scanning is enabled)
+        http_methods = "[GET]"  # Default
+        post_scanning = dirbuster_config.get("enable-post-scanning", False)
+        if post_scanning:
+            http_methods = "[GET, POST]"
+        
+        # Get status codes setting
+        status_codes = "All Status Codes"  # Default
+        if "status-codes" in dirbuster_config:
+            status_codes = f"[{dirbuster_config['status-codes']}]"
+        
+        # Get extract links setting
+        extract_links = "true"  # Default
+        if "extract-links" in dirbuster_config:
+            extract_links = str(dirbuster_config["extract-links"]).lower()
+        
+        # Get follow redirects setting
+        follow_redirects = "true"  # Default  
+        if "follow-redirects" in dirbuster_config:
+            follow_redirects = str(dirbuster_config["follow-redirects"]).lower()
+        
+        # Get global file path
+        global_file_path = global_toml_path
+        if len(global_file_path) > 50:
+            global_file_path = "..." + global_file_path[-47:]
+            
+    except Exception as e:
+        # Fallback values if TOML reading fails
+        directory_wordlist = "Built-in fallback"
+        threads = 15
+        timeout_minutes = "None"
+        recursion_depth = 4
+        dirbuster_timeout_secs = 10
+        http_methods = "[GET]"
+        status_codes = "All Status Codes"
+        extract_links = "true"
+        follow_redirects = "true"
+        global_file_path = "config.toml"
+
+    # Build config display from actual TOML values
     configs = [
         ("🎯 Target Url", target_display),
-        ("📊 Threads", str(config.get("max_scans", 50))),
-        ("📝 Wordlist", "/usr/share/seclists/Discovery/Web-Content/common.txt"),
-        ("⏱️  Timeout", f"{config.get('timeout')}m" if config.get("timeout") else "None"),
-        ("🔧 Status Codes", "All Status Codes"),
-        ("🔍 Timeout (secs)", "7"),
+        ("📊 Threads", str(threads)),
+        ("📝 Wordlist", directory_wordlist),
+        ("⏱️  Timeout", timeout_minutes),
+        ("🔧 Status Codes", status_codes),
+        ("🔍 Timeout (secs)", str(dirbuster_timeout_secs)),
         ("👤 User-Agent", f"ipcrawler/{VERSION}"),
-        ("💾 Config File", config.get("global_file", "/etc/ipcrawler/config.toml") or "/etc/ipcrawler/config.toml"),
-        ("🔗 Extract Links", "true"),
-        ("🌐 HTTP methods", "[GET]"),
-        ("📋 Follow Redirects", "true"),
-        ("🔄 Recursion Depth", "4"),
+        ("💾 Config File", global_file_path),
+        ("🔗 Extract Links", extract_links),
+        ("🌐 HTTP methods", http_methods),
+        ("📋 Follow Redirects", follow_redirects),
+        ("🔄 Recursion Depth", str(recursion_depth)),
     ]
 
     for setting, value in configs:
