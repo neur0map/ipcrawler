@@ -51,7 +51,7 @@ jobs:
         fi
 
     - name: 🎉 Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         name: IPCrawler ${{ steps.extract-release-notes.outputs.VERSION }}
         body_path: release-notes.md
