@@ -93,7 +93,7 @@ jobs:
         DISCORD_PAYLOAD=$(cat << EOF
         {
           "username": "ipcrawler-bot",
-          "avatar_url": "https://cdn.discordapp.com/emojis/1057437081831100456.png",
+          "avatar_url": "https://cdn-icons-png.flaticon.com/512/2091/2091665.png",
           "embeds": [
             {
               "title": "🕵️ Intelligence Report: New Commit Deployed",
@@ -168,7 +168,7 @@ jobs:
         DISCORD_PAYLOAD=$(cat << EOF
         {
           "username": "ipcrawler-bot",
-          "avatar_url": "https://cdn.discordapp.com/emojis/1057437081831100456.png",
+          "avatar_url": "https://cdn-icons-png.flaticon.com/512/2091/2091665.png",
           "embeds": [
             {
               "title": "$EMOJI Mission Status: Pull Request $ACTION",

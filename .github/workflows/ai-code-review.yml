@@ -172,7 +172,7 @@ jobs:
         
         DISCORD_PAYLOAD='{
           "username": "ipcrawler-security",
-          "avatar_url": "https://cdn.discordapp.com/emojis/1057437081831100456.png",
+          "avatar_url": "https://cdn-icons-png.flaticon.com/512/2091/2091665.png",
           "embeds": [
             {
               "title": "🚨 Security Alert: Core Framework Issues",
