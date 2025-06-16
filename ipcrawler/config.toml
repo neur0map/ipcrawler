@@ -61,7 +61,7 @@
 
 # Default configuration: Run all default tools but exclude slow ones
 tags = 'default'
-exclude-tags = 'long'                   # 🔧 CHANGE TO '' TO ENABLE ALL SCANS (directory busting, etc.)
+exclude-tags = ''                   # 🔧 CHANGE TO '' TO ENABLE ALL SCANS (directory busting, etc.)
 
 # ========================================
 # Virtual Host Discovery
@@ -89,10 +89,10 @@ backup_hosts_file = true        # Backup /etc/hosts before changes
 #    Command line: ipcrawler --timeout 60 target.com
 #    OR uncomment the plugin timeouts below:
 
-# [dirbuster]
-# timeout = 1800                 # Maximum time for directory busting (30 minutes)
-# max_depth = 4                  # Maximum recursion depth to prevent infinite loops
-# threads = 10                   # Number of threads
+[dirbuster]
+timeout = 600                  # Maximum time for directory busting (10 minutes instead of 20)
+max_depth = 4                  # Maximum recursion depth to prevent infinite loops
+threads = 20                   # Increase threads for faster scanning
 
 # [nikto]
 # timeout = 1800                 # Maximum time for web vulnerability scanning (30 minutes)
