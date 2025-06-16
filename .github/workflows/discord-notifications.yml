@@ -20,7 +20,7 @@ concurrency:
 
 env:
   # tweak this without touching the workflow:
-  IMPORTANT_REGEX: '(feat|feature|perf|refactor|BREAKING CHANGE|chore\\(release\\)|release[: ]|\\bv?\\d+\\.\\d+\\.\\d+)'
+  IMPORTANT_REGEX: '(feat|fix|security|breaking|major|critical|urgent|release|version|v[0-9])'
   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
 jobs:
@@ -85,8 +85,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Define important commit regex
-          IMPORTANT_REGEX="(feat|fix|security|breaking|major|critical|urgent|release|version|v[0-9])"
+          # Use the environment variable for consistent regex
+          IMPORTANT_REGEX="${{ env.IMPORTANT_REGEX }}"
           
           # Extract commit information from GitHub event
           commit_msg="${{ github.event.head_commit.message }}"
