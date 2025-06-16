@@ -25,6 +25,7 @@ jobs:
   notify-discord:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    needs: [] # Will be populated if MegaLinter job exists
 
     steps:
       - name: Checkout (shallow)
@@ -34,6 +35,62 @@ jobs:
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get -y install jq
+
+      - name: Wait for and get MegaLinter results
+        id: megalinter_status
+        run: |
+          # Try to get MegaLinter workflow results from this run
+          WORKFLOW_RUN_ID="${{ github.run_id }}"
+          
+          echo "Checking for MegaLinter results in run: $WORKFLOW_RUN_ID"
+          
+          # Initialize status variables
+          echo "megalinter_status=unknown" >> $GITHUB_OUTPUT
+          echo "linter_summary=🔄 Quality analysis in progress" >> $GITHUB_OUTPUT
+          echo "linter_emoji=🔄" >> $GITHUB_OUTPUT
+          echo "linter_color=16776960" >> $GITHUB_OUTPUT
+          
+          # Wait up to 3 minutes for MegaLinter to complete
+          max_attempts=18  # 18 * 10 seconds = 3 minutes
+          attempt=1
+          
+          while [[ $attempt -le $max_attempts ]]; do
+            echo "Attempt $attempt/$max_attempts: Checking MegaLinter status..."
+            
+            # Check if megalinter workflow exists and get results
+            MEGALINTER_CONCLUSION=$(gh api "repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID/jobs" --jq '.jobs[] | select(.name | contains("MegaLinter") or .name | contains("megalinter")) | .conclusion' 2>/dev/null | head -1)
+            
+            if [[ -n "$MEGALINTER_CONCLUSION" && "$MEGALINTER_CONCLUSION" != "null" ]]; then
+              echo "MegaLinter completed with status: $MEGALINTER_CONCLUSION"
+              
+              if [[ "$MEGALINTER_CONCLUSION" == "success" ]]; then
+                echo "megalinter_status=success" >> $GITHUB_OUTPUT
+                echo "linter_summary=✅ All quality checks passed" >> $GITHUB_OUTPUT
+                echo "linter_emoji=✅" >> $GITHUB_OUTPUT
+                echo "linter_color=3066993" >> $GITHUB_OUTPUT
+                break
+              elif [[ "$MEGALINTER_CONCLUSION" == "failure" ]]; then
+                echo "megalinter_status=failure" >> $GITHUB_OUTPUT
+                echo "linter_summary=❌ Code quality issues detected" >> $GITHUB_OUTPUT
+                echo "linter_emoji=❌" >> $GITHUB_OUTPUT
+                echo "linter_color=15158332" >> $GITHUB_OUTPUT
+                break
+              fi
+            else
+              echo "MegaLinter job not found or still running (attempt $attempt)"
+            fi
+            
+            # If it's the last attempt, proceed with pending status
+            if [[ $attempt -eq $max_attempts ]]; then
+              echo "MegaLinter did not complete within timeout, proceeding with pending status"
+              break
+            fi
+            
+            sleep 10
+            ((attempt++))
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Group commits and post to Discord
         env:
@@ -100,19 +157,23 @@ jobs:
               --arg branch "${{ github.ref_name }}" \
               --arg total "$total_files" \
               --arg files "$changed_files" \
-              --arg repo "${{ github.repository }}" '
+              --arg repo "${{ github.repository }}" \
+              --arg linter_status "${{ steps.megalinter_status.outputs.linter_summary }}" \
+              --arg linter_emoji "${{ steps.megalinter_status.outputs.linter_emoji }}" \
+              --argjson linter_color "${{ steps.megalinter_status.outputs.linter_color }}" '
               {username:"ipcrawler-bot",
                embeds:[{
                  title:"📡 Intelligence Report: New Commit Deployed",
                  description:"**Target acquired:** `\($msg)`",
                  url:$url,
-                 color:3066993,
+                 color:$linter_color,
                  fields:[
                    {name:"🚩 Operator", value:"`\($who)`", inline:true},
                    {name:"🌐 Network Branch", value:"`\($branch)`", inline:true},
                    {name:"🔍 Scan Results", value:"`[\($sha)]`", inline:true},
                    {name:"🛰️ Reconnaissance Data", value:"Mission parameters updated", inline:false},
-                   {name:"🔧 Systems Updated (\($total) files):", value:$files, inline:false}
+                   {name:"🔧 Systems Updated (\($total) files):", value:$files, inline:false},
+                   {name:"\($linter_emoji) Code Quality Analysis", value:$linter_status, inline:false}
                  ],
                  footer:{text:"ipcrawler reconnaissance framework • \($repo)"},
                  timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -138,15 +199,19 @@ jobs:
                 --arg n "${#ROUTINE[@]}" \
                 --arg s "$summary" \
                 --arg branch "${{ github.ref_name }}" \
-                --arg repo "${{ github.repository }}" '
+                --arg repo "${{ github.repository }}" \
+                --arg linter_status "${{ steps.megalinter_status.outputs.linter_summary }}" \
+                --arg linter_emoji "${{ steps.megalinter_status.outputs.linter_emoji }}" \
+                --argjson linter_color "${{ steps.megalinter_status.outputs.linter_color }}" '
                 {username:"ipcrawler-bot",
                  embeds:[{
                    title:"📊 Intelligence Summary: Routine Operations (\($n))",
                    description:"**Operational status:** Background systems maintenance completed\($s)",
-                   color:8421504,
+                   color:$linter_color,
                    fields:[
                      {name:"🌐 Network Branch", value:"`\($branch)`", inline:true},
-                     {name:"📈 Mission Status", value:"✅ All systems operational", inline:true}
+                     {name:"📈 Mission Status", value:"✅ All systems operational", inline:true},
+                     {name:"\($linter_emoji) Code Quality Analysis", value:$linter_status, inline:false}
                    ],
                    footer:{text:"ipcrawler reconnaissance framework • \($repo)"},
                    timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))

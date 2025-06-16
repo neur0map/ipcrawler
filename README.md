@@ -8,7 +8,7 @@ IPCrawler has since evolved into a standalone tool with simplified setup and enh
 ### Changes from AutoRecon
    see changes here (Migrated since Version 2.1.0 --> [ipcrawler-legacy](https://github.com/neur0map/ipcrawler-legacy)
 
-![Version](https://img.shields.io/badge/Version-v2.1.0-brightgreen) ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
+![Version](https://img.shields.io/badge/Version-v2.1.3-brightgreen) ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
 
 ### 🛠️ Available Commands 
 
