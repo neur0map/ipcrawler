@@ -1,0 +1,209 @@
+name: Discord Commit Notifications
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  notify-discord:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2  # Fetch last 2 commits to compare changes
+        
+    - name: Get commit information
+      id: commit-info
+      run: |
+        # Get commit details
+        COMMIT_SHA="${{ github.sha }}"
+        COMMIT_MESSAGE=$(git log --format=%B -n 1 $COMMIT_SHA | head -1)
+        COMMIT_AUTHOR=$(git log --format='%an' -n 1 $COMMIT_SHA)
+        COMMIT_AUTHOR_EMAIL=$(git log --format='%ae' -n 1 $COMMIT_SHA)
+        COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+        BRANCH_NAME="${{ github.ref_name }}"
+        
+        # Get file changes
+        ADDED_FILES=$(git diff --name-only --diff-filter=A HEAD~1 HEAD | head -10)
+        MODIFIED_FILES=$(git diff --name-only --diff-filter=M HEAD~1 HEAD | head -10)
+        DELETED_FILES=$(git diff --name-only --diff-filter=D HEAD~1 HEAD | head -10)
+        
+        # Count changes
+        ADDED_COUNT=$(git diff --name-only --diff-filter=A HEAD~1 HEAD | wc -l)
+        MODIFIED_COUNT=$(git diff --name-only --diff-filter=M HEAD~1 HEAD | wc -l)
+        DELETED_COUNT=$(git diff --name-only --diff-filter=D HEAD~1 HEAD | wc -l)
+        
+        # Set outputs
+        echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+        echo "commit_author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+        echo "commit_author_email=$COMMIT_AUTHOR_EMAIL" >> $GITHUB_OUTPUT
+        echo "commit_url=$COMMIT_URL" >> $GITHUB_OUTPUT
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "added_count=$ADDED_COUNT" >> $GITHUB_OUTPUT
+        echo "modified_count=$MODIFIED_COUNT" >> $GITHUB_OUTPUT
+        echo "deleted_count=$DELETED_COUNT" >> $GITHUB_OUTPUT
+        
+        # Prepare file lists for Discord (truncate if too long)
+        echo "added_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$ADDED_FILES" | head -5 >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "modified_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$MODIFIED_FILES" | head -5 >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "deleted_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$DELETED_FILES" | head -5 >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Send Discord notification
+      run: |
+        # Prepare file change summary
+        CHANGES_SUMMARY=""
+        if [ "${{ steps.commit-info.outputs.added_count }}" -gt 0 ]; then
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n📁 **Added (${{ steps.commit-info.outputs.added_count }} files):**"
+          if [ ! -z "${{ steps.commit-info.outputs.added_files }}" ]; then
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.added_files }}\`\`\`"
+          fi
+        fi
+        
+        if [ "${{ steps.commit-info.outputs.modified_count }}" -gt 0 ]; then
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n✏️ **Modified (${{ steps.commit-info.outputs.modified_count }} files):**"
+          if [ ! -z "${{ steps.commit-info.outputs.modified_files }}" ]; then
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.modified_files }}\`\`\`"
+          fi
+        fi
+        
+        if [ "${{ steps.commit-info.outputs.deleted_count }}" -gt 0 ]; then
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n🗑️ **Deleted (${{ steps.commit-info.outputs.deleted_count }} files):**"
+          if [ ! -z "${{ steps.commit-info.outputs.deleted_files }}" ]; then
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.deleted_files }}\`\`\`"
+          fi
+        fi
+        
+        # Prepare Discord embed payload
+        DISCORD_PAYLOAD=$(cat << EOF
+        {
+          "username": "GitHub Bot",
+          "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+          "embeds": [
+            {
+              "title": "🚀 New Commit Pushed",
+              "description": "**${{ steps.commit-info.outputs.commit_message }}**",
+              "url": "${{ steps.commit-info.outputs.commit_url }}",
+              "color": 5814783,
+              "fields": [
+                {
+                  "name": "👤 Author",
+                  "value": "${{ steps.commit-info.outputs.commit_author }}",
+                  "inline": true
+                },
+                {
+                  "name": "🌿 Branch",
+                  "value": "\`${{ steps.commit-info.outputs.branch_name }}\`",
+                  "inline": true
+                },
+                {
+                  "name": "📊 Changes",
+                  "value": "**+${{ steps.commit-info.outputs.added_count }}** **~${{ steps.commit-info.outputs.modified_count }}** **-${{ steps.commit-info.outputs.deleted_count }}**",
+                  "inline": true
+                },
+                {
+                  "name": "📋 File Changes",
+                  "value": "$CHANGES_SUMMARY",
+                  "inline": false
+                }
+              ],
+              "footer": {
+                "text": "ipcrawler repository • ${{ github.repository }}",
+                "icon_url": "https://github.githubassets.com/images/modules/logos_page/Octocat.png"
+              },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }
+          ]
+        }
+        EOF
+        )
+        
+        # Send to Discord webhook
+        curl -X POST \
+          -H "Content-Type: application/json" \
+          -d "$DISCORD_PAYLOAD" \
+          "https://discord.com/api/webhooks/1384049660951265341/jnobEV-TkVxgGExKLiDFDWOW2HMPXktTeHpZ-su2ol2Ug8ViSCtQgLc3K_yAs-_g2q-E"
+
+  notify-pr:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Send PR notification
+      run: |
+        # Determine PR action color and emoji
+        if [ "${{ github.event.action }}" = "opened" ]; then
+          COLOR=3066993
+          EMOJI="🔀"
+          ACTION="opened"
+        elif [ "${{ github.event.action }}" = "closed" ] && [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+          COLOR=5814783
+          EMOJI="✅"
+          ACTION="merged"
+        elif [ "${{ github.event.action }}" = "closed" ]; then
+          COLOR=15158332
+          EMOJI="❌"
+          ACTION="closed"
+        else
+          COLOR=16776960
+          EMOJI="🔄"
+          ACTION="${{ github.event.action }}"
+        fi
+        
+        DISCORD_PAYLOAD=$(cat << EOF
+        {
+          "username": "GitHub Bot",
+          "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+          "embeds": [
+            {
+              "title": "$EMOJI Pull Request $ACTION",
+              "description": "**${{ github.event.pull_request.title }}**",
+              "url": "${{ github.event.pull_request.html_url }}",
+              "color": $COLOR,
+              "fields": [
+                {
+                  "name": "👤 Author",
+                  "value": "${{ github.event.pull_request.user.login }}",
+                  "inline": true
+                },
+                {
+                  "name": "🌿 Branch",
+                  "value": "\`${{ github.event.pull_request.head.ref }}\` → \`${{ github.event.pull_request.base.ref }}\`",
+                  "inline": true
+                },
+                {
+                  "name": "📊 Changes",
+                  "value": "**+${{ github.event.pull_request.additions }}** **-${{ github.event.pull_request.deletions }}**",
+                  "inline": true
+                }
+              ],
+              "footer": {
+                "text": "ipcrawler repository • ${{ github.repository }}",
+                "icon_url": "https://github.githubassets.com/images/modules/logos_page/Octocat.png"
+              },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }
+          ]
+        }
+        EOF
+        )
+        
+        curl -X POST \
+          -H "Content-Type: application/json" \
+          -d "$DISCORD_PAYLOAD" \
+          "https://discord.com/api/webhooks/1384049660951265341/jnobEV-TkVxgGExKLiDFDWOW2HMPXktTeHpZ-su2ol2Ug8ViSCtQgLc3K_yAs-_g2q-E" 
