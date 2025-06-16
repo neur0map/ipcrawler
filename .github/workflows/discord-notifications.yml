@@ -1,222 +1,222 @@
 # .github/workflows/discord-notify.yml
-name: Discord Notifications
+name: Discord Commit Notifications
 
 on:
   push:
-    branches: ["main"]
-  workflow_run:
-    workflows: ["MegaLinter"]
-    types:
-      - completed
-
-# least-privilege token
-permissions:
-  contents: read
-
-# cancel older runs when a new push arrives on the same ref
-concurrency:
-  group: notify-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  # tweak this without touching the workflow:
-  IMPORTANT_REGEX: '(feat|fix|security|breaking|major|critical|urgent|release|version|v[0-9])'
-  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    types: [opened, closed]
 
 jobs:
-  notify:
+  notify-discord:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
     steps:
-      - name: Wait for MegaLinter completion
-        if: github.event_name == 'push'
-        run: sleep 30  # Wait for MegaLinter to start
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2  # Fetch last 2 commits to compare changes
 
-      - name: Get MegaLinter status
-        if: github.event_name == 'push'
-        id: megalinter_status
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          timeout=300  # 5 minutes timeout
-          elapsed=0
-          interval=10
-          
-          echo "Checking MegaLinter status for commit ${{ github.sha }}"
-          
-          while [ $elapsed -lt $timeout ]; do
-            # Check workflow runs for MegaLinter
-            status=$(gh api "repos/${{ github.repository }}/actions/runs" \
-              --jq '.workflow_runs[] | select(.name == "MegaLinter" and (.head_sha == "${{ github.sha }}" or .head_commit.id == "${{ github.sha }}")) | .conclusion' \
-              | head -1)
-            
-            echo "Current status: '$status' (elapsed: ${elapsed}s)"
-            
-            if [[ "$status" == "success" ]]; then
-              echo "linter_summary=✅ Code quality: All checks passed" >> $GITHUB_OUTPUT
-              echo "linter_emoji=✅" >> $GITHUB_OUTPUT
-              echo "linter_color=65280" >> $GITHUB_OUTPUT  # Green
-              break
-            elif [[ "$status" == "failure" ]]; then
-              echo "linter_summary=❌ Code quality: Issues detected" >> $GITHUB_OUTPUT
-              echo "linter_emoji=❌" >> $GITHUB_OUTPUT
-              echo "linter_color=16711680" >> $GITHUB_OUTPUT  # Red
-              break
-            elif [[ "$status" == "cancelled" ]]; then
-              echo "linter_summary=⚠️ Code quality: Analysis cancelled" >> $GITHUB_OUTPUT
-              echo "linter_emoji=⚠️" >> $GITHUB_OUTPUT
-              echo "linter_color=16776960" >> $GITHUB_OUTPUT  # Yellow
-              break
-            fi
-            
-            sleep $interval
-            elapsed=$((elapsed + interval))
-          done
-          
-          # If timeout reached, set default status
-          if [ $elapsed -ge $timeout ]; then
-            echo "linter_summary=⏱️ Code quality: Analysis timed out" >> $GITHUB_OUTPUT
-            echo "linter_emoji=⏱️" >> $GITHUB_OUTPUT
-            echo "linter_color=8421504" >> $GITHUB_OUTPUT  # Gray
-          fi
+    - name: Get commit information
+      id: commit-info
+      run: |
+        # Get commit details
+        COMMIT_SHA="${{ github.sha }}"
+        COMMIT_MESSAGE=$(git log --format=%B -n 1 $COMMIT_SHA | head -1)
+        COMMIT_AUTHOR=$(git log --format='%an' -n 1 $COMMIT_SHA)
+        COMMIT_AUTHOR_EMAIL=$(git log --format='%ae' -n 1 $COMMIT_SHA)
+        COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+        BRANCH_NAME="${{ github.ref_name }}"
+        
+        # Get file changes
+        ADDED_FILES=$(git diff --name-only --diff-filter=A HEAD~1 HEAD | head -10)
+        MODIFIED_FILES=$(git diff --name-only --diff-filter=M HEAD~1 HEAD | head -10)
+        DELETED_FILES=$(git diff --name-only --diff-filter=D HEAD~1 HEAD | head -10)
+        
+        # Count changes
+        ADDED_COUNT=$(git diff --name-only --diff-filter=A HEAD~1 HEAD | wc -l)
+        MODIFIED_COUNT=$(git diff --name-only --diff-filter=M HEAD~1 HEAD | wc -l)
+        DELETED_COUNT=$(git diff --name-only --diff-filter=D HEAD~1 HEAD | wc -l)
+        
+        # Set outputs
+        echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+        echo "commit_author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+        echo "commit_author_email=$COMMIT_AUTHOR_EMAIL" >> $GITHUB_OUTPUT
+        echo "commit_url=$COMMIT_URL" >> $GITHUB_OUTPUT
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "added_count=$ADDED_COUNT" >> $GITHUB_OUTPUT
+        echo "modified_count=$MODIFIED_COUNT" >> $GITHUB_OUTPUT
+        echo "deleted_count=$DELETED_COUNT" >> $GITHUB_OUTPUT
+        
+        # Prepare file lists for Discord (truncate if too long)
+        echo "added_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$ADDED_FILES" | head -5 >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "modified_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$MODIFIED_FILES" | head -5 >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "deleted_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$DELETED_FILES" | head -5 >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Send Discord Intelligence Report
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Use the environment variable for consistent regex
-          IMPORTANT_REGEX="${{ env.IMPORTANT_REGEX }}"
-          
-          # Extract commit information from GitHub event
-          commit_msg="${{ github.event.head_commit.message }}"
-          commit_author="${{ github.event.head_commit.author.name }}"
-          commit_sha="${{ github.sha }}"
-          commit_url="${{ github.event.head_commit.url }}"
-          
-          # Fallback for author if empty
-          if [[ -z "$commit_author" || "$commit_author" == "null" ]]; then
-            commit_author="${{ github.event.pusher.name }}"
+    - name: Send Discord notification
+      run: |
+        # Prepare file change summary with recon theme
+        CHANGES_SUMMARY=""
+        if [ "${{ steps.commit-info.outputs.added_count }}" -gt 0 ]; then
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n🎯 **New Targets Acquired (${{ steps.commit-info.outputs.added_count }} files):**"
+          if [ ! -z "${{ steps.commit-info.outputs.added_files }}" ]; then
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.added_files }}\`\`\`"
           fi
-          if [[ -z "$commit_author" || "$commit_author" == "null" ]]; then
-            commit_author="${{ github.actor }}"
+        fi
+        
+        if [ "${{ steps.commit-info.outputs.modified_count }}" -gt 0 ]; then
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n🔧 **Systems Updated (${{ steps.commit-info.outputs.modified_count }} files):**"
+          if [ ! -z "${{ steps.commit-info.outputs.modified_files }}" ]; then
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.modified_files }}\`\`\`"
           fi
-          if [[ -z "$commit_author" || "$commit_author" == "null" ]]; then
-            commit_author="Unknown Operator"
+        fi
+        
+        if [ "${{ steps.commit-info.outputs.deleted_count }}" -gt 0 ]; then
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n💥 **Targets Eliminated (${{ steps.commit-info.outputs.deleted_count }} files):**"
+          if [ ! -z "${{ steps.commit-info.outputs.deleted_files }}" ]; then
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.deleted_files }}\`\`\`"
           fi
-          
-          # Get first line of commit message (limit to 100 chars)
-          commit_title=$(echo "$commit_msg" | head -n1 | cut -c1-100)
-          short_sha=$(echo "$commit_sha" | cut -c1-7)
-          
-          # Extract modified files from the push event
-          files_added=$(echo '${{ toJson(github.event.head_commit.added) }}' | jq -r '.[]?' | head -3)
-          files_modified=$(echo '${{ toJson(github.event.head_commit.modified) }}' | jq -r '.[]?' | head -3)
-          files_removed=$(echo '${{ toJson(github.event.head_commit.removed) }}' | jq -r '.[]?' | head -3)
-          
-          # Combine and format files for display
-          all_files=""
-          [[ -n "$files_added" ]] && all_files="$all_files$files_added"
-          [[ -n "$files_modified" ]] && all_files="$all_files$'\n'$files_modified"
-          [[ -n "$files_removed" ]] && all_files="$all_files$'\n'$files_removed"
-          
-          # Format files as comma-separated basenames, limit to 3
-          if [[ -n "$all_files" ]]; then
-            scan_results=$(echo "$all_files" | grep -v '^$' | head -3 | xargs -I {} basename {} | paste -sd ", " -)
-            file_count=$(echo "$all_files" | grep -v '^$' | wc -l)
-            if [[ $file_count -gt 3 ]]; then
-              scan_results="$scan_results (+$((file_count-3)) more)"
-            fi
-          else
-            scan_results="No files detected"
-          fi
-          
-          # Only send notification for important commits
-          if echo "$commit_title" | grep -qiE "$IMPORTANT_REGEX"; then
-            echo "📡 Important commit detected: $commit_title"
-            
-            # Prepare Discord webhook payload
-            payload=$(jq -nc \
-              --arg title "$commit_title" \
-              --arg author "$commit_author" \
-              --arg branch "${{ github.ref_name }}" \
-              --arg sha "$short_sha" \
-              --arg files "$scan_results" \
-              --arg url "$commit_url" \
-              --arg repo "${{ github.repository }}" \
-              --arg linter_status "${{ steps.megalinter_status.outputs.linter_summary }}" \
-              --arg linter_emoji "${{ steps.megalinter_status.outputs.linter_emoji }}" \
-              --argjson linter_color "${{ steps.megalinter_status.outputs.linter_color }}" '
-              {
-                username: "ipcrawler-bot",
-                embeds: [{
-                  title: "📡 Intelligence Report: New Commit Deployed",
-                  description: "**Target acquired:** `\($title)`",
-                  url: $url,
-                  color: $linter_color,
-                  fields: [
-                    {name: "🚩 Operator", value: "`\($author)`", inline: true},
-                    {name: "🌐 Network Branch", value: "`\($branch)`", inline: true},
-                    {name: "🔍 Scan Results", value: $files, inline: false},
-                    {name: "⚡ Code Quality Analysis", value: $linter_status, inline: false}
-                  ],
-                  footer: {
-                    text: "Commit \($sha) • \($repo)",
-                    icon_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-                  },
-                  timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
-                }]
-              }')
-            
-            echo "Sending Intelligence Report to Discord..."
-            curl -H "Content-Type: application/json" \
-                 -d "$payload" \
-                 "${{ secrets.DISCORD_WEBHOOK_URL }}"
-            
-            echo "✅ Intelligence Report transmitted successfully"
-          else
-            echo "ℹ️  Routine commit detected: $commit_title (no notification sent)"
-          fi
+        fi
+        
+        # Prepare Discord embed payload
+        DISCORD_PAYLOAD=$(cat << EOF
+        {
+          "username": "ipcrawler-bot",
+          "avatar_url": "https://cdn-icons-png.flaticon.com/512/2091/2091665.png",
+          "embeds": [
+            {
+              "title": "🕵️ Intelligence Report: New Commit Deployed",
+              "description": "**Target acquired:** \`${{ steps.commit-info.outputs.commit_message }}\`",
+              "url": "${{ steps.commit-info.outputs.commit_url }}",
+              "color": 3447003,
+              "fields": [
+                {
+                  "name": "🎯 Operator",
+                  "value": "\`${{ steps.commit-info.outputs.commit_author }}\`",
+                  "inline": true
+                },
+                {
+                  "name": "🌐 Network Branch",
+                  "value": "\`${{ steps.commit-info.outputs.branch_name }}\`",
+                  "inline": true
+                },
+                {
+                  "name": "📡 Scan Results",
+                  "value": "**[+] ${{ steps.commit-info.outputs.added_count }}** **[~] ${{ steps.commit-info.outputs.modified_count }}** **[-] ${{ steps.commit-info.outputs.deleted_count }}**",
+                  "inline": true
+                },
+                {
+                  "name": "🔍 Reconnaissance Data",
+                  "value": "$CHANGES_SUMMARY",
+                  "inline": false
+                }
+              ],
+              "footer": {
+                "text": "ipcrawler reconnaissance framework • ${{ github.repository }}",
+                "icon_url": "https://raw.githubusercontent.com/microsoft/vscode-icons/main/icons/file_type_python.svg"
+              },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }
+          ]
+        }
+        EOF
+        )
+        
+        # Send to Discord webhook with error handling
+        echo "Sending Discord notification..."
+        response=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
+          -H "Content-Type: application/json" \
+          -d "$DISCORD_PAYLOAD" \
+          "${{ secrets.DISCORD_WEBHOOK_URL }}")
+        
+        http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+        echo "Discord API Response Code: $http_code"
+        
+        if [ "$http_code" != "204" ] && [ "$http_code" != "200" ]; then
+          echo "Discord webhook failed with code: $http_code"
+          echo "Response: $response"
+          exit 1
+        else
+          echo "Discord notification sent successfully!"
+        fi
 
   notify-pr:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
     steps:
-      - name: Send PR notification
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          action="${{ github.event.action }}"
-          merged="${{ github.event.pull_request.merged }}"
-
-          if   [[ "$action" == "opened" ]]; then color=3066993; emoji="🔀"; tag="opened"
-          elif [[ "$action" == "closed" && "$merged" == "true" ]]; then color=5814783; emoji="✅"; tag="merged"
-          elif [[ "$action" == "closed" ]]; then color=15158332; emoji="❌"; tag="closed"
-          else color=16776960; emoji="🔄"; tag="$action"; fi
-
-          payload=$(jq -nc \
-            --arg title "$emoji Mission Status: Pull Request $tag" \
-            --arg op "${{ github.event.pull_request.title }}" \
-            --arg url "${{ github.event.pull_request.html_url }}" \
-            --arg user "${{ github.event.pull_request.user.login }}" \
-            --arg head "${{ github.event.pull_request.head.ref }}" \
-            --arg base "${{ github.event.pull_request.base.ref }}" \
-            --arg adds "${{ github.event.pull_request.additions }}" \
-            --arg dels "${{ github.event.pull_request.deletions }}" \
-            --argjson color "$color" '
-            {username:"ipcrawler-bot",
-             embeds:[{
-               title:$title,
-               description:"**Operation:** `\($op)`",
-               url:$url,
-               color:$color,
-                                fields:[
-                   {name:"🎯 Agent",        value:"`\($user)`", inline:true},
-                   {name:"🌐 Network Path", value:"`\($head)` → `\($base)`", inline:true},
-                   {name:"📡 Payload Size", value:"**[+] \($adds)** **[-] \($dels)**", inline:true}
-                 ],
-               timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
-             }]}')
-          curl -s -o /dev/null -H 'Content-Type: application/json' -d "$payload" "$DISCORD_WEBHOOK"
+    - name: Send PR notification
+      run: |
+        # Determine PR action color and emoji
+        if [ "${{ github.event.action }}" = "opened" ]; then
+          COLOR=3066993
+          EMOJI="🔀"
+          ACTION="opened"
+        elif [ "${{ github.event.action }}" = "closed" ] && [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+          COLOR=5814783
+          EMOJI="✅"
+          ACTION="merged"
+        elif [ "${{ github.event.action }}" = "closed" ]; then
+          COLOR=15158332
+          EMOJI="❌"
+          ACTION="closed"
+        else
+          COLOR=16776960
+          EMOJI="🔄"
+          ACTION="${{ github.event.action }}"
+        fi
+        
+        DISCORD_PAYLOAD=$(cat << EOF
+        {
+          "username": "ipcrawler-bot",
+          "avatar_url": "https://cdn-icons-png.flaticon.com/512/2091/2091665.png",
+          "embeds": [
+            {
+              "title": "$EMOJI Mission Status: Pull Request $ACTION",
+              "description": "**Operation:** \`${{ github.event.pull_request.title }}\`",
+              "url": "${{ github.event.pull_request.html_url }}",
+              "color": $COLOR,
+              "fields": [
+                {
+                  "name": "🎯 Agent",
+                  "value": "\`${{ github.event.pull_request.user.login }}\`",
+                  "inline": true
+                },
+                {
+                  "name": "🌐 Network Path",
+                  "value": "\`${{ github.event.pull_request.head.ref }}\` → \`${{ github.event.pull_request.base.ref }}\`",
+                  "inline": true
+                },
+                {
+                  "name": "📡 Payload Size",
+                  "value": "**[+] ${{ github.event.pull_request.additions }}** **[-] ${{ github.event.pull_request.deletions }}**",
+                  "inline": true
+                }
+              ],
+              "footer": {
+                "text": "ipcrawler reconnaissance framework • ${{ github.repository }}",
+                "icon_url": "https://raw.githubusercontent.com/microsoft/vscode-icons/main/icons/file_type_python.svg"
+              },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }
+          ]
+        }
+        EOF
+        )
+        
+        curl -X POST \
+          -H "Content-Type: application/json" \
+          -d "$DISCORD_PAYLOAD" \
+          "${{ secrets.DISCORD_WEBHOOK_URL }}"
