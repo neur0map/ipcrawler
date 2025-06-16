@@ -89,15 +89,18 @@ jobs:
               fi
             done
 
-            payload=$(jq -nc --arg n "${#ROUTINE[@]}" --arg s "$summary" '
-              {username:"ipcrawler-bot",
-               embeds:[{
-                 title:"📦 Batched routine commits (\($n))",
-                 description:$s,
-                 color:8421504,
-                 timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
-               }]}')
-            send "$payload"
+            # Only send if we actually have content
+            if [[ -n "$summary" ]]; then
+              payload=$(jq -nc --arg n "${#ROUTINE[@]}" --arg s "$summary" '
+                {username:"ipcrawler-bot",
+                 embeds:[{
+                   title:"📦 Batched routine commits (\($n))",
+                   description:$s,
+                   color:8421504,
+                   timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
+                 }]}')
+              send "$payload"
+            fi
           fi
 
   notify-pr:
