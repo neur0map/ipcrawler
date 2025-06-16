@@ -30,7 +30,7 @@ class DirBuster(ServiceScan):
             help="The wordlist(s) to use when directory busting. Separate multiple wordlists with spaces. Global setting takes priority. Default: %(default)s",
         )
         self.add_option(
-            "threads", default=10, help="The number of threads to use when directory busting. Default: %(default)s"
+            "threads", default=15, help="The number of threads to use when directory busting. Default: %(default)s"
         )
         self.add_option(
             "ext",
@@ -40,8 +40,8 @@ class DirBuster(ServiceScan):
         self.add_true_option("recursive", help="Enable recursive directory busting. Default: %(default)s")
         self.add_option(
             "timeout",
-            default=1200,
-            help="Maximum time in seconds for directory busting (20 minutes). Default: %(default)s",
+            default=600,
+            help="Maximum time in seconds for directory busting (10 minutes). Default: %(default)s",
         )
         self.add_true_option(
             "parallel-wordlists",
@@ -49,8 +49,13 @@ class DirBuster(ServiceScan):
         )
         self.add_option(
             "max_depth",
-            default=4,
+            default=3,
             help="Maximum recursion depth to prevent infinite loops. Default: %(default)s",
+        )
+        self.add_option(
+            "request_timeout",
+            default=10,
+            help="Request timeout in seconds for each HTTP request. Default: %(default)s",
         )
         self.add_option(
             "extras",
@@ -146,6 +151,9 @@ class DirBuster(ServiceScan):
                     + self.get_option("ext")
                     + '" -v -k '
                     + ("--depth " + str(max_depth) + " " if self.get_option("recursive") else "-n ")
+                    + '--timeout ' + str(self.get_option("request_timeout")) + ' '
+                    + '--rate-limit 300 '  # Prevent overwhelming HTB machines
+                    + '--auto-bail '  # Stop if too many errors
                     + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_'
                     + name
                     + '.txt"'
@@ -161,7 +169,9 @@ class DirBuster(ServiceScan):
                     + wordlist
                     + '" -e -k -x "'
                     + self.get_option("ext")
-                    + '" -z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_'
+                    + '" --timeout ' + str(self.get_option("request_timeout")) + 's '
+                    + '--delay 200ms '  # Small delay to prevent overwhelming
+                    + '-z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_'
                     + name
                     + '.txt"'
                     + (" " + self.get_option("extras") if self.get_option("extras") else "")
@@ -322,7 +332,7 @@ class DirBuster(ServiceScan):
         name = os.path.splitext(os.path.basename(wordlist))[0]
         
         # Reduce timeout for parallel runs to prevent one wordlist from blocking others
-        parallel_timeout = min(timeout_seconds // 2, 600)  # Max 10 minutes per wordlist in parallel mode
+        parallel_timeout = min(timeout_seconds // 3, 300)  # Max 5 minutes per wordlist in parallel mode
         
         if self.get_option("tool") == "feroxbuster":
             cmd = (
@@ -334,6 +344,9 @@ class DirBuster(ServiceScan):
                 + self.get_option("ext")
                 + '" -v -k '
                 + ("--depth " + str(max_depth) + " " if self.get_option("recursive") else "-n ")
+                + '--timeout ' + str(self.get_option("request_timeout")) + ' '
+                + '--rate-limit 300 '  # Prevent overwhelming HTB machines
+                + '--auto-bail '  # Stop if too many errors
                 + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_'
                 + name
                 + '.txt"'
@@ -349,7 +362,9 @@ class DirBuster(ServiceScan):
                 + wordlist
                 + '" -e -k -x "'
                 + self.get_option("ext")
-                + '" -z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_'
+                + '" --timeout ' + str(self.get_option("request_timeout")) + 's '
+                + '--delay 200ms '  # Small delay to prevent overwhelming
+                + '-z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_'
                 + name
                 + '.txt"'
                 + (" " + self.get_option("extras") if self.get_option("extras") else "")

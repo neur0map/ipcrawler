@@ -1,59 +1,52 @@
 # ========================================
-# Global Plugin Options & Pattern Matching
+# Global Wordlists and Settings
 # ========================================
-# 
-# 💡 These settings apply to multiple plugins
-#    For plugin-specific settings, edit config.toml
+# Wordlists used by scanning tools
+# Install wordlists: sudo apt install seclists wordlists
+
+[global]
 # ========================================
-
+# Directory/Web Scanning Wordlists
 # ========================================
-# Wordlist Settings
-# ========================================
-# 🛡️ WORDLIST VALIDATION: ipcrawler now validates wordlist paths automatically
-#    - Missing wordlists are reported with helpful error messages
-#    - Plugins skip gracefully if no valid wordlists are found
-#    - Built-in fallbacks are used when external wordlists are missing
-#    - Install SecLists for comprehensive wordlists: sudo apt install seclists
-
-[global.username-wordlist]
-default = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
-help = 'Username wordlist for bruteforce attacks. Default: %(default)s'
-
-[global.password-wordlist]
-default = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
-help = 'Password wordlist for bruteforce attacks. Default: %(default)s'
-
-[global.directory-wordlist]
-default = '/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt'
-help = 'Directory/file wordlist for web enumeration (dirbuster, feroxbuster, gobuster). Smaller wordlist for faster scans. Built-in fallback available. Default: %(default)s'
-
-[global.subdomain-wordlist]
-default = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
-help = 'Subdomain wordlist for DNS enumeration. Smaller subset for faster scans. Default: %(default)s'
-
-[global.vhost-wordlist]
-default = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
-help = 'Virtual host wordlist for HTTP host header enumeration. Smaller subset for faster scans. Default: %(default)s'
+# Used by: feroxbuster, gobuster, dirsearch, ffuf, dirb
+directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'
 
 # ========================================
-# Target Information
+# DNS/Subdomain Scanning Wordlists  
 # ========================================
-[global.domain]
-help = 'Target domain for DNS enumeration and Active Directory. Default: %(default)s'
+# Used by: subdomain enumeration tools
+subdomain-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
+
+# Used by: dnsrecon, fierce
+dns-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
 
 # ========================================
-# Output Pattern Detection
+# Virtual Host Discovery Wordlists
 # ========================================
-# Automatically highlight important findings in scan output
+# Used by: virtual host enumeration tools
+vhost-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
 
-[[pattern]]
-description = 'Vulnerability detected: {match}'
-pattern = 'State: (?:(?:LIKELY\_?)?VULNERABLE)'
+# ========================================
+# Credential/Bruteforce Wordlists
+# ========================================
+# Used by: hydra, medusa, crackmapexec for username bruteforcing
+username-wordlist = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
 
-[[pattern]]
-description = 'Unauthorized access'
-pattern = '(?i)unauthorized'
+# Used by: hydra, medusa, crackmapexec for password bruteforcing  
+password-wordlist = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
 
-[[pattern]]
-description = 'CVE found: {match}'
-pattern = '(CVE-\d{4}-\d{4,7})'
+# ========================================
+# Domain Settings
+# ========================================
+# Base domain for subdomain enumeration and DNS testing
+# Example: domain = 'example.com'
+domain = ''
+
+# ========================================
+# Wordlist Help/Comments
+# ========================================
+# Note: Smaller wordlists = faster scans
+# - directory-list-2.3-small.txt: ~87K entries (recommended)
+# - directory-list-2.3-medium.txt: ~220K entries (thorough)
+# - subdomains-top1million-5000.txt: ~5K entries (fast)
+# - subdomains-top1million-110000.txt: ~110K entries (comprehensive)

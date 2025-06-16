@@ -749,7 +749,7 @@ class ProgressManager:
             # Store the mapping if we have a key
             if task_key:
                 self.task_keys[task_key] = task_id
-            debug(f"Rich task {task_id} created: {description}", verbosity=3)
+            debug(f"Rich task {task_id} created: {description} (key: {task_key})", verbosity=3)
         else:
             # Fallback to simple tracking
             task_id = len(self.tasks) + 1
@@ -790,6 +790,7 @@ class ProgressManager:
     def complete_task(self, task_id):
         """Complete a task and schedule its removal"""
         if not self.active or task_id is None or task_id not in self.tasks:
+            debug(f"complete_task: task {task_id} not found or manager inactive", verbosity=3)
             return
 
         task = self.tasks[task_id]
@@ -805,37 +806,54 @@ class ProgressManager:
         elapsed = time.time() - task["started"]
 
         if task.get("rich_task", False) and self.progress:
-            # Complete Rich progress bar to 100%
-            self.progress.update(task_id, completed=task["total"])
-            # Let Rich handle the completion display
+            try:
+                # Complete Rich progress bar to 100%
+                self.progress.update(task_id, completed=task["total"])
+                # Let Rich handle the completion display
+                debug(f"Rich progress bar {task_id} updated to 100%", verbosity=3)
+            except Exception as e:
+                debug(f"Error updating Rich progress bar {task_id}: {e}", verbosity=3)
         else:
             # Show text completion message
             info(f"✅ Completed: {task['description']} (took {elapsed:.1f}s)", verbosity=2)
 
-        # Schedule removal
-        asyncio.create_task(self._remove_task_after_delay(task_id))
+        # Schedule removal with shorter delay to clean up faster
+        asyncio.create_task(self._remove_task_after_delay(task_id, delay=1))
 
-    async def _remove_task_after_delay(self, task_id, delay=2):
+    async def _remove_task_after_delay(self, task_id, delay=1):
         """Remove completed task after delay"""
         await asyncio.sleep(delay)
-        if self.active and task_id in self.tasks:
-            task = self.tasks[task_id]
+        
+        # Double-check task still exists and manager is active
+        if not self.active or task_id not in self.tasks:
+            debug(f"_remove_task_after_delay: task {task_id} already removed or manager inactive", verbosity=3)
+            return
+            
+        task = self.tasks[task_id]
 
-            # Remove from Rich progress if it's a Rich task
-            if task.get("rich_task", False) and self.progress:
-                try:
-                    self.progress.remove_task(task_id)
-                except:
-                    pass  # Task might already be removed
+        # Remove from Rich progress if it's a Rich task
+        if task.get("rich_task", False) and self.progress:
+            try:
+                self.progress.remove_task(task_id)
+                debug(f"Rich progress bar {task_id} removed successfully", verbosity=3)
+            except Exception as e:
+                debug(f"Error removing Rich progress bar {task_id}: {e}", verbosity=3)
 
-            # Remove from task_keys mapping if it has a key
-            task_key = task.get("task_key")
-            if task_key and task_key in self.task_keys:
+        # Remove from task_keys mapping if it has a key
+        task_key = task.get("task_key")
+        if task_key and task_key in self.task_keys:
+            try:
                 del self.task_keys[task_key]
+                debug(f"Task key {task_key} removed from mapping", verbosity=3)
+            except Exception as e:
+                debug(f"Error removing task key {task_key}: {e}", verbosity=3)
 
-            # Remove from our internal tracking
+        # Remove from our internal tracking
+        try:
             del self.tasks[task_id]
             debug(f"Progress task {task_id} removed from tracking", verbosity=3)
+        except Exception as e:
+            debug(f"Error removing task {task_id} from tracking: {e}", verbosity=3)
 
     def simulate_progress(self, task_id, duration=10):
         """Simulate progress for long-running tasks"""

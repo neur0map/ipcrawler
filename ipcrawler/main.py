@@ -1063,14 +1063,22 @@ async def port_scan(plugin, target):
 
         elapsed_time = calculate_elapsed_time(start_time)
 
-        # Complete progress bar and cleanup tasks
+        # Complete progress bar and cleanup tasks - ALWAYS do this
         if task_id:
-            progress_manager.complete_task(task_id)
+            try:
+                progress_manager.complete_task(task_id)
+                debug(f"Port scan progress task {task_id} completed successfully", verbosity=3)
+            except Exception as e:
+                debug(f"Error completing port scan progress task {task_id}: {e}", verbosity=3)
 
         async with target.lock:
             # Ensure task is removed from running_tasks
             if plugin.slug in target.running_tasks:
-                target.running_tasks.pop(plugin.slug, None)
+                try:
+                    target.running_tasks.pop(plugin.slug, None)
+                    debug(f"Port scan task {plugin.slug} removed from running_tasks", verbosity=3)
+                except Exception as e:
+                    debug(f"Error removing port scan task {plugin.slug} from running_tasks: {e}", verbosity=3)
 
         info(
             "Port scan {bblue}"
@@ -1185,7 +1193,7 @@ async def service_scan(plugin, service):
             # Start progress simulation (estimate varies by service type)
             # Nikto and directory busters take longer
             if "nikto" in plugin.slug.lower() or "gobuster" in plugin.slug.lower() or "dirb" in plugin.slug.lower():
-                estimated_duration = 300  # 5 minutes for directory/web scans
+                estimated_duration = 180  # 3 minutes for directory/web scans (reduced from 5)
             elif "nmap" in plugin.slug.lower():
                 estimated_duration = 120  # 2 minutes for nmap scans
             else:
@@ -1287,14 +1295,22 @@ async def service_scan(plugin, service):
 
             elapsed_time = calculate_elapsed_time(start_time)
 
-            # Complete progress bar and cleanup tasks
+            # Complete progress bar and cleanup tasks - ALWAYS do this
             if task_id:
-                progress_manager.complete_task(task_id)
+                try:
+                    progress_manager.complete_task(task_id)
+                    debug(f"Service scan progress task {task_id} completed successfully", verbosity=3)
+                except Exception as e:
+                    debug(f"Error completing service scan progress task {task_id}: {e}", verbosity=3)
 
             async with service.target.lock:
                 # Ensure task is removed from running_tasks
                 if tag in service.target.running_tasks:
-                    service.target.running_tasks.pop(tag, None)
+                    try:
+                        service.target.running_tasks.pop(tag, None)
+                        debug(f"Service scan task {tag} removed from running_tasks", verbosity=3)
+                    except Exception as e:
+                        debug(f"Error removing service scan task {tag} from running_tasks: {e}", verbosity=3)
 
             info(
                 "Service scan {bblue}"
