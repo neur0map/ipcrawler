@@ -110,7 +110,7 @@ def get_config_display_table(targets=None):
                 local_config = toml.load(f)
         
         # Get directory wordlist (show configured wordlist, not just existing ones)
-        configured_wordlist = global_config.get("global", {}).get("directory-wordlist", {}).get("default", "/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt")
+        configured_wordlist = global_config.get("global", {}).get("directory-wordlist", "/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt")
         
         # Show the configured wordlist (shortened if too long)
         if configured_wordlist:
