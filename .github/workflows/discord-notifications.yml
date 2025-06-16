@@ -119,77 +119,102 @@ jobs:
 
     - name: Send Discord notification
       run: |
+        # Escape special characters for JSON
+        escape_json() {
+          echo "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' '
+        }
+        
         # Prepare file change summary with recon theme
         CHANGES_SUMMARY=""
         if [ "${{ steps.commit-info.outputs.added_count }}" -gt 0 ]; then
-          CHANGES_SUMMARY="$CHANGES_SUMMARY\n🎯 **New Targets Acquired (${{ steps.commit-info.outputs.added_count }} files):**"
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\\n🎯 **New Targets Acquired (${{ steps.commit-info.outputs.added_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.added_files }}" ]; then
-            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.added_files }}\`\`\`"
+            ADDED_FILES_ESCAPED=$(escape_json "${{ steps.commit-info.outputs.added_files }}")
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$ADDED_FILES_ESCAPED\`\`\`"
           fi
         fi
         
         if [ "${{ steps.commit-info.outputs.modified_count }}" -gt 0 ]; then
-          CHANGES_SUMMARY="$CHANGES_SUMMARY\n🔧 **Systems Updated (${{ steps.commit-info.outputs.modified_count }} files):**"
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\\n🔧 **Systems Updated (${{ steps.commit-info.outputs.modified_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.modified_files }}" ]; then
-            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.modified_files }}\`\`\`"
+            MODIFIED_FILES_ESCAPED=$(escape_json "${{ steps.commit-info.outputs.modified_files }}")
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$MODIFIED_FILES_ESCAPED\`\`\`"
           fi
         fi
         
         if [ "${{ steps.commit-info.outputs.deleted_count }}" -gt 0 ]; then
-          CHANGES_SUMMARY="$CHANGES_SUMMARY\n💥 **Targets Eliminated (${{ steps.commit-info.outputs.deleted_count }} files):**"
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\\n💥 **Targets Eliminated (${{ steps.commit-info.outputs.deleted_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.deleted_files }}" ]; then
-            CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.deleted_files }}\`\`\`"
+            DELETED_FILES_ESCAPED=$(escape_json "${{ steps.commit-info.outputs.deleted_files }}")
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$DELETED_FILES_ESCAPED\`\`\`"
           fi
         fi
         
-        # Prepare Discord embed payload
-        DISCORD_PAYLOAD=$(cat << EOF
-        {
-          "username": "ipcrawler-bot",
-          "avatar_url": "https://cdn-icons-png.flaticon.com/512/2091/2091665.png",
-          "embeds": [
-            {
-              "title": "🕵️ Intelligence Report: New Commit Deployed",
-              "description": "**Target acquired:** \`${{ steps.commit-info.outputs.commit_message }}\`",
-              "url": "${{ steps.commit-info.outputs.commit_url }}",
-              "color": ${{ steps.megalinter_status.outputs.linter_color }},
-              "fields": [
-                {
-                  "name": "🎯 Operator",
-                  "value": "\`${{ steps.commit-info.outputs.commit_author }}\`",
-                  "inline": true
+        # Escape commit message and other fields
+        COMMIT_MESSAGE_ESCAPED=$(escape_json "${{ steps.commit-info.outputs.commit_message }}")
+        COMMIT_AUTHOR_ESCAPED=$(escape_json "${{ steps.commit-info.outputs.commit_author }}")
+        LINTER_SUMMARY_ESCAPED=$(escape_json "${{ steps.megalinter_status.outputs.linter_summary }}")
+        
+        # Prepare Discord embed payload using jq for proper JSON formatting
+        DISCORD_PAYLOAD=$(jq -n \
+          --arg username "ipcrawler-bot" \
+          --arg avatar_url "https://cdn-icons-png.flaticon.com/512/2091/2091665.png" \
+          --arg title "🕵️ Intelligence Report: New Commit Deployed" \
+          --arg description "**Target acquired:** \`$COMMIT_MESSAGE_ESCAPED\`" \
+          --arg url "${{ steps.commit-info.outputs.commit_url }}" \
+          --argjson color "${{ steps.megalinter_status.outputs.linter_color }}" \
+          --arg operator_value "\`$COMMIT_AUTHOR_ESCAPED\`" \
+          --arg branch_value "\`${{ steps.commit-info.outputs.branch_name }}\`" \
+          --arg scan_value "**[+] ${{ steps.commit-info.outputs.added_count }}** **[~] ${{ steps.commit-info.outputs.modified_count }}** **[-] ${{ steps.commit-info.outputs.deleted_count }}**" \
+          --arg recon_value "$CHANGES_SUMMARY" \
+          --arg quality_value "$LINTER_SUMMARY_ESCAPED" \
+          --arg footer_text "Commit ${{ steps.commit-info.outputs.commit_sha_short }} • ${{ github.repository }}" \
+          --arg footer_icon "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" \
+          --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '{
+            "username": $username,
+            "avatar_url": $avatar_url,
+            "embeds": [
+              {
+                "title": $title,
+                "description": $description,
+                "url": $url,
+                "color": $color,
+                "fields": [
+                  {
+                    "name": "🎯 Operator",
+                    "value": $operator_value,
+                    "inline": true
+                  },
+                  {
+                    "name": "🌐 Network Branch", 
+                    "value": $branch_value,
+                    "inline": true
+                  },
+                  {
+                    "name": "📡 Scan Results",
+                    "value": $scan_value,
+                    "inline": true
+                  },
+                  {
+                    "name": "🔍 Reconnaissance Data",
+                    "value": $recon_value,
+                    "inline": false
+                  },
+                  {
+                    "name": "⚡ Code Quality Analysis", 
+                    "value": $quality_value,
+                    "inline": false
+                  }
+                ],
+                "footer": {
+                  "text": $footer_text,
+                  "icon_url": $footer_icon
                 },
-                {
-                  "name": "🌐 Network Branch",
-                  "value": "\`${{ steps.commit-info.outputs.branch_name }}\`",
-                  "inline": true
-                },
-                {
-                  "name": "📡 Scan Results",
-                  "value": "**[+] ${{ steps.commit-info.outputs.added_count }}** **[~] ${{ steps.commit-info.outputs.modified_count }}** **[-] ${{ steps.commit-info.outputs.deleted_count }}**",
-                  "inline": true
-                },
-                {
-                  "name": "🔍 Reconnaissance Data",
-                  "value": "$CHANGES_SUMMARY",
-                  "inline": false
-                },
-                {
-                  "name": "⚡ Code Quality Analysis",
-                  "value": "${{ steps.megalinter_status.outputs.linter_summary }}",
-                  "inline": false
-                }
-              ],
-              "footer": {
-                "text": "Commit ${{ steps.commit-info.outputs.commit_sha_short }} • ${{ github.repository }}",
-                "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-              },
-              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            }
-          ]
-        }
-        EOF
-        )
+                "timestamp": $timestamp
+              }
+            ]
+          }')
         
         # Send to Discord webhook with error handling
         echo "Sending Discord notification..."

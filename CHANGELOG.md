@@ -4,6 +4,22 @@ All notable changes to **ipcrawler** will be documented in this file.
 
 ---
 
+## [2.2.0] - 2025-01-17
+
+### Added
+- **LFI Testing Plugin**: Smart Local File Inclusion vulnerability scanner (`curl-lfi-test.py`)
+- Smart endpoint discovery from directory busting results (feroxbuster, gobuster, dirsearch, dirb, ffuf)
+- Parameter extraction from HTML forms, JavaScript, and URLs
+- Intelligent ffuf fallback scanning with two-phase approach
+- LFI-specific wordlist configuration in `global.toml`
+
+### Enhanced
+- Rich Summary reporting with LFI vulnerability patterns and evidence detection
+- HTB-optimized performance (2-6 minute scan times on low-resource machines)
+- Configurable resource limits and threading controls
+
+---
+
 ## [2.1.3] - 2025-01-16
 
 ### Added

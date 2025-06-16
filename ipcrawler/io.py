@@ -38,7 +38,7 @@ def get_ipcrawler_ascii():
     """
 
 
-def show_startup_banner(targets=None, version="2.1.3"):
+def show_startup_banner(targets=None, version="2.2.0"):
     """Display feroxbuster-style startup banner"""
     from ipcrawler.config import config
 

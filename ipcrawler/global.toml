@@ -27,6 +27,16 @@ dns-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.tx
 vhost-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
 
 # ========================================
+# LFI (Local File Inclusion) Wordlists
+# ========================================
+# Used by: curl-lfi-test plugin for fallback ffuf scanning
+# Small, focused wordlist for parameter discovery
+lfi-parameter-wordlist = '/usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt'
+
+# LFI payload wordlist for comprehensive testing
+lfi-payload-wordlist = '/usr/share/seclists/Fuzzing/LFI/LFI-Jhaddix.txt'
+
+# ========================================
 # Credential/Bruteforce Wordlists
 # ========================================
 # Used by: hydra, medusa, crackmapexec for username bruteforcing
@@ -50,3 +60,5 @@ domain = ''
 # - directory-list-2.3-medium.txt: ~220K entries (thorough)
 # - subdomains-top1million-5000.txt: ~5K entries (fast)
 # - subdomains-top1million-110000.txt: ~110K entries (comprehensive)
+# - burp-parameter-names.txt: ~6K parameter names (LFI discovery)
+# - LFI-Jhaddix.txt: ~900 LFI payloads (comprehensive LFI testing)

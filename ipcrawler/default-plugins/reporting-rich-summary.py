@@ -166,6 +166,7 @@ class RichSummary(Report):
             "_ffuf",
             "_dirb",
             "_curl",
+            "_lfi",
             "_whatweb",
             "_enum4linux",
             "_smbclient",
@@ -405,6 +406,13 @@ class RichSummary(Report):
             r"(?:^|\s)Buffer overflow[^\r\n]*",  # Buffer overflow
             r"(?:^|\s)Authentication bypass[^\r\n]*",  # Auth bypass
             r"(?:^|\s)Privilege escalation[^\r\n]*",  # Privilege escalation
+            r"LFI VULNERABILITY DETECTED",  # LFI vulnerability found
+            r"POTENTIAL LFI FOUND",  # LFI testing results
+            r"Local File Inclusion",  # LFI mentions
+            r"root:.*:0:0:",  # passwd file content (LFI indicator)
+            r"\[boot loader\]",  # Windows boot.ini (LFI indicator)
+            r"Linux version \d+\.\d+",  # Linux kernel version (LFI indicator)
+            r"PATH_INFO.*DOCUMENT_ROOT",  # Environment variables leak (LFI indicator)
         ]
         for pattern in vuln_patterns:
             # Search primarily in security scan content for vulnerabilities
@@ -461,6 +469,8 @@ class RichSummary(Report):
             r"\.asp[^\s]*",
             r"\.jsp[^\s]*",
             r"/robots\.txt",  # Add specific robots.txt pattern
+            r"LFI endpoint:\s*[^\s]+",  # LFI vulnerable endpoints
+            r"Vulnerable:\s*[^\s?]+\?[^=]+=",  # LFI vulnerable parameters
         ]
         for pattern in file_patterns:
             files = re.findall(pattern, scan_content, re.IGNORECASE)
@@ -1021,6 +1031,15 @@ class RichSummary(Report):
             r"Allow:\s*[^\r\n]+",  # robots.txt allow directives
             r"Sitemap:\s*[^\r\n]+",  # robots.txt sitemap directives
             r"Crawl-delay:\s*[^\r\n]+",  # robots.txt crawl delay directives
+            r"LFI VULNERABILITY DETECTED",  # LFI vulnerabilities
+            r"POTENTIAL LFI FOUND",  # LFI test results
+            r"root:.*:0:0:",  # passwd file content
+            r"\[boot loader\]",  # boot.ini content
+            r"Linux version \d+\.\d+",  # kernel version leak
+            r"Patterns detected:",  # LFI pattern matches
+            r"Vulnerable: YES",  # LFI vulnerability confirmation
+            r"Tests Performed: \d+",  # LFI test statistics
+            r"Potentially Vulnerable Findings: \d+",  # LFI findings count
         ]
 
         for line in lines:

