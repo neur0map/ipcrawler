@@ -10,8 +10,6 @@ IPCrawler has since evolved into a standalone tool with simplified setup and enh
 
 ![Version](https://img.shields.io/badge/Version-v2.1.0-brightgreen) ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
 
-## 🚀 Quick Start
-
 ### 🛠️ Available Commands
 
 If you have `make` installed, you can use the following commands:
@@ -24,6 +22,7 @@ make reset                  # Clear all Python/ipcrawler cache and rebuild appli
 make help                   # Show all commands
 make update                 # Update ipcrawler to latest version
 ```
+## 🚀 Quick Start
 
 ### 🐧 Linux/macOS (Recommended)
 ```bash
