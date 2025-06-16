@@ -318,13 +318,20 @@ class RichSummary(Report):
                     service_name = parts[2] if len(parts) > 2 else "unknown"
                     findings["open_ports"].append(f"{protocol}/{port} ({service_name})")
 
-        # Process only scan result files (not local system files)
-        scan_content = ""
+        # Process scan result files - separate security scan content from web content
+        security_scan_content = ""  # Content from security tools
+        web_content = ""  # Content from web crawling/directory busting
+        
         for file_path, content in data["file_results"].items():
             # Skip files that are clearly local system paths or config files
             if not self.is_scan_result_file(file_path):
                 continue
-            scan_content += content + "\n"
+            
+            # Separate security scans from web content
+            if self.is_security_scan_file(file_path):
+                security_scan_content += content + "\n"
+            else:
+                web_content += content + "\n"
             
             # Special handling for robots.txt files
             if "robots" in file_path.lower() and "curl-robots" in file_path:
@@ -334,7 +341,10 @@ class RichSummary(Report):
         
         # Also include special files (these are always scan results)
         for content in data["special_files"].values():
-            scan_content += content + "\n"
+            security_scan_content += content + "\n"
+        
+        # Combine for most searches, but use security content for vulnerabilities
+        scan_content = security_scan_content + web_content
 
         # Extract URLs and domains
         import re
@@ -381,16 +391,53 @@ class RichSummary(Report):
                 else:
                     findings["technologies"].add(match)
 
-        # Extract vulnerabilities
+        # Extract vulnerabilities - be more specific to avoid HTML/JS content
         vuln_patterns = [
-            r"CVE-\d{4}-\d{4,7}",
-            r"VULNERABLE[^\r\n]*",
-            r"State:\s*VULNERABLE[^\r\n]*",
-            r"Exploit available[^\r\n]*",
+            r"CVE-\d{4}-\d{4,7}",  # CVE identifiers
+            r"State:\s*VULNERABLE[^\r\n]*",  # Nmap script output
+            r"(?:^|\s)VULNERABLE:\s*[^\r\n]+",  # Explicit vulnerability statements
+            r"(?:^|\s)EXPLOIT[^\r\n]*available[^\r\n]*",  # Exploit availability
+            r"(?:^|\s)Security hole[^\r\n]*",  # Security hole mentions
+            r"(?:^|\s)Remote code execution[^\r\n]*",  # RCE mentions
+            r"(?:^|\s)SQL injection[^\r\n]*",  # SQLi mentions
+            r"(?:^|\s)Cross-site scripting[^\r\n]*",  # XSS mentions (explicit)
+            r"(?:^|\s)Directory traversal[^\r\n]*",  # Directory traversal
+            r"(?:^|\s)Buffer overflow[^\r\n]*",  # Buffer overflow
+            r"(?:^|\s)Authentication bypass[^\r\n]*",  # Auth bypass
+            r"(?:^|\s)Privilege escalation[^\r\n]*",  # Privilege escalation
         ]
         for pattern in vuln_patterns:
-            vulns = re.findall(pattern, scan_content, re.IGNORECASE)
-            findings["vulnerabilities"].extend(vulns)
+            # Search primarily in security scan content for vulnerabilities
+            vulns = re.findall(pattern, security_scan_content, re.IGNORECASE | re.MULTILINE)
+            # Also search web content but be more strict
+            web_vulns = re.findall(pattern, web_content, re.IGNORECASE | re.MULTILINE)
+            
+            # Process security scan vulnerabilities
+            for vuln in vulns:
+                vuln = vuln.strip()
+                # Basic length and content checks
+                if len(vuln) > 200 or len(vuln) < 5:
+                    continue
+                if re.search(r'<[^>]+>', vuln):
+                    continue
+                findings["vulnerabilities"].append(vuln)
+            
+            # Process web content vulnerabilities with stricter filtering
+            for vuln in web_vulns:
+                vuln = vuln.strip()
+                # Skip if it looks like HTML/JS content
+                if self.is_html_js_content(vuln):
+                    continue
+                # Skip very long lines (likely not vulnerability descriptions)
+                if len(vuln) > 200 or len(vuln) < 5:
+                    continue
+                # Skip if it contains HTML tags
+                if re.search(r'<[^>]+>', vuln):
+                    continue
+                # Skip if it's from a script tag or similar
+                if any(indicator in vuln.lower() for indicator in ['script', 'function', 'var ', 'const ', 'let ', '&&', '||', 'getElementById', 'output=']):
+                    continue
+                findings["vulnerabilities"].append(vuln)
 
         # Extract credentials - be more specific
         cred_patterns = [
@@ -502,6 +549,29 @@ class RichSummary(Report):
         
         return True
 
+    def is_security_scan_file(self, file_path):
+        """Check if a file is from a security scanning tool (vs web crawling)"""
+        security_tools = [
+            "nmap",
+            "nikto",
+            "enum4linux",
+            "smbclient",
+            "dnsrecon",
+            "vulnerability",
+            "vuln",
+            "exploit",
+            "nuclei",
+            "nessus",
+            "openvas",
+            "sqlmap",
+            "testssl",
+            "sslscan",
+            "sslyze",
+        ]
+        
+        file_path_lower = file_path.lower()
+        return any(tool in file_path_lower for tool in security_tools)
+
     def is_relevant_url(self, url):
         """Check if a URL is relevant to the scan (not a local/system URL)"""
         irrelevant_indicators = [
@@ -532,6 +602,35 @@ class RichSummary(Report):
             return False
         
         return True
+
+    def is_html_js_content(self, text):
+        """Check if text appears to be HTML/JavaScript content rather than vulnerability info"""
+        html_js_indicators = [
+            'output="',
+            'script id=',
+            'function(',
+            'getElementById',
+            'innerHTML',
+            'document.',
+            'window.',
+            'var ',
+            'const ',
+            'let ',
+            '&&',
+            '||',
+            'csrf vulnerabilities',
+            'any csrf vulnerabilities',
+            'nothing found amongst',
+            'use -',
+            'script-args',
+            'search-limit',
+            'deeper analysis',
+            'couldn&apos;t find',
+            'could&apos;t find',
+        ]
+        
+        text_lower = text.lower()
+        return any(indicator in text_lower for indicator in html_js_indicators)
 
     def generate_key_findings_section(self, target, data):
         """Generate key findings section at the top"""
