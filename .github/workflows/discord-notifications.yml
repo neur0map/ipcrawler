@@ -21,6 +21,57 @@ jobs:
       with:
         fetch-depth: 2  # Fetch last 2 commits to compare changes
 
+    - name: Wait for MegaLinter completion
+      run: sleep 30  # Wait for MegaLinter to start
+
+    - name: Get MegaLinter status
+      id: megalinter_status
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        timeout=300  # 5 minutes timeout
+        elapsed=0
+        interval=10
+        
+        echo "Checking MegaLinter status for commit ${{ github.sha }}"
+        
+        while [ $elapsed -lt $timeout ]; do
+          # Check workflow runs for MegaLinter
+          status=$(gh api "repos/${{ github.repository }}/actions/runs" \
+            --jq '.workflow_runs[] | select(.name == "MegaLinter" and (.head_sha == "${{ github.sha }}" or .head_commit.id == "${{ github.sha }}")) | .conclusion' \
+            | head -1)
+          
+          echo "Current status: '$status' (elapsed: ${elapsed}s)"
+          
+          if [[ "$status" == "success" ]]; then
+            echo "linter_summary=✅ Code quality: All checks passed" >> $GITHUB_OUTPUT
+            echo "linter_emoji=✅" >> $GITHUB_OUTPUT
+            echo "linter_color=65280" >> $GITHUB_OUTPUT  # Green
+            break
+          elif [[ "$status" == "failure" ]]; then
+            echo "linter_summary=❌ Code quality: Issues detected" >> $GITHUB_OUTPUT
+            echo "linter_emoji=❌" >> $GITHUB_OUTPUT
+            echo "linter_color=16711680" >> $GITHUB_OUTPUT  # Red
+            break
+          elif [[ "$status" == "cancelled" ]]; then
+            echo "linter_summary=⚠️ Code quality: Analysis cancelled" >> $GITHUB_OUTPUT
+            echo "linter_emoji=⚠️" >> $GITHUB_OUTPUT
+            echo "linter_color=16776960" >> $GITHUB_OUTPUT  # Yellow
+            break
+          fi
+          
+          sleep $interval
+          elapsed=$((elapsed + interval))
+        done
+        
+        # If timeout reached or no status found, set default status
+        if [ $elapsed -ge $timeout ] || [[ -z "$status" || "$status" == "null" ]]; then
+          echo "linter_summary=⏳ Code quality: Analysis pending" >> $GITHUB_OUTPUT
+          echo "linter_emoji=⏳" >> $GITHUB_OUTPUT
+          echo "linter_color=8421504" >> $GITHUB_OUTPUT  # Gray
+        fi
+
     - name: Get commit information
       id: commit-info
       run: |
@@ -47,6 +98,7 @@ jobs:
         echo "commit_author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
         echo "commit_author_email=$COMMIT_AUTHOR_EMAIL" >> $GITHUB_OUTPUT
         echo "commit_url=$COMMIT_URL" >> $GITHUB_OUTPUT
+        echo "commit_sha_short=${COMMIT_SHA:0:7}" >> $GITHUB_OUTPUT
         echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
         echo "added_count=$ADDED_COUNT" >> $GITHUB_OUTPUT
         echo "modified_count=$MODIFIED_COUNT" >> $GITHUB_OUTPUT
@@ -100,7 +152,7 @@ jobs:
               "title": "🕵️ Intelligence Report: New Commit Deployed",
               "description": "**Target acquired:** \`${{ steps.commit-info.outputs.commit_message }}\`",
               "url": "${{ steps.commit-info.outputs.commit_url }}",
-              "color": 3447003,
+              "color": ${{ steps.megalinter_status.outputs.linter_color }},
               "fields": [
                 {
                   "name": "🎯 Operator",
@@ -121,11 +173,16 @@ jobs:
                   "name": "🔍 Reconnaissance Data",
                   "value": "$CHANGES_SUMMARY",
                   "inline": false
+                },
+                {
+                  "name": "⚡ Code Quality Analysis",
+                  "value": "${{ steps.megalinter_status.outputs.linter_summary }}",
+                  "inline": false
                 }
               ],
               "footer": {
-                "text": "ipcrawler reconnaissance framework • ${{ github.repository }}",
-                "icon_url": "https://raw.githubusercontent.com/microsoft/vscode-icons/main/icons/file_type_python.svg"
+                "text": "Commit ${{ steps.commit-info.outputs.commit_sha_short }} • ${{ github.repository }}",
+                "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
               },
               "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             }
