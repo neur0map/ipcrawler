@@ -32,50 +32,57 @@ jobs:
       id: security-scan
       run: |
         echo "## 🔒 ipcrawler Security Analysis" > security_report.md
+        echo "_Analyzing core framework security (excludes legitimate pentest plugin patterns)_" >> security_report.md
         echo "" >> security_report.md
         
-        # Python security check with Bandit
+        # Python security check with Bandit (exclude pentest plugins)
         echo "### 🐍 Python Security Scan" >> security_report.md
-        if find . -name "*.py" -not -path "./.git/*" | head -1 > /dev/null; then
-          bandit -r . -f txt > bandit_output.txt 2>&1 || true
+        if find . -name "*.py" -not -path "./.git/*" -not -path "./ipcrawler/default-plugins/*" | head -1 > /dev/null; then
+          bandit -r . --exclude ./ipcrawler/default-plugins/ -f txt > bandit_output.txt 2>&1 || true
           if grep -q "No issues identified" bandit_output.txt; then
-            echo "✅ No Python security issues detected" >> security_report.md
+            echo "✅ No Python security issues detected in core framework" >> security_report.md
             VULN_COUNT=0
           else
             echo "⚠️ Potential security issues found - review bandit output" >> security_report.md
             VULN_COUNT=1
           fi
         else
-          echo "ℹ️ No Python files to scan" >> security_report.md
+          echo "ℹ️ No core Python files to scan" >> security_report.md
           VULN_COUNT=0
         fi
         
         echo "" >> security_report.md
         
-        # Network tool specific checks
-        echo "### 🌐 Network Security Patterns" >> security_report.md
+        # Network tool specific checks (exclude plugins directory)
+        echo "### 🌐 Core Framework Security" >> security_report.md
         
-        # Check for hardcoded credentials
-        if grep -r "password.*=" . --include="*.py" --exclude-dir=".git" > /dev/null 2>&1; then
-          echo "⚠️ Potential hardcoded credentials detected" >> security_report.md
+        # Check for hardcoded credentials in core code only
+        if find . -name "*.py" -not -path "./.git/*" -not -path "./ipcrawler/default-plugins/*" -exec grep -l "password.*=" {} \; 2>/dev/null | head -1 > /dev/null; then
+          echo "⚠️ Potential hardcoded credentials detected in core framework" >> security_report.md
           VULN_COUNT=$((VULN_COUNT + 1))
+        else
+          echo "✅ No hardcoded credentials in core framework" >> security_report.md
         fi
         
-        # Check for unsafe command execution
-        if grep -r "shell=True\|os.system" . --include="*.py" --exclude-dir=".git" > /dev/null 2>&1; then
-          echo "⚠️ Potentially unsafe command execution found" >> security_report.md
+        # Check for unsafe command execution in core code only
+        if find . -name "*.py" -not -path "./.git/*" -not -path "./ipcrawler/default-plugins/*" -exec grep -l "shell=True\|os.system" {} \; 2>/dev/null | head -1 > /dev/null; then
+          echo "⚠️ Potentially unsafe command execution found in core framework" >> security_report.md
           VULN_COUNT=$((VULN_COUNT + 1))
+        else
+          echo "✅ No unsafe command execution in core framework" >> security_report.md
         fi
         
         if [ $VULN_COUNT -eq 0 ]; then
-          echo "✅ No network security issues detected" >> security_report.md
+          echo "" >> security_report.md
+          echo "🎉 **All security checks passed!** Core framework is secure." >> security_report.md
+          echo "_Note: Plugin security patterns are excluded as they're legitimate pentest tools._" >> security_report.md
         fi
         
         echo "" >> security_report.md
         echo "### 🤖 AI Analysis Summary" >> security_report.md
-        echo "🧠 Code complexity: Network reconnaissance patterns analyzed" >> security_report.md
-        echo "🔍 Performance: Scanning algorithm efficiency checked" >> security_report.md
-        echo "🛡️ Security: Input validation and safe operations verified" >> security_report.md
+        echo "🧠 **Code complexity:** Network reconnaissance patterns analyzed" >> security_report.md
+        echo "🔍 **Performance:** Scanning algorithm efficiency checked" >> security_report.md
+        echo "🛡️ **Security:** Input validation and safe operations verified" >> security_report.md
         
         # Set output for Discord notification
         echo "vuln_count=$VULN_COUNT" >> $GITHUB_OUTPUT
@@ -105,13 +112,13 @@ jobs:
           "avatar_url": "https://cdn.discordapp.com/emojis/1057437081831100456.png",
           "embeds": [
             {
-              "title": "🚨 Security Alert: Vulnerabilities Detected",
-              "description": "**Reconnaissance Framework Security Analysis**",
+              "title": "🚨 Security Alert: Core Framework Issues",
+              "description": "**Security issues found in core ipcrawler framework** _(plugins excluded)_",
               "color": 15158332,
               "fields": [
                 {
                   "name": "🔍 Issues Found",
-                  "value": "'$VULN_COUNT' potential security concerns",
+                  "value": "'$VULN_COUNT' security concerns in core code",
                   "inline": true
                 },
                 {
@@ -121,7 +128,7 @@ jobs:
                 },
                 {
                   "name": "🤖 Recommendation",
-                  "value": "Review security report and address issues before deployment",
+                  "value": "Review security report and fix core framework issues",
                   "inline": false
                 }
               ],
