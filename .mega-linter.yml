@@ -1,0 +1,53 @@
+# Configuration file for MegaLinter
+# See all available variables at https://megalinter.io/configuration/ and in linters documentation
+
+APPLY_FIXES: all
+# ENABLE: # If you use ENABLE variable, all other languages/formats/tooling-formats will be disabled by default
+# ENABLE_LINTERS: # If you use ENABLE_LINTERS variable, all other linters will be disabled by default
+DISABLE:
+  - COPYPASTE # Can be annoying for legitimate code patterns
+  - SPELL # Can be too aggressive, we'll keep codespell in the existing workflow
+DISABLE_LINTERS:
+  - PYTHON_PYLINT # Keep flake8 from existing workflow
+  - PYTHON_MYPY # Keep mypy from existing workflow  
+SHOW_ELAPSED_TIME: true
+FILEIO_REPORTER: false
+# FLAVOR_SUGGESTIONS: false
+LOG_LEVEL: INFO
+CLEAR_REPORT_FOLDER: true
+
+# Pre-commands to run before linting
+# PRE_COMMANDS:
+#   - command: echo "Starting linting process"
+#     cwd: "workspace"
+
+# Post-commands to run after linting  
+# POST_COMMANDS:
+#   - command: echo "Linting completed"
+#     cwd: "workspace"
+
+# Python specific configurations
+PYTHON_BLACK_ARGUMENTS: "--line-length 88"
+PYTHON_ISORT_ARGUMENTS: "--profile black"
+PYTHON_FLAKE8_ARGUMENTS: "--max-line-length=88 --ignore=E203,W503"
+
+# Markdown specific configurations  
+MARKDOWN_MARKDOWNLINT_DISABLE_ERRORS: true
+MARKDOWN_MARKDOWN_LINK_CHECK_DISABLE_ERRORS: true
+
+# YAML configurations
+YAML_PRETTIER_DISABLE_ERRORS: true
+YAML_V8R_DISABLE_ERRORS: true
+
+# JSON configurations
+JSON_PRETTIER_DISABLE_ERRORS: true
+
+# Disable some formatters that might conflict
+DISABLE_LINTERS:
+  - DOCKERFILE_HADOLINT # Can be overly strict
+  - REPOSITORY_SECRETLINT # Might have false positives
+  - REPOSITORY_GITLEAKS # Might be too sensitive
+
+# Custom file patterns
+FILTER_REGEX_INCLUDE: "(\\.py|\\.yml|\\.yaml|\\.json|\\.md|\\.txt|\\.sh)$"
+FILTER_REGEX_EXCLUDE: "(venv/|__pycache__/|\\.git/|node_modules/|\\.(log|tmp)$)" 
