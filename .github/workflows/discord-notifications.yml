@@ -119,9 +119,14 @@ jobs:
 
     - name: Send Discord notification
       run: |
-        # Escape special characters for JSON
+        # Escape special characters for JSON while preserving list format
         escape_json() {
-          echo "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' '
+          echo "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g'
+        }
+        
+        # Format file list for Discord with bullet points
+        format_file_list() {
+          echo "$1" | sed 's/^/• /' | sed ':a;N;$!ba;s/\n/\\n/g'
         }
         
         # Prepare file change summary with recon theme
@@ -129,24 +134,24 @@ jobs:
         if [ "${{ steps.commit-info.outputs.added_count }}" -gt 0 ]; then
           CHANGES_SUMMARY="$CHANGES_SUMMARY\\n🎯 **New Targets Acquired (${{ steps.commit-info.outputs.added_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.added_files }}" ]; then
-            ADDED_FILES_ESCAPED=$(escape_json "${{ steps.commit-info.outputs.added_files }}")
-            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$ADDED_FILES_ESCAPED\`\`\`"
+            ADDED_FILES_FORMATTED=$(format_file_list "${{ steps.commit-info.outputs.added_files }}")
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$ADDED_FILES_FORMATTED\`\`\`"
           fi
         fi
         
         if [ "${{ steps.commit-info.outputs.modified_count }}" -gt 0 ]; then
           CHANGES_SUMMARY="$CHANGES_SUMMARY\\n🔧 **Systems Updated (${{ steps.commit-info.outputs.modified_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.modified_files }}" ]; then
-            MODIFIED_FILES_ESCAPED=$(escape_json "${{ steps.commit-info.outputs.modified_files }}")
-            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$MODIFIED_FILES_ESCAPED\`\`\`"
+            MODIFIED_FILES_FORMATTED=$(format_file_list "${{ steps.commit-info.outputs.modified_files }}")
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$MODIFIED_FILES_FORMATTED\`\`\`"
           fi
         fi
         
         if [ "${{ steps.commit-info.outputs.deleted_count }}" -gt 0 ]; then
           CHANGES_SUMMARY="$CHANGES_SUMMARY\\n💥 **Targets Eliminated (${{ steps.commit-info.outputs.deleted_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.deleted_files }}" ]; then
-            DELETED_FILES_ESCAPED=$(escape_json "${{ steps.commit-info.outputs.deleted_files }}")
-            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$DELETED_FILES_ESCAPED\`\`\`"
+            DELETED_FILES_FORMATTED=$(format_file_list "${{ steps.commit-info.outputs.deleted_files }}")
+            CHANGES_SUMMARY="$CHANGES_SUMMARY\\n\`\`\`$DELETED_FILES_FORMATTED\`\`\`"
           fi
         fi
         
