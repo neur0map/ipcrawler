@@ -10,7 +10,7 @@ IPCrawler has since evolved into a standalone tool with simplified setup and enh
 
 ![Version](https://img.shields.io/badge/Version-v2.1.0-brightgreen) ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
 
-### 🛠️ Available Commands
+### 🛠️ Available Commands 
 
 If you have `make` installed, you can use the following commands:
 
