@@ -12,6 +12,19 @@ IPCrawler has since evolved into a standalone tool with simplified setup and enh
 
 ## 🚀 Quick Start
 
+### 🛠️ Available Commands
+
+If you have `make` installed, you can use the following commands:
+
+```bash
+make setup                  # If make not installed: ./bootstrap.sh first
+make setup-docker           # If docker not installed: https://docs.docker.com/get-docker/
+make clean                  # Removes everything except scan results
+make reset                  # Clear all Python/ipcrawler cache and rebuild application
+make help                   # Show all commands
+make update                 # Update ipcrawler to latest version
+```
+
 ### 🐧 Linux/macOS (Recommended)
 ```bash
 git clone https://github.com/neur0map/ipcrawler.git
