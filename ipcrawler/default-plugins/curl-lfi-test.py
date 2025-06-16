@@ -4,7 +4,7 @@ import os
 import asyncio
 import re
 import glob
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 import json
 
 
@@ -573,7 +573,7 @@ class CurlLFITest(ServiceScan):
                             
                         # Build test URL
                         base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}{endpoint}"
-                        test_url = f"{base_url}?{param}={urllib.parse.quote(payload)}"
+                        test_url = f"{base_url}?{param}={quote(payload)}"
                         
                         # Execute curl request
                         curl_cmd = f'curl -s -k -m {timeout} -w "\\nHTTP_CODE:%{{http_code}}\\nSIZE:%{{size_download}}\\n" -H "User-Agent: {user_agent}" "{test_url}"'
