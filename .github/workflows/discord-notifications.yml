@@ -43,8 +43,14 @@ jobs:
           set -euo pipefail
 
           # ---------- split payload ----------
+          echo "Processing GitHub event from: $EVT_PATH"
+          echo "Total commits in push: $(jq -r '.commits | length' "$EVT_PATH")"
+          
           mapfile -t IMPORTANT <<<"$(jq -cr --arg re "$IMPORTANT_REGEX" '.commits[] | select(.message | test($re;"i"))' "$EVT_PATH")"
           mapfile -t ROUTINE   <<<"$(jq -cr --arg re "$IMPORTANT_REGEX" '.commits[] | select(.message | test($re;"i") | not)' "$EVT_PATH")"
+          
+          echo "Important commits: ${#IMPORTANT[@]}"
+          echo "Routine commits: ${#ROUTINE[@]}"
 
           # ---------- helper ----------
           send() {
@@ -57,16 +63,34 @@ jobs:
 
           # ---------- important commits ----------
           for row in "${IMPORTANT[@]}"; do
-            sha=$(jq -r '.id'      <<<"$row" | cut -c1-7)
-            msg=$(jq -r '.message' <<<"$row" | head -n1 | cut -c1-200)
-            url=$(jq -r '.url'     <<<"$row")
-            who=$(jq -r '.author.name' <<<"$row")
+            # Extract basic commit info with fallbacks
+            sha=$(jq -r '.id // "unknown"'      <<<"$row" | cut -c1-7)
+            msg=$(jq -r '.message // "No message"' <<<"$row" | head -n1 | cut -c1-200)
+            url=$(jq -r '.url // ""'     <<<"$row")
+            who=$(jq -r '.author.name // .author.username // .committer.name // "Unknown"' <<<"$row")
             
-            # Get file changes info
-            files_changed=$(jq -r '.added | length' <<<"$row")
-            files_modified=$(jq -r '.modified | length' <<<"$row")
-            files_removed=$(jq -r '.removed | length' <<<"$row")
-            total_files=$((files_changed + files_modified + files_removed))
+            # Get file changes info with error handling
+            files_added=$(jq -r '(.added // []) | length' <<<"$row" 2>/dev/null || echo "0")
+            files_modified=$(jq -r '(.modified // []) | length' <<<"$row" 2>/dev/null || echo "0")
+            files_removed=$(jq -r '(.removed // []) | length' <<<"$row" 2>/dev/null || echo "0")
+            total_files=$((files_added + files_modified + files_removed))
+            
+            # Get actual changed files (limit to first 3)
+            changed_files=$(jq -r '(.added // []) + (.modified // []) + (.removed // []) | .[0:3] | map("• `" + . + "`") | join("\n")' <<<"$row" 2>/dev/null || echo "• Files updated")
+            if [[ -z "$changed_files" || "$changed_files" == "null" ]]; then
+              changed_files="• Files updated"
+            fi
+            
+            # Ensure we have a valid URL
+            if [[ -z "$url" || "$url" == "null" ]]; then
+              url="https://github.com/${{ github.repository }}/commit/$sha"
+            fi
+            
+            # Debug output
+            echo "Processing commit: $sha by $who"
+            echo "Message: $msg"
+            echo "URL: $url"
+            echo "Files changed: $total_files"
 
             payload=$(jq -nc \
               --arg sha "$sha" \
@@ -75,6 +99,7 @@ jobs:
               --arg who "$who" \
               --arg branch "${{ github.ref_name }}" \
               --arg total "$total_files" \
+              --arg files "$changed_files" \
               --arg repo "${{ github.repository }}" '
               {username:"ipcrawler-bot",
                embeds:[{
@@ -87,7 +112,7 @@ jobs:
                    {name:"🌐 Network Branch", value:"`\($branch)`", inline:true},
                    {name:"🔍 Scan Results", value:"`[\($sha)]`", inline:true},
                    {name:"🛰️ Reconnaissance Data", value:"Mission parameters updated", inline:false},
-                   {name:"🔧 Systems Updated (\($total) files):", value:"• `.github/workflows/discord-notifications.yml`", inline:false}
+                   {name:"🔧 Systems Updated (\($total) files):", value:$files, inline:false}
                  ],
                  footer:{text:"ipcrawler reconnaissance framework • \($repo)"},
                  timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
