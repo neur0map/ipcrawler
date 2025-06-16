@@ -1,11 +1,13 @@
 # .github/workflows/discord-notify.yml
-name: Discord Commit Notifications
+name: Discord Notifications
 
 on:
   push:
-    branches: [main, master, develop]
-  pull_request:
-    types: [opened, closed]
+    branches: ["main"]
+  workflow_run:
+    workflows: ["MegaLinter"]
+    types:
+      - completed
 
 # least-privilege token
 permissions:
@@ -22,318 +24,158 @@ env:
   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
 jobs:
-  notify-discord:
-    if: github.event_name == 'push'
+  notify:
     runs-on: ubuntu-latest
-    # Don't use needs to avoid blocking if MegaLinter fails
-    # needs: [] # Will be populated if MegaLinter job exists
-
     steps:
-      - name: Checkout (shallow)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1            # minimal clone; we parse the event JSON instead of git log
+      - name: Wait for MegaLinter completion
+        if: github.event_name == 'push'
+        run: sleep 30  # Wait for MegaLinter to start
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get -y install jq
-
-      - name: Wait for and get MegaLinter results
+      - name: Get MegaLinter status
+        if: github.event_name == 'push'
         id: megalinter_status
-        run: |
-          # Try to get MegaLinter workflow results from this run
-          WORKFLOW_RUN_ID="${{ github.run_id }}"
-          
-          echo "Checking for MegaLinter results in run: $WORKFLOW_RUN_ID"
-          
-          # Initialize status variables
-          echo "megalinter_status=unknown" >> $GITHUB_OUTPUT
-          echo "linter_summary=🔄 Quality analysis in progress" >> $GITHUB_OUTPUT
-          echo "linter_emoji=🔄" >> $GITHUB_OUTPUT
-          echo "linter_color=16776960" >> $GITHUB_OUTPUT
-          
-          # Quick check: if there's no MegaLinter workflow file, skip waiting
-          if [[ ! -f ".github/workflows/megalinter.yml" ]]; then
-            echo "No MegaLinter workflow found, skipping quality check integration"
-            echo "megalinter_status=disabled" >> $GITHUB_OUTPUT
-            echo "linter_summary=Quality analysis not configured" >> $GITHUB_OUTPUT
-            echo "linter_emoji=⚪" >> $GITHUB_OUTPUT
-            echo "linter_color=8421504" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # First, let's see what jobs are actually running in this workflow
-          echo "=== DEBUG: Listing all jobs in workflow run ==="
-          gh api "repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID/jobs" --jq '.jobs[] | {name: .name, status: .status, conclusion: .conclusion}' 2>/dev/null || echo "Failed to get job list"
-          
-          # Wait up to 5 minutes for MegaLinter to complete (increased from 3)
-          max_attempts=30  # 30 * 10 seconds = 5 minutes
-          attempt=1
-          
-          while [[ $attempt -le $max_attempts ]]; do
-            echo "Attempt $attempt/$max_attempts: Checking MegaLinter status..."
-            
-            # Try multiple patterns to find MegaLinter job
-            MEGALINTER_JOBS=$(gh api "repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID/jobs" --jq '.jobs[] | select(.name | test("megalinter|MegaLinter|mega-linter"; "i")) | {name: .name, status: .status, conclusion: .conclusion}' 2>/dev/null)
-            
-            if [[ -n "$MEGALINTER_JOBS" ]]; then
-              echo "Found MegaLinter job(s): $MEGALINTER_JOBS"
-              
-              # Get the conclusion of the MegaLinter job
-              MEGALINTER_CONCLUSION=$(echo "$MEGALINTER_JOBS" | jq -r '.conclusion' | head -1)
-              MEGALINTER_STATUS=$(echo "$MEGALINTER_JOBS" | jq -r '.status' | head -1)
-              
-              echo "MegaLinter status: $MEGALINTER_STATUS, conclusion: $MEGALINTER_CONCLUSION"
-              
-              if [[ "$MEGALINTER_CONCLUSION" == "success" ]]; then
-                echo "megalinter_status=success" >> $GITHUB_OUTPUT
-                echo "linter_summary=✅ All quality checks passed" >> $GITHUB_OUTPUT
-                echo "linter_emoji=✅" >> $GITHUB_OUTPUT
-                echo "linter_color=3066993" >> $GITHUB_OUTPUT
-                echo "MegaLinter completed successfully!"
-                break
-              elif [[ "$MEGALINTER_CONCLUSION" == "failure" ]]; then
-                echo "megalinter_status=failure" >> $GITHUB_OUTPUT
-                echo "linter_summary=❌ Code quality issues detected" >> $GITHUB_OUTPUT
-                echo "linter_emoji=❌" >> $GITHUB_OUTPUT
-                echo "linter_color=15158332" >> $GITHUB_OUTPUT
-                echo "MegaLinter completed with failures!"
-                break
-              elif [[ "$MEGALINTER_STATUS" == "completed" ]]; then
-                # Handle other completion states (cancelled, skipped, etc.)
-                echo "megalinter_status=completed" >> $GITHUB_OUTPUT
-                echo "linter_summary=⚠️ Quality analysis completed with issues" >> $GITHUB_OUTPUT
-                echo "linter_emoji=⚠️" >> $GITHUB_OUTPUT
-                echo "linter_color=16776960" >> $GITHUB_OUTPUT
-                echo "MegaLinter completed with status: $MEGALINTER_CONCLUSION"
-                break
-              else
-                echo "MegaLinter is still running (status: $MEGALINTER_STATUS)"
-              fi
-            else
-              echo "MegaLinter job not found (attempt $attempt)"
-              
-              # Try different workflow run - maybe MegaLinter is in a separate workflow
-              MEGALINTER_WORKFLOWS=$(gh api "repos/${{ github.repository }}/actions/runs" --jq '.workflow_runs[] | select(.head_sha == "${{ github.sha }}" and (.name | test("megalinter|MegaLinter|mega-linter"; "i"))) | {name: .name, status: .status, conclusion: .conclusion}' 2>/dev/null | head -5)
-              
-              if [[ -n "$MEGALINTER_WORKFLOWS" ]]; then
-                echo "Found MegaLinter workflow(s) for this commit: $MEGALINTER_WORKFLOWS"
-                MEGALINTER_CONCLUSION=$(echo "$MEGALINTER_WORKFLOWS" | jq -r '.conclusion' | head -1)
-                
-                if [[ "$MEGALINTER_CONCLUSION" == "success" ]]; then
-                  echo "megalinter_status=success" >> $GITHUB_OUTPUT
-                  echo "linter_summary=✅ All quality checks passed" >> $GITHUB_OUTPUT
-                  echo "linter_emoji=✅" >> $GITHUB_OUTPUT
-                  echo "linter_color=3066993" >> $GITHUB_OUTPUT
-                  break
-                elif [[ "$MEGALINTER_CONCLUSION" == "failure" ]]; then
-                  echo "megalinter_status=failure" >> $GITHUB_OUTPUT
-                  echo "linter_summary=❌ Code quality issues detected" >> $GITHUB_OUTPUT
-                  echo "linter_emoji=❌" >> $GITHUB_OUTPUT
-                  echo "linter_color=15158332" >> $GITHUB_OUTPUT
-                  break
-                fi
-              fi
-            fi
-            
-            # As a last resort, check commit status checks
-            if [[ $attempt -eq $((max_attempts - 5)) ]]; then
-              echo "Trying commit status checks as fallback..."
-              COMMIT_CHECKS=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" --jq '.check_runs[] | select(.name | test("megalinter|MegaLinter|mega-linter"; "i")) | {name: .name, status: .status, conclusion: .conclusion}' 2>/dev/null)
-              
-              if [[ -n "$COMMIT_CHECKS" ]]; then
-                echo "Found MegaLinter check runs: $COMMIT_CHECKS"
-                CHECK_CONCLUSION=$(echo "$COMMIT_CHECKS" | jq -r '.conclusion' | head -1)
-                
-                if [[ "$CHECK_CONCLUSION" == "success" ]]; then
-                  echo "megalinter_status=success" >> $GITHUB_OUTPUT
-                  echo "linter_summary=✅ All quality checks passed" >> $GITHUB_OUTPUT
-                  echo "linter_emoji=✅" >> $GITHUB_OUTPUT
-                  echo "linter_color=3066993" >> $GITHUB_OUTPUT
-                  echo "Found MegaLinter success via commit checks!"
-                  break
-                elif [[ "$CHECK_CONCLUSION" == "failure" ]]; then
-                  echo "megalinter_status=failure" >> $GITHUB_OUTPUT
-                  echo "linter_summary=❌ Code quality issues detected" >> $GITHUB_OUTPUT
-                  echo "linter_emoji=❌" >> $GITHUB_OUTPUT
-                  echo "linter_color=15158332" >> $GITHUB_OUTPUT
-                  echo "Found MegaLinter failure via commit checks!"
-                  break
-                fi
-              fi
-            fi
-            
-            # If it's the last attempt, proceed with pending status
-            if [[ $attempt -eq $max_attempts ]]; then
-              echo "MegaLinter did not complete within timeout, proceeding with pending status"
-              echo "Final attempt: Setting default status since MegaLinter detection failed"
-              # Override with a more neutral message
-              echo "linter_summary=⏳ Quality analysis completed separately" >> $GITHUB_OUTPUT
-              echo "linter_emoji=⏳" >> $GITHUB_OUTPUT
-              break
-            fi
-            
-            sleep 10
-            ((attempt++))
-          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Group commits and post to Discord
-        env:
-          EVT_PATH: ${{ github.event_path }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
         run: |
-          set -euo pipefail
-
-          # ---------- split payload ----------
-          echo "Processing GitHub event from: $EVT_PATH"
-          echo "Total commits in push: $(jq -r '.commits | length' "$EVT_PATH")"
+          timeout=300  # 5 minutes timeout
+          elapsed=0
+          interval=10
           
-          mapfile -t IMPORTANT <<<"$(jq -cr --arg re "$IMPORTANT_REGEX" '.commits[] | select(.message | test($re; "i"))' "$EVT_PATH")"
-          mapfile -t ROUTINE   <<<"$(jq -cr --arg re "$IMPORTANT_REGEX" '.commits[] | select(.message | test($re; "i") | not)' "$EVT_PATH")"
+          echo "Checking MegaLinter status for commit ${{ github.sha }}"
           
-          echo "Important commits: ${#IMPORTANT[@]}"
-          echo "Routine commits: ${#ROUTINE[@]}"
-
-          # ---------- helper ----------
-          send() {
-            local json="$1"
-            local code
-            code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d "$json" "$DISCORD_WEBHOOK" || true)
-            echo "Discord HTTP $code"
-            sleep 1   # stay well under 30 reqs/min
-          }
-
-          # ---------- important commits ----------
-          for row in "${IMPORTANT[@]}"; do
-            # Extract basic commit info with fallbacks
-            sha=$(jq -r '.id // "unknown"'      <<<"$row" | cut -c1-7)
-            msg=$(jq -r '.message // "No message"' <<<"$row" | head -n1 | cut -c1-200)
-            url=$(jq -r '.url // ""'     <<<"$row")
-            who=$(jq -r '.author.name // .author.username // .committer.name // "Unknown"' <<<"$row")
+          while [ $elapsed -lt $timeout ]; do
+            # Check workflow runs for MegaLinter
+            status=$(gh api "repos/${{ github.repository }}/actions/runs" \
+              --jq '.workflow_runs[] | select(.name == "MegaLinter" and (.head_sha == "${{ github.sha }}" or .head_commit.id == "${{ github.sha }}")) | .conclusion' \
+              | head -1)
             
-            # Get file changes info with error handling
-            files_added=$(jq -r '(.added // []) | length' <<<"$row" 2>/dev/null || echo "0")
-            files_modified=$(jq -r '(.modified // []) | length' <<<"$row" 2>/dev/null || echo "0")
-            files_removed=$(jq -r '(.removed // []) | length' <<<"$row" 2>/dev/null || echo "0")
-            total_files=$((files_added + files_modified + files_removed))
+            echo "Current status: '$status' (elapsed: ${elapsed}s)"
             
-            # Get actual changed files (limit to first 3)
-            changed_files=$(jq -r '(.added // []) + (.modified // []) + (.removed // []) | .[0:3] | map("• `" + . + "`") | join("\n")' <<<"$row" 2>/dev/null || echo "")
-            
-            # Simplified file detection approach
-            if [[ -z "$changed_files" || "$changed_files" == "null" || "$total_files" == "0" ]]; then
-              echo "No files found in event JSON, using simplified detection"
-              
-                             # Check commit message for clues about what was changed
-               if [[ "$msg" == *"version"* || "$msg" == *"release"* || "$msg" == *"2.1.3"* ]]; then
-                 changed_files="• \`CHANGELOG.md\`"$'\n'"• \`ipcrawler/main.py\`"$'\n'"• \`pyproject.toml\`"
-                 total_files="3+"
-                 echo "✅ Version update detected - using standard version update files"
-               elif [[ "$msg" == *"workflow"* || "$msg" == *"Discord"* || "$msg" == *"notification"* ]]; then
-                 changed_files="• \`.github/workflows/discord-notifications.yml\`"
-                 total_files="1+"
-                 echo "✅ Workflow update detected"
-               elif [[ "$msg" == *"MegaLinter"* || "$msg" == *"megalinter"* ]]; then
-                 changed_files="• \`.github/workflows/megalinter.yml\`"$'\n'"• \`.mega-linter.yml\`"
-                 total_files="2+"
-                 echo "✅ MegaLinter update detected"
-               else
-                 # Generic fallback based on common patterns
-                 changed_files="• Multiple files updated"
-                 total_files="1+"
-                 echo "✅ Using generic file indicator"
-               fi
-            else
-              echo "✅ Files found in event JSON: $total_files files"
+            if [[ "$status" == "success" ]]; then
+              echo "linter_summary=✅ Code quality: All checks passed" >> $GITHUB_OUTPUT
+              echo "linter_emoji=✅" >> $GITHUB_OUTPUT
+              echo "linter_color=65280" >> $GITHUB_OUTPUT  # Green
+              break
+            elif [[ "$status" == "failure" ]]; then
+              echo "linter_summary=❌ Code quality: Issues detected" >> $GITHUB_OUTPUT
+              echo "linter_emoji=❌" >> $GITHUB_OUTPUT
+              echo "linter_color=16711680" >> $GITHUB_OUTPUT  # Red
+              break
+            elif [[ "$status" == "cancelled" ]]; then
+              echo "linter_summary=⚠️ Code quality: Analysis cancelled" >> $GITHUB_OUTPUT
+              echo "linter_emoji=⚠️" >> $GITHUB_OUTPUT
+              echo "linter_color=16776960" >> $GITHUB_OUTPUT  # Yellow
+              break
             fi
             
-            # Ensure we have a valid URL
-            if [[ -z "$url" || "$url" == "null" ]]; then
-              url="https://github.com/${{ github.repository }}/commit/$sha"
-            fi
-            
-            # Debug output
-            echo "Processing commit: $sha by $who"
-            echo "Message: $msg"
-            echo "URL: $url"
-            echo "Files changed: $total_files"
-            echo "Raw commit JSON structure (first 500 chars):"
-            echo "$row" | head -c 500 || echo "Failed to parse commit JSON"
-            echo "Files added: $files_added, modified: $files_modified, removed: $files_removed"
-            echo "Changed files variable: '$changed_files'"
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
+          
+          # If timeout reached, set default status
+          if [ $elapsed -ge $timeout ]; then
+            echo "linter_summary=⏱️ Code quality: Analysis timed out" >> $GITHUB_OUTPUT
+            echo "linter_emoji=⏱️" >> $GITHUB_OUTPUT
+            echo "linter_color=8421504" >> $GITHUB_OUTPUT  # Gray
+          fi
 
+      - name: Send Discord Intelligence Report
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Define important commit regex
+          IMPORTANT_REGEX="(feat|fix|security|breaking|major|critical|urgent|release|version|v[0-9])"
+          
+          # Extract commit information from GitHub event
+          commit_msg="${{ github.event.head_commit.message }}"
+          commit_author="${{ github.event.head_commit.author.name }}"
+          commit_sha="${{ github.sha }}"
+          commit_url="${{ github.event.head_commit.url }}"
+          
+          # Fallback for author if empty
+          if [[ -z "$commit_author" || "$commit_author" == "null" ]]; then
+            commit_author="${{ github.event.pusher.name }}"
+          fi
+          if [[ -z "$commit_author" || "$commit_author" == "null" ]]; then
+            commit_author="${{ github.actor }}"
+          fi
+          if [[ -z "$commit_author" || "$commit_author" == "null" ]]; then
+            commit_author="Unknown Operator"
+          fi
+          
+          # Get first line of commit message (limit to 100 chars)
+          commit_title=$(echo "$commit_msg" | head -n1 | cut -c1-100)
+          short_sha=$(echo "$commit_sha" | cut -c1-7)
+          
+          # Extract modified files from the push event
+          files_added=$(echo '${{ toJson(github.event.head_commit.added) }}' | jq -r '.[]?' | head -3)
+          files_modified=$(echo '${{ toJson(github.event.head_commit.modified) }}' | jq -r '.[]?' | head -3)
+          files_removed=$(echo '${{ toJson(github.event.head_commit.removed) }}' | jq -r '.[]?' | head -3)
+          
+          # Combine and format files for display
+          all_files=""
+          [[ -n "$files_added" ]] && all_files="$all_files$files_added"
+          [[ -n "$files_modified" ]] && all_files="$all_files$'\n'$files_modified"
+          [[ -n "$files_removed" ]] && all_files="$all_files$'\n'$files_removed"
+          
+          # Format files as comma-separated basenames, limit to 3
+          if [[ -n "$all_files" ]]; then
+            scan_results=$(echo "$all_files" | grep -v '^$' | head -3 | xargs -I {} basename {} | paste -sd ", " -)
+            file_count=$(echo "$all_files" | grep -v '^$' | wc -l)
+            if [[ $file_count -gt 3 ]]; then
+              scan_results="$scan_results (+$((file_count-3)) more)"
+            fi
+          else
+            scan_results="No files detected"
+          fi
+          
+          # Only send notification for important commits
+          if echo "$commit_title" | grep -qiE "$IMPORTANT_REGEX"; then
+            echo "📡 Important commit detected: $commit_title"
+            
+            # Prepare Discord webhook payload
             payload=$(jq -nc \
-              --arg sha "$sha" \
-              --arg msg "$msg" \
-              --arg url "$url" \
-              --arg who "$who" \
+              --arg title "$commit_title" \
+              --arg author "$commit_author" \
               --arg branch "${{ github.ref_name }}" \
-              --arg total "$total_files" \
-              --arg files "$changed_files" \
+              --arg sha "$short_sha" \
+              --arg files "$scan_results" \
+              --arg url "$commit_url" \
               --arg repo "${{ github.repository }}" \
               --arg linter_status "${{ steps.megalinter_status.outputs.linter_summary }}" \
               --arg linter_emoji "${{ steps.megalinter_status.outputs.linter_emoji }}" \
               --argjson linter_color "${{ steps.megalinter_status.outputs.linter_color }}" '
-              {username:"ipcrawler-bot",
-               embeds:[{
-                 title:"📡 Intelligence Report: New Commit Deployed",
-                 description:"**Target acquired:** `\($msg)`",
-                 url:$url,
-                 color:$linter_color,
-                 fields:[
-                   {name:"🚩 Operator", value:"`\($who)`", inline:true},
-                   {name:"🌐 Network Branch", value:"`\($branch)`", inline:true},
-                   {name:"🔍 Scan Results", value:"`[\($sha)]`", inline:true},
-                   {name:"🛰️ Reconnaissance Data", value:"Mission parameters updated", inline:false},
-                   {name:"🔧 Systems Updated (\($total) files):", value:$files, inline:false},
-                   {name:"\($linter_emoji) Code Quality Analysis", value:$linter_status, inline:false}
-                 ],
-                 footer:{text:"ipcrawler reconnaissance framework • \($repo)"},
-                 timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
-               }]}')
-            send "$payload"
-          done
-
-          # ---------- batch last ≤5 routine ----------
-          if ((${#ROUTINE[@]})); then
-            summary=""
-            start=$(( ${#ROUTINE[@]} > 5 ? ${#ROUTINE[@]}-5 : 0 ))
-            for ((i=start; i<${#ROUTINE[@]}; i++)); do
-              sha=$(jq -r '.id'      <<<"${ROUTINE[$i]}" | cut -c1-7)
-              msg=$(jq -r '.message' <<<"${ROUTINE[$i]}" | head -n1 | cut -c1-120)
-              if [[ -n "$msg" ]]; then  # only add if message exists
-                summary+=$'\n'"- \`$sha\`: $msg"
-              fi
-            done
-
-            # Only send if we actually have content
-            if [[ -n "$summary" ]]; then
-              payload=$(jq -nc \
-                --arg n "${#ROUTINE[@]}" \
-                --arg s "$summary" \
-                --arg branch "${{ github.ref_name }}" \
-                --arg repo "${{ github.repository }}" \
-                --arg linter_status "${{ steps.megalinter_status.outputs.linter_summary }}" \
-                --arg linter_emoji "${{ steps.megalinter_status.outputs.linter_emoji }}" \
-                --argjson linter_color "${{ steps.megalinter_status.outputs.linter_color }}" '
-                {username:"ipcrawler-bot",
-                 embeds:[{
-                   title:"📊 Intelligence Summary: Routine Operations (\($n))",
-                   description:"**Operational status:** Background systems maintenance completed\($s)",
-                   color:$linter_color,
-                   fields:[
-                     {name:"🌐 Network Branch", value:"`\($branch)`", inline:true},
-                     {name:"📈 Mission Status", value:"✅ All systems operational", inline:true},
-                     {name:"\($linter_emoji) Code Quality Analysis", value:$linter_status, inline:false}
-                   ],
-                   footer:{text:"ipcrawler reconnaissance framework • \($repo)"},
-                   timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
-                 }]}')
-              send "$payload"
-            fi
+              {
+                username: "ipcrawler-bot",
+                embeds: [{
+                  title: "📡 Intelligence Report: New Commit Deployed",
+                  description: "**Target acquired:** `\($title)`",
+                  url: $url,
+                  color: $linter_color,
+                  fields: [
+                    {name: "🚩 Operator", value: "`\($author)`", inline: true},
+                    {name: "🌐 Network Branch", value: "`\($branch)`", inline: true},
+                    {name: "🔍 Scan Results", value: $files, inline: false},
+                    {name: "⚡ Code Quality Analysis", value: $linter_status, inline: false}
+                  ],
+                  footer: {
+                    text: "Commit \($sha) • \($repo)",
+                    icon_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+                  },
+                  timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
+                }]
+              }')
+            
+            echo "Sending Intelligence Report to Discord..."
+            curl -H "Content-Type: application/json" \
+                 -d "$payload" \
+                 "${{ secrets.DISCORD_WEBHOOK_URL }}"
+            
+            echo "✅ Intelligence Report transmitted successfully"
+          else
+            echo "ℹ️  Routine commit detected: $commit_title (no notification sent)"
           fi
 
   notify-pr:
