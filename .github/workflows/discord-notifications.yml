@@ -61,17 +61,35 @@ jobs:
             msg=$(jq -r '.message' <<<"$row" | head -n1 | cut -c1-200)
             url=$(jq -r '.url'     <<<"$row")
             who=$(jq -r '.author.name' <<<"$row")
+            
+            # Get file changes info
+            files_changed=$(jq -r '.added | length' <<<"$row")
+            files_modified=$(jq -r '.modified | length' <<<"$row")
+            files_removed=$(jq -r '.removed | length' <<<"$row")
+            total_files=$((files_changed + files_modified + files_removed))
 
-            payload=$(jq -nc --arg sha "$sha" --arg msg "$msg" --arg url "$url" --arg who "$who" '
+            payload=$(jq -nc \
+              --arg sha "$sha" \
+              --arg msg "$msg" \
+              --arg url "$url" \
+              --arg who "$who" \
+              --arg branch "${{ github.ref_name }}" \
+              --arg total "$total_files" \
+              --arg repo "${{ github.repository }}" '
               {username:"ipcrawler-bot",
                embeds:[{
-                 title:"🚀 \($sha) – \($msg)",
+                 title:"📡 Intelligence Report: New Commit Deployed",
+                 description:"**Target acquired:** `\($msg)`",
                  url:$url,
                  color:3066993,
                  fields:[
-                   {name:"Contributor", value:$who, inline:true},
-                   {name:"Commit",      value:"`\($sha)`", inline:true}
+                   {name:"🚩 Operator", value:"`\($who)`", inline:true},
+                   {name:"🌐 Network Branch", value:"`\($branch)`", inline:true},
+                   {name:"🔍 Scan Results", value:"`[\($sha)]`", inline:true},
+                   {name:"🛰️ Reconnaissance Data", value:"Mission parameters updated", inline:false},
+                   {name:"🔧 Systems Updated (\($total) files):", value:"• `.github/workflows/discord-notifications.yml`", inline:false}
                  ],
+                 footer:{text:"ipcrawler reconnaissance framework • \($repo)"},
                  timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
                }]}')
             send "$payload"
@@ -91,12 +109,21 @@ jobs:
 
             # Only send if we actually have content
             if [[ -n "$summary" ]]; then
-              payload=$(jq -nc --arg n "${#ROUTINE[@]}" --arg s "$summary" '
+              payload=$(jq -nc \
+                --arg n "${#ROUTINE[@]}" \
+                --arg s "$summary" \
+                --arg branch "${{ github.ref_name }}" \
+                --arg repo "${{ github.repository }}" '
                 {username:"ipcrawler-bot",
                  embeds:[{
-                   title:"📦 Batched routine commits (\($n))",
-                   description:$s,
+                   title:"📊 Intelligence Summary: Routine Operations (\($n))",
+                   description:"**Operational status:** Background systems maintenance completed\($s)",
                    color:8421504,
+                   fields:[
+                     {name:"🌐 Network Branch", value:"`\($branch)`", inline:true},
+                     {name:"📈 Mission Status", value:"✅ All systems operational", inline:true}
+                   ],
+                   footer:{text:"ipcrawler reconnaissance framework • \($repo)"},
                    timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
                  }]}')
               send "$payload"
