@@ -137,7 +137,7 @@ jobs:
         curl -X POST \
           -H "Content-Type: application/json" \
           -d "$DISCORD_PAYLOAD" \
-          "https://discord.com/api/webhooks/1384049660951265341/jnobEV-TkVxgGExKLiDFDWOW2HMPXktTeHpZ-su2ol2Ug8ViSCtQgLc3K_yAs-_g2q-E"
+          "${{ secrets.DISCORD_WEBHOOK_URL }}"
 
   notify-pr:
     runs-on: ubuntu-latest
@@ -206,4 +206,4 @@ jobs:
         curl -X POST \
           -H "Content-Type: application/json" \
           -d "$DISCORD_PAYLOAD" \
-          "https://discord.com/api/webhooks/1384049660951265341/jnobEV-TkVxgGExKLiDFDWOW2HMPXktTeHpZ-su2ol2Ug8ViSCtQgLc3K_yAs-_g2q-E" 
+          "${{ secrets.DISCORD_WEBHOOK_URL }}" 
