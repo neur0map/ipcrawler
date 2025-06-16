@@ -84,7 +84,9 @@ jobs:
             for ((i=start; i<${#ROUTINE[@]}; i++)); do
               sha=$(jq -r '.id'      <<<"${ROUTINE[$i]}" | cut -c1-7)
               msg=$(jq -r '.message' <<<"${ROUTINE[$i]}" | head -n1 | cut -c1-120)
-              summary+="\n- \`$sha\`: $msg"
+              if [[ -n "$msg" ]]; then  # only add if message exists
+                summary+=$'\n'"- \`$sha\`: $msg"
+              fi
             done
 
             payload=$(jq -nc --arg n "${#ROUTINE[@]}" --arg s "$summary" '
@@ -129,14 +131,14 @@ jobs:
             {username:"ipcrawler-bot",
              embeds:[{
                title:$title,
-               description:"**Operation:** `" + $op + "`",
+               description:"**Operation:** `\($op)`",
                url:$url,
                color:$color,
-               fields:[
-                 {name:"🎯 Agent",        value:"`" + $user + "`", inline:true},
-                 {name:"🌐 Network Path", value:"`" + $head + "` → `" + $base + "`", inline:true},
-                 {name:"📡 Payload Size", value:"**[+] " + $adds + "** **[-] " + $dels + "**", inline:true}
-               ],
+                                fields:[
+                   {name:"🎯 Agent",        value:"`\($user)`", inline:true},
+                   {name:"🌐 Network Path", value:"`\($head)` → `\($base)`", inline:true},
+                   {name:"📡 Payload Size", value:"**[+] \($adds)** **[-] \($dels)**", inline:true}
+                 ],
                timestamp:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
              }]}')
           curl -s -o /dev/null -H 'Content-Type: application/json' -d "$payload" "$DISCORD_WEBHOOK"
