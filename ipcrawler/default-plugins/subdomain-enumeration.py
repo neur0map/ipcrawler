@@ -15,14 +15,14 @@ class SubdomainEnumeration(ServiceScan):
             help="The domain to use as the base domain (e.g. example.com) for subdomain enumeration. Default: %(default)s",
         )
         
-        # Check for global subdomain wordlist first, fallback to plugin default
+        # Get configured subdomain wordlist from global.toml (no fallbacks)
         global_wordlist = self.get_global("subdomain-wordlist")
-        default_wordlist = [global_wordlist] if global_wordlist else ["/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt"]
+        default_wordlist = [global_wordlist] if global_wordlist else []
         
         self.add_list_option(
             "wordlist",
             default=default_wordlist,
-            help="The wordlist(s) to use when enumerating subdomains. Separate multiple wordlists with spaces. Global setting takes priority. Default: %(default)s",
+            help="The wordlist(s) to use when enumerating subdomains. Separate multiple wordlists with spaces. Configure subdomain-wordlist in global.toml. Default: %(default)s",
         )
         self.add_option(
             "threads", default=10, help="The number of threads to use when enumerating subdomains. Default: %(default)s"
@@ -37,19 +37,22 @@ class SubdomainEnumeration(ServiceScan):
     async def run(self, service):
         domains = []
         
-        # Validate wordlists before running
-        fallback_wordlists = [
-            "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
-            "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt", 
-            "/usr/share/wordlists/dnsrecon/namelist.txt",
-            "/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt"
-        ]
-        
-        valid_wordlists = self.get_validated_wordlists("wordlist", "subdomain", fallback_wordlists)
-        
+        # Get configured wordlists (no hardcoded fallbacks)
+        configured_wordlists = self.get_option("wordlist")
+        if not configured_wordlists:
+            self.error("No subdomain-wordlist configured in global.toml. Please add: subdomain-wordlist = \"/path/to/wordlist\"")
+            return
+            
+        # Validate configured wordlists exist
+        valid_wordlists = []
+        for wordlist in configured_wordlists:
+            if os.path.exists(wordlist):
+                valid_wordlists.append(wordlist)
+            else:
+                self.error(f"Wordlist not found: {wordlist}")
+                
         if not valid_wordlists:
-            self.error("No valid subdomain wordlists found - skipping subdomain enumeration")
-            self.error("Please check your wordlist paths in global.toml or config.toml")
+            self.error("No valid wordlists found - check your subdomain-wordlist configuration in global.toml")
             return
 
         if self.get_option("domain"):

@@ -20,9 +20,9 @@ class DirBuster(ServiceScan):
             help="The tool to use for directory busting. Default: %(default)s",
         )
         
-        # Check for global directory wordlist first, fallback to plugin default
+        # Use global directory wordlist from global.toml - no hardcoded defaults
         global_wordlist = self.get_global("directory-wordlist")
-        default_wordlist = [global_wordlist] if global_wordlist else ["/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"]
+        default_wordlist = [global_wordlist] if global_wordlist else []
         
         self.add_list_option(
             "wordlist",
@@ -109,24 +109,16 @@ class DirBuster(ServiceScan):
         timeout_seconds = self.get_option("timeout")
         max_depth = self.get_option("max_depth")
         
-        # Validate wordlists before running
-        fallback_wordlists = [
-            "/usr/share/seclists/Discovery/Web-Content/common.txt",
-            "/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt",
-            "/usr/share/wordlists/dirb/common.txt",
-            "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
-        ]
-        
-        # Add built-in wordlist as final fallback
-        builtin_wordlist = os.path.join(os.path.dirname(__file__), "..", "wordlists", "dirbuster.txt")
-        if os.path.isfile(builtin_wordlist):
-            fallback_wordlists.append(builtin_wordlist)
-        
-        valid_wordlists = self.get_validated_wordlists("wordlist", "directory", fallback_wordlists)
+        # Respect user configuration - only use wordlists specified in global.toml/config
+        # No hardcoded fallbacks - if user wants specific wordlists, they configure them
+        valid_wordlists = self.get_validated_wordlists("wordlist", "directory", None)
         
         if not valid_wordlists:
             self.error("No valid directory wordlists found - skipping directory busting")
-            self.error("Please check your wordlist paths in global.toml or config.toml")
+            self.error("💡 Configuration required:")
+            self.error("  1. Set 'directory-wordlist' in global.toml with a valid path")
+            self.error("  2. Example: directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'")
+            self.error("  3. Or use --dirbuster.wordlist '/path/to/your/wordlist.txt'")
             return
         
         self.info(f"Starting directory busting with {len(valid_wordlists)} wordlist(s)")
@@ -233,13 +225,20 @@ class DirBuster(ServiceScan):
 
     def manual(self, service, plugin_was_run):
         dot_extensions = ",".join(["." + x for x in self.get_option("ext").split(",")])
+        
+        # Get configured wordlist path - use global setting if available
+        global_wordlist = self.get_global("directory-wordlist")
+        wordlist_path = global_wordlist if global_wordlist else "<specify-wordlist-path>"
+        
         if self.get_option("tool") == "feroxbuster":
             service.add_manual_command(
                 "(feroxbuster) Multi-threaded recursive directory/file enumeration for web servers using various wordlists:",
                 [
                     "feroxbuster -u {http_scheme}://{addressv6}:{port} -t "
                     + str(self.get_option("threads"))
-                    + ' -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x "'
+                    + ' -w "'
+                    + wordlist_path
+                    + '" -x "'
                     + self.get_option("ext")
                     + '" -v -k '
                     + ("" if self.get_option("recursive") else "-n ")
@@ -253,7 +252,9 @@ class DirBuster(ServiceScan):
                 [
                     "gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t "
                     + str(self.get_option("threads"))
-                    + ' -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -e -k -x "'
+                    + ' -w "'
+                    + wordlist_path
+                    + '" -e -k -x "'
                     + self.get_option("ext")
                     + '" -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_dirbuster.txt"'
                     + (" " + self.get_option("extras") if self.get_option("extras") else "")
@@ -270,7 +271,9 @@ class DirBuster(ServiceScan):
                         + self.get_option("ext")
                         + '" -f -F '
                         + ("-r " if self.get_option("recursive") else "")
-                        + '-w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt --format=plain --output="{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_dirbuster.txt"'
+                        + '-w "'
+                        + wordlist_path
+                        + '" --format=plain --output="{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_dirbuster.txt"'
                         + (" " + self.get_option("extras") if self.get_option("extras") else "")
                     ],
                 )
@@ -280,7 +283,9 @@ class DirBuster(ServiceScan):
                 [
                     "ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t "
                     + str(self.get_option("threads"))
-                    + ' -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -e "'
+                    + ' -w "'
+                    + wordlist_path
+                    + '" -e "'
                     + dot_extensions
                     + '" -v -r '
                     + ("-recursion " if self.get_option("recursive") else "")
@@ -290,10 +295,12 @@ class DirBuster(ServiceScan):
                 ],
             )
         elif self.get_option("tool") == "dirb":
-            service.add_manual_command(
+                        service.add_manual_command(
                 "(dirb) Recursive directory/file enumeration for web servers using various wordlists:",
                 [
-                    "dirb {http_scheme}://{addressv6}:{port}/ /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -l "
+                    "dirb {http_scheme}://{addressv6}:{port}/ \""
+                    + wordlist_path
+                    + "\" -l "
                     + ("" if self.get_option("recursive") else "-r ")
                     + '-X ",'
                     + dot_extensions

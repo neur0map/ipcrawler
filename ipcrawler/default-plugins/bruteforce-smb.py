@@ -12,13 +12,17 @@ class BruteforceSMB(ServiceScan):
         self.match_service("tcp", 139, "^netbios")
 
     def manual(self, service, plugin_was_run):
+        # Get configured wordlist paths from global.toml
+        username_wordlist = self.get_global("username-wordlist") or "<username-wordlist-path>"
+        password_wordlist = self.get_global("password-wordlist") or "<password-wordlist-path>"
+        
         service.add_manual_command(
             "Bruteforce SMB",
             [
                 'crackmapexec smb {address} --port={port} -u "'
-                + self.get_global("username_wordlist", default="/usr/share/seclists/Usernames/top-usernames-shortlist.txt")
+                + username_wordlist
                 + '" -p "'
-                + self.get_global("password_wordlist", default="/usr/share/seclists/Passwords/darkweb2017-top100.txt")
+                + password_wordlist
                 + '"'
             ],
         )

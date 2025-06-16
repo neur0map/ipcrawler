@@ -19,14 +19,14 @@ class VirtualHost(ServiceScan):
             help="The hostname to use as the base host (e.g. example.com) for virtual host enumeration. Default: %(default)s",
         )
         
-        # Check for global vhost wordlist first, fallback to plugin default
+        # Get configured vhost wordlist from global.toml (no fallbacks)
         global_wordlist = self.get_global("vhost-wordlist")
-        default_wordlist = [global_wordlist] if global_wordlist else ["/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt"]
+        default_wordlist = [global_wordlist] if global_wordlist else []
         
         self.add_list_option(
             "wordlist",
             default=default_wordlist,
-            help="The wordlist(s) to use when enumerating virtual hosts. Separate multiple wordlists with spaces. Global setting takes priority. Default: %(default)s",
+            help="The wordlist(s) to use when enumerating virtual hosts. Separate multiple wordlists with spaces. Configure vhost-wordlist in global.toml. Default: %(default)s",
         )
         self.add_option(
             "threads", default=10, help="The number of threads to use when enumerating virtual hosts. Default: %(default)s"
@@ -37,19 +37,22 @@ class VirtualHost(ServiceScan):
     async def run(self, service):
         hostnames = []
         
-        # Validate wordlists before running
-        fallback_wordlists = [
-            "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
-            "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt",
-            "/usr/share/wordlists/dnsrecon/namelist.txt",
-            "/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt"
-        ]
-        
-        valid_wordlists = self.get_validated_wordlists("wordlist", "virtual host", fallback_wordlists)
-        
+        # Get configured wordlists (no hardcoded fallbacks)
+        configured_wordlists = self.get_option("wordlist")
+        if not configured_wordlists:
+            self.error("No vhost-wordlist configured in global.toml. Please add: vhost-wordlist = \"/path/to/wordlist\"")
+            return
+            
+        # Validate configured wordlists exist
+        valid_wordlists = []
+        for wordlist in configured_wordlists:
+            if os.path.exists(wordlist):
+                valid_wordlists.append(wordlist)
+            else:
+                self.error(f"Wordlist not found: {wordlist}")
+                
         if not valid_wordlists:
-            self.warn("Skipping virtual host enumeration - no valid wordlists found")
-            self.info("💡 Install SecLists: sudo apt install seclists")
+            self.error("No valid wordlists found - check your vhost-wordlist configuration in global.toml")
             return
         
         if self.get_option("hostname"):

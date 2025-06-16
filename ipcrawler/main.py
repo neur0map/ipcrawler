@@ -2135,6 +2135,12 @@ async def run():
                     config["plugins_dir"] = val
                 elif key == "add-plugins-dir":
                     config["add_plugins_dir"] = val
+                elif key == "scan" and isinstance(val, dict):  # Process scan configuration
+                    for skey, sval in val.items():
+                        # Convert hyphenated keys to underscored config keys
+                        skey_config = skey.replace("-", "_")
+                        if skey_config in config:
+                            config[skey_config] = sval
         except toml.decoder.TomlDecodeError:
             unknown_help()
             fail("Error: Couldn't parse " + args.config_file + " config file. Check syntax.")
@@ -2449,6 +2455,9 @@ async def run():
     excluded_tags = []
     if args.exclude_tags is None:
         args.exclude_tags = ""
+    # If exclude_tags wasn't explicitly provided via command line, use config file value
+    if args.exclude_tags == "" and config["exclude_tags"]:
+        args.exclude_tags = config["exclude_tags"]
     if args.exclude_tags != "":
         for tag_group in list(set(filter(None, args.exclude_tags.lower().split(",")))):
             excluded_tags.append(list(set(filter(None, tag_group.split("+")))))

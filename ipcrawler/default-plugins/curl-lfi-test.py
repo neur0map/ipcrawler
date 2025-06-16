@@ -311,11 +311,17 @@ class CurlLFITest(ServiceScan):
         """Run fallback ffuf scan when normal patterns fail"""
         service.info("🚀 Normal LFI patterns failed - Starting fallback ffuf scanning...")
         
-        # Get wordlists from global config
-        param_wordlist = self.get_global("lfi-parameter-wordlist", 
-                                        default="/usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt")
-        payload_wordlist = self.get_global("lfi-payload-wordlist",
-                                         default="/usr/share/seclists/Fuzzing/LFI/LFI-Jhaddix.txt")
+        # Get wordlists from global config (no hardcoded fallbacks)
+        param_wordlist = self.get_global("lfi-parameter-wordlist")
+        payload_wordlist = self.get_global("lfi-payload-wordlist")
+        
+        if not param_wordlist:
+            service.error("No lfi-parameter-wordlist configured in global.toml. Please add: lfi-parameter-wordlist = \"/path/to/wordlist\"")
+            return []
+            
+        if not payload_wordlist:
+            service.error("No lfi-payload-wordlist configured in global.toml. Please add: lfi-payload-wordlist = \"/path/to/wordlist\"")
+            return []
         
         # Configuration options
         max_params = self.get_option("ffuf_max_params")
