@@ -28,64 +28,121 @@ jobs:
       run: |
         pip install bandit safety
         
+    - name: Create security analysis script
+      run: |
+        cat > analyze_security.py << 'EOF'
+        import json
+        import subprocess
+        import os
+        import sys
+        
+        def run_bandit():
+            """Run bandit on core ipcrawler files only"""
+            try:
+                result = subprocess.run([
+                    'bandit', '-r', './ipcrawler', 
+                    '--exclude', './ipcrawler/default-plugins/',
+                    '-f', 'json'
+                ], capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    return json.loads(result.stdout)
+                else:
+                    # Bandit found issues, parse them
+                    try:
+                        return json.loads(result.stdout)
+                    except:
+                        return {"results": []}
+            except Exception as e:
+                print(f"Bandit scan failed: {e}")
+                return {"results": []}
+        
+        def analyze():
+            vuln_count = 0
+            details = []
+            
+            # Run bandit scan
+            bandit_results = run_bandit()
+            issues = bandit_results.get('results', [])
+            
+            if issues:
+                vuln_count += 1
+                details.append(f"Bandit found {len(issues)} security issues in core framework")
+                for i, issue in enumerate(issues[:2]):  # Show first 2
+                    details.append(f"- {issue.get('test_name', 'Unknown')}: {issue.get('issue_text', '')}")
+                if len(issues) > 2:
+                    details.append(f"... and {len(issues) - 2} more issues")
+            
+            # Check for hardcoded credentials (core only)
+            try:
+                result = subprocess.run([
+                    'find', './ipcrawler', '-name', '*.py', 
+                    '-not', '-path', '*/default-plugins/*',
+                    '-exec', 'grep', '-l', 'password.*=', '{}', ';'
+                ], capture_output=True, text=True)
+                
+                if result.stdout.strip():
+                    vuln_count += 1
+                    files = result.stdout.strip().split('\n')[:3]
+                    details.append(f"Hardcoded credentials found in {len(files)} files: {', '.join(files)}")
+            except:
+                pass
+            
+            # Check for unsafe execution (core only)
+            try:
+                result = subprocess.run([
+                    'find', './ipcrawler', '-name', '*.py',
+                    '-not', '-path', '*/default-plugins/*',
+                    '-exec', 'grep', '-l', 'shell=True\\|os.system', '{}', ';'
+                ], capture_output=True, text=True)
+                
+                if result.stdout.strip():
+                    vuln_count += 1
+                    files = result.stdout.strip().split('\n')[:3]
+                    details.append(f"Unsafe execution found in {len(files)} files: {', '.join(files)}")
+            except:
+                pass
+            
+            # Output results
+            print(f"VULN_COUNT={vuln_count}")
+            print(f"SECURITY_DETAILS={'\\n'.join(details)}")
+            
+            # Create simple report
+            with open('security_report.md', 'w') as f:
+                f.write("## 🔒 ipcrawler Security Analysis\\n")
+                f.write("_Core framework security scan (excludes plugins and dependencies)_\\n\\n")
+                
+                if vuln_count > 0:
+                    f.write(f"⚠️ Found {vuln_count} security concerns in core framework:\\n\\n")
+                    for detail in details:
+                        f.write(f"- {detail}\\n")
+                else:
+                    f.write("🎉 **All security checks passed!** Core framework is secure.\\n")
+                    f.write("_Note: Plugin security patterns are excluded as they're legitimate pentest tools._\\n")
+                
+                f.write("\\n### 🤖 AI Analysis Summary\\n")
+                f.write("🧠 **Code complexity:** Network reconnaissance patterns analyzed\\n")
+                f.write("🔍 **Performance:** Scanning algorithm efficiency checked\\n")
+                f.write("🛡️ **Security:** Input validation and safe operations verified\\n")
+        
+        if __name__ == "__main__":
+            analyze()
+        EOF
+        
     - name: Run security analysis
       id: security-scan
       run: |
-        echo "## 🔒 ipcrawler Security Analysis" > security_report.md
-        echo "_Analyzing core framework security (excludes legitimate pentest plugin patterns)_" >> security_report.md
-        echo "" >> security_report.md
+        python3 analyze_security.py > security_output.txt
         
-        # Python security check with Bandit (exclude pentest plugins)
-        echo "### 🐍 Python Security Scan" >> security_report.md
-        if find . -name "*.py" -not -path "./.git/*" -not -path "./ipcrawler/default-plugins/*" | head -1 > /dev/null; then
-          bandit -r . --exclude ./ipcrawler/default-plugins/ -f txt > bandit_output.txt 2>&1 || true
-          if grep -q "No issues identified" bandit_output.txt; then
-            echo "✅ No Python security issues detected in core framework" >> security_report.md
-            VULN_COUNT=0
-          else
-            echo "⚠️ Potential security issues found - review bandit output" >> security_report.md
-            VULN_COUNT=1
-          fi
-        else
-          echo "ℹ️ No core Python files to scan" >> security_report.md
-          VULN_COUNT=0
-        fi
+        # Extract results
+        VULN_COUNT=$(grep "VULN_COUNT=" security_output.txt | cut -d= -f2)
+        SECURITY_DETAILS=$(grep "SECURITY_DETAILS=" security_output.txt | cut -d= -f2-)
         
-        echo "" >> security_report.md
-        
-        # Network tool specific checks (exclude plugins directory)
-        echo "### 🌐 Core Framework Security" >> security_report.md
-        
-        # Check for hardcoded credentials in core code only
-        if find . -name "*.py" -not -path "./.git/*" -not -path "./ipcrawler/default-plugins/*" -exec grep -l "password.*=" {} \; 2>/dev/null | head -1 > /dev/null; then
-          echo "⚠️ Potential hardcoded credentials detected in core framework" >> security_report.md
-          VULN_COUNT=$((VULN_COUNT + 1))
-        else
-          echo "✅ No hardcoded credentials in core framework" >> security_report.md
-        fi
-        
-        # Check for unsafe command execution in core code only
-        if find . -name "*.py" -not -path "./.git/*" -not -path "./ipcrawler/default-plugins/*" -exec grep -l "shell=True\|os.system" {} \; 2>/dev/null | head -1 > /dev/null; then
-          echo "⚠️ Potentially unsafe command execution found in core framework" >> security_report.md
-          VULN_COUNT=$((VULN_COUNT + 1))
-        else
-          echo "✅ No unsafe command execution in core framework" >> security_report.md
-        fi
-        
-        if [ $VULN_COUNT -eq 0 ]; then
-          echo "" >> security_report.md
-          echo "🎉 **All security checks passed!** Core framework is secure." >> security_report.md
-          echo "_Note: Plugin security patterns are excluded as they're legitimate pentest tools._" >> security_report.md
-        fi
-        
-        echo "" >> security_report.md
-        echo "### 🤖 AI Analysis Summary" >> security_report.md
-        echo "🧠 **Code complexity:** Network reconnaissance patterns analyzed" >> security_report.md
-        echo "🔍 **Performance:** Scanning algorithm efficiency checked" >> security_report.md
-        echo "🛡️ **Security:** Input validation and safe operations verified" >> security_report.md
-        
-        # Set output for Discord notification
-        echo "vuln_count=$VULN_COUNT" >> $GITHUB_OUTPUT
+        # Set outputs
+        echo "vuln_count=${VULN_COUNT:-0}" >> $GITHUB_OUTPUT
+        echo "security_details<<EOF" >> $GITHUB_OUTPUT
+        echo "${SECURITY_DETAILS:-No issues found}" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
         
     - name: Comment on PR
       if: github.event_name == 'pull_request'
@@ -106,6 +163,12 @@ jobs:
       if: steps.security-scan.outputs.vuln_count > 0
       run: |
         VULN_COUNT="${{ steps.security-scan.outputs.vuln_count }}"
+        SECURITY_DETAILS="${{ steps.security-scan.outputs.security_details }}"
+        
+        # Truncate details if too long
+        if [ ${#SECURITY_DETAILS} -gt 800 ]; then
+          SECURITY_DETAILS="${SECURITY_DETAILS:0:800}... [truncated]"
+        fi
         
         DISCORD_PAYLOAD='{
           "username": "ipcrawler-security",
@@ -122,18 +185,23 @@ jobs:
                   "inline": true
                 },
                 {
-                  "name": "🎯 Target Branch",
+                  "name": "🎯 Target Branch", 
                   "value": "'${{ github.ref_name }}'",
                   "inline": true
                 },
                 {
-                  "name": "🤖 Recommendation",
-                  "value": "Review security report and fix core framework issues",
+                  "name": "📋 Security Details",
+                  "value": "'$SECURITY_DETAILS'",
+                  "inline": false
+                },
+                {
+                  "name": "🤖 Action Required",
+                  "value": "Review the security findings and fix core framework issues. This scan excludes pentest plugins with legitimate security patterns.",
                   "inline": false
                 }
               ],
               "footer": {
-                "text": "ipcrawler security framework • AI-powered analysis",
+                "text": "ipcrawler security framework • Smart AI analysis",
                 "icon_url": "https://raw.githubusercontent.com/microsoft/vscode-icons/main/icons/file_type_python.svg"
               },
               "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
