@@ -66,24 +66,24 @@ jobs:
 
     - name: Send Discord notification
       run: |
-        # Prepare file change summary
+        # Prepare file change summary with recon theme
         CHANGES_SUMMARY=""
         if [ "${{ steps.commit-info.outputs.added_count }}" -gt 0 ]; then
-          CHANGES_SUMMARY="$CHANGES_SUMMARY\n📁 **Added (${{ steps.commit-info.outputs.added_count }} files):**"
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n🎯 **New Targets Acquired (${{ steps.commit-info.outputs.added_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.added_files }}" ]; then
             CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.added_files }}\`\`\`"
           fi
         fi
         
         if [ "${{ steps.commit-info.outputs.modified_count }}" -gt 0 ]; then
-          CHANGES_SUMMARY="$CHANGES_SUMMARY\n✏️ **Modified (${{ steps.commit-info.outputs.modified_count }} files):**"
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n🔧 **Systems Updated (${{ steps.commit-info.outputs.modified_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.modified_files }}" ]; then
             CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.modified_files }}\`\`\`"
           fi
         fi
         
         if [ "${{ steps.commit-info.outputs.deleted_count }}" -gt 0 ]; then
-          CHANGES_SUMMARY="$CHANGES_SUMMARY\n🗑️ **Deleted (${{ steps.commit-info.outputs.deleted_count }} files):**"
+          CHANGES_SUMMARY="$CHANGES_SUMMARY\n💥 **Targets Eliminated (${{ steps.commit-info.outputs.deleted_count }} files):**"
           if [ ! -z "${{ steps.commit-info.outputs.deleted_files }}" ]; then
             CHANGES_SUMMARY="$CHANGES_SUMMARY\n\`\`\`${{ steps.commit-info.outputs.deleted_files }}\`\`\`"
           fi
@@ -92,39 +92,39 @@ jobs:
         # Prepare Discord embed payload
         DISCORD_PAYLOAD=$(cat << EOF
         {
-          "username": "GitHub Bot",
-          "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+          "username": "ipcrawler-bot",
+          "avatar_url": "https://cdn.discordapp.com/emojis/1057437081831100456.png",
           "embeds": [
             {
-              "title": "🚀 New Commit Pushed",
-              "description": "**${{ steps.commit-info.outputs.commit_message }}**",
+              "title": "🕵️ Intelligence Report: New Commit Deployed",
+              "description": "**Target acquired:** \`${{ steps.commit-info.outputs.commit_message }}\`",
               "url": "${{ steps.commit-info.outputs.commit_url }}",
-              "color": 5814783,
+              "color": 3447003,
               "fields": [
                 {
-                  "name": "👤 Author",
-                  "value": "${{ steps.commit-info.outputs.commit_author }}",
+                  "name": "🎯 Operator",
+                  "value": "\`${{ steps.commit-info.outputs.commit_author }}\`",
                   "inline": true
                 },
                 {
-                  "name": "🌿 Branch",
+                  "name": "🌐 Network Branch",
                   "value": "\`${{ steps.commit-info.outputs.branch_name }}\`",
                   "inline": true
                 },
                 {
-                  "name": "📊 Changes",
-                  "value": "**+${{ steps.commit-info.outputs.added_count }}** **~${{ steps.commit-info.outputs.modified_count }}** **-${{ steps.commit-info.outputs.deleted_count }}**",
+                  "name": "📡 Scan Results",
+                  "value": "**[+] ${{ steps.commit-info.outputs.added_count }}** **[~] ${{ steps.commit-info.outputs.modified_count }}** **[-] ${{ steps.commit-info.outputs.deleted_count }}**",
                   "inline": true
                 },
                 {
-                  "name": "📋 File Changes",
+                  "name": "🔍 Reconnaissance Data",
                   "value": "$CHANGES_SUMMARY",
                   "inline": false
                 }
               ],
               "footer": {
-                "text": "ipcrawler repository • ${{ github.repository }}",
-                "icon_url": "https://github.githubassets.com/images/modules/logos_page/Octocat.png"
+                "text": "ipcrawler reconnaissance framework • ${{ github.repository }}",
+                "icon_url": "https://raw.githubusercontent.com/microsoft/vscode-icons/main/icons/file_type_python.svg"
               },
               "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             }
@@ -167,34 +167,34 @@ jobs:
         
         DISCORD_PAYLOAD=$(cat << EOF
         {
-          "username": "GitHub Bot",
-          "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+          "username": "ipcrawler-bot",
+          "avatar_url": "https://cdn.discordapp.com/emojis/1057437081831100456.png",
           "embeds": [
             {
-              "title": "$EMOJI Pull Request $ACTION",
-              "description": "**${{ github.event.pull_request.title }}**",
+              "title": "$EMOJI Mission Status: Pull Request $ACTION",
+              "description": "**Operation:** \`${{ github.event.pull_request.title }}\`",
               "url": "${{ github.event.pull_request.html_url }}",
               "color": $COLOR,
               "fields": [
                 {
-                  "name": "👤 Author",
-                  "value": "${{ github.event.pull_request.user.login }}",
+                  "name": "🎯 Agent",
+                  "value": "\`${{ github.event.pull_request.user.login }}\`",
                   "inline": true
                 },
                 {
-                  "name": "🌿 Branch",
+                  "name": "🌐 Network Path",
                   "value": "\`${{ github.event.pull_request.head.ref }}\` → \`${{ github.event.pull_request.base.ref }}\`",
                   "inline": true
                 },
                 {
-                  "name": "📊 Changes",
-                  "value": "**+${{ github.event.pull_request.additions }}** **-${{ github.event.pull_request.deletions }}**",
+                  "name": "📡 Payload Size",
+                  "value": "**[+] ${{ github.event.pull_request.additions }}** **[-] ${{ github.event.pull_request.deletions }}**",
                   "inline": true
                 }
               ],
               "footer": {
-                "text": "ipcrawler repository • ${{ github.repository }}",
-                "icon_url": "https://github.githubassets.com/images/modules/logos_page/Octocat.png"
+                "text": "ipcrawler reconnaissance framework • ${{ github.repository }}",
+                "icon_url": "https://raw.githubusercontent.com/microsoft/vscode-icons/main/icons/file_type_python.svg"
               },
               "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             }
