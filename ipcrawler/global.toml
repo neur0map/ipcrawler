@@ -24,7 +24,7 @@ default = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
 help = 'Password wordlist for bruteforce attacks. Default: %(default)s'
 
 [global.directory-wordlist]
-default = '/usr/share/seclists/Discovery/Web-Content/common.txt'
+default = '/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt'
 help = 'Directory/file wordlist for web enumeration (dirbuster, feroxbuster, gobuster). Smaller wordlist for faster scans. Built-in fallback available. Default: %(default)s'
 
 [global.subdomain-wordlist]
