@@ -155,7 +155,10 @@ class CurlLFITest(ServiceScan):
 
         # Match HTTP services
         self.match_service_name("^http")
+        self.match_service_name("^https")
         self.match_service_name("^nacn_http$", negative_match=True)
+        self.match_service_name("^ssl/http")
+        self.match_service_name("^tls/http")
         
         # Add patterns to detect LFI vulnerabilities
         self.add_pattern(r"root:.*:0:0:", "Linux passwd file detected")
@@ -316,11 +319,22 @@ class CurlLFITest(ServiceScan):
         payload_wordlist = self.get_global("lfi-payload-wordlist")
         
         if not param_wordlist:
-            service.error("No lfi-parameter-wordlist configured in global.toml. Please add: lfi-parameter-wordlist = \"/path/to/wordlist\"")
+            service.warn("No lfi-parameter-wordlist configured in global.toml. Skipping ffuf fallback scanning.")
+            service.info("To enable: add 'lfi-parameter-wordlist = \"/path/to/wordlist\"' to global.toml")
             return []
             
         if not payload_wordlist:
-            service.error("No lfi-payload-wordlist configured in global.toml. Please add: lfi-payload-wordlist = \"/path/to/wordlist\"")
+            service.warn("No lfi-payload-wordlist configured in global.toml. Skipping ffuf fallback scanning.")
+            service.info("To enable: add 'lfi-payload-wordlist = \"/path/to/wordlist\"' to global.toml")
+            return []
+        
+        # Check if wordlists actually exist
+        if not os.path.isfile(param_wordlist):
+            service.warn(f"LFI parameter wordlist not found: {param_wordlist}. Skipping ffuf fallback.")
+            return []
+            
+        if not os.path.isfile(payload_wordlist):
+            service.warn(f"LFI payload wordlist not found: {payload_wordlist}. Skipping ffuf fallback.")
             return []
         
         # Configuration options
@@ -515,6 +529,9 @@ class CurlLFITest(ServiceScan):
         return None
 
     async def run(self, service):
+        service.info("🔍 Starting LFI (Local File Inclusion) vulnerability testing...")
+        service.debug(f"LFI plugin running against {service.target.address}:{service.port} ({service.name})")
+        
         payloads = self.get_option("payloads")
         parameters = self.get_option("parameters")
         fallback_endpoints = self.get_option("fallback_endpoints")
@@ -524,8 +541,6 @@ class CurlLFITest(ServiceScan):
         smart_discovery = self.get_option("smart_discovery")
         enable_ffuf_fallback = self.get_option("enable_ffuf_fallback")
         user_agent = self.get_option("user_agent")
-        
-        service.info("🔍 Starting intelligent LFI vulnerability testing...")
         
         # Create output file for results
         output_file = f"{service.target.scandir}/{service.protocol}_{service.port}_{service.http_scheme}_lfi_test.txt"
@@ -606,7 +621,13 @@ class CurlLFITest(ServiceScan):
                                 # Check for LFI patterns in response
                                 vulnerability_detected = False
                                 for pattern_info in self.patterns:
-                                    pattern, description = pattern_info
+                                    if isinstance(pattern_info, tuple) and len(pattern_info) == 2:
+                                        pattern, description = pattern_info
+                                    else:
+                                        # Handle case where pattern_info might be a Pattern object
+                                        pattern = pattern_info.pattern if hasattr(pattern_info, 'pattern') else str(pattern_info)
+                                        description = "LFI pattern detected"
+                                    
                                     if re.search(pattern, response_content):
                                         vulnerability_detected = True
                                         vulnerabilities_found += 1
@@ -654,11 +675,15 @@ class CurlLFITest(ServiceScan):
         
         # Run fallback ffuf scan if no vulnerabilities found and ffuf fallback is enabled
         if vulnerabilities_found == 0 and enable_ffuf_fallback:
-            base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}"
-            ffuf_findings = await self.run_ffuf_fallback_scan(service, base_url, output_file)
-            if ffuf_findings:
-                vulnerabilities_found += len(ffuf_findings)
-                results.extend(ffuf_findings)
+            try:
+                base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}"
+                ffuf_findings = await self.run_ffuf_fallback_scan(service, base_url, output_file)
+                if ffuf_findings:
+                    vulnerabilities_found += len(ffuf_findings)
+                    results.extend(ffuf_findings)
+            except Exception as e:
+                service.debug(f"Error running ffuf fallback scan: {e}")
+                service.info("Ffuf fallback scan failed - continuing with basic LFI scan results")
         
         # Summary
         service.info(f"✅ LFI testing completed: {tests_run} tests run, {vulnerabilities_found} vulnerabilities found")

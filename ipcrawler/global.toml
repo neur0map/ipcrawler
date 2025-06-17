@@ -31,10 +31,10 @@ vhost-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.
 # ========================================
 # Used by: curl-lfi-test plugin for fallback ffuf scanning
 # Small, focused wordlist for parameter discovery
-lfi-parameter-wordlist = '/usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt'
+lfi-parameter-wordlist = 'ipcrawler/wordlists/lfi-parameters.txt'
 
 # LFI payload wordlist for comprehensive testing
-lfi-payload-wordlist = '/usr/share/seclists/Fuzzing/LFI/LFI-Jhaddix.txt'
+lfi-payload-wordlist = 'ipcrawler/wordlists/lfi-payloads.txt'
 
 # ========================================
 # Credential/Bruteforce Wordlists

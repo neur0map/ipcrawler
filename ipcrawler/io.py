@@ -882,7 +882,7 @@ class ProgressManager:
             # Use a try-catch in case asyncio isn't available
             try:
                 import asyncio
-                asyncio.create_task(self._remove_task_after_delay(task_id, delay=1))
+                asyncio.create_task(self._remove_task_after_delay(task_id, delay=0.5))  # Faster cleanup
             except Exception as e:
                 debug(f"Failed to schedule task removal, removing immediately: {e}", verbosity=3)
                 # Fallback: remove immediately
@@ -893,7 +893,7 @@ class ProgressManager:
         except Exception as e:
             debug(f"Error completing task {task_id}: {e}", verbosity=3)
 
-    async def _remove_task_after_delay(self, task_id, delay=1):
+    async def _remove_task_after_delay(self, task_id, delay=0.5):
         """Remove completed task after delay"""
         await asyncio.sleep(delay)
         
@@ -916,10 +916,17 @@ class ProgressManager:
         task_key = task.get("task_key")
         if task_key and task_key in self.task_keys:
             try:
-                del self.task_keys[task_key]
-                debug(f"Task key {task_key} removed from mapping", verbosity=3)
+                # Remove only this specific task ID from the list
+                if task_id in self.task_keys[task_key]:
+                    self.task_keys[task_key].remove(task_id)
+                    debug(f"Task ID {task_id} removed from key {task_key}", verbosity=3)
+                    
+                    # If the list is now empty, remove the key entirely
+                    if not self.task_keys[task_key]:
+                        del self.task_keys[task_key]
+                        debug(f"Task key {task_key} removed from mapping (no more tasks)", verbosity=3)
             except Exception as e:
-                debug(f"Error removing task key {task_key}: {e}", verbosity=3)
+                debug(f"Error removing task {task_id} from key {task_key}: {e}", verbosity=3)
 
         # Remove from our internal tracking
         try:
@@ -994,6 +1001,10 @@ class ProgressManager:
                 break
 
             await asyncio.sleep(1.0)  # Update every second
+            
+            # Periodically clean up stale tasks (every 30 seconds)
+            if elapsed % 30 < 1.0:  # Check every 30 seconds
+                self.clean_stale_tasks()
 
         debug(f"Progress updater for task {task_id} finished", verbosity=3)
 
@@ -1016,10 +1027,17 @@ class ProgressManager:
         task_key = task.get("task_key")
         if task_key and task_key in self.task_keys:
             try:
-                del self.task_keys[task_key]
-                debug(f"Task key {task_key} removed from mapping", verbosity=3)
+                # Remove only this specific task ID from the list
+                if task_id in self.task_keys[task_key]:
+                    self.task_keys[task_key].remove(task_id)
+                    debug(f"Task ID {task_id} removed from key {task_key}", verbosity=3)
+                    
+                    # If the list is now empty, remove the key entirely
+                    if not self.task_keys[task_key]:
+                        del self.task_keys[task_key]
+                        debug(f"Task key {task_key} removed from mapping (no more tasks)", verbosity=3)
             except Exception as e:
-                debug(f"Error removing task key {task_key}: {e}", verbosity=3)
+                debug(f"Error removing task {task_id} from key {task_key}: {e}", verbosity=3)
 
         # Remove from our internal tracking
         try:
@@ -1027,6 +1045,27 @@ class ProgressManager:
             debug(f"Progress task {task_id} removed from tracking", verbosity=3)
         except Exception as e:
             debug(f"Error removing task {task_id} from tracking: {e}", verbosity=3)
+
+    def clean_stale_tasks(self):
+        """Clean up any stale or completed tasks that weren't properly removed"""
+        if not self.active:
+            return
+            
+        current_time = time.time()
+        stale_tasks = []
+        
+        for task_id, task in list(self.tasks.items()):
+            # Remove tasks that have been completed for more than 5 seconds
+            if (task.get("completed_flag", False) and 
+                current_time - task.get("last_update", 0) > 5):
+                stale_tasks.append(task_id)
+            # Remove tasks that haven't been updated in more than 300 seconds (5 minutes)
+            elif current_time - task.get("last_update", current_time) > 300:
+                stale_tasks.append(task_id)
+        
+        for task_id in stale_tasks:
+            debug(f"Cleaning up stale task {task_id}", verbosity=3)
+            self._remove_task_sync(task_id)
 
     def refresh_display(self):
         """Manually refresh the progress display (useful in verbose mode)"""
