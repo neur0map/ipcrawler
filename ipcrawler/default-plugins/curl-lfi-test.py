@@ -174,16 +174,13 @@ class CurlLFITest(ServiceScan):
         # Look for directory busting result files
         scan_dir = service.target.scandir
         
-        # Determine HTTP scheme
-        http_scheme = "https" if "https" in service.name or service.secure is True else "http"
-        
         # Common directory busting file patterns
         dirbuster_patterns = [
-            f"{service.protocol}_{service.port}_{http_scheme}_feroxbuster*.txt",
-            f"{service.protocol}_{service.port}_{http_scheme}_gobuster*.txt",
-            f"{service.protocol}_{service.port}_{http_scheme}_dirsearch*.txt",
-            f"{service.protocol}_{service.port}_{http_scheme}_dirb*.txt",
-            f"{service.protocol}_{service.port}_{http_scheme}_ffuf*.txt"
+            f"{service.protocol}_{service.port}_{service.http_scheme}_feroxbuster*.txt",
+            f"{service.protocol}_{service.port}_{service.http_scheme}_gobuster*.txt",
+            f"{service.protocol}_{service.port}_{service.http_scheme}_dirsearch*.txt",
+            f"{service.protocol}_{service.port}_{service.http_scheme}_dirb*.txt",
+            f"{service.protocol}_{service.port}_{service.http_scheme}_ffuf*.txt"
         ]
         
         for pattern in dirbuster_patterns:
@@ -241,13 +238,10 @@ class CurlLFITest(ServiceScan):
         
         service.info("🔍 Analyzing discovered pages for parameters...")
         
-        # Determine HTTP scheme
-        http_scheme = "https" if "https" in service.name or service.secure is True else "http"
-        
         for endpoint in endpoints[:20]:  # Limit to first 20 endpoints to avoid too many requests
             try:
                 # Fetch the page to analyze for parameters
-                test_url = f"{http_scheme}://{service.target.addressv6}:{service.port}{endpoint}"
+                test_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}{endpoint}"
                 curl_cmd = f'curl -s -k -m 10 "{test_url}"'
                 
                 result = await service.execute(curl_cmd, capture=True)
@@ -533,11 +527,8 @@ class CurlLFITest(ServiceScan):
         
         service.info("🔍 Starting intelligent LFI vulnerability testing...")
         
-        # Determine HTTP scheme
-        http_scheme = "https" if "https" in service.name or service.secure is True else "http"
-        
         # Create output file for results
-        output_file = f"{service.target.scandir}/{service.protocol}_{service.port}_{http_scheme}_lfi_test.txt"
+        output_file = f"{service.target.scandir}/{service.protocol}_{service.port}_{service.http_scheme}_lfi_test.txt"
         
         # Step 1: Discover actual endpoints from directory busting
         discovered_endpoints = []
@@ -587,7 +578,7 @@ class CurlLFITest(ServiceScan):
                             break
                             
                         # Build test URL
-                        base_url = f"{http_scheme}://{service.target.addressv6}:{service.port}{endpoint}"
+                        base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}{endpoint}"
                         test_url = f"{base_url}?{param}={quote(payload)}"
                         
                         # Execute curl request
@@ -663,7 +654,7 @@ class CurlLFITest(ServiceScan):
         
         # Run fallback ffuf scan if no vulnerabilities found and ffuf fallback is enabled
         if vulnerabilities_found == 0 and enable_ffuf_fallback:
-            base_url = f"{http_scheme}://{service.target.addressv6}:{service.port}"
+            base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}"
             ffuf_findings = await self.run_ffuf_fallback_scan(service, base_url, output_file)
             if ffuf_findings:
                 vulnerabilities_found += len(ffuf_findings)
@@ -690,9 +681,7 @@ class CurlLFITest(ServiceScan):
             results.append("# Manual LFI Testing Commands:")
             results.append("")
             
-            # Determine HTTP scheme
-            http_scheme = "https" if "https" in service.name or service.secure is True else "http"
-            base_url = f"{http_scheme}://{service.target.addressv6}:{service.port}"
+            base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}"
             
             results.append("# Test common LFI parameters manually:")
             for param in ["file", "page", "include", "document", "path"]:

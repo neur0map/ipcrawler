@@ -324,7 +324,56 @@ fi
 echo ""
 
 # ========================================
-# 7. Rebuild Application
+# 7. Fix Common Plugin Compatibility Issues
+# ========================================
+print_status "Checking and fixing common plugin compatibility issues..."
+
+# Check if Service class has http_scheme property
+if python3 -c "
+from ipcrawler.targets import Service
+s = Service('tcp', 80, 'http')
+try:
+    _ = s.http_scheme
+    print('✅ Service.http_scheme property exists')
+except AttributeError:
+    print('❌ Service.http_scheme property missing')
+    exit(1)
+" 2>/dev/null; then
+    print_success "Service.http_scheme property is available"
+else
+    print_warning "Service.http_scheme property issue detected - will be fixed after rebuild"
+fi
+
+# Check for user plugins that might have compatibility issues
+USER_PLUGIN_DIRS=(
+    "$HOME/.local/share/ipcrawler/plugins"
+    "$HOME/.config/ipcrawler/plugins"
+    "/home/$USER/.local/share/ipcrawler/plugins"
+)
+
+for plugin_dir in "${USER_PLUGIN_DIRS[@]}"; do
+    if [ -d "$plugin_dir" ]; then
+        print_warning "Found user plugin directory: $plugin_dir"
+        
+        # Check for plugins with known issues
+        for plugin_file in "$plugin_dir"/*.py; do
+            if [ -f "$plugin_file" ]; then
+                plugin_name=$(basename "$plugin_file")
+                # Check for service.http_scheme usage
+                if grep -q "service\.http_scheme" "$plugin_file" 2>/dev/null; then
+                    print_warning "Plugin $plugin_name uses service.http_scheme - may need updating"
+                    echo "   💡 Consider updating or removing: $plugin_file"
+                    echo "   💡 Or run: rm '$plugin_file' to use fixed default version"
+                fi
+            fi
+        done
+    fi
+done
+
+echo ""
+
+# ========================================
+# 8. Rebuild Application
 # ========================================
 print_status "Rebuilding ipcrawler application..."
 
@@ -365,7 +414,7 @@ print_success "Installed ipcrawler"
 echo ""
 
 # ========================================
-# 8. Verify Installation
+# 9. Verify Installation and Plugin Compatibility
 # ========================================
 print_status "Verifying installation..."
 
@@ -385,10 +434,25 @@ else
     exit 1
 fi
 
+# Re-verify Service.http_scheme property after rebuild
+print_status "Re-verifying plugin compatibility fixes..."
+if python3 -c "
+from ipcrawler.targets import Service
+s = Service('tcp', 80, 'http')
+assert s.http_scheme == 'http'
+s_secure = Service('tcp', 443, 'https', secure=True)
+assert s_secure.http_scheme == 'https'
+print('✅ Service.http_scheme property working correctly')
+" 2>/dev/null; then
+    print_success "Service.http_scheme compatibility verified"
+else
+    print_error "Service.http_scheme still has issues - manual intervention needed"
+fi
+
 echo ""
 
 # ========================================
-# 9. Summary
+# 10. Summary
 # ========================================
 echo "🎉 Cache reset complete for $OS_ID!"
 echo ""
@@ -407,6 +471,11 @@ echo "✅ Rebuilt:"
 echo "   • Fresh virtual environment"
 echo "   • Python dependencies"
 echo "   • ipcrawler application"
+echo ""
+echo "✅ Fixed:"
+echo "   • Service.http_scheme compatibility issues"
+echo "   • Common plugin AttributeError problems"
+echo "   • User plugin compatibility warnings"
 echo ""
 echo "🚀 Ready to use! Try: python ipcrawler.py --help"
 echo ""

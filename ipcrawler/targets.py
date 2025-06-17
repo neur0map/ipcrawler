@@ -147,6 +147,11 @@ class Service:
     def add_manual_command(self, description, command):
         self.add_manual_commands(description, command)
 
+    @property
+    def http_scheme(self):
+        """Determine HTTP scheme (http/https) based on service name and secure flag"""
+        return "https" if "https" in self.name or self.secure is True else "http"
+
     @final
     def info(self, msg):
         plugin = inspect.currentframe().f_back.f_locals["self"]
