@@ -118,15 +118,17 @@ class CurlLFITest(ServiceScan):
             help="Include full response content in output files for analysis"
         )
         
-        self.add_true_option(
+        self.add_option(
             "smart_discovery",
-            help="Enable smart endpoint and parameter discovery from other scan results. Default: enabled"
+            default=True,
+            help="Enable smart endpoint and parameter discovery from other scan results. Default: %(default)s"
         )
 
         # Fallback ffuf scanning options
-        self.add_true_option(
+        self.add_option(
             "enable_ffuf_fallback",
-            help="Enable fallback ffuf scanning when normal patterns fail to find vulnerabilities. Default: enabled"
+            default=True,
+            help="Enable fallback ffuf scanning when normal patterns fail to find vulnerabilities. Default: %(default)s"
         )
         
         self.add_option(
@@ -314,28 +316,34 @@ class CurlLFITest(ServiceScan):
         """Run fallback ffuf scan when normal patterns fail"""
         service.info("🚀 Normal LFI patterns failed - Starting fallback ffuf scanning...")
         
-        # Get wordlists from global config (no hardcoded fallbacks)
+        # Get wordlists from global config with local fallbacks
         param_wordlist = self.get_global("lfi-parameter-wordlist")
         payload_wordlist = self.get_global("lfi-payload-wordlist")
         
-        if not param_wordlist:
-            service.warn("No lfi-parameter-wordlist configured in global.toml. Skipping ffuf fallback scanning.")
-            service.info("To enable: add 'lfi-parameter-wordlist = \"/path/to/wordlist\"' to global.toml")
-            return []
-            
-        if not payload_wordlist:
-            service.warn("No lfi-payload-wordlist configured in global.toml. Skipping ffuf fallback scanning.")
-            service.info("To enable: add 'lfi-payload-wordlist = \"/path/to/wordlist\"' to global.toml")
-            return []
+        # Use local wordlists as fallbacks if global ones don't exist
+        wordlists_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "wordlists")
+        local_param_wordlist = os.path.join(wordlists_dir, "lfi-parameters.txt")
+        local_payload_wordlist = os.path.join(wordlists_dir, "lfi-payloads.txt")
         
-        # Check if wordlists actually exist
-        if not os.path.isfile(param_wordlist):
-            service.warn(f"LFI parameter wordlist not found: {param_wordlist}. Skipping ffuf fallback.")
-            return []
-            
-        if not os.path.isfile(payload_wordlist):
-            service.warn(f"LFI payload wordlist not found: {payload_wordlist}. Skipping ffuf fallback.")
-            return []
+        # Check and use parameter wordlist (global -> local -> skip)
+        if not param_wordlist or not os.path.isfile(param_wordlist):
+            if os.path.isfile(local_param_wordlist):
+                param_wordlist = local_param_wordlist
+                service.info(f"Using local LFI parameter wordlist: {local_param_wordlist}")
+            else:
+                service.warn("No LFI parameter wordlist found (global or local). Skipping ffuf parameter discovery.")
+                service.info("To enable: configure 'lfi-parameter-wordlist' in global.toml or ensure local wordlist exists")
+                return []
+        
+        # Check and use payload wordlist (global -> local -> skip)
+        if not payload_wordlist or not os.path.isfile(payload_wordlist):
+            if os.path.isfile(local_payload_wordlist):
+                payload_wordlist = local_payload_wordlist
+                service.info(f"Using local LFI payload wordlist: {local_payload_wordlist}")
+            else:
+                service.warn("No LFI payload wordlist found (global or local). Skipping ffuf payload testing.")
+                service.info("To enable: configure 'lfi-payload-wordlist' in global.toml or ensure local wordlist exists")
+                return []
         
         # Configuration options
         max_params = self.get_option("ffuf_max_params")
@@ -553,19 +561,33 @@ class CurlLFITest(ServiceScan):
             
             if discovered_endpoints:
                 service.info(f"✅ Smart discovery found {len(discovered_endpoints)} endpoints")
+                service.debug(f"Discovered endpoints: {discovered_endpoints[:10]}...")  # Show first 10
                 
                 # Step 2: Discover parameters from actual pages
                 discovered_params = await self.discover_parameters_from_pages(service, discovered_endpoints)
                 if discovered_params:
                     service.info(f"✅ Smart discovery found {len(discovered_params)} parameters")
+                    service.debug(f"Discovered parameters: {discovered_params}")
                     # Add discovered parameters to our test list (prioritize them)
                     parameters = discovered_params + [p for p in parameters if p not in discovered_params]
             else:
                 service.info("⚠️  No endpoints discovered from directory scans - using fallback endpoints")
+                service.debug(f"Checked scan directory: {service.target.scandir}")
+        else:
+            service.info("🔧 Smart discovery disabled - using fallback endpoints only")
         
         # Use discovered endpoints or fallback to defaults
         test_endpoints = discovered_endpoints if discovered_endpoints else fallback_endpoints
         service.info(f"🎯 Testing {len(test_endpoints)} endpoints with {len(parameters)} parameters")
+        
+        # Ensure we always test at least some basic combinations
+        if not test_endpoints:
+            test_endpoints = ["/", "/index.php"]
+            service.warn("No endpoints found - using minimal fallback endpoints for testing")
+        
+        if not parameters:
+            parameters = ["file", "page", "include", "path", "doc"]
+            service.warn("No parameters configured - using minimal fallback parameters for testing")
         
         tests_run = 0
         vulnerabilities_found = 0
@@ -677,13 +699,42 @@ class CurlLFITest(ServiceScan):
         if vulnerabilities_found == 0 and enable_ffuf_fallback:
             try:
                 base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}"
+                service.info("🔄 Attempting ffuf fallback scan for comprehensive LFI testing...")
                 ffuf_findings = await self.run_ffuf_fallback_scan(service, base_url, output_file)
                 if ffuf_findings:
                     vulnerabilities_found += len(ffuf_findings)
                     results.extend(ffuf_findings)
             except Exception as e:
                 service.debug(f"Error running ffuf fallback scan: {e}")
-                service.info("Ffuf fallback scan failed - continuing with basic LFI scan results")
+                service.info("⚠️ Ffuf fallback scan failed - continuing with basic LFI scan results")
+        
+        # If still no tests were run, ensure we run at least some basic tests
+        if tests_run == 0:
+            service.warn("🚨 No LFI tests were executed! Running emergency basic tests...")
+            emergency_endpoints = ["/"]
+            emergency_params = ["file", "page"]
+            emergency_payloads = ["../../../etc/passwd", "../../../../etc/passwd"]
+            
+            for endpoint in emergency_endpoints:
+                for param in emergency_params:
+                    for payload in emergency_payloads:
+                        base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}{endpoint}"
+                        test_url = f"{base_url}?{param}={quote(payload)}"
+                        
+                        try:
+                            curl_cmd = f'curl -s -k -m {timeout} -w "\\nHTTP_CODE:%{{http_code}}\\n" -H "User-Agent: {user_agent}" "{test_url}"'
+                            result = await service.execute(curl_cmd, capture=True)
+                            tests_run += 1
+                            
+                            if result and result.stdout and "root:" in result.stdout:
+                                service.info(f"🚨 Emergency test found potential LFI: {test_url}")
+                                vulnerabilities_found += 1
+                                
+                        except Exception as e:
+                            service.debug(f"Emergency test error for {test_url}: {e}")
+                            continue
+            
+            service.info(f"✅ Emergency basic tests completed: {tests_run} tests run")
         
         # Summary
         service.info(f"✅ LFI testing completed: {tests_run} tests run, {vulnerabilities_found} vulnerabilities found")
