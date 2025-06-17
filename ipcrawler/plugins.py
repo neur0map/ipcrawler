@@ -87,7 +87,42 @@ class Plugin(object):
 
     @final
     def get_global(self, name, default=None):
-        return self.get_global_option(name, default)
+        # First try the normal way (through parsed arguments)
+        result = self.get_global_option(name, default)
+        
+        # If that didn't work, try reading directly from global.toml
+        if result is None or result == default:
+            try:
+                from ipcrawler.config import config
+                import toml
+                import os
+                
+                # Try to read from the global file directly
+                global_file_path = config.get("global_file")
+                if not global_file_path:
+                    # Fallback: try to find global.toml in config directory
+                    config_dir = config.get("config_dir")
+                    if config_dir:
+                        global_file_path = os.path.join(config_dir, "global.toml")
+                
+                if global_file_path and os.path.isfile(global_file_path):
+                    with open(global_file_path, 'r') as f:
+                        global_toml = toml.load(f)
+                        global_section = global_toml.get("global", {})
+                        
+                        # Convert name to the format used in TOML (with hyphens)
+                        toml_key = name.replace("_", "-")
+                        if toml_key in global_section:
+                            return global_section[toml_key]
+                        
+                        # Also try the original name as-is
+                        if name in global_section:
+                            return global_section[name]
+            except Exception as e:
+                # If direct reading fails, just return the original result
+                pass
+        
+        return result
 
     @final
     def add_pattern(self, pattern, description=None):
