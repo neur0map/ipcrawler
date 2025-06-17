@@ -239,16 +239,37 @@ class Plugin(object):
             if global_wordlist:
                 configured_wordlists = [global_wordlist]
                 self.info(f"Using global {wordlist_type} wordlist: {global_wordlist}")
+                
+                # For global config wordlists, trust the configured path
+                # (it might exist on target machine but not current machine)
+                resolved_path = self._resolve_wordlist_path(global_wordlist)
+                if not os.path.isfile(resolved_path):
+                    self.warn(f"Global {wordlist_type} wordlist not found locally: {resolved_path}")
+                    self.info(f"Proceeding with configured path (may exist on target machine)")
+                return [resolved_path]
         
-        # Validate configured wordlists
-        valid_wordlists = self.validate_wordlists(configured_wordlists, wordlist_type)
+        # Validate configured wordlists (for explicitly specified wordlists)
+        if configured_wordlists:
+            valid_wordlists = self.validate_wordlists(configured_wordlists, wordlist_type)
+            if valid_wordlists:
+                return valid_wordlists
         
         # If no valid wordlists and fallbacks are provided, try them
-        if not valid_wordlists and fallback_wordlists:
+        if fallback_wordlists:
             self.warn(f"Trying fallback {wordlist_type} wordlists...")
             valid_wordlists = self.validate_wordlists(fallback_wordlists, f"fallback {wordlist_type}")
+            if valid_wordlists:
+                return valid_wordlists
         
-        return valid_wordlists
+        # If we get here, no wordlists were found
+        if not configured_wordlists:
+            self.error(f"No {wordlist_type} wordlists configured")
+            self.error("💡 Configuration required:")
+            self.error(f"  1. Set '{wordlist_type}-wordlist' in global.toml with a valid path")
+            self.error(f"  2. Example: {wordlist_type}-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'")
+            self.error(f"  3. Or use --{self.slug}.wordlist '/path/to/your/wordlist.txt'")
+        
+        return []
 
 
 class PortScan(Plugin):

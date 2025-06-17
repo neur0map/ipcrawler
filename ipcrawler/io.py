@@ -86,19 +86,19 @@ def get_wordlist_status_summary(global_config):
     }
     
     configured_count = 0
-    missing_count = 0
+    # Don't count as missing since wordlists may exist on target machine
+    # missing_count = 0
     
     for key, desc in wordlists.items():
         path = global_config.get("global", {}).get(key)
         if path:
             configured_count += 1
-            if not os.path.isfile(path):
-                missing_count += 1
+            # Don't check local file existence for global config wordlists
+            # if not os.path.isfile(path):
+            #     missing_count += 1
     
     if configured_count == 0:
         return "None configured"
-    elif missing_count > 0:
-        return f"{configured_count} configured, {missing_count} missing"
     else:
         return f"{configured_count}/{len(wordlists)} configured ✓"
 
@@ -154,9 +154,10 @@ def get_config_display_table(targets=None):
             else:
                 directory_wordlist = os.path.basename(configured_wordlist)
             
-            # Add indicator if configured wordlist doesn't exist
-            if not os.path.isfile(configured_wordlist):
-                directory_wordlist += " (missing)"
+            # For global config wordlists, don't show (missing) since they may exist on target machine
+            # Only show (missing) if this is a critical local validation issue
+            # if not os.path.isfile(configured_wordlist):
+            #     directory_wordlist += " (missing)"
         else:
             directory_wordlist = "Not configured"
         

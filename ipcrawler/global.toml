@@ -15,7 +15,7 @@
 # ========================================
 # Used by: feroxbuster, gobuster, dirsearch, ffuf, dirb
 
-# Local wordlist (relative to global.toml location)
+# Configured wordlist path (may exist on target machine)
 directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/dirbuster.txt'
 
 # Alternative: Use absolute path to SecLists (uncomment if installed)
