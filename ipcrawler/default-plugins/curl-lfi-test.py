@@ -249,9 +249,13 @@ class CurlLFITest(ServiceScan):
                 test_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}{endpoint}"
                 curl_cmd = f'curl -s -k -m 10 "{test_url}"'
                 
-                result = await service.execute(curl_cmd, capture=True)
-                if result and result.stdout:
-                    params = self.extract_parameters_from_html(result.stdout)
+                process, stdout, stderr = await service.execute(curl_cmd)
+                await process.wait()
+                
+                if process.returncode == 0:
+                    response_lines = await stdout.readlines()
+                    response_content = "\n".join(response_lines)
+                    params = self.extract_parameters_from_html(response_content)
                     discovered_params.update(params)
                     if params:
                         service.info(f"📋 Found parameters in {endpoint}: {', '.join(params)}")
@@ -425,7 +429,8 @@ class CurlLFITest(ServiceScan):
         service.debug(f"Running ffuf parameter discovery: {ffuf_cmd}")
         
         try:
-            result = await service.execute(ffuf_cmd, capture=True)
+            process, stdout, stderr = await service.execute(ffuf_cmd)
+            await process.wait()
             
             # Parse ffuf JSON output
             if os.path.isfile(ffuf_output):
@@ -474,7 +479,8 @@ class CurlLFITest(ServiceScan):
         service.debug(f"Running ffuf payload testing for parameter '{parameter}': {ffuf_cmd}")
         
         try:
-            result = await service.execute(ffuf_cmd, capture=True)
+            process, stdout, stderr = await service.execute(ffuf_cmd)
+            await process.wait()
             
             # Parse ffuf JSON output
             if os.path.isfile(ffuf_output):
@@ -493,10 +499,13 @@ class CurlLFITest(ServiceScan):
                     if test_url and status == 200:
                         # Fetch response content to verify LFI
                         curl_cmd = f'curl -s -k -m {timeout} -H "User-Agent: {self.get_option("user_agent")}" "{test_url}"'
-                        response_result = await service.execute(curl_cmd, capture=True)
+                        process, stdout, stderr = await service.execute(curl_cmd)
+                        await process.wait()
                         
-                        if response_result and response_result.stdout:
-                            evidence = self.check_lfi_evidence(response_result.stdout)
+                        if process.returncode == 0:
+                            response_lines = await stdout.readlines()
+                            response_content = "\n".join(response_lines)
+                            evidence = self.check_lfi_evidence(response_content)
                             if evidence:
                                 findings.append({
                                     'url': test_url,
@@ -639,11 +648,13 @@ class CurlLFITest(ServiceScan):
                             # Use proper ipcrawler execution pattern
                             process, stdout, stderr = await service.execute(curl_cmd)
                             
+                            # Wait for process to complete and read output
+                            await process.wait()
+                            response_lines = await stdout.readlines()
+                            response_content = "\n".join(response_lines)
+                            
                             if process.returncode == 0:
                                 service.debug(f"LFI test {tests_run} completed successfully")
-                                # Read the output
-                                response_lines = await stdout.readlines()
-                                response_content = "\n".join(response_lines)
                                 
                                 # Parse curl response
                                 status_code = "unknown"
@@ -752,12 +763,14 @@ class CurlLFITest(ServiceScan):
                             curl_cmd = f'curl -s -k -m {timeout} -w "\\nHTTP_CODE:%{{http_code}}\\n" -H "User-Agent: {user_agent}" "{test_url}"'
                             process, stdout, stderr = await service.execute(curl_cmd)
                             
-                            if process.returncode == 0:
-                                response_lines = await stdout.readlines()
-                                response_content = "\n".join(response_lines)
-                                if "root:" in response_content:
-                                    service.info(f"🚨 Emergency test found potential LFI: {test_url}")
-                                    vulnerabilities_found += 1
+                            # Wait for process to complete and read output
+                            await process.wait()
+                            response_lines = await stdout.readlines()
+                            response_content = "\n".join(response_lines)
+                            
+                            if process.returncode == 0 and "root:" in response_content:
+                                service.info(f"🚨 Emergency test found potential LFI: {test_url}")
+                                vulnerabilities_found += 1
                                 
                         except Exception as e:
                             service.debug(f"Emergency test error for {test_url}: {e}")
