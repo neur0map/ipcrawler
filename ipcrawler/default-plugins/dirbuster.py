@@ -123,32 +123,11 @@ class DirBuster(ServiceScan):
         
         self.info(f"Starting directory busting with {len(valid_wordlists)} wordlist(s)")
         
-        # Add progress tracking
-        from ipcrawler.io import progress_manager
-        
-        # Create progress bar for directory busting
-        task_key = f"dirbuster_{service.target.address}_{service.port}"
-        task_id = progress_manager.add_task(
-            f"🗂️  Directory busting {service.target.address}:{service.port}", 
-            total=100, 
-            task_key=task_key
-        )
-        
-        # Estimate duration based on wordlist size and tool
-        estimated_duration = self._estimate_scan_duration(valid_wordlists, timeout_seconds)
-        if task_id:
-            progress_manager.simulate_progress(task_id, estimated_duration)
-        
-        try:
-            # Check if parallel wordlists is enabled
-            if self.get_option("parallel-wordlists") and len(valid_wordlists) > 1:
-                await self._run_parallel_wordlists(service, valid_wordlists, timeout_seconds, max_depth, dot_extensions)
-            else:
-                await self._run_sequential_wordlists(service, valid_wordlists, timeout_seconds, max_depth, dot_extensions)
-        finally:
-            # Complete progress bar
-            if task_id:
-                progress_manager.complete_task(task_id)
+        # Check if parallel wordlists is enabled
+        if self.get_option("parallel-wordlists") and len(valid_wordlists) > 1:
+            await self._run_parallel_wordlists(service, valid_wordlists, timeout_seconds, max_depth, dot_extensions)
+        else:
+            await self._run_sequential_wordlists(service, valid_wordlists, timeout_seconds, max_depth, dot_extensions)
 
     async def _run_sequential_wordlists(self, service, valid_wordlists, timeout_seconds, max_depth, dot_extensions):
         """Run wordlists sequentially (original behavior)"""
@@ -451,34 +430,3 @@ class DirBuster(ServiceScan):
                 + (" " + self.get_option("extras") if self.get_option("extras") else "")
             )
             await service.execute(cmd)
-
-    def _estimate_scan_duration(self, wordlists, timeout_seconds):
-        """Estimate scan duration based on wordlist size and configuration"""
-        # Base duration estimates (in seconds) 
-        tool = self.get_option("tool")
-        threads = self.get_option("threads")
-        
-        # Rough estimates based on tool efficiency and typical wordlist sizes
-        base_times = {
-            "feroxbuster": 120,  # Fast, modern tool
-            "gobuster": 180,     # Good performance
-            "ffuf": 150,         # Very fast
-            "dirsearch": 240,    # Moderate speed
-            "dirb": 360          # Slower, single-threaded by default
-        }
-        
-        base_duration = base_times.get(tool, 180)
-        
-        # Estimate based on wordlist count and size
-        wordlist_factor = len(wordlists)
-        
-        # Adjust for threading (more threads = faster, but with diminishing returns)
-        thread_factor = max(0.3, 1.0 - (threads - 10) * 0.05)
-        
-        # Adjust for timeout (longer timeout usually means more thorough testing)
-        timeout_factor = min(2.0, timeout_seconds / 600.0)  # Normalize against 10 min baseline
-        
-        estimated = int(base_duration * wordlist_factor * thread_factor * timeout_factor)
-        
-        # Clamp between reasonable bounds
-        return max(60, min(estimated, timeout_seconds - 30))

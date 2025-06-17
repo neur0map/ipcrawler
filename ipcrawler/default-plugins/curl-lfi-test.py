@@ -527,22 +527,6 @@ class CurlLFITest(ServiceScan):
         
         service.info("🔍 Starting intelligent LFI vulnerability testing...")
         
-        # Add progress tracking
-        from ipcrawler.io import progress_manager
-        
-        # Create progress bar for LFI testing
-        task_key = f"lfi_{service.target.address}_{service.port}"
-        task_id = progress_manager.add_task(
-            f"🔥 LFI testing {service.target.address}:{service.port}", 
-            total=100, 
-            task_key=task_key
-        )
-        
-        # Estimate duration based on test count
-        estimated_duration = self._estimate_lfi_duration(max_tests, timeout, enable_ffuf_fallback)
-        if task_id:
-            progress_manager.simulate_progress(task_id, estimated_duration)
-        
         # Create output file for results
         output_file = f"{service.target.scandir}/{service.protocol}_{service.port}_{service.http_scheme}_lfi_test.txt"
         
@@ -685,10 +669,6 @@ class CurlLFITest(ServiceScan):
             f.write(f"Vulnerabilities found: {vulnerabilities_found}\n")
             f.write(f"Smart discovery used: {'Yes' if discovered_endpoints else 'No'}\n")
             f.write(f"Fallback ffuf scan: {'Used' if enable_ffuf_fallback and vulnerabilities_found == 0 else 'Not needed'}\n")
-        
-        # Complete progress bar
-        if task_id:
-            progress_manager.complete_task(task_id)
 
     def manual(self, service, plugin_was_run):
         results = []
@@ -726,25 +706,3 @@ class CurlLFITest(ServiceScan):
             results.append(f'curl -s -k "{base_url}/?file=../../../../var/log/apache2/access.log&cmd=id"')
             
         return results 
-
-    def _estimate_lfi_duration(self, max_tests, timeout, enable_ffuf_fallback):
-        """Estimate LFI scan duration based on configuration"""
-        # Base time per test (network latency + processing)
-        base_time_per_test = 0.5  # seconds
-        
-        # Estimate based on max tests
-        estimated_base = max_tests * base_time_per_test
-        
-        # Add extra time for smart discovery
-        smart_discovery_time = 30  # seconds
-        
-        # Add extra time for ffuf fallback if enabled
-        ffuf_time = 120 if enable_ffuf_fallback else 0  # 2 minutes
-        
-        # Add timeout buffer
-        timeout_buffer = timeout * 0.1  # 10% of timeout as overhead
-        
-        total_estimate = int(estimated_base + smart_discovery_time + ffuf_time + timeout_buffer)
-        
-        # Clamp between reasonable bounds (30 seconds to 30 minutes)
-        return max(30, min(total_estimate, 1800)) 

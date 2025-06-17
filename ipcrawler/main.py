@@ -1191,11 +1191,13 @@ async def service_scan(plugin, service):
             )
 
             # Start progress simulation (estimate varies by service type)
-            # Nikto and directory busters take longer
-            if "nikto" in plugin.slug.lower() or "gobuster" in plugin.slug.lower() or "dirb" in plugin.slug.lower():
-                estimated_duration = 180  # 3 minutes for directory/web scans (reduced from 5)
+            # Directory busters and web scanners take longer
+            if any(tool in plugin.slug.lower() for tool in ["nikto", "gobuster", "dirb", "dirbuster", "feroxbuster", "ffuf", "dirsearch"]):
+                estimated_duration = 180  # 3 minutes for directory/web scans
             elif "nmap" in plugin.slug.lower():
-                estimated_duration = 120  # 2 minutes for nmap scans
+                estimated_duration = 120  # 2 minutes for nmap scans  
+            elif any(tool in plugin.slug.lower() for tool in ["lfi", "xss", "sqli"]):
+                estimated_duration = 150  # 2.5 minutes for vulnerability testing
             else:
                 estimated_duration = 60  # 1 minute for other scans
             progress_manager.simulate_progress(task_id, estimated_duration)

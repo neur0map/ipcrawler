@@ -808,19 +808,23 @@ class ProgressManager:
     def update_task(self, task_id, advance=1):
         """Update progress on a task"""
         if not self.active or task_id is None or task_id not in self.tasks:
+            debug(f"update_task: task {task_id} not found or manager inactive", verbosity=3)
             return
 
-        self.tasks[task_id]["completed"] += advance
-        self.tasks[task_id]["last_update"] = time.time()
+        try:
+            self.tasks[task_id]["completed"] += advance
+            self.tasks[task_id]["last_update"] = time.time()
 
-        if self.tasks[task_id].get("rich_task", False) and self.progress:
-            # Update Rich progress bar
-            self.progress.update(task_id, advance=advance)
-        else:
-            # Show text progress update occasionally
-            if self.tasks[task_id]["completed"] % 20 == 0:  # Every 20%
-                progress_percent = min(100, self.tasks[task_id]["completed"])
-                info(f"⏳ Progress: {self.tasks[task_id]['description']} - {progress_percent:.0f}%", verbosity=2)
+            if self.tasks[task_id].get("rich_task", False) and self.progress:
+                # Update Rich progress bar
+                self.progress.update(task_id, advance=advance)
+            else:
+                # Show text progress update occasionally
+                if self.tasks[task_id]["completed"] % 20 == 0:  # Every 20%
+                    progress_percent = min(100, self.tasks[task_id]["completed"])
+                    info(f"⏳ Progress: {self.tasks[task_id]['description']} - {progress_percent:.0f}%", verbosity=2)
+        except Exception as e:
+            debug(f"Error updating task {task_id}: {e}", verbosity=3)
 
     def complete_task(self, task_id):
         """Complete a task and schedule its removal"""
@@ -851,8 +855,8 @@ class ProgressManager:
             except Exception as e:
                 debug(f"Error updating Rich progress bar {task_id}: {e}", verbosity=3)
         else:
-            # Show text completion message
-            info(f"✅ Completed: {task['description']} (took {elapsed:.1f}s)", verbosity=2)
+            # Show text completion message with progress indication
+            info(f"✅ Completed: {task['description']} (took {elapsed:.1f}s)", verbosity=1)
 
         # Schedule removal with shorter delay to clean up faster
         asyncio.create_task(self._remove_task_after_delay(task_id, delay=1))
@@ -943,9 +947,9 @@ class ProgressManager:
                     self.tasks[task_id]["completed"] = progress_percent
                     self.tasks[task_id]["last_update"] = time.time()
 
-                    # Show progress updates every 30% or so
-                    if progress_percent - last_progress_report >= 30:
-                        info(f"⏳ Progress: {self.tasks[task_id]['description']} - {progress_percent:.0f}%", verbosity=2)
+                    # Show progress updates every 25% or so  
+                    if progress_percent - last_progress_report >= 25:
+                        info(f"⏳ Progress: {self.tasks[task_id]['description']} - {progress_percent:.0f}%", verbosity=1)
                         last_progress_report = progress_percent
                         update_count += 1
 
