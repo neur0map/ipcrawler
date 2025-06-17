@@ -628,7 +628,7 @@ class CurlLFITest(ServiceScan):
                         base_url = f"{service.http_scheme}://{service.target.addressv6}:{service.port}{endpoint}"
                         test_url = f"{base_url}?{param}={quote(payload)}"
                         
-                        # Execute curl request
+                        # Execute curl request using proper ipcrawler pattern
                         curl_cmd = f'curl -s -k -m {timeout} -w "\\nHTTP_CODE:%{{http_code}}\\nSIZE:%{{size_download}}\\n" -H "User-Agent: {user_agent}" "{test_url}"'
                         
                         try:
@@ -636,28 +636,33 @@ class CurlLFITest(ServiceScan):
                             tests_run += 1
                             service.debug(f"Running LFI test {tests_run}/{max_tests}: {test_url}")
                             
-                            result = await service.execute(curl_cmd, capture=True)
+                            # Use proper ipcrawler execution pattern
+                            process, stdout, stderr = await service.execute(curl_cmd)
                             
-                            if result and result.stdout:
-                                service.debug(f"LFI test {tests_run} got response")
-                            else:
-                                service.debug(f"LFI test {tests_run} failed - no result or stdout")
-                                continue
+                            if process.returncode == 0:
+                                service.debug(f"LFI test {tests_run} completed successfully")
+                                # Read the output
+                                response_lines = await stdout.readlines()
+                                response_content = "\n".join(response_lines)
                                 
-                            if result and result.stdout:
-                                # Parse response
-                                response_lines = result.stdout.strip().split('\n')
+                                # Parse curl response
                                 status_code = "unknown"
                                 response_size = "unknown"
-                                response_content = ""
+                                actual_content = ""
                                 
-                                for i, line in enumerate(response_lines):
+                                for line in response_lines:
                                     if line.startswith("HTTP_CODE:"):
-                                        status_code = line.split(":", 1)[1]
+                                        status_code = line.split(":", 1)[1] if ":" in line else "unknown"
                                     elif line.startswith("SIZE:"):
-                                        response_size = line.split(":", 1)[1]
+                                        response_size = line.split(":", 1)[1] if ":" in line else "unknown"
                                     else:
-                                        response_content += line + "\n"
+                                        actual_content += line + "\n"
+                            else:
+                                service.debug(f"LFI test {tests_run} failed with return code: {process.returncode}")
+                                continue
+                                
+                            # Check for LFI patterns in response content
+                            if actual_content:
                                 
                                 # Check for LFI patterns in response
                                 vulnerability_detected = False
@@ -669,7 +674,7 @@ class CurlLFITest(ServiceScan):
                                         pattern = pattern_info.pattern if hasattr(pattern_info, 'pattern') else str(pattern_info)
                                         description = "LFI pattern detected"
                                     
-                                    if re.search(pattern, response_content):
+                                    if re.search(pattern, actual_content):
                                         vulnerability_detected = True
                                         vulnerabilities_found += 1
                                         
@@ -701,7 +706,7 @@ class CurlLFITest(ServiceScan):
                                         f.write(f"Evidence: {description}\n")
                                         f.write(f"Status: {status_code}, Size: {response_size}\n")
                                         if verbose:
-                                            f.write(f"Response:\n{response_content}\n")
+                                            f.write(f"Response:\n{actual_content}\n")
                                         f.write("-" * 50 + "\n")
                                         
                                         service.info(f"🚨 LFI found: {endpoint}?{param}= - {description}")
@@ -745,17 +750,22 @@ class CurlLFITest(ServiceScan):
                         try:
                             tests_run += 1
                             curl_cmd = f'curl -s -k -m {timeout} -w "\\nHTTP_CODE:%{{http_code}}\\n" -H "User-Agent: {user_agent}" "{test_url}"'
-                            result = await service.execute(curl_cmd, capture=True)
+                            process, stdout, stderr = await service.execute(curl_cmd)
                             
-                            if result and result.stdout and "root:" in result.stdout:
-                                service.info(f"🚨 Emergency test found potential LFI: {test_url}")
-                                vulnerabilities_found += 1
+                            if process.returncode == 0:
+                                response_lines = await stdout.readlines()
+                                response_content = "\n".join(response_lines)
+                                if "root:" in response_content:
+                                    service.info(f"🚨 Emergency test found potential LFI: {test_url}")
+                                    vulnerabilities_found += 1
                                 
                         except Exception as e:
                             service.debug(f"Emergency test error for {test_url}: {e}")
                             continue
             
             service.info(f"✅ Emergency basic tests completed: {tests_run} tests run")
+        else:
+            service.debug("Regular testing completed successfully - emergency tests not needed")
         
         # Summary
         service.info(f"✅ LFI testing completed: {tests_run} tests run, {vulnerabilities_found} vulnerabilities found")
