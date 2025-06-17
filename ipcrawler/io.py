@@ -737,24 +737,42 @@ class ProgressManager:
         )
 
         if RICH_AVAILABLE and not config.get("accessible", False):
-            # Use modern Rich progress bars with live updates
-            self.progress = Progress(
-                SpinnerColumn(spinner_name="dots", style="cyan", speed=1.0),
-                TextColumn("[bold blue]{task.description}"),
-                BarColumn(bar_width=40, style="cyan", complete_style="green"),
-                TaskProgressColumn(style="bold magenta"),
-                TimeElapsedColumn(),
-                console=rich_console,
-                transient=True,  # Progress bars disappear when complete
-            )
-            self.live = Live(self.progress, console=rich_console, refresh_per_second=10)
-            self.live.start()
-            self.active = True
-            debug("Progress manager started successfully (Rich mode)", verbosity=3)
+            # Check verbosity level to determine progress style
+            verbose_mode = config.get("verbose", 0) >= 2  # -vv or higher
+            
+            if verbose_mode:
+                # In verbose mode, use simpler persistent progress display
+                self.progress = Progress(
+                    TextColumn("[bold blue]{task.description}"),
+                    BarColumn(bar_width=30, style="cyan", complete_style="green"),
+                    TaskProgressColumn(style="bold white"),
+                    TimeElapsedColumn(),
+                    console=rich_console,
+                    transient=False,  # Keep progress bars visible in verbose mode
+                )
+                # Don't use Live() in verbose mode to avoid conflicts with debug output
+                self.live = None
+                self.active = True
+                debug("Progress manager started (Rich verbose mode - persistent bars)", verbosity=3)
+            else:
+                # Non-verbose mode: use rich live updating progress
+                self.progress = Progress(
+                    SpinnerColumn(spinner_name="dots", style="cyan", speed=1.0),
+                    TextColumn("[bold blue]{task.description}"),
+                    BarColumn(bar_width=40, style="cyan", complete_style="green"),
+                    TaskProgressColumn(style="bold magenta"),
+                    TimeElapsedColumn(),
+                    console=rich_console,
+                    transient=False,  # Keep visible until manually removed
+                )
+                self.live = Live(self.progress, console=rich_console, refresh_per_second=4)
+                self.live.start()
+                self.active = True
+                debug("Progress manager started (Rich live mode)", verbosity=3)
         else:
             # Fallback to simple text-based progress
             self.active = True
-            debug("Progress manager started successfully (text mode)", verbosity=3)
+            debug("Progress manager started (text mode)", verbosity=3)
 
     def add_task(self, description, total=100, task_key=None):
         """Add a new progress task, or reuse existing one if task_key matches"""
@@ -780,10 +798,18 @@ class ProgressManager:
                 "last_update": time.time(),
                 "rich_task": True,
                 "task_key": task_key,
+                "verbose_mode": self.live is None,  # Track if we're in verbose mode
             }
             # Store the mapping if we have a key
             if task_key:
                 self.task_keys[task_key] = task_id
+            
+            # In verbose mode, immediately display the progress bar with separator
+            if self.live is None:
+                self.progress.console.print("─" * 60, style="dim cyan")
+                self.progress.console.print(self.progress)
+                self.progress.console.print("─" * 60, style="dim cyan")
+            
             debug(f"Rich task {task_id} created: {description} (key: {task_key})", verbosity=3)
         else:
             # Fallback to simple tracking
@@ -850,7 +876,14 @@ class ProgressManager:
             try:
                 # Complete Rich progress bar to 100%
                 self.progress.update(task_id, completed=task["total"])
-                # Let Rich handle the completion display
+                
+                # In verbose mode, refresh the display and add a completion message
+                if task.get("verbose_mode", False):
+                    self.progress.console.print("\n" + "─" * 60, style="dim green")
+                    self.progress.console.print(self.progress)
+                    self.progress.console.print("─" * 60, style="dim green")
+                    info(f"✅ Completed: {task['description']} (took {elapsed:.1f}s)", verbosity=1)
+                
                 debug(f"Rich progress bar {task_id} updated to 100%", verbosity=3)
             except Exception as e:
                 debug(f"Error updating Rich progress bar {task_id}: {e}", verbosity=3)
@@ -942,6 +975,13 @@ class ProgressManager:
                     # Update Rich progress bar
                     progress_value = (progress_percent / 100) * task["total"]
                     self.progress.update(task_id, completed=progress_value)
+                    
+                    # In verbose mode, periodically refresh the display  
+                    if task.get("verbose_mode", False) and progress_percent - last_progress_report >= 20:
+                        self.progress.console.print("\n" + "─" * 60, style="dim cyan")
+                        self.progress.console.print(self.progress)
+                        self.progress.console.print("─" * 60 + "\n", style="dim cyan")
+                        last_progress_report = progress_percent
                 else:
                     # Update our internal tracking for text mode
                     self.tasks[task_id]["completed"] = progress_percent
@@ -961,6 +1001,14 @@ class ProgressManager:
 
         debug(f"Progress updater for task {task_id} finished", verbosity=3)
 
+    def refresh_display(self):
+        """Manually refresh the progress display (useful in verbose mode)"""
+        if self.active and self.progress and self.live is None:
+            try:
+                self.progress.console.print(self.progress)
+            except Exception as e:
+                debug(f"Error refreshing progress display: {e}", verbosity=3)
+
     def stop(self):
         """Stop the progress manager"""
         if self.active:
@@ -971,10 +1019,17 @@ class ProgressManager:
                 if not self.tasks[task_id].get("completed_flag", False):
                     self.tasks[task_id]["scan_completed"] = True
 
-            # Stop Rich live display
+            # Stop Rich live display if active
             if self.live:
                 self.live.stop()
                 self.live = None
+            elif self.progress:
+                # In verbose mode, print final progress state
+                try:
+                    self.progress.console.print(self.progress)
+                    info("🏁 All scans completed!", verbosity=1)
+                except Exception as e:
+                    debug(f"Error displaying final progress: {e}", verbosity=3)
 
             # Clear progress, tasks, and task keys
             self.progress = None
