@@ -9,22 +9,22 @@
 # Directory/Web Scanning Wordlists
 # ========================================
 # Used by: feroxbuster, gobuster, dirsearch, ffuf, dirb
-directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'
+directory-wordlist = 'ipcrawler/wordlists/dirbuster.txt'
 
 # ========================================
 # DNS/Subdomain Scanning Wordlists  
 # ========================================
 # Used by: subdomain enumeration tools
-subdomain-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
+# subdomain-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
 
 # Used by: dnsrecon, fierce
-dns-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
+# dns-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
 
 # ========================================
 # Virtual Host Discovery Wordlists
 # ========================================
 # Used by: virtual host enumeration tools
-vhost-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
+# vhost-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
 
 # ========================================
 # LFI (Local File Inclusion) Wordlists
@@ -40,10 +40,10 @@ lfi-payload-wordlist = 'ipcrawler/wordlists/lfi-payloads.txt'
 # Credential/Bruteforce Wordlists
 # ========================================
 # Used by: hydra, medusa, crackmapexec for username bruteforcing
-username-wordlist = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
+# username-wordlist = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
 
 # Used by: hydra, medusa, crackmapexec for password bruteforcing  
-password-wordlist = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
+# password-wordlist = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
 
 # ========================================
 # Domain Settings

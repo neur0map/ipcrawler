@@ -193,6 +193,20 @@ class Service:
         )
 
     @final
+    def debug(self, msg):
+        plugin = inspect.currentframe().f_back.f_locals["self"]
+        debug(
+            "{bright}[{yellow}"
+            + self.target.address
+            + "{crst}/{bgreen}"
+            + self.tag()
+            + "/"
+            + plugin.slug
+            + "{crst}]{rst} "
+            + msg
+        )
+
+    @final
     def error(self, msg):
         plugin = inspect.currentframe().f_back.f_locals["self"]
         error(

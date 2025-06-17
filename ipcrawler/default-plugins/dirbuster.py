@@ -21,13 +21,10 @@ class DirBuster(ServiceScan):
         )
         
         # Use global directory wordlist from global.toml - no hardcoded defaults
-        global_wordlist = self.get_global("directory-wordlist")
-        default_wordlist = [global_wordlist] if global_wordlist else []
-        
         self.add_list_option(
             "wordlist",
-            default=default_wordlist,
-            help="The wordlist(s) to use when directory busting. Separate multiple wordlists with spaces. Global setting takes priority. Default: %(default)s",
+            default=[],
+            help="The wordlist(s) to use when directory busting. Uses global.toml directory-wordlist setting if not specified. Default: from global.toml",
         )
         self.add_option(
             "threads", default=15, help="The number of threads to use when directory busting. Default: %(default)s"

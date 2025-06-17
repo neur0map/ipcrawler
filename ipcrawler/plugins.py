@@ -186,6 +186,14 @@ class Plugin(object):
         # Get configured wordlists
         configured_wordlists = self.get_option(option_name, [])
         
+        # If no wordlists specified in option, try to get from global config
+        if not configured_wordlists:
+            global_key = f"{wordlist_type}-wordlist"
+            global_wordlist = self.get_global(global_key)
+            if global_wordlist:
+                configured_wordlists = [global_wordlist]
+                self.info(f"Using global {wordlist_type} wordlist: {global_wordlist}")
+        
         # Validate configured wordlists
         valid_wordlists = self.validate_wordlists(configured_wordlists, wordlist_type)
         
