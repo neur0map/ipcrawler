@@ -330,7 +330,10 @@ print_status "Checking and fixing common plugin compatibility issues..."
 
 # Check if Service class has http_scheme property
 if python3 -c "
-from ipcrawler.targets import Service
+from ipcrawler.targets import Service, Target
+from ipcrawler.plugins import ipcrawler
+
+# Test Service.http_scheme
 s = Service('tcp', 80, 'http')
 try:
     _ = s.http_scheme
@@ -338,10 +341,21 @@ try:
 except AttributeError:
     print('❌ Service.http_scheme property missing')
     exit(1)
+
+# Test Target.addressv6
+try:
+    ipc = ipcrawler()
+    t = Target('127.0.0.1', '127.0.0.1', 'IPv4', 'ip', ipc)
+    _ = t.addressv6
+    _ = t.ipaddressv6
+    print('✅ Target.addressv6/ipaddressv6 properties exist')
+except AttributeError:
+    print('❌ Target.addressv6/ipaddressv6 properties missing')
+    exit(1)
 " 2>/dev/null; then
-    print_success "Service.http_scheme property is available"
+    print_success "Service.http_scheme and Target.addressv6 properties are available"
 else
-    print_warning "Service.http_scheme property issue detected - will be fixed after rebuild"
+    print_warning "Plugin compatibility issues detected - will be fixed after rebuild"
 fi
 
 # Check for user plugins that might have compatibility issues
@@ -362,6 +376,13 @@ for plugin_dir in "${USER_PLUGIN_DIRS[@]}"; do
                 # Check for service.http_scheme usage
                 if grep -q "service\.http_scheme" "$plugin_file" 2>/dev/null; then
                     print_warning "Plugin $plugin_name uses service.http_scheme - may need updating"
+                    echo "   💡 Consider updating or removing: $plugin_file"
+                    echo "   💡 Or run: rm '$plugin_file' to use fixed default version"
+                fi
+                
+                # Check for target.addressv6 usage
+                if grep -q "target\.addressv6\|\.target\.addressv6" "$plugin_file" 2>/dev/null; then
+                    print_warning "Plugin $plugin_name uses target.addressv6 - may need updating"
                     echo "   💡 Consider updating or removing: $plugin_file"
                     echo "   💡 Or run: rm '$plugin_file' to use fixed default version"
                 fi
@@ -434,19 +455,41 @@ else
     exit 1
 fi
 
-# Re-verify Service.http_scheme property after rebuild
+# Re-verify all plugin compatibility fixes after rebuild
 print_status "Re-verifying plugin compatibility fixes..."
 if python3 -c "
-from ipcrawler.targets import Service
+from ipcrawler.targets import Service, Target
+from ipcrawler.plugins import ipcrawler
+
+# Test Service.http_scheme
 s = Service('tcp', 80, 'http')
 assert s.http_scheme == 'http'
 s_secure = Service('tcp', 443, 'https', secure=True)
 assert s_secure.http_scheme == 'https'
 print('✅ Service.http_scheme property working correctly')
+
+# Test Target.addressv6
+ipc = ipcrawler()
+t = Target('127.0.0.1', '127.0.0.1', 'IPv4', 'ip', ipc)
+assert t.addressv6 == '127.0.0.1'
+assert t.ipaddressv6 == '127.0.0.1'
+
+# Test IPv6 formatting
+t_ipv6 = Target('::1', '::1', 'IPv6', 'ip', ipc)
+assert t_ipv6.addressv6 == '::1'
+assert t_ipv6.ipaddressv6 == '[::1]'
+print('✅ Target.addressv6/ipaddressv6 properties working correctly')
+
+# Test common plugin patterns (the exact patterns that were failing)
+service = Service('tcp', 80, 'http')
+service.target = t
+base_url = f'{service.http_scheme}://{service.target.addressv6}:{service.port}'
+assert base_url == 'http://127.0.0.1:80'
+print('✅ Common plugin usage patterns working correctly')
 " 2>/dev/null; then
-    print_success "Service.http_scheme compatibility verified"
+    print_success "All plugin compatibility fixes verified"
 else
-    print_error "Service.http_scheme still has issues - manual intervention needed"
+    print_error "Plugin compatibility issues still exist - manual intervention needed"
 fi
 
 echo ""
@@ -474,6 +517,7 @@ echo "   • ipcrawler application"
 echo ""
 echo "✅ Fixed:"
 echo "   • Service.http_scheme compatibility issues"
+echo "   • Target.addressv6/ipaddressv6 compatibility issues"
 echo "   • Common plugin AttributeError problems"
 echo "   • User plugin compatibility warnings"
 echo ""

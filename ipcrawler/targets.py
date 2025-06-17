@@ -21,6 +21,18 @@ class Target:
         self.scans = {"ports": {}, "services": {}}
         self.running_tasks = {}
 
+    @property
+    def addressv6(self):
+        """Get IPv6-formatted address (same as address for compatibility)"""
+        return self.address
+    
+    @property
+    def ipaddressv6(self):
+        """Get IPv6-formatted IP address (with brackets if IPv6)"""
+        if self.ipversion == "IPv6":
+            return f"[{self.ip}]" if not self.ip.startswith('[') else self.ip
+        return self.ip
+
     async def add_service(self, service):
         async with self.lock:
             self.pending_services.append(service)
