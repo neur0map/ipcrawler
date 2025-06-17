@@ -743,10 +743,10 @@ class ProgressManager:
                     TextColumn("🌐"),
                     TimeElapsedColumn(),
                     console=self.console,
-                    refresh_per_second=4,  # Higher refresh rate for immediate updates
+                    refresh_per_second=2,  # Reduced refresh rate to prevent event spam
                     expand=False,
                     speed_estimate_period=30,
-                    transient=True,  # Remove completed bars to avoid clutter
+                    transient=False,  # Keep bars to avoid removal conflicts
                     auto_refresh=True,  # Enable auto refresh
                 )
                 
@@ -840,6 +840,7 @@ class ProgressManager:
                     "task_key": task_key,
                     "completed_flag": False,
                     "scan_completed": False,
+                    "completion_message_shown": False,
                 }
                 # Store the mapping for cleanup and deduplication
                 if task_key:
@@ -877,6 +878,7 @@ class ProgressManager:
                 "task_key": task_key,
                 "completed_flag": False,
                 "scan_completed": False,
+                "completion_message_shown": False,
             }
             # Store the mapping for cleanup and deduplication
             if task_key:
@@ -896,16 +898,28 @@ class ProgressManager:
             return
 
         try:
-            self.tasks[task_id]["completed"] += advance
-            self.tasks[task_id]["last_update"] = time.time()
+            task = self.tasks[task_id]
+            
+            # Don't update if task is already completed
+            if task.get("completed_flag", False):
+                debug(f"update_task: spider {task_id} already completed, skipping update", verbosity=3)
+                return
+                
+            task["completed"] += advance
+            task["last_update"] = time.time()
 
-            if self.tasks[task_id].get("rich_task", False) and self.progress:
-                # Update Rich progress bar
-                self.progress.update(task_id, advance=advance)
+            if task.get("rich_task", False) and self.progress:
+                # Update Rich progress bar, but avoid triggering completion events
+                try:
+                    # Ensure we don't go over 95% to avoid Rich completion callbacks
+                    max_progress = min(task["completed"], task["total"] * 0.95)
+                    self.progress.update(task_id, completed=max_progress)
+                except Exception as e:
+                    debug(f"Error updating Rich progress for spider {task_id}: {e}", verbosity=3)
             else:
                 # Simple text completion message for non-Rich tasks
-                task = self.tasks[task_id]
-                if task["completed"] >= task["total"]:
+                if task["completed"] >= task["total"] and not task.get("completion_message_shown", False):
+                    task["completion_message_shown"] = True
                     info(f"✅ Completed: {task['description']}", verbosity=1)
 
         except Exception as e:
@@ -932,19 +946,38 @@ class ProgressManager:
             
             debug(f"🕸️ Spider {task_id} task complete: {task.get('description', 'Unknown')} (hunt took {elapsed:.1f}s)", verbosity=3)
 
-            if task.get("rich_task", False) and self.progress:
-                try:
-                    # Complete Rich progress bar to 100%
-                    self.progress.update(task_id, completed=task["total"])
-                    debug(f"🕷️ Spider web {task_id} updated to 100%", verbosity=3)
-                except Exception as e:
-                    debug(f"Error updating spider web {task_id}: {e}", verbosity=3)
-            else:
-                # Show text completion message with spider theme
-                info(f"🕸️ Web complete: {task['description']} (hunt took {elapsed:.1f}s)", verbosity=1)
+            # Show completion message only once
+            if not task.get("completion_message_shown", False):
+                task["completion_message_shown"] = True
+                
+                if task.get("rich_task", False) and self.progress:
+                    try:
+                        # Complete Rich progress bar to 100%
+                        self.progress.update(task_id, completed=task["total"])
+                        debug(f"🕷️ Spider web {task_id} updated to 100%", verbosity=3)
+                        
+                        # Show completion message only once
+                        if RICH_AVAILABLE and not config.get("accessible", False):
+                            completion_text = Text.assemble(
+                                ("🕷️", "bold cyan"),
+                                ("  DONE", "bold green"),
+                                ("      ", ""),
+                                ("200", "bold green"),
+                                ("    ", ""),
+                                ("🕸️ SUCCESS", "bold green"),
+                                ("   ", ""),
+                                (task.get('description', 'Unknown task'), "white")
+                            )
+                            rich_console.print(completion_text)
+                        
+                    except Exception as e:
+                        debug(f"Error updating spider web {task_id}: {e}", verbosity=3)
+                else:
+                    # Show text completion message with spider theme
+                    info(f"🕸️ Web complete: {task['description']} (hunt took {elapsed:.1f}s)", verbosity=1)
 
-            # Remove task immediately instead of scheduling delayed removal
-            self._remove_task_sync(task_id)
+            # Remove task immediately with enhanced cleanup
+            self._remove_task_sync_enhanced(task_id)
                 
         except Exception as e:
             debug(f"Error completing spider task {task_id}: {e}", verbosity=3)
@@ -958,10 +991,14 @@ class ProgressManager:
             debug(f"_remove_task_after_delay: spider {task_id} already removed or manager inactive", verbosity=3)
             return
             
-        self._remove_task_sync(task_id)
+        self._remove_task_sync_enhanced(task_id)
 
     def _remove_task_sync(self, task_id):
         """Synchronously remove a spider task with immediate Rich display update"""
+        return self._remove_task_sync_enhanced(task_id)
+
+    def _remove_task_sync_enhanced(self, task_id):
+        """Enhanced synchronous removal with better Rich progress bar cleanup"""
         if task_id not in self.tasks:
             debug(f"Spider {task_id} already removed from web", verbosity=3)
             return
@@ -969,14 +1006,21 @@ class ProgressManager:
         task = self.tasks[task_id]
         task_key = task.get("task_key")
         
-        # Remove from Rich progress - this should immediately hide the progress bar
+        # First mark as completed to prevent any further processing
+        task["completed_flag"] = True
+        task["scan_completed"] = True
+        task["marked_for_removal"] = True
+        
+        # Remove from Rich progress with enhanced cleanup
         if self.progress and hasattr(self.progress, 'remove_task'):
             try:
+                # Immediately remove the task from Rich progress
                 self.progress.remove_task(task_id)
-                # Force multiple immediate refreshes to ensure the bar disappears
+                
+                # Force immediate refresh to hide the progress bar
                 if self.live and hasattr(self.live, 'refresh'):
-                    for _ in range(3):  # Multiple refreshes to force immediate update
-                        self.live.refresh()
+                    self.live.refresh()
+                    
                 debug(f"🕷️ Spider web {task_id} removed successfully", verbosity=3)
             except Exception as e:
                 debug(f"Error removing spider web {task_id}: {e}", verbosity=3)
@@ -1048,18 +1092,26 @@ class ProgressManager:
                 advance_amount = current_progress_value - last_progress_value
                 
                 if advance_amount > 0:
+                    # Check if task is still active before updating
+                    if self.tasks[task_id].get("completed_flag", False):
+                        debug(f"🕷️ Spider progress updater: task {task_id} completed, stopping updates", verbosity=3)
+                        break
+                        
                     # For Rich tasks, update directly with safe locking
                     if task.get("rich_task", False) and self.progress:
                         try:
+                            # Cap progress at 95% to avoid Rich completion triggers
+                            max_progress = min(current_progress_value, task["total"] * 0.95)
+                            
                             # Use locking if available to prevent conflicts
                             if self._update_lock:
                                 async with self._update_lock:
-                                    self.progress.update(task_id, completed=current_progress_value)
-                                    self.tasks[task_id]["completed"] = current_progress_value
+                                    self.progress.update(task_id, completed=max_progress)
+                                    self.tasks[task_id]["completed"] = max_progress
                                     self.tasks[task_id]["last_update"] = time.time()
                             else:
-                                self.progress.update(task_id, completed=current_progress_value)
-                                self.tasks[task_id]["completed"] = current_progress_value
+                                self.progress.update(task_id, completed=max_progress)
+                                self.tasks[task_id]["completed"] = max_progress
                                 self.tasks[task_id]["last_update"] = time.time()
                         except Exception as e:
                             debug(f"Error updating spider web thread {task_id}: {e}", verbosity=3)
@@ -1091,16 +1143,18 @@ class ProgressManager:
         stale_tasks = []
         
         for task_id, task in list(self.tasks.items()):
-            # Remove tasks that have been completed immediately (no delay) - spider caught prey
-            if task.get("completed_flag", False):
+            # Only remove tasks that have been completed AND marked for removal
+            # Don't auto-remove completed tasks as they should be removed by complete_task()
+            if task.get("completed_flag", False) and task.get("marked_for_removal", False):
                 stale_tasks.append(task_id)
             # Remove tasks that haven't been updated in more than 300 seconds (5 minutes) - spider went missing
             elif current_time - task.get("last_update", current_time) > 300:
+                debug(f"🧹 Found stale spider {task_id} (no update for {current_time - task.get('last_update', current_time):.0f}s)", verbosity=3)
                 stale_tasks.append(task_id)
         
         for task_id in stale_tasks:
             debug(f"🧹 Cleaning up lost spider {task_id} from web", verbosity=3)
-            self._remove_task_sync(task_id)
+            self._remove_task_sync_enhanced(task_id)
         
         # Also clean up orphaned task_keys (web nodes with no valid spider IDs)
         orphaned_keys = []
