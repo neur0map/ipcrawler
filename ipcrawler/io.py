@@ -49,23 +49,23 @@ def show_startup_banner(targets=None, version="2.2.0"):
 
     # ASCII Art
     ascii_art = get_ipcrawler_ascii()
-    rich_console.print(ascii_art, style="bold red")
+    get_console().print(ascii_art, style="bold red")
 
     # Version and author info
-    rich_console.print("By neur0map 🧠 - Inspired by AutoRecon", style="dim")
-    rich_console.print(f"ver: {version}", style="dim")
-    rich_console.print()
+    get_console().print("By neur0map 🧠 - Inspired by AutoRecon", style="dim")
+    get_console().print(f"ver: {version}", style="dim")
+    get_console().print()
 
     # Configuration table
     config_table = get_config_display_table(targets)
-    rich_console.print(config_table)
-    rich_console.print()
+    get_console().print(config_table)
+    get_console().print()
 
     # Scan start message with better formatting
-    rich_console.print("─" * 70, style="dim")
-    rich_console.print("🚀 [bold green]STARTING RECONNAISSANCE[/bold green]", justify="center")
-    rich_console.print("─" * 70, style="dim")
-    rich_console.print()
+    get_console().print("─" * 70, style="dim")
+    get_console().print("🚀 [bold green]STARTING RECONNAISSANCE[/bold green]", justify="center")
+    get_console().print("─" * 70, style="dim")
+    get_console().print()
 
 
 def get_wordlist_status_summary(global_config):
@@ -329,7 +329,7 @@ def debug(*args, color=Fore.GREEN, sep=" ", end="\n", file=sys.stdout, **kvargs)
         if RICH_AVAILABLE and not config["accessible"]:
             # Enhanced debug output
             debug_text = Text.assemble(("🐛 DEBUG", "bold green"), " ", (" ".join(str(arg) for arg in args), "dim green"))
-            rich_console.print(debug_text)
+            get_console().print(debug_text)
         else:
             cprint(*args, color=color, char="-", sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
@@ -376,7 +376,7 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
                     ("→ ", "bold white"),
                     (f"{target}", "yellow"),
                 )
-                rich_console.print(status_text)
+                get_console().print(status_text)
                 return
 
         # Enhanced discovery messages
@@ -402,7 +402,7 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
                         " ",
                         (f"{target}", "yellow"),
                     )
-                    rich_console.print(discovery_text)
+                    get_console().print(discovery_text)
                     return
             elif "Identified service" in message:
                 service_match = re.search(
@@ -426,7 +426,7 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
                         " ",
                         (f"{target}", "yellow"),
                     )
-                    rich_console.print(service_text)
+                    get_console().print(service_text)
                     return
 
         # Enhanced completion messages
@@ -457,7 +457,7 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
                     ("in ", "dim"),
                     (f"{timing}", "blue"),
                 )
-                rich_console.print(completion_text)
+                get_console().print(completion_text)
                 return
 
         # Enhanced general scanning messages
@@ -477,7 +477,7 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
                     ("Target: ", "dim"),
                     (f"{target}", "yellow"),
                 )
-                rich_console.print(scan_text)
+                get_console().print(scan_text)
                 return
 
         # Enhanced finished scanning messages
@@ -500,7 +500,7 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
                     ("in ", "dim"),
                     (f"{timing}", "blue"),
                 )
-                rich_console.print(finish_text)
+                get_console().print(finish_text)
                 return
 
         # Enhanced pattern match messages
@@ -523,7 +523,7 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
                     "cyan",
                 ),
             )
-            rich_console.print(pattern_text)
+            get_console().print(pattern_text)
             return
 
         # Enhanced VHost messages
@@ -737,26 +737,36 @@ class ProgressManager:
         )
 
         if RICH_AVAILABLE and not config.get("accessible", False):
-            # Always use Rich Live display for proper terminal management
+            # Create a dedicated console for the progress manager that will handle ALL output
+            from rich.console import Console
+            import sys
+            
+            # Create a console that will handle all our output consistently
+            # Use stderr to avoid interfering with stdout-based tools
+            self.console = Console(file=sys.stderr, force_terminal=True)
+            
+            # Create progress with our dedicated console
             self.progress = Progress(
                 SpinnerColumn(spinner_name="dots", style="cyan", speed=1.0),
                 TextColumn("[bold blue]{task.description}"),
                 BarColumn(bar_width=40, style="cyan", complete_style="green"),
                 TaskProgressColumn(style="bold magenta"),
                 TimeElapsedColumn(),
-                console=rich_console,
+                console=self.console,
                 transient=False,  # Keep visible until manually removed
             )
+            
+            # Use Live display with our dedicated console and proper output redirection
             self.live = Live(
                 self.progress, 
-                console=rich_console, 
+                console=self.console, 
                 refresh_per_second=4,
-                redirect_stdout=True,
-                redirect_stderr=True
+                redirect_stdout=True,   # Redirect stdout through our console
+                redirect_stderr=True    # Redirect stderr through our console
             )
             self.live.start()
             self.active = True
-            debug("Progress manager started (Rich live mode with verbose support)", verbosity=3)
+            debug("Progress manager started (Rich live mode with dedicated console)", verbosity=3)
         else:
             # Fallback to simple text-based progress
             self.active = True
@@ -769,11 +779,8 @@ class ProgressManager:
             debug("Progress manager not active, returning None", verbosity=3)
             return None
 
-        # Check if we already have a task with this key
-        if task_key and task_key in self.task_keys:
-            existing_task_id = self.task_keys[task_key]
-            debug(f"🔄 Reusing existing progress bar {existing_task_id} for {task_key}", verbosity=2)
-            return existing_task_id
+        # Always create new progress bars for better visual feedback
+        # (Removed deduplication logic to allow multiple progress bars)
 
         if self.progress:
             # Use Rich progress bar
@@ -787,9 +794,12 @@ class ProgressManager:
                 "rich_task": True,
                 "task_key": task_key,
             }
-            # Store the mapping if we have a key
+            # Store the mapping for cleanup purposes only (not for deduplication)
             if task_key:
-                self.task_keys[task_key] = task_id
+                # Use a list to store multiple task IDs for the same key
+                if task_key not in self.task_keys:
+                    self.task_keys[task_key] = []
+                self.task_keys[task_key].append(task_id)
             
             debug(f"Rich task {task_id} created: {description} (key: {task_key})", verbosity=3)
         else:
@@ -804,9 +814,12 @@ class ProgressManager:
                 "rich_task": False,
                 "task_key": task_key,
             }
-            # Store the mapping if we have a key
+            # Store the mapping for cleanup purposes only (not for deduplication)
             if task_key:
-                self.task_keys[task_key] = task_id
+                # Use a list to store multiple task IDs for the same key
+                if task_key not in self.task_keys:
+                    self.task_keys[task_key] = []
+                self.task_keys[task_key].append(task_id)
             info(f"🚀 Started: {description}", verbosity=2)
             debug(f"Text task {task_id} created: {description}", verbosity=3)
 
@@ -839,33 +852,46 @@ class ProgressManager:
             debug(f"complete_task: task {task_id} not found or manager inactive", verbosity=3)
             return
 
-        task = self.tasks[task_id]
+        try:
+            task = self.tasks[task_id]
 
-        # Check if task was already completed
-        if task.get("completed_flag", False):
-            debug(f"Task {task_id} already completed, skipping duplicate completion", verbosity=3)
-            return
+            # Check if task was already completed
+            if task.get("completed_flag", False):
+                debug(f"Task {task_id} already completed, skipping duplicate completion", verbosity=3)
+                return
 
-        # Mark as completed to prevent duplicate completion
-        task["completed_flag"] = True
-        task["scan_completed"] = True  # Signal to progress updater to stop
-        elapsed = time.time() - task["started"]
-        
-        debug(f"Completing task {task_id}: {task.get('description', 'Unknown')} (took {elapsed:.1f}s)", verbosity=3)
+            # Mark as completed to prevent duplicate completion
+            task["completed_flag"] = True
+            task["scan_completed"] = True  # Signal to progress updater to stop
+            elapsed = time.time() - task["started"]
+            
+            debug(f"Completing task {task_id}: {task.get('description', 'Unknown')} (took {elapsed:.1f}s)", verbosity=3)
 
-        if task.get("rich_task", False) and self.progress:
+            if task.get("rich_task", False) and self.progress:
+                try:
+                    # Complete Rich progress bar to 100%
+                    self.progress.update(task_id, completed=task["total"])
+                    debug(f"Rich progress bar {task_id} updated to 100%", verbosity=3)
+                except Exception as e:
+                    debug(f"Error updating Rich progress bar {task_id}: {e}", verbosity=3)
+            else:
+                # Show text completion message with progress indication
+                info(f"✅ Completed: {task['description']} (took {elapsed:.1f}s)", verbosity=1)
+
+            # Schedule removal with shorter delay to clean up faster
+            # Use a try-catch in case asyncio isn't available
             try:
-                # Complete Rich progress bar to 100%
-                self.progress.update(task_id, completed=task["total"])
-                debug(f"Rich progress bar {task_id} updated to 100%", verbosity=3)
+                import asyncio
+                asyncio.create_task(self._remove_task_after_delay(task_id, delay=1))
             except Exception as e:
-                debug(f"Error updating Rich progress bar {task_id}: {e}", verbosity=3)
-        else:
-            # Show text completion message with progress indication
-            info(f"✅ Completed: {task['description']} (took {elapsed:.1f}s)", verbosity=1)
-
-        # Schedule removal with shorter delay to clean up faster
-        asyncio.create_task(self._remove_task_after_delay(task_id, delay=1))
+                debug(f"Failed to schedule task removal, removing immediately: {e}", verbosity=3)
+                # Fallback: remove immediately
+                self._remove_task_sync(task_id)
+                
+        except KeyError:
+            debug(f"Task {task_id} was already removed during completion", verbosity=3)
+        except Exception as e:
+            debug(f"Error completing task {task_id}: {e}", verbosity=3)
 
     async def _remove_task_after_delay(self, task_id, delay=1):
         """Remove completed task after delay"""
@@ -934,15 +960,19 @@ class ProgressManager:
 
                 elapsed = time.time() - start_time
 
-                # More realistic progress curve that approaches 100% asymptotically
-                if elapsed < duration:
-                    # Normal progress up to 90% within estimated duration
-                    progress_percent = min(90, (elapsed / duration) * 90)
+                # More realistic progress curve that approaches completion naturally
+                if elapsed < duration * 0.8:
+                    # Fast progress up to 70% within 80% of estimated duration
+                    progress_percent = (elapsed / (duration * 0.8)) * 70
+                elif elapsed < duration:
+                    # Slower progress from 70% to 85% in the remaining 20% of duration
+                    remaining_progress = ((elapsed - duration * 0.8) / (duration * 0.2)) * 15
+                    progress_percent = 70 + remaining_progress
                 else:
-                    # After estimated duration, slowly approach 95-98% but never 100%
+                    # After estimated duration, slowly approach 92-95% but leave room for completion
                     overtime = elapsed - duration
-                    # Asymptotic approach: starts at 90%, slowly approaches 98%
-                    progress_percent = 90 + (8 * (1 - math.exp(-overtime / 60)))  # 60s time constant
+                    # Cap at 95% to leave room for actual completion
+                    progress_percent = min(95, 85 + (10 * (1 - math.exp(-overtime / 120))))  # 2min time constant
 
                 if task.get("rich_task", False) and self.progress:
                     # Update Rich progress bar
@@ -966,6 +996,37 @@ class ProgressManager:
             await asyncio.sleep(1.0)  # Update every second
 
         debug(f"Progress updater for task {task_id} finished", verbosity=3)
+
+    def _remove_task_sync(self, task_id):
+        """Synchronously remove a task (fallback when async isn't available)"""
+        if task_id not in self.tasks:
+            return
+            
+        task = self.tasks[task_id]
+
+        # Remove from Rich progress if it's a Rich task
+        if task.get("rich_task", False) and self.progress:
+            try:
+                self.progress.remove_task(task_id)
+                debug(f"Rich progress bar {task_id} removed successfully", verbosity=3)
+            except Exception as e:
+                debug(f"Error removing Rich progress bar {task_id}: {e}", verbosity=3)
+
+        # Remove from task_keys mapping if it has a key
+        task_key = task.get("task_key")
+        if task_key and task_key in self.task_keys:
+            try:
+                del self.task_keys[task_key]
+                debug(f"Task key {task_key} removed from mapping", verbosity=3)
+            except Exception as e:
+                debug(f"Error removing task key {task_key}: {e}", verbosity=3)
+
+        # Remove from our internal tracking
+        try:
+            del self.tasks[task_id]
+            debug(f"Progress task {task_id} removed from tracking", verbosity=3)
+        except Exception as e:
+            debug(f"Error removing task {task_id} from tracking: {e}", verbosity=3)
 
     def refresh_display(self):
         """Manually refresh the progress display (useful in verbose mode)"""
@@ -999,6 +1060,13 @@ class ProgressManager:
 
 # Global progress manager instance
 progress_manager = ProgressManager()
+
+
+def get_console():
+    """Get the appropriate console for output - progress manager's console if available, otherwise rich_console"""
+    if progress_manager.active and hasattr(progress_manager, 'console') and progress_manager.console:
+        return progress_manager.console
+    return rich_console
 
 
 # VHost Auto-Discovery System
