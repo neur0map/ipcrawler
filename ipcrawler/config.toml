@@ -13,7 +13,7 @@ tags = 'default'
 # Skip slow tools like directory busting (set to '' to include all tools)
 # Common exclusions: 'long' (slow scans), 'unsafe' (potentially harmful)
 # to add more than one tag, use a comma-separated list and tag list is found using ipcrawler --list-tags
-exclude-tags = 'long'
+exclude-tags = ''
 # Maximum concurrent scans
 max-scans = 30
 # Verbosity level (0=quiet, 1=normal, 2=verbose, 3=debug)

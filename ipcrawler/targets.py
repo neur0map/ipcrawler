@@ -1,7 +1,7 @@
 import asyncio, inspect, os
 from typing import final
 from ipcrawler.config import config
-from ipcrawler.io import e, info, warn, error
+from ipcrawler.io import e, info, warn, error, debug
 
 
 class Target:
