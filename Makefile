@@ -25,6 +25,8 @@ reset:
 		exit 1; \
 	fi
 
+
+
 setup-docker:
 	@./scripts/setup-docker.sh
 
@@ -39,8 +41,8 @@ docker-cmd:
 help:
 	@echo "Available make commands:"
 	@echo ""
-	@echo "  setup         - Set up local Python virtual environment + install 25+ security tools"
-	@echo "  clean         - Remove local setup, virtual environment, and Docker resources"
+	@echo "  setup         - Set up local Python virtual environment + install 25+ security tools + global command"
+	@echo "  clean         - Remove local setup, virtual environment, global command, and Docker resources"
 	@echo "  reset         - Clear all Python/ipcrawler cache and rebuild application (OS-aware)"
 	@echo "  setup-docker  - Build Docker image + open interactive terminal for ipcrawler"
 	@echo "  update        - Update repository, tools, and Docker image"
@@ -74,9 +76,15 @@ help:
 	@echo "  4. Inside container: /show-tools.sh or /install-extra-tools.sh"
 	@echo ""
 	@echo "Local Usage:"
-	@echo "  1. make setup           # Set up locally with auto tool installation"
-	@echo "  2. ipcrawler --help     # Use the tool"
-	@echo "  3. make update          # Keep everything updated"
+	@echo "  1. make setup           # Set up locally with auto tool installation + global command"
+	@echo "  2. ipcrawler --help     # Use the tool directly (no python3 prefix needed)"
+	@echo "  3. make update          # Keep everything updated (symlink stays current)"
+	@echo ""
+	@echo "Global Command (Auto-installed by setup):"
+	@echo "  • Creates symlink: /usr/local/bin/ipcrawler → ./ipcrawler.py"
+	@echo "  • No file copying       # Updates to code apply immediately"
+	@echo "  • Cross-platform        # Works on Linux, macOS, WSL"
+	@echo "  • User/system install   # Tries /usr/local/bin, falls back to ~/.local/bin"
 	@echo ""
 	@echo "Tool Installation Features:"
 	@echo "  • Automatic fallback methods (apt → snap → pip → go install)"

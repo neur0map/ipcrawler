@@ -4,21 +4,42 @@
 # Usage: ./scripts/cleanup.sh
 
 cleanup_python() {
-    echo "🧹 Removing virtual environment and command..."
+    echo "🧹 Removing ipcrawler command and any leftover files..."
     
-    # Check if currently in virtual environment
-    if [ -n "$VIRTUAL_ENV" ]; then
-        echo "⚠️  You are currently in a virtual environment"
-        echo "💡 Please run 'deactivate' after cleanup completes"
-    fi
-    
-    # Remove virtual environments
-    rm -rf venv .venv
+    # Remove any old command files (from previous versions)
     rm -f ipcrawler-cmd
     
-    # Remove global command
-    echo "🗑️  Removing ipcrawler from /usr/local/bin..."
-    sudo rm -f /usr/local/bin/ipcrawler
+    # Note: We don't remove venv anymore since we use system Python
+    if [ -d "venv" ]; then
+        echo "⚠️  Found old venv directory from previous installation"
+        echo "💡 You can remove it with: rm -rf venv"
+    fi
+    
+    # Remove global command symlinks
+    echo "🗑️  Removing ipcrawler command symlinks..."
+    
+    # Check common symlink locations
+    LOCATIONS=(
+        "/usr/local/bin/ipcrawler"
+        "$HOME/.local/bin/ipcrawler"
+        "/usr/bin/ipcrawler"
+    )
+    
+    SYMLINKS_FOUND=0
+    for location in "${LOCATIONS[@]}"; do
+        if [ -L "$location" ]; then
+            if rm "$location" 2>/dev/null; then
+                echo "✅ Removed: $location"
+                SYMLINKS_FOUND=1
+            else
+                echo "⚠️  Could not remove: $location (permission denied)"
+            fi
+        fi
+    done
+    
+    if [ $SYMLINKS_FOUND -eq 0 ]; then
+        echo "ℹ️  No ipcrawler symlinks found"
+    fi
 }
 
 cleanup_tools() {

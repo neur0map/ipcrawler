@@ -37,11 +37,7 @@ class VirtualHost(ServiceScan):
         valid_wordlists = self.get_validated_wordlists("wordlist", "vhost", None)
         
         if not valid_wordlists:
-            self.error("No valid vhost wordlists found - skipping virtual host enumeration")
-            self.error("💡 Configuration required:")
-            self.error("  1. Set 'vhost-wordlist' in global.toml with a valid path")
-            self.error("  2. Example: vhost-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'")
-            self.error("  3. Or use --vhost-enum.wordlist '/path/to/your/wordlist.txt'")
+            # Error messages are already handled by get_validated_wordlists
             return
         
         if self.get_option("hostname"):

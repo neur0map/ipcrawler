@@ -43,6 +43,12 @@ from ipcrawler.io import (
     show_startup_banner,
     show_scan_summary,
     progress_manager,
+    rich_console,
+    start_live_loader,
+    stop_live_loader,
+    update_live_loader_from_targets,
+    add_scan_to_live_loader,
+    complete_scan_in_live_loader,
 )
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.targets import Target, Service
@@ -52,10 +58,8 @@ VERSION = "2.2.0"
 
 def show_rich_help():
     """Display beautiful help output using Rich library"""
-    console = Console()
-
     # Header
-    console.print(
+    rich_console.print(
         Panel.fit(
             "[bold blue]🕷️  ipcrawler[/bold blue] - Network Reconnaissance Tool\n[dim]v"
             + VERSION
@@ -65,7 +69,7 @@ def show_rich_help():
     )
 
     # Usage
-    console.print("\n[bold green]Basic Usage:[/bold green]")
+    rich_console.print("\n[bold green]Basic Usage:[/bold green]")
     usage_table = Table(show_header=False, box=None, padding=(0, 2))
     usage_table.add_column("Command", style="cyan")
     usage_table.add_column("Description")
@@ -75,10 +79,10 @@ def show_rich_help():
     usage_table.add_row("ipcrawler -p 80,443 target.com", "Scan specific ports only")
     usage_table.add_row("ipcrawler --timeout 30 10.10.10.0/24", "30min scan of subnet")
 
-    console.print(usage_table)
+    rich_console.print(usage_table)
 
     # Essential Options
-    console.print("\n[bold yellow]🎯 Essential Options:[/bold yellow]")
+    rich_console.print("\n[bold yellow]🎯 Essential Options:[/bold yellow]")
     essential_table = Table(show_header=False, box=None, padding=(0, 1))
     essential_table.add_column("Option", style="cyan", width=25)
     essential_table.add_column("Description", width=55)
@@ -104,10 +108,10 @@ def show_rich_help():
         "[dim][[/dim][bold cyan]--exclude-tags[/bold cyan][dim]][/dim]", "Skip plugin types [dim](e.g. bruteforce)[/dim]"
     )
 
-    console.print(essential_table)
+    rich_console.print(essential_table)
 
     # Advanced Options
-    console.print("\n[bold magenta]⚙️  Advanced Options:[/bold magenta]")
+    rich_console.print("\n[bold magenta]⚙️  Advanced Options:[/bold magenta]")
     advanced_table = Table(show_header=False, box=None, padding=(0, 1))
     advanced_table.add_column("Option", style="cyan", width=25)
     advanced_table.add_column("Description", width=55)
@@ -127,10 +131,10 @@ def show_rich_help():
     advanced_table.add_row("[dim][[/dim][bold cyan]--nmap[/bold cyan][dim]][/dim]", "Override nmap options")
     advanced_table.add_row("[dim][[/dim][bold cyan]--heartbeat[/bold cyan][dim]][/dim]", "Status update interval in seconds")
 
-    console.print(advanced_table)
+    rich_console.print(advanced_table)
 
     # Port Syntax Examples
-    console.print("\n[bold cyan]🔌 Port Syntax Examples:[/bold cyan]")
+    rich_console.print("\n[bold cyan]🔌 Port Syntax Examples:[/bold cyan]")
     port_examples = Table(show_header=False, box=None, padding=(0, 1))
     port_examples.add_column("Syntax", style="yellow", width=20)
     port_examples.add_column("Description", width=40)
@@ -142,10 +146,10 @@ def show_rich_help():
     port_examples.add_row("B:53", "Both TCP and UDP")
     port_examples.add_row("80,T:22,U:53", "Mixed specification")
 
-    console.print(port_examples)
+    rich_console.print(port_examples)
 
     # Verbosity Levels
-    console.print("\n[bold blue]📢 Verbosity Levels:[/bold blue]")
+    rich_console.print("\n[bold blue]📢 Verbosity Levels:[/bold blue]")
     verb_table = Table(show_header=False, box=None, padding=(0, 1))
     verb_table.add_column("Level", style="green", width=12)
     verb_table.add_column("Description")
@@ -154,11 +158,12 @@ def show_rich_help():
     verb_table.add_row("-v", "Show discovered services and plugin starts")
     verb_table.add_row("-vv", "Show commands executed and pattern matches")
     verb_table.add_row("-vvv", "Maximum - live output from all commands")
+    verb_table.add_row("--debug", "Debug output for development and troubleshooting")
 
-    console.print(verb_table)
+    rich_console.print(verb_table)
 
     # Other Options
-    console.print("\n[bold green]🔧 Other Options:[/bold green]")
+    rich_console.print("\n[bold green]🔧 Other Options:[/bold green]")
     other_table = Table(show_header=False, box=None, padding=(0, 1))
     other_table.add_column("Option", style="cyan", width=25)
     other_table.add_column("Description")
@@ -174,10 +179,10 @@ def show_rich_help():
     )
     other_table.add_row("[dim][[/dim][bold cyan]--help-all[/bold cyan][dim]][/dim]", "Show complete help with all options")
 
-    console.print(other_table)
+    rich_console.print(other_table)
 
     # Footer tips
-    console.print(
+    rich_console.print(
         Panel.fit(
             "[bold green]💡 Pro Tips:[/bold green]\n"
             + "• Start with [cyan]ipcrawler -v target[/cyan] to see progress\n"
@@ -192,10 +197,8 @@ def show_rich_help():
 
 def show_complete_help():
     """Display complete help with all available options"""
-    console = Console()
-
     # Header
-    console.print(
+    rich_console.print(
         Panel.fit(
             "[bold blue]🕷️  ipcrawler[/bold blue] - Complete Reference\n[dim]v" + VERSION + " - All Available Options[/dim]",
             border_style="blue",
@@ -203,14 +206,14 @@ def show_complete_help():
     )
 
     # Note about complete help
-    console.print("\n[bold yellow]📖 This is the complete reference showing ALL available options.[/bold yellow]")
-    console.print(
+    rich_console.print("\n[bold yellow]📖 This is the complete reference showing ALL available options.[/bold yellow]")
+    rich_console.print(
         "[dim]For everyday usage, use [cyan]ipcrawler --help[/cyan] which shows the most commonly needed options.[/dim]\n"
     )
 
     # Show all the same sections as regular help but with complete content
     # Usage
-    console.print("[bold green]Basic Usage:[/bold green]")
+    rich_console.print("[bold green]Basic Usage:[/bold green]")
     usage_table = Table(show_header=False, box=None, padding=(0, 2))
     usage_table.add_column("Command", style="cyan")
     usage_table.add_column("Description")
@@ -220,11 +223,11 @@ def show_complete_help():
     usage_table.add_row("ipcrawler -p 80,443 target.com", "Scan specific ports only")
     usage_table.add_row("ipcrawler --timeout 30 10.10.10.0/24", "30min scan of subnet")
 
-    console.print(usage_table)
+    rich_console.print(usage_table)
 
     # All the sections from the regular help
     # Essential Options
-    console.print("\n[bold yellow]🎯 Essential Options:[/bold yellow]")
+    rich_console.print("\n[bold yellow]🎯 Essential Options:[/bold yellow]")
     essential_table = Table(show_header=False, box=None, padding=(0, 1))
     essential_table.add_column("Option", style="cyan", width=25)
     essential_table.add_column("Description", width=55)
@@ -250,10 +253,10 @@ def show_complete_help():
         "[dim][[/dim][bold cyan]--exclude-tags[/bold cyan][dim]][/dim]", "Skip plugin types [dim](e.g. bruteforce)[/dim]"
     )
 
-    console.print(essential_table)
+    rich_console.print(essential_table)
 
     # Advanced Options
-    console.print("\n[bold magenta]⚙️  Advanced Options:[/bold magenta]")
+    rich_console.print("\n[bold magenta]⚙️  Advanced Options:[/bold magenta]")
     advanced_table = Table(show_header=False, box=None, padding=(0, 1))
     advanced_table.add_column("Option", style="cyan", width=25)
     advanced_table.add_column("Description", width=55)
@@ -273,10 +276,10 @@ def show_complete_help():
     advanced_table.add_row("[dim][[/dim][bold cyan]--nmap[/bold cyan][dim]][/dim]", "Override nmap options")
     advanced_table.add_row("[dim][[/dim][bold cyan]--heartbeat[/bold cyan][dim]][/dim]", "Status update interval in seconds")
 
-    console.print(advanced_table)
+    rich_console.print(advanced_table)
 
     # Expert Options
-    console.print("\n[bold magenta]🎛️  Expert Options:[/bold magenta]")
+    rich_console.print("\n[bold magenta]🎛️  Expert Options:[/bold magenta]")
     expert_table = Table(show_header=False, box=None, padding=(0, 1))
     expert_table.add_column("Option", style="cyan", width=25)
     expert_table.add_column("Description", width=55)
@@ -302,10 +305,10 @@ def show_complete_help():
         "Concurrent port scan limit [dim](default: 10)[/dim]",
     )
 
-    console.print(expert_table)
+    rich_console.print(expert_table)
 
     # System Options
-    console.print("\n[bold yellow]⚙️  System Options:[/bold yellow]")
+    rich_console.print("\n[bold yellow]⚙️  System Options:[/bold yellow]")
     system_table = Table(show_header=False, box=None, padding=(0, 1))
     system_table.add_column("Option", style="cyan", width=25)
     system_table.add_column("Description", width=55)
@@ -326,10 +329,10 @@ def show_complete_help():
     )
     system_table.add_row("[dim][[/dim][bold cyan]--accessible[/bold cyan][dim]][/dim]", "Screenreader accessibility mode")
 
-    console.print(system_table)
+    rich_console.print(system_table)
 
-    # Configuration Options
-    console.print("\n[bold blue]📁 Configuration Options:[/bold blue]")
+    # Configuration Options  
+    rich_console.print("\n[bold blue]📁 Configuration Options:[/bold blue]")
     config_table = Table(show_header=False, box=None, padding=(0, 1))
     config_table.add_column("Option", style="cyan", width=25)
     config_table.add_column("Description", width=55)
@@ -346,10 +349,10 @@ def show_complete_help():
     config_table.add_row("[dim][[/dim][bold cyan]--add-plugins-dir[/bold cyan][dim]][/dim]", "Additional plugins directory")
     config_table.add_row("[dim][[/dim][bold cyan]--ignore-plugin-checks[/bold cyan][dim]][/dim]", "Ignore plugin errors")
 
-    console.print(config_table)
+    rich_console.print(config_table)
 
     # Plugin Control Options
-    console.print("\n[bold red]🔌 Plugin Control Options:[/bold red]")
+    rich_console.print("\n[bold red]🔌 Plugin Control Options:[/bold red]")
     plugin_table = Table(show_header=False, box=None, padding=(0, 1))
     plugin_table.add_column("Option", style="cyan", width=25)
     plugin_table.add_column("Description", width=55)
@@ -363,10 +366,10 @@ def show_complete_help():
         "Global plugin instance limits\n[yellow]Example:[/yellow] nmap-http:2 dirbuster:1",
     )
 
-    console.print(plugin_table)
+    rich_console.print(plugin_table)
 
     # Port Syntax Examples
-    console.print("\n[bold cyan]🔌 Port Syntax Examples:[/bold cyan]")
+    rich_console.print("\n[bold cyan]🔌 Port Syntax Examples:[/bold cyan]")
     port_examples = Table(show_header=False, box=None, padding=(0, 1))
     port_examples.add_column("Syntax", style="yellow", width=20)
     port_examples.add_column("Description", width=40)
@@ -378,10 +381,10 @@ def show_complete_help():
     port_examples.add_row("B:53", "Both TCP and UDP")
     port_examples.add_row("80,T:22,U:53", "Mixed specification")
 
-    console.print(port_examples)
+    rich_console.print(port_examples)
 
     # Advanced Tag Examples
-    console.print("\n[bold red]🚨 Advanced Tag Examples:[/bold red]")
+    rich_console.print("\n[bold red]🚨 Advanced Tag Examples:[/bold red]")
     tag_examples = Table(show_header=False, box=None, padding=(0, 1))
     tag_examples.add_column("Tag Expression", style="yellow", width=30)
     tag_examples.add_column("Description", width=50)
@@ -391,10 +394,10 @@ def show_complete_help():
     tag_examples.add_row("safe,bruteforce", "Run plugins tagged as safe OR bruteforce")
     tag_examples.add_row("http+safe,smb", "Run (HTTP AND safe) OR SMB plugins")
 
-    console.print(tag_examples)
+    rich_console.print(tag_examples)
 
     # Verbosity Levels
-    console.print("\n[bold blue]📢 Verbosity Levels:[/bold blue]")
+    rich_console.print("\n[bold blue]📢 Verbosity Levels:[/bold blue]")
     verb_table = Table(show_header=False, box=None, padding=(0, 1))
     verb_table.add_column("Level", style="green", width=12)
     verb_table.add_column("Description")
@@ -403,11 +406,12 @@ def show_complete_help():
     verb_table.add_row("-v", "Show discovered services and plugin starts")
     verb_table.add_row("-vv", "Show commands executed and pattern matches")
     verb_table.add_row("-vvv", "Maximum - live output from all commands")
+    verb_table.add_row("--debug", "Debug output for development and troubleshooting")
 
-    console.print(verb_table)
+    rich_console.print(verb_table)
 
     # Other Options
-    console.print("\n[bold green]🔧 Other Options:[/bold green]")
+    rich_console.print("\n[bold green]🔧 Other Options:[/bold green]")
     other_table = Table(show_header=False, box=None, padding=(0, 1))
     other_table.add_column("Option", style="cyan", width=25)
     other_table.add_column("Description")
@@ -423,10 +427,10 @@ def show_complete_help():
     )
     other_table.add_row("[dim][[/dim][bold cyan]--help-all[/bold cyan][dim]][/dim]", "Show this complete reference")
 
-    console.print(other_table)
+    rich_console.print(other_table)
 
     # Complete footer
-    console.print(
+    rich_console.print(
         Panel.fit(
             "[bold yellow]📚 Complete Reference:[/bold yellow]\n"
             + "• This shows ALL available options for power users\n"
@@ -453,6 +457,7 @@ def show_fallback_help(parser):
     print()
     print("ESSENTIAL OPTIONS:")
     print("  -v, --verbose         Show scan progress (-v, -vv, -vvv)")
+    print("  --debug               Debug output for development")
     print("  -p, --ports          Port specification (default: top 1000)")
     print("                       Examples: 80,443 or 1-1000 or T:80,U:53")
     print("  -t, --target-file    Read targets from file")
@@ -725,8 +730,13 @@ async def start_heartbeat(target, period=60):
                             progress_manager.complete_task(target.running_tasks[tag]["progress_task"])
                     except Exception:
                         pass  # Ignore errors in progress cleanup
+                    # Remove from live loader as well
+                    complete_scan_in_live_loader(target.address, tag)
                     target.running_tasks.pop(tag, None)
                     warn(f"Cleaned up stale task: {tag}", verbosity=2)
+
+            # Update live loader with current running tasks
+            update_live_loader_from_targets([target])
 
             count = len(target.running_tasks)
 
@@ -980,6 +990,9 @@ async def port_scan(plugin, target):
                 "progress_task": task_id,
             }
 
+        # Add to live loader
+        add_scan_to_live_loader(target.address, plugin.slug, plugin.name)
+
         try:
             result = await plugin.run(target)
         except Exception as ex:
@@ -1079,6 +1092,9 @@ async def port_scan(plugin, target):
                     debug(f"Port scan task {plugin.slug} removed from running_tasks", verbosity=3)
                 except Exception as e:
                     debug(f"Error removing port scan task {plugin.slug} from running_tasks: {e}", verbosity=3)
+
+        # Remove from live loader
+        complete_scan_in_live_loader(target.address, plugin.slug)
 
         info(
             "Port scan {bblue}"
@@ -1212,6 +1228,9 @@ async def service_scan(plugin, service):
                     "progress_task": task_id,
                 }
 
+            # Add to live loader
+            add_scan_to_live_loader(service.target.address, tag, plugin.name)
+
             try:
                 result = await plugin.run(service)
             except Exception as ex:
@@ -1313,6 +1332,9 @@ async def service_scan(plugin, service):
                         debug(f"Service scan task {tag} removed from running_tasks", verbosity=3)
                     except Exception as e:
                         debug(f"Error removing service scan task {tag} from running_tasks: {e}", verbosity=3)
+
+            # Remove from live loader
+            complete_scan_in_live_loader(service.target.address, tag)
 
             info(
                 "Service scan {bblue}"
@@ -2100,6 +2122,7 @@ async def run():
         help="Attempts to make ipcrawler output more accessible to screenreaders. Default: %(default)s",
     )
     parser.add_argument("-v", "--verbose", action="count", help="Enable verbose output. Repeat for more verbosity.")
+    parser.add_argument("--debug", action="store_true", help="Enable debug output for development and troubleshooting.")
     parser.add_argument("--version", action="store_true", help="Prints the ipcrawler version and exits.")
     parser.error = lambda s: fail(s[0].upper() + s[1:])
     args, unknown = parser.parse_known_args()
@@ -2497,7 +2520,6 @@ async def run():
     if args.list:
         from rich.table import Table
         from rich.panel import Panel
-        from ipcrawler.io import rich_console
 
         type = args.list.lower()
 
@@ -2973,11 +2995,14 @@ async def run():
 
     num_initial_targets = max(1, math.ceil(config["max_port_scans"] / port_scan_plugin_count))
 
-    # Show startup banner with feroxbuster-style interface
+    # Show startup banner with spider-themed interface
     show_startup_banner(ipcrawler.pending_targets, VERSION)
 
     # Start progress manager for long scans
     progress_manager.start()
+
+    # Start live scan loader for real-time scan display
+    start_live_loader()
 
     # Initialize VHost auto-discovery system
     from ipcrawler.io import vhost_manager
@@ -3051,6 +3076,9 @@ async def run():
 
     # Stop progress manager
     progress_manager.stop()
+
+    # Stop live scan loader
+    stop_live_loader()
 
     # If there's only one target we don't need a combined report
     if len(ipcrawler.completed_targets) > 1:
