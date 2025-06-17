@@ -349,6 +349,35 @@ def debug(*args, color=Fore.GREEN, sep=" ", end="\n", file=sys.stdout, **kvargs)
             cprint(*args, color=color, char="-", sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 
+def process_color_codes(text):
+    """Convert color code placeholders to actual colors for Rich display"""
+    import re
+    
+    # Color mappings for Rich
+    color_map = {
+        "{bgreen}": "[bold green]",
+        "{bred}": "[bold red]",
+        "{bblue}": "[bold blue]",
+        "{byellow}": "[bold yellow]",
+        "{bmagenta}": "[bold magenta]",
+        "{green}": "[green]",
+        "{red}": "[red]",
+        "{blue}": "[blue]",
+        "{yellow}": "[yellow]",
+        "{magenta}": "[magenta]",
+        "{bright}": "[bold]",
+        "{srst}": "[/bold]",
+        "{crst}": "[/]",
+        "{rst}": "[/]",
+    }
+    
+    # Replace color codes
+    for code, rich_markup in color_map.items():
+        text = text.replace(code, rich_markup)
+    
+    return text
+
+
 def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
     # Import config fresh each time to avoid import-time initialization issues
     try:
@@ -360,6 +389,19 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
     verbosity = kvargs.get("verbosity", 1)
 
     if config.get("verbosity", 1) >= verbosity:
+        # Check if any message contains color codes
+        has_color_codes = any(
+            any(code in str(arg) for code in ["{bgreen}", "{bred}", "{bblue}", "{byellow}", "{bmagenta}", 
+                                              "{green}", "{red}", "{blue}", "{yellow}", "{magenta}", 
+                                              "{bright}", "{srst}", "{crst}", "{rst}"])
+            for arg in args
+        )
+        
+        # If message has color codes, use cprint for proper color processing
+        if has_color_codes:
+            cprint(*args, color=Fore.CYAN, char="*", sep=sep, end=end, file=file, frame_index=2, **kvargs)
+            return
+        
         if RICH_AVAILABLE and not config.get("accessible", False):
             # Build the message parts
             message_parts = []
@@ -499,6 +541,19 @@ def warn(*args, sep=" ", end="\n", file=sys.stderr, **kvargs):
     except ImportError:
         config = {"accessible": False}
 
+    # Check if any message contains color codes
+    has_color_codes = any(
+        any(code in str(arg) for code in ["{bgreen}", "{bred}", "{bblue}", "{byellow}", "{bmagenta}", 
+                                          "{green}", "{red}", "{blue}", "{yellow}", "{magenta}", 
+                                          "{bright}", "{srst}", "{crst}", "{rst}"])
+        for arg in args
+    )
+    
+    # If message has color codes, use cprint for proper color processing
+    if has_color_codes:
+        cprint(*args, color=Fore.YELLOW, char="!", sep=sep, end=end, file=file, frame_index=2, **kvargs)
+        return
+
     if RICH_AVAILABLE and not config.get("accessible", False):
         message = sep.join(str(arg) for arg in args)
         
@@ -523,6 +578,19 @@ def error(*args, sep=" ", end="\n", file=sys.stderr, **kvargs):
     except ImportError:
         config = {"accessible": False}
 
+    # Check if any message contains color codes
+    has_color_codes = any(
+        any(code in str(arg) for code in ["{bgreen}", "{bred}", "{bblue}", "{byellow}", "{bmagenta}", 
+                                          "{green}", "{red}", "{blue}", "{yellow}", "{magenta}", 
+                                          "{bright}", "{srst}", "{crst}", "{rst}"])
+        for arg in args
+    )
+    
+    # If message has color codes, use cprint for proper color processing
+    if has_color_codes:
+        cprint(*args, color=Fore.RED, char="!", sep=sep, end=end, file=file, frame_index=2, **kvargs)
+        return
+
     if RICH_AVAILABLE and not config.get("accessible", False):
         message = sep.join(str(arg) for arg in args)
         
@@ -546,6 +614,19 @@ def fail(*args, sep=" ", end="\n", file=sys.stderr, **kvargs):
         from ipcrawler.config import config
     except ImportError:
         config = {"accessible": False}
+
+    # Check if any message contains color codes
+    has_color_codes = any(
+        any(code in str(arg) for code in ["{bgreen}", "{bred}", "{bblue}", "{byellow}", "{bmagenta}", 
+                                          "{green}", "{red}", "{blue}", "{yellow}", "{magenta}", 
+                                          "{bright}", "{srst}", "{crst}", "{rst}"])
+        for arg in args
+    )
+    
+    # If message has color codes, use cprint for proper color processing
+    if has_color_codes:
+        cprint(*args, color=Fore.RED, char="!", sep=sep, end=end, file=file, frame_index=2, **kvargs)
+        return
 
     if RICH_AVAILABLE and not config.get("accessible", False):
         message = sep.join(str(arg) for arg in args)

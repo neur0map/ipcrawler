@@ -126,6 +126,7 @@ class Plugin(object):
             List of valid wordlist paths, or empty list if none are valid
         """
         import os
+        from ipcrawler.config import config
         
         if not wordlists:
             self.warn(f"No {wordlist_type} wordlists specified")
@@ -141,13 +142,14 @@ class Plugin(object):
             if not wordlist or not wordlist.strip():
                 continue
                 
-            wordlist = wordlist.strip()
+            wordlist_path = wordlist.strip()
+            resolved_path = self._resolve_wordlist_path(wordlist_path)
             
-            if os.path.isfile(wordlist) and os.access(wordlist, os.R_OK):
-                valid_wordlists.append(wordlist)
-                self.info(f"Using {wordlist_type} wordlist: {wordlist}")
+            if os.path.isfile(resolved_path) and os.access(resolved_path, os.R_OK):
+                valid_wordlists.append(resolved_path)
+                self.info(f"Using {wordlist_type} wordlist: {resolved_path}")
             else:
-                missing_wordlists.append(wordlist)
+                missing_wordlists.append(wordlist_path)
         
         # Report missing wordlists
         if missing_wordlists:
@@ -159,13 +161,57 @@ class Plugin(object):
                 self.error(f"No valid {wordlist_type} wordlists found - plugin will be skipped")
                 self.error("💡 Fix suggestions:")
                 self.error("  1. Check wordlist paths in global.toml and config.toml")
-                self.error("  2. Install SecLists: sudo apt install seclists")
-                self.error("  3. Or download from: https://github.com/danielmiessler/SecLists")
+                self.error("  2. Ensure relative paths are relative to global.toml location")
+                self.error("  3. Install SecLists: sudo apt install seclists")
+                self.error("  4. Or download from: https://github.com/danielmiessler/SecLists")
                 return []
             else:
                 self.warn(f"Continuing with {len(valid_wordlists)} valid {wordlist_type} wordlist(s)")
         
         return valid_wordlists
+
+    @final
+    def _resolve_wordlist_path(self, wordlist_path):
+        """
+        Resolve wordlist path to absolute path.
+        
+        - If path is absolute, return as-is
+        - If path is relative, resolve relative to global.toml directory
+        - If that fails, try relative to current working directory
+        - If that fails, try relative to ipcrawler package directory
+        """
+        import os
+        from ipcrawler.config import config
+        
+        # If already absolute, return as-is
+        if os.path.isabs(wordlist_path):
+            return wordlist_path
+        
+        # Try resolving relative to global.toml directory first
+        if config.get("global_file"):
+            global_dir = os.path.dirname(config["global_file"])
+            candidate_path = os.path.join(global_dir, wordlist_path)
+            if os.path.isfile(candidate_path):
+                return os.path.abspath(candidate_path)
+        
+        # Try resolving relative to current working directory
+        candidate_path = os.path.abspath(wordlist_path)
+        if os.path.isfile(candidate_path):
+            return candidate_path
+        
+        # Try resolving relative to ipcrawler package directory
+        try:
+            import ipcrawler
+            package_dir = os.path.dirname(os.path.abspath(ipcrawler.__file__))
+            candidate_path = os.path.join(package_dir, wordlist_path)
+            if os.path.isfile(candidate_path):
+                return os.path.abspath(candidate_path)
+        except:
+            pass
+        
+        # If none of the above work, return the original path
+        # (which will fail validation, but that's handled by validate_wordlists)
+        return wordlist_path
 
     @final
     def get_validated_wordlists(self, option_name, wordlist_type=None, fallback_wordlists=None):

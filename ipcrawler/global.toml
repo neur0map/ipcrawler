@@ -3,13 +3,26 @@
 # ========================================
 # Wordlists used by scanning tools
 # Install wordlists: sudo apt install seclists wordlists
+#
+# Path Resolution:
+# - Relative paths (e.g., 'wordlists/file.txt') are resolved relative to global.toml location
+# - Absolute paths (e.g., '/usr/share/seclists/...') are used as-is
+# - ipcrawler/wordlists/ contains local fallback wordlists
 
 [global]
 # ========================================
 # Directory/Web Scanning Wordlists
 # ========================================
 # Used by: feroxbuster, gobuster, dirsearch, ffuf, dirb
-directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'
+
+# Local wordlist (relative to global.toml location)
+directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/dirbuster.txt'
+
+# Alternative: Use absolute path to SecLists (uncomment if installed)
+# directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'
+
+# Alternative: Use custom wordlist anywhere on system
+# directory-wordlist = '/home/user/custom-wordlists/my-directory-list.txt'
 
 # ========================================
 # DNS/Subdomain Scanning Wordlists  
@@ -62,3 +75,32 @@ domain = ''
 # - subdomains-top1million-110000.txt: ~110K entries (comprehensive)
 # - burp-parameter-names.txt: ~6K parameter names (LFI discovery)
 # - LFI-Jhaddix.txt: ~900 LFI payloads (comprehensive LFI testing)
+# - dirbuster.txt: ~116K entries (local fallback wordlist)
+#
+# Path Examples:
+# Relative to global.toml:        'wordlists/my-list.txt'
+# Absolute system path:           '/usr/share/seclists/Discovery/Web-Content/big.txt'
+# User home directory:            '/home/username/wordlists/custom.txt'
+# Current working directory:      './my-wordlists/list.txt'
+
+# ========================================
+# Configuration Examples for Different Environments
+# ========================================
+#
+# For Kali Linux with SecLists installed:
+# directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'
+# subdomain-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
+# username-wordlist = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
+# password-wordlist = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
+#
+# For custom wordlist directories:
+# directory-wordlist = '/opt/wordlists/custom-directories.txt'
+# subdomain-wordlist = '/opt/wordlists/custom-subdomains.txt'
+#
+# For portable installations (relative paths):
+# directory-wordlist = 'wordlists/custom-dirs.txt'
+# subdomain-wordlist = 'wordlists/custom-subs.txt'
+#
+# For HTB/CTF environments with custom lists:
+# directory-wordlist = '/home/kali/wordlists/custom-web-dirs.txt'
+# vhost-wordlist = '/home/kali/wordlists/custom-vhosts.txt'
