@@ -832,13 +832,15 @@ class ProgressManager:
 
         # Check if task was already completed
         if task.get("completed_flag", False):
-            debug(f"Task {task_id} already completed, skipping", verbosity=3)
+            debug(f"Task {task_id} already completed, skipping duplicate completion", verbosity=3)
             return
 
         # Mark as completed to prevent duplicate completion
         task["completed_flag"] = True
         task["scan_completed"] = True  # Signal to progress updater to stop
         elapsed = time.time() - task["started"]
+        
+        debug(f"Completing task {task_id}: {task.get('description', 'Unknown')} (took {elapsed:.1f}s)", verbosity=3)
 
         if task.get("rich_task", False) and self.progress:
             try:

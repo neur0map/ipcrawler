@@ -177,11 +177,6 @@ class QuickTCPPortScan(PortScan):
         services = await target.extract_services(stdout)
         await process.wait()
         
-        # Complete individual progress bar if provided
-        if task_id:
-            from ipcrawler.io import progress_manager
-            progress_manager.complete_task(task_id)
-        
         target.info(f"✅ {scan_display} complete - found {len(services)} services")
         return services
 
