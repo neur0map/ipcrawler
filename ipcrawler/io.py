@@ -68,6 +68,36 @@ def show_startup_banner(targets=None, version="2.2.0"):
     rich_console.print()
 
 
+def get_wordlist_status_summary(global_config):
+    """Check status of all required wordlists"""
+    wordlists = {
+        "directory-wordlist": "Directory Scanning",
+        "username-wordlist": "Bruteforce (Users)",
+        "password-wordlist": "Bruteforce (Passwords)",
+        "vhost-wordlist": "VHost Discovery",
+        "subdomain-wordlist": "Subdomain Enum",
+        "lfi-parameter-wordlist": "LFI Parameters", 
+        "lfi-payload-wordlist": "LFI Payloads"
+    }
+    
+    configured_count = 0
+    missing_count = 0
+    
+    for key, desc in wordlists.items():
+        path = global_config.get("global", {}).get(key)
+        if path:
+            configured_count += 1
+            if not os.path.isfile(path):
+                missing_count += 1
+    
+    if configured_count == 0:
+        return "None configured"
+    elif missing_count > 0:
+        return f"{configured_count} configured, {missing_count} missing"
+    else:
+        return f"{configured_count}/{len(wordlists)} configured ✓"
+
+
 def get_config_display_table(targets=None):
     """Generate configuration display table"""
     if not RICH_AVAILABLE:
@@ -109,8 +139,8 @@ def get_config_display_table(targets=None):
             with open(config_toml_path, 'r') as f:
                 local_config = toml.load(f)
         
-        # Get directory wordlist (show configured wordlist, not just existing ones)
-        configured_wordlist = global_config.get("global", {}).get("directory-wordlist", "/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt")
+        # Get directory wordlist (show configured wordlist, no fallbacks)
+        configured_wordlist = global_config.get("global", {}).get("directory-wordlist")
         
         # Show the configured wordlist (shortened if too long)
         if configured_wordlist:
@@ -118,12 +148,12 @@ def get_config_display_table(targets=None):
                 directory_wordlist = "..." + configured_wordlist[-47:]
             else:
                 directory_wordlist = os.path.basename(configured_wordlist)
+            
+            # Add indicator if configured wordlist doesn't exist
+            if not os.path.isfile(configured_wordlist):
+                directory_wordlist += " (missing)"
         else:
-            directory_wordlist = "Built-in fallback"
-        
-        # Add indicator if configured wordlist doesn't exist
-        if configured_wordlist and not os.path.isfile(configured_wordlist):
-            directory_wordlist += " (missing)"
+            directory_wordlist = "Not configured"
         
         # Get other settings from TOML files
         dirbuster_config = local_config.get("dirbuster", {})
@@ -162,10 +192,13 @@ def get_config_display_table(targets=None):
         global_file_path = global_toml_path
         if len(global_file_path) > 50:
             global_file_path = "..." + global_file_path[-47:]
+        
+        # Check wordlist configuration status
+        wordlist_status = get_wordlist_status_summary(global_config)
             
     except Exception as e:
         # Fallback values if TOML reading fails
-        directory_wordlist = "Built-in fallback"
+        directory_wordlist = "Config error"
         threads = 15
         timeout_minutes = "None"
         recursion_depth = 4
@@ -175,12 +208,14 @@ def get_config_display_table(targets=None):
         extract_links = "true"
         follow_redirects = "true"
         global_file_path = "config.toml"
+        wordlist_status = "Config error"
 
     # Build config display from actual TOML values
     configs = [
         ("🎯 Target Url", target_display),
         ("📊 Threads", str(threads)),
-        ("📝 Wordlist", directory_wordlist),
+        ("📝 Directory Wordlist", directory_wordlist),
+        ("📚 All Wordlists", wordlist_status),
         ("⏱️  Timeout", timeout_minutes),
         ("🔧 Status Codes", status_codes),
         ("🔍 Timeout (secs)", str(dirbuster_timeout_secs)),
