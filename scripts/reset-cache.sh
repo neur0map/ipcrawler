@@ -292,14 +292,8 @@ fi
 echo ""
 
 # ========================================
-# 4. Clear Virtual Environment and Build Cache
+# 4. Clear Build Cache
 # ========================================
-print_status "Clearing virtual environment cache..."
-
-# Remove virtual environments
-rm -rf venv/ 2>/dev/null || true
-rm -rf .venv/ 2>/dev/null || true
-print_success "Removed existing virtual environment"
 
 print_status "Clearing build artifacts..."
 
@@ -479,35 +473,16 @@ done
 echo ""
 
 # ========================================
-# 8. Reinstall Python Dependencies
+# 8. Verify Python Dependencies (No Reinstall)
 # ========================================
-print_status "Reinstalling Python dependencies..."
+print_status "Verifying Python dependencies..."
 
-# Install dependencies to system Python (user space)
-print_status "Installing Python dependencies to user space..."
-
-# Try different approaches for different systems
-if python3 -m pip install --user --upgrade pip 2>/dev/null; then
-    print_success "Upgraded pip successfully"
+# Just check if dependencies are available - don't reinstall
+if python3 -c "import rich, async_timeout, lxml, toml" 2>/dev/null; then
+    print_success "Core Python dependencies available"
 else
-    print_warning "Pip upgrade failed - trying with --break-system-packages"
-    python3 -m pip install --user --break-system-packages --upgrade pip 2>/dev/null || print_warning "Pip upgrade failed"
-fi
-
-# Install requirements
-if [ -f "requirements.txt" ]; then
-    # Try normal user install first
-    if python3 -m pip install --user -r requirements.txt 2>/dev/null; then
-        print_success "Installed Python dependencies to user space"
-    # If that fails, try with --break-system-packages (for externally managed environments)
-    elif python3 -m pip install --user --break-system-packages -r requirements.txt 2>/dev/null; then
-        print_success "Installed Python dependencies to user space (with system override)"
-    else
-        print_warning "Failed to install dependencies - may need manual installation"
-        print_warning "Try manually: python3 -m pip install --user --break-system-packages -r requirements.txt"
-    fi
-else
-    print_warning "No requirements.txt found - dependencies may need manual installation"
+    print_warning "Some Python dependencies may be missing"
+    print_warning "Run: python3 -m pip install --user -r requirements.txt"
 fi
 
 echo ""
@@ -573,7 +548,6 @@ echo "   • Python bytecode cache (__pycache__, .pyc, .pyo files)"
 echo "   • Plugin-specific cache (default-plugins & user plugins)"
 echo "   • Python import cache (importlib.invalidate_caches())"
 echo "   • ipcrawler application cache (OS-specific paths)"
-echo "   • Virtual environment"
 echo "   • Build artifacts"
 echo "   • Docker cache (if available)"
 echo "   • System package cache ($OS_ID)"
@@ -581,8 +555,8 @@ if [ "$WSL_DETECTED" = "yes" ]; then
     echo "   • WSL/Windows integration cache"
 fi
 echo ""
-echo "✅ Rebuilt:"
-echo "   • Python dependencies (user space)"
+echo "✅ Maintained:"
+echo "   • Python dependencies (system user space)"
 echo "   • Global ipcrawler command (symlink with correct shebang)"
 echo ""
 echo "✅ Fixed:"

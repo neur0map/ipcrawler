@@ -91,37 +91,80 @@ clean_cached_files() {
 update_python() {
     echo "🐍 Updating Python environment..."
     
-    if [ ! -d "venv" ]; then
-        echo "⚠️  Virtual environment not found. Creating it..."
-        ./scripts/setup-python.sh
-        return $?
+    # Install dependencies to system Python (user space)
+    echo "📦 Installing Python dependencies to user space..."
+    
+    # Try different approaches for different systems
+    if python3 -m pip install --user --upgrade pip 2>/dev/null; then
+        echo "✅ Pip upgraded successfully"
+    else
+        echo "⚠️  Pip upgrade failed - trying with --break-system-packages"
+        python3 -m pip install --user --break-system-packages --upgrade pip 2>/dev/null || echo "❌ Pip upgrade failed"
     fi
     
-    # Update pip and packages
-    echo "📦 Updating Python packages..."
-    venv/bin/python3 -m pip install --upgrade pip
-    venv/bin/python3 -m pip install --upgrade -r requirements.txt
+    if [ -f "requirements.txt" ]; then
+        echo "📦 Installing requirements..."
+        
+        # Try normal user install first
+        if python3 -m pip install --user -r requirements.txt 2>/dev/null; then
+            echo "✅ Dependencies installed to user Python environment"
+        # If that fails, try with --break-system-packages (for externally managed environments)
+        elif python3 -m pip install --user --break-system-packages -r requirements.txt 2>/dev/null; then
+            echo "✅ Dependencies installed to user Python environment (with system override)"
+        # If that still fails, provide helpful error message
+        else
+            echo "❌ Failed to install dependencies"
+            echo "💡 Try manually:"
+            echo "   python3 -m pip install --user --break-system-packages -r requirements.txt"
+            echo "   OR install using your system package manager"
+            return 1
+        fi
+    else
+        echo "⚠️  No requirements.txt found - dependencies may need manual installation"
+        return 1
+    fi
     
-    # Regenerate the command script with latest code
-    echo "🔧 Updating ipcrawler command..."
-    rm -f ipcrawler-cmd
+    # Update global command to ensure it points to current code
+    echo "🔧 Updating global ipcrawler command..."
     
-    # Create updated command script
-    cat > ipcrawler-cmd << 'EOF'
-#!/bin/bash
-# Resolve the real path of the script (follow symlinks)
-SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
-DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-cd "$DIR"
-source "$DIR/venv/bin/activate" && PYTHONPATH="$DIR" python3 "$DIR/ipcrawler/main.py" "$@"
-EOF
+    # Get absolute path to the main script
+    IPCRAWLER_SCRIPT="$(pwd)/ipcrawler.py"
     
-    chmod +x ipcrawler-cmd
+    # Fix the shebang to use the correct Python
+    PYTHON_PATH=$(which python3)
+    echo "🔧 Updating shebang to use: $PYTHON_PATH"
     
-    # Update system symlink
-    if [ -L "/usr/local/bin/ipcrawler" ]; then
-        echo "🔗 Updating system symlink..."
-        sudo ln -sf "$(pwd)/ipcrawler-cmd" /usr/local/bin/ipcrawler
+    # Create a backup and update the shebang
+    sed -i.bak "1s|.*|#!${PYTHON_PATH}|" "$IPCRAWLER_SCRIPT"
+    
+    # Make sure the main script is executable
+    chmod +x "$IPCRAWLER_SCRIPT"
+    
+    # Try system-wide installation first
+    if [ -w /usr/local/bin ] && [ -d /usr/local/bin ]; then
+        # Remove existing symlink if it exists
+        [ -L /usr/local/bin/ipcrawler ] && rm /usr/local/bin/ipcrawler
+        
+        # Create new symlink
+        ln -sf "$IPCRAWLER_SCRIPT" /usr/local/bin/ipcrawler
+        echo "✅ Global command updated: /usr/local/bin/ipcrawler"
+        
+    elif [ -w ~/.local/bin ] || mkdir -p ~/.local/bin 2>/dev/null; then
+        # User-local installation
+        [ -L ~/.local/bin/ipcrawler ] && rm ~/.local/bin/ipcrawler
+        
+        ln -sf "$IPCRAWLER_SCRIPT" ~/.local/bin/ipcrawler
+        echo "✅ Global command updated: ~/.local/bin/ipcrawler"
+        
+        # Check if ~/.local/bin is in PATH
+        if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
+            echo "💡 Add ~/.local/bin to PATH by adding this to ~/.bashrc:"
+            echo "   export PATH=\"\$HOME/.local/bin:\$PATH\""
+        fi
+    else
+        echo "⚠️  Could not update global command - no writable directory found"
+        echo "💡 You can still use: python3 ipcrawler.py <target>"
+        return 1
     fi
     
     echo "✅ Python environment updated"
@@ -219,15 +262,16 @@ show_summary() {
     echo "📋 What was updated:"
     echo "  • Git repository and source code"
     echo "  • Cleaned cached application files"
-    echo "  • Python virtual environment and packages" 
-    echo "  • ipcrawler command script"
+    echo "  • Python dependencies (user space)" 
+    echo "  • Global ipcrawler command symlink"
     echo "  • System security tools"
     if command -v docker >/dev/null 2>&1; then
         echo "  • Docker image (if needed)"
     fi
     echo ""
     echo "🎯 Ready to use updated ipcrawler!"
-    echo "💡 All changes from 'git pull' are now active!"
+    echo "💡 All changes from 'git pull' are now active immediately!"
+    echo "💡 No virtual environment - uses system Python directly"
 }
 
 # Main execution
