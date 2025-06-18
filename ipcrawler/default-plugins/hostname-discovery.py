@@ -12,6 +12,7 @@ class RedirectHostnameDiscovery(ServiceScan):
         self.name = "Redirect Hostname Discovery"
         self.slug = "redirect-host-discovery"
         self.tags = ["default", "http", "quick"]
+        self.priority = 2  # Lower priority number = higher priority = runs before VHost enumeration (5)
 
     def configure(self):
         self.match_service_name("^http")
@@ -30,6 +31,24 @@ class RedirectHostnameDiscovery(ServiceScan):
                 if redirect_host:
                     service.info(f"[+] Redirect detected: {url} → {location}")
                     service.info(f"[+] Hostname found in redirect: {redirect_host}")
+                    
+                    # Store discovered hostname for other plugins to use
+                    if not hasattr(service.target, "discovered_vhosts"):
+                        service.target.discovered_vhosts = []
+                    
+                    vhost_info = {
+                        "hostname": redirect_host,
+                        "ip": service.target.address,
+                        "port": service.port,
+                        "scheme": "https" if service.secure else "http",
+                        "original_url": url,
+                        "redirect_url": location,
+                        "status_code": resp.status_code,
+                        "discovered_by": "redirect-host-discovery"
+                    }
+                    
+                    service.target.discovered_vhosts.append(vhost_info)
+                    service.info(f"[+] Hostname stored for virtual host enumeration: {redirect_host}")
                 else:
                     service.info(f"[+] Redirect detected, but no hostname could be parsed: {location}")
             else:
