@@ -42,6 +42,7 @@ from ipcrawler.io import (
     CommandStreamReader,
     show_startup_banner,
     show_scan_summary,
+    show_phase_header,
     progress_manager,
     rich_console,
     start_live_loader,
@@ -963,13 +964,7 @@ async def port_scan(plugin, target):
 
     async with target.ipcrawler.port_scan_semaphore:
         info(
-            "Port scan {bblue}"
-            + plugin.name
-            + " {green}("
-            + plugin.slug
-            + "){rst} running against {byellow}"
-            + target.address
-            + "{rst}",
+            f"Port scan {plugin.name} ({plugin.slug}) running against {target.address}",
             verbosity=1,
         )
 
@@ -1220,13 +1215,7 @@ async def service_scan(plugin, service):
             tag = service.tag() + "/" + plugin.slug
 
             info(
-                "Service scan {bblue}"
-                + plugin.name
-                + " {green}("
-                + tag
-                + "){rst} running against {byellow}"
-                + service.target.address
-                + "{rst}",
+                f"Service scan {plugin.name} ({tag}) running against {service.target.address}",
                 verbosity=1,
             )
 
@@ -3039,6 +3028,17 @@ async def run():
 
     start_time = time.time()
 
+    # Show scanning phase header
+    target_count = len(ipcrawler.pending_targets)
+    if target_count == 1:
+        target_desc = f"1 target ({ipcrawler.pending_targets[0].address})"
+    else:
+        target_desc = f"{target_count} targets"
+    
+    show_phase_header("RECONNAISSANCE PHASE", 
+                     "Starting automated network enumeration", 
+                     target_desc)
+
     if not config["disable_keyboard_control"]:
         terminal_settings = termios.tcgetattr(sys.stdin.fileno())
 
@@ -3110,6 +3110,10 @@ async def run():
 
     # If there's only one target we don't need a combined report
     if len(ipcrawler.completed_targets) > 1:
+        show_phase_header("REPORT GENERATION", 
+                         "Creating comprehensive scan reports", 
+                         f"{len(ipcrawler.completed_targets)} targets completed")
+        
         for plugin in ipcrawler.plugin_types["report"]:
             if config["reports"] and plugin.slug in config["reports"]:
                 matching_tags = True
@@ -3150,8 +3154,13 @@ async def run():
 
         elapsed_time = calculate_elapsed_time(start_time)
 
-        # Use enhanced scan summary
+        # Show completion phase header
         target_count = len(ipcrawler.completed_targets)
+        show_phase_header("SCAN COMPLETE", 
+                         f"Reconnaissance finished in {elapsed_time}", 
+                         f"{target_count} targets processed")
+        
+        # Use enhanced scan summary
         show_scan_summary(target_count, elapsed_time)
 
         # Fallback to standard message if Rich not available

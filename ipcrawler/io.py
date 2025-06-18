@@ -404,132 +404,139 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
             return
         
         if RICH_AVAILABLE and not config.get("accessible", False):
-            # Build the message parts
-            message_parts = []
-            for arg in args:
-                # Parse and convert color-coded text to Rich markup
-                text = str(arg)
-                
-                # Handle service discovery messages
-                if "📡 INFO" in text and "running against" in text:
-                    # Extract components for service start message
-                    parts = text.split("📡 INFO")
-                    if len(parts) > 1:
-                        service_text = Text.assemble(
-                            ("🕷️", "bold cyan"),
-                            ("  CRAWL", "bold green"),
-                            ("    ", ""),
-                            ("200", "bold green"),
-                            ("    ", ""),
-                            ("🌐 TARGET", "bold blue"),
-                            (parts[1], "white")
-                        )
-                        # Use main console, not progress console
-                        rich_console.print(service_text)
-                        return
-                
-                # Handle port/service discovery
-                elif any(indicator in text for indicator in ["tcp/", "udp/", "/tcp", "/udp", "OPEN"]):
-                    # Extract components for discovery message
-                    discovery_text = Text.assemble(
-                        ("🕷️", "bold cyan"),
-                        ("  SCAN", "bold green"),
-                        ("     ", ""),
-                        ("200", "bold green"),
-                        ("    ", ""),
-                        ("🔍 FOUND", "bold yellow"),
-                        ("    ", ""),
-                        (text, "yellow")
-                    )
-                    rich_console.print(discovery_text)
-                    return
-                
-                # Handle service enum starts
-                elif "Service scan" in text and "running against" in text:
-                    service_text = Text.assemble(
-                        ("🕷️", "bold cyan"),
-                        ("  ENUM", "bold green"),
-                        ("     ", ""),
-                        ("200", "bold green"),
-                        ("    ", ""),
-                        ("🌐 SERVICE", "bold blue"),
-                        ("  Service scan", "white"),
-                        (text.split("Service scan")[1], "cyan")
-                    )
-                    rich_console.print(service_text)
-                    return
-                
-                # Handle completion messages
-                elif "✅" in text or "Completed:" in text:
-                    completion_text = Text.assemble(
-                        ("🕷️", "bold cyan"),
-                        ("  DONE", "bold green"),
-                        ("      ", ""),
-                        ("200", "bold green"),
-                        ("    ", ""),
-                        ("🕸️ SUCCESS", "bold green"),
-                        ("   " + text.replace("✅ Completed:", "").strip(), "white")
-                    )
-                    rich_console.print(completion_text)
-                    return
-                
-                # Handle scan start messages  
-                elif "🚀 Started:" in text:
-                    scan_text = Text.assemble(
-                        ("🕷️", "bold cyan"),
-                        ("  INIT", "bold green"),
-                        ("      ", ""),
-                        ("200", "bold green"),
-                        ("    ", ""),
-                        ("⚡ DEPLOY", "bold magenta"),
-                        ("    " + text.replace("🚀 Started:", "").strip(), "white")
-                    )
-                    rich_console.print(scan_text)
-                    return
-                
-                # Handle finish messages
-                elif "🏁 Finished:" in text:
-                    finish_text = Text.assemble(
-                        ("🕷️", "bold cyan"),
-                        ("  HALT", "bold green"),
-                        ("      ", ""),
-                        ("200", "bold green"),
-                        ("    ", ""),
-                        ("🎯 COMPLETE", "bold blue"),
-                        ("  " + text.replace("🏁 Finished:", "").strip(), "white")
-                    )
-                    rich_console.print(finish_text)
-                    return
-                
-                # Handle pattern matches
-                elif "🔍 Found:" in text or "Match:" in text:
-                    pattern_text = Text.assemble(
-                        ("🕷️", "bold cyan"),
-                        ("  HUNT", "bold green"),
-                        ("      ", ""),
-                        ("200", "bold green"),
-                        ("    ", ""),
-                        ("🎯 PREY", "bold yellow"),
-                        ("      " + text.replace("🔍 Found:", "").replace("Match:", "").strip(), "cyan")
-                    )
-                    rich_console.print(pattern_text)
-                    return
-                
-                # Default case - convert to Rich text
-                message_parts.append(str(arg))
+            message = sep.join(str(arg) for arg in args)
             
-            # Default rich output for other info messages
-            if message_parts:
-                default_text = Text.assemble(
-                    ("🕷️", "bold cyan"),
-                    ("  INFO", "bold green"),
-                    ("      ", ""),
-                    ("200", "bold green"),
-                    ("    ", ""),
-                    ("🌐 CRAWL", "bold blue"),
-                    ("     " + sep.join(message_parts), "white")
+            # Plugin execution start - simple format (only show at verbosity 2+)
+            if "running against" in message and any(x in message for x in ["Service scan", "Port scan"]):
+                # Only show individual plugin starts at verbosity 2 or higher
+                if config.get("verbose", 0) >= 2:
+                    # Extract plugin name and target from message
+                    plugin_name = "Unknown"
+                    target_info = "target"
+                    scan_type = "SCAN"
+                    
+                    if "Service scan" in message:
+                        scan_type = "SERVICE"
+                        parts = message.split("Service scan")
+                        if len(parts) > 1:
+                            remaining = parts[1].strip()
+                            # Extract plugin name from the format "Plugin_Name running against target:port"
+                            if " running against " in remaining:
+                                plugin_part, target_part = remaining.split(" running against ", 1)
+                                plugin_name = plugin_part.strip()
+                                target_info = target_part.strip()
+                    elif "Port scan" in message:
+                        scan_type = "PORT"
+                        parts = message.split("Port scan")
+                        if len(parts) > 1:
+                            remaining = parts[1].strip()
+                            if " running against " in remaining:
+                                plugin_part, target_part = remaining.split(" running against ", 1)
+                                plugin_name = plugin_part.strip()
+                                target_info = target_part.strip()
+                    
+                    # Simple one-line format instead of big phase box
+                    plugin_text = Text.assemble(
+                        ("  ", ""),
+                        ("▶", "bold green"),
+                        (f" {scan_type}", "bold green"),
+                        (" │ ", "dim"),
+                        (plugin_name, "white"),
+                        (" → ", "dim"),
+                        (target_info, "cyan")
+                    )
+                    rich_console.print(plugin_text)
+                # At verbosity 1, these messages are completely suppressed
+                return
+            
+            # Command execution start - simplified format
+            elif "Starting:" in message or "🚀 Started:" in message:
+                command_info = message.replace("🚀 Started:", "").replace("Starting:", "").strip()
+                
+                cmd_text = Text.assemble(
+                    ("  ", ""),
+                    ("▶", "bold green"),
+                    (" EXEC ", "bold green"),
+                    ("│ ", "dim"),
+                    (command_info[:60] + "..." if len(command_info) > 60 else command_info, "white")
                 )
-                rich_console.print(default_text)
+                rich_console.print(cmd_text)
+                return
+            
+            # Command completion - simplified format  
+            elif "✅" in message or "Completed:" in message or "🏁 Finished:" in message:
+                result_info = message.replace("✅ Completed:", "").replace("🏁 Finished:", "").strip()
+                
+                result_text = Text.assemble(
+                    ("  ", ""),
+                    ("✓", "bold green"),
+                    (" DONE ", "bold green"),
+                    ("│ ", "dim"),
+                    (result_info, "green")
+                )
+                rich_console.print(result_text)
+                return
+            
+            # Discovery results - enhanced format
+            elif any(indicator in message for indicator in ["tcp/", "udp/", "/tcp", "/udp", "OPEN", "Found:", "Discovered"]):
+                discovery_text = Text.assemble(
+                    ("  ", ""),
+                    ("◉", "bold yellow"),
+                    (" FOUND", "bold yellow"),
+                    (" │ ", "dim"),
+                    (message, "yellow")
+                )
+                rich_console.print(discovery_text)
+                return
+            
+            # Pattern matches - enhanced format
+            elif "🔍 Found:" in message or "Match:" in message or "Matched Pattern:" in message:
+                pattern_info = message.replace("🔍 Found:", "").replace("Match:", "").replace("Matched Pattern:", "").strip()
+                
+                pattern_text = Text.assemble(
+                    ("  ", ""),
+                    ("🎯", "bold magenta"),
+                    (" MATCH", "bold magenta"),
+                    (" │ ", "dim"),
+                    (pattern_info, "magenta")
+                )
+                rich_console.print(pattern_text)
+                return
+            
+            # Error conditions - enhanced format
+            elif any(error_word in message.lower() for error_word in ["error", "failed", "timeout", "refused"]):
+                error_text = Text.assemble(
+                    ("  ", ""),
+                    ("✗", "bold red"),
+                    (" ERROR", "bold red"),
+                    (" │ ", "dim"),
+                    (message, "red")
+                )
+                rich_console.print(error_text)
+                return
+            
+            # Warning conditions
+            elif any(warn_word in message.lower() for warn_word in ["warning", "skipping", "disabled"]):
+                warn_text = Text.assemble(
+                    ("  ", ""),
+                    ("⚠", "bold yellow"),
+                    (" WARN ", "bold yellow"),
+                    (" │ ", "dim"),
+                    (message, "yellow")
+                )
+                rich_console.print(warn_text)
+                return
+            
+            # Default info message - simplified format
+            else:
+                info_text = Text.assemble(
+                    ("  ", ""),
+                    ("ⓘ", "bold blue"),
+                    (" INFO ", "bold blue"),
+                    (" │ ", "dim"),
+                    (message, "white")
+                )
+                rich_console.print(info_text)
         else:
             # Fallback to regular output
             cprint(*args, color=Fore.CYAN, char="*", sep=sep, end=end, file=file, **kvargs)
@@ -644,6 +651,36 @@ def fail(*args, sep=" ", end="\n", file=sys.stderr, **kvargs):
         rich_console.print(fail_text)
     else:
         cprint(*args, color=Fore.RED, char="!", sep=sep, end=end, file=file, frame_index=2, **kvargs)
+
+
+def show_phase_header(phase_name, description=None, target_info=None, verbosity=1):
+    """Display a clear phase header for major scanning stages only"""
+    # Only show phase headers for verbosity 1 or higher, and only for major phases
+    if config.get("verbose", 0) < verbosity:
+        return
+        
+    if not RICH_AVAILABLE or config.get("accessible", False):
+        info(f"=== {phase_name} ===")
+        if description:
+            info(description)
+        return
+
+    # Create a clean phase separator for major phases only
+    phase_text = Text.assemble(
+        ("\n", ""),
+        ("━━━ ", "bold cyan"),
+        (phase_name.upper(), "bold white"),
+        (" ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", "bold cyan"),
+        ("\n", "")
+    )
+    
+    if description:
+        phase_text.append(f"    {description}\n", style="dim")
+    
+    if target_info:
+        phase_text.append(f"    Target: {target_info}\n", style="blue")
+    
+    rich_console.print(phase_text)
 
 
 def show_scan_summary(target_count, total_time, findings_count=0):
@@ -1441,18 +1478,20 @@ class CommandStreamReader(object):
                 break
 
             if line != "":
-                # For verbosity 3, enhance with spider-style live output
+                # For verbosity 3, enhanced clean live output
                 if RICH_AVAILABLE and config["verbose"] >= 3 and not config["accessible"]:
-                    # Spider-style live output with web theme
+                    # Clean live output format with minimal visual noise
+                    trimmed_line = line.strip()
+                    if len(trimmed_line) > 80:
+                        trimmed_line = trimmed_line[:77] + "..."
+                    
                     live_text = Text.assemble(
-                        ("🕷️", "bold cyan"),
-                        ("  LIVE", "bold green"),
-                        ("      ", ""),
-                        ("📡", "bold blue"),
                         ("    ", ""),
-                        (f"[{self.target.address}/{self.tag}]", "dim"),
+                        ("│", "dim cyan"),
                         (" ", ""),
-                        (line.strip(), "white"),
+                        (f"{self.tag[:8]:<8}", "dim blue"),
+                        (" │ ", "dim"),
+                        (trimmed_line, "white")
                     )
                     rich_console.print(live_text)
                 else:
@@ -1490,16 +1529,15 @@ class CommandStreamReader(object):
                         async with self.target.lock:
                             with open(os.path.join(self.target.scandir, "_patterns.log"), "a") as file:
                                 if RICH_AVAILABLE and not config["accessible"]:
-                                    # Spider-style pattern match
+                                    # Clean pattern match display
                                     pattern_text = Text.assemble(
-                                        ("🕷️", "bold cyan"),
-                                        ("  HUNT", "bold green"),
-                                        ("      ", ""),
-                                        ("200", "bold green"),
-                                        ("    ", ""),
-                                        ("🎯 PREY", "bold magenta"),
-                                        ("      ", ""),
-                                        (description, "cyan"),
+                                        ("  ", ""),
+                                        ("🎯", "bold magenta"),
+                                        (" MATCH", "bold magenta"),
+                                        (" │ ", "dim"),
+                                        (f"{self.tag}", "dim blue"),
+                                        (" │ ", "dim"),
+                                        (description, "magenta")
                                     )
                                     rich_console.print(pattern_text)
                                 else:
@@ -1517,16 +1555,15 @@ class CommandStreamReader(object):
                     else:
                         pattern_match = line[match.start() : match.end()]
                         if RICH_AVAILABLE and not config["accessible"]:
-                            # Spider-style pattern match
+                            # Clean pattern match display
                             pattern_text = Text.assemble(
-                                ("🕷️", "bold cyan"),
-                                ("  HUNT", "bold green"),
-                                ("      ", ""),
-                                ("200", "bold green"),
-                                ("    ", ""),
-                                ("🎯 PREY", "bold magenta"),
-                                ("      ", ""),
-                                (f"Caught: {pattern_match}", "cyan"),
+                                ("  ", ""),
+                                ("🎯", "bold magenta"),
+                                (" MATCH", "bold magenta"),
+                                (" │ ", "dim"),
+                                (f"{self.tag}", "dim blue"),
+                                (" │ ", "dim"),
+                                (f"Pattern: {pattern_match}", "magenta")
                             )
                             rich_console.print(pattern_text)
                         else:
@@ -1659,100 +1696,76 @@ class LiveScanLoader:
             self._update_display()
     
     def _update_display(self):
-        """Update the live display with current scan status - highly visible format"""
+        """Update the live display with current scan status - clean, minimal format"""
         if not self.live_display or not self.active:
             return
             
         try:
             from rich.text import Text
             
-            # Create highly visible single-line status with background and enhanced styling
+            # Clean, minimal status display
             if not self.current_scans:
-                # No active scans - highly visible idle display
+                # No active scans - minimal idle display
                 status_text = Text.assemble(
-                    ("  ", ""),
-                    ("╔", "bold bright_cyan on black"),
-                    ("🕷️", "bold bright_cyan on black"),
-                    ("╗", "bold bright_cyan on black"),
-                    ("  ", "bold bright_green on black"),
-                    ("WEB DORMANT", "bold bright_green on black"),
-                    ("  ", "bold bright_green on black"),
-                    ("╚", "bold bright_cyan on black"),
-                    ("🕸️", "bold bright_cyan on black"),
-                    ("╝", "bold bright_cyan on black"),
-                    ("  ", "")
+                    ("● ", "bold green"),
+                    ("READY", "bold green"),
+                    (" | ", "dim"),
+                    ("Waiting for scans...", "dim")
                 )
             else:
-                # Active scans - highly visible format with background
+                # Active scans - clean minimal format
                 total_elapsed = time.time() - self.start_time
                 minutes, seconds = divmod(int(total_elapsed), 60)
                 elapsed_str = f"{minutes:02d}:{seconds:02d}"
                 
-                # Rotating spider animation with enhanced visibility
-                spinner_frames = ["🕷️", "🕸️", "🌐", "⚡", "🔍", "🎯"]
+                # Simple animation
+                spinner_frames = ["●", "○", "◐", "◑", "◒", "◓"]
                 current_frame = int(time.time() * 2) % len(spinner_frames)
-                spider_icon = spinner_frames[current_frame]
+                spinner = spinner_frames[current_frame]
                 
-                # Build highly visible scan list
                 scan_count = len(self.current_scans)
                 
                 if scan_count == 1:
-                    # Single scan - show detailed info with background
+                    # Single scan - clean format
                     scan_info = list(self.current_scans.values())[0]
                     scan_elapsed = time.time() - scan_info["start_time"]
                     scan_minutes, scan_seconds = divmod(int(scan_elapsed), 60)
                     scan_duration = f"{scan_minutes:02d}:{scan_seconds:02d}"
                     
                     command = scan_info["command"]
-                    if len(command) > 14:
-                        command = command[:11] + "..."
+                    if len(command) > 20:
+                        command = command[:17] + "..."
+                    
+                    target = scan_info["target"]
+                    if len(target) > 15:
+                        target = target[:12] + "..."
                     
                     status_text = Text.assemble(
-                        ("  ", ""),
-                        ("╔", "bold bright_cyan on black"),
-                        (spider_icon, "bold bright_cyan on black"),
-                        ("╗", "bold bright_cyan on black"),
-                        ("  ❬", "bold bright_white on black"),
-                        (f"{command.upper()}", "bold bright_green on black"),
-                        ("❭  ", "bold bright_white on black"),
-                        ("➤", "bold bright_magenta on black"),
-                        ("  ", "bold bright_magenta on black"),
-                        (f"{scan_info['target']}", "bold bright_yellow on black"),
-                        ("  ⏱", "bold bright_blue on black"),
-                        (f"{scan_duration}", "bold bright_blue on black"),
-                        ("  ", "bold bright_blue on black"),
-                        ("╚", "bold bright_cyan on black"),
-                        ("🕸️", "bold bright_cyan on black"),
-                        ("╝", "bold bright_cyan on black"),
-                        ("  ", "")
+                        (spinner, "bold cyan"),
+                        (" RUNNING", "bold cyan"),
+                        (" | ", "dim"),
+                        (command, "white"),
+                        (" on ", "dim"),
+                        (target, "yellow"),
+                        (" | ", "dim"),
+                        (scan_duration, "blue")
                     )
                 else:
-                    # Multiple scans - show summary with enhanced visibility
-                    # Get most recent scan for display
+                    # Multiple scans - show count and latest
                     latest_scan = max(self.current_scans.values(), key=lambda x: x.get("last_update", 0))
                     command = latest_scan["command"]
-                    if len(command) > 10:
-                        command = command[:7] + "..."
+                    if len(command) > 15:
+                        command = command[:12] + "..."
                     
                     status_text = Text.assemble(
-                        ("  ", ""),
-                        ("╔", "bold bright_cyan on black"),
-                        (spider_icon, "bold bright_cyan on black"),
-                        ("╗", "bold bright_cyan on black"),
-                        ("  ❬", "bold bright_white on black"),
-                        (f"{scan_count}", "bold bright_green on black"),
-                        (" SPIDERS", "bold bright_green on black"),
-                        ("❭  ", "bold bright_white on black"),
-                        ("⦿", "bold bright_magenta on black"),
-                        (" LATEST: ", "bold bright_magenta on black"),
-                        (f"{command.upper()}", "bold bright_yellow on black"),
-                        ("  ⏱", "bold bright_blue on black"),
-                        (f"{elapsed_str}", "bold bright_blue on black"),
-                        ("  ", "bold bright_blue on black"),
-                        ("╚", "bold bright_cyan on black"),
-                        ("🕸️", "bold bright_cyan on black"),
-                        ("╝", "bold bright_cyan on black"),
-                        ("  ", "")
+                        (spinner, "bold cyan"),
+                        (" ACTIVE", "bold cyan"),
+                        (" | ", "dim"),
+                        (f"{scan_count} scans", "green"),
+                        (" | Latest: ", "dim"),
+                        (command, "white"),
+                        (" | ", "dim"),
+                        (elapsed_str, "blue")
                     )
             
             # Update the live display
