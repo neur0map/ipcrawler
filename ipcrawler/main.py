@@ -1110,6 +1110,36 @@ async def port_scan(plugin, target):
         return {"type": "port", "plugin": plugin, "result": result}
 
 
+def is_expected_error(cmd, returncode):
+    """
+    Check if a command error is expected and should be ignored.
+    
+    Args:
+        cmd: The command that was executed
+        returncode: The return code from the process
+        
+    Returns:
+        bool: True if the error is expected and should be ignored
+    """
+    # Handle curl commands with common exit codes
+    if cmd.startswith("curl"):
+        # Exit code 22: HTTP page not retrieved (404, 403, etc.)
+        # Exit code 56: Failure in receiving network data
+        # Exit code 7: Failed to connect to host
+        # Exit code 28: Operation timeout
+        if returncode in [7, 22, 28, 56]:
+            return True
+    
+    # Handle whatweb commands - they often return 1 for various reasons but still provide useful output
+    if "whatweb" in cmd:
+        # whatweb exit code 1 is often just warnings or non-critical issues
+        if returncode == 1:
+            return True
+    
+    # Add other expected error patterns here as needed
+    return False
+
+
 async def service_scan(plugin, service):
     semaphore = service.target.ipcrawler.service_scan_semaphore
 
@@ -1273,9 +1303,7 @@ async def service_scan(plugin, service):
                     )
                     await process_dict["process"].wait()
 
-                if process_dict["process"].returncode != 0 and not (
-                    process_dict["cmd"].startswith("curl") and process_dict["process"].returncode in [22, 56]
-                ):
+                if process_dict["process"].returncode != 0 and not is_expected_error(process_dict["cmd"], process_dict["process"].returncode):
                     errors = []
                     while True:
                         line = await process_dict["stderr"].readline()
