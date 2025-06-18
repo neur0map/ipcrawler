@@ -43,8 +43,8 @@ threads = 15
 ext = 'txt,html,php,asp,aspx,jsp'
 # Enable recursive directory scanning
 recursive = true
-# Maximum scan time (seconds)
-timeout = 600
+# Maximum scan time (seconds) - removed to allow unlimited scan time
+# timeout = 600
 # Run multiple wordlists in parallel
 parallel-wordlists = true
 

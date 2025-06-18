@@ -35,11 +35,12 @@ class DirBuster(ServiceScan):
             help="The extensions you wish to fuzz (comma separated). Default: %(default)s",
         )
         self.add_true_option("recursive", help="Enable recursive directory busting. Default: %(default)s")
-        self.add_option(
-            "timeout",
-            default=600,
-            help="Maximum time in seconds for directory busting (10 minutes). Default: %(default)s",
-        )
+        # Timeout option removed to allow unlimited scan time
+        # self.add_option(
+        #     "timeout",
+        #     default=600,
+        #     help="Maximum time in seconds for directory busting (10 minutes). Default: %(default)s",
+        # )
         self.add_true_option(
             "parallel-wordlists",
             help="Run multiple wordlists in parallel instead of sequentially. Default: %(default)s"
@@ -49,11 +50,12 @@ class DirBuster(ServiceScan):
             default=3,
             help="Maximum recursion depth to prevent infinite loops. Default: %(default)s",
         )
-        self.add_option(
-            "request_timeout",
-            default=10,
-            help="Request timeout in seconds for each HTTP request. Default: %(default)s",
-        )
+        # Request timeout option removed to allow unlimited HTTP request time
+        # self.add_option(
+        #     "request_timeout",
+        #     default=10,
+        #     help="Request timeout in seconds for each HTTP request. Default: %(default)s",
+        # )
         self.add_option(
             "extras",
             default="",
@@ -103,7 +105,6 @@ class DirBuster(ServiceScan):
 
     async def run(self, service):
         dot_extensions = ",".join(["." + x for x in self.get_option("ext").split(",")])
-        timeout_seconds = self.get_option("timeout")
         max_depth = self.get_option("max_depth")
         
         # Respect user configuration - only use wordlists specified in global.toml/config
@@ -122,17 +123,17 @@ class DirBuster(ServiceScan):
         
         # Check if parallel wordlists is enabled
         if self.get_option("parallel-wordlists") and len(valid_wordlists) > 1:
-            await self._run_parallel_wordlists(service, valid_wordlists, timeout_seconds, max_depth, dot_extensions)
+            await self._run_parallel_wordlists(service, valid_wordlists, max_depth, dot_extensions)
         else:
-            await self._run_sequential_wordlists(service, valid_wordlists, timeout_seconds, max_depth, dot_extensions)
+            await self._run_sequential_wordlists(service, valid_wordlists, max_depth, dot_extensions)
 
-    async def _run_sequential_wordlists(self, service, valid_wordlists, timeout_seconds, max_depth, dot_extensions):
+    async def _run_sequential_wordlists(self, service, valid_wordlists, max_depth, dot_extensions):
         """Run wordlists sequentially (original behavior)"""
         for wordlist in valid_wordlists:
             name = os.path.splitext(os.path.basename(wordlist))[0]
             if self.get_option("tool") == "feroxbuster":
                 cmd = (
-                    "timeout " + str(timeout_seconds) + " feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t "
+                    "feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t "
                     + str(self.get_option("threads"))
                     + ' -w "'
                     + wordlist
@@ -140,7 +141,6 @@ class DirBuster(ServiceScan):
                     + self.get_option("ext")
                     + '" -v -k '
                     + ("--depth " + str(max_depth) + " " if self.get_option("recursive") else "-n ")
-                    + '--timeout ' + str(self.get_option("request_timeout")) + ' '
                     + '--rate-limit 300 '  # Prevent overwhelming HTB machines
                     + '--auto-bail '  # Stop if too many errors
                     + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_'
@@ -152,14 +152,13 @@ class DirBuster(ServiceScan):
 
             elif self.get_option("tool") == "gobuster":
                 cmd = (
-                    "timeout " + str(timeout_seconds) + " gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t "
+                    "gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t "
                     + str(self.get_option("threads"))
                     + ' -w "'
                     + wordlist
                     + '" -e -k -x "'
                     + self.get_option("ext")
-                    + '" --timeout ' + str(self.get_option("request_timeout")) + 's '
-                    + '--delay 200ms '  # Small delay to prevent overwhelming
+                    + '" --delay 200ms '  # Small delay to prevent overwhelming
                     + '-z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_'
                     + name
                     + '.txt"'
@@ -172,7 +171,7 @@ class DirBuster(ServiceScan):
                     service.error("dirsearch does not support IPv6.")
                 else:
                     cmd = (
-                        "timeout " + str(timeout_seconds) + " dirsearch -u {http_scheme}://{address}:{port}/ -t "
+                        "dirsearch -u {http_scheme}://{address}:{port}/ -t "
                         + str(self.get_option("threads"))
                         + ' -e "'
                         + self.get_option("ext")
@@ -189,7 +188,7 @@ class DirBuster(ServiceScan):
 
             elif self.get_option("tool") == "ffuf":
                 cmd = (
-                    "timeout " + str(timeout_seconds) + " ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t "
+                    "ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t "
                     + str(self.get_option("threads"))
                     + ' -w "'
                     + wordlist
@@ -207,7 +206,7 @@ class DirBuster(ServiceScan):
 
             elif self.get_option("tool") == "dirb":
                 cmd = (
-                    'timeout ' + str(timeout_seconds) + ' dirb {http_scheme}://{addressv6}:{port}/ "'
+                    'dirb {http_scheme}://{addressv6}:{port}/ "'
                     + wordlist
                     + '" -l '
                     + ("" if self.get_option("recursive") else "-r ")
@@ -306,7 +305,7 @@ class DirBuster(ServiceScan):
                 ],
             )
 
-    async def _run_parallel_wordlists(self, service, valid_wordlists, timeout_seconds, max_depth, dot_extensions):
+    async def _run_parallel_wordlists(self, service, valid_wordlists, max_depth, dot_extensions):
         """Run multiple wordlists in parallel"""
         import asyncio
         
@@ -315,7 +314,7 @@ class DirBuster(ServiceScan):
         # Create tasks for each wordlist
         tasks = []
         for wordlist in valid_wordlists:
-            task = self._run_single_wordlist(service, wordlist, timeout_seconds, max_depth, dot_extensions)
+            task = self._run_single_wordlist(service, wordlist, max_depth, dot_extensions)
             tasks.append(task)
         
         # Run all wordlists in parallel
@@ -331,16 +330,13 @@ class DirBuster(ServiceScan):
         
         service.info(f"✅ Completed parallel directory busting - {successful}/{len(valid_wordlists)} wordlists successful")
 
-    async def _run_single_wordlist(self, service, wordlist, timeout_seconds, max_depth, dot_extensions):
+    async def _run_single_wordlist(self, service, wordlist, max_depth, dot_extensions):
         """Run directory busting with a single wordlist"""
         name = os.path.splitext(os.path.basename(wordlist))[0]
         
-        # Reduce timeout for parallel runs to prevent one wordlist from blocking others
-        parallel_timeout = min(timeout_seconds // 3, 300)  # Max 5 minutes per wordlist in parallel mode
-        
         if self.get_option("tool") == "feroxbuster":
             cmd = (
-                "timeout " + str(parallel_timeout) + " feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t "
+                "feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t "
                 + str(self.get_option("threads"))
                 + ' -w "'
                 + wordlist
@@ -348,7 +344,6 @@ class DirBuster(ServiceScan):
                 + self.get_option("ext")
                 + '" -v -k '
                 + ("--depth " + str(max_depth) + " " if self.get_option("recursive") else "-n ")
-                + '--timeout ' + str(self.get_option("request_timeout")) + ' '
                 + '--rate-limit 300 '  # Prevent overwhelming HTB machines
                 + '--auto-bail '  # Stop if too many errors
                 + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_'
@@ -360,14 +355,13 @@ class DirBuster(ServiceScan):
 
         elif self.get_option("tool") == "gobuster":
             cmd = (
-                "timeout " + str(parallel_timeout) + " gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t "
+                "gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t "
                 + str(self.get_option("threads"))
                 + ' -w "'
                 + wordlist
                 + '" -e -k -x "'
                 + self.get_option("ext")
-                + '" --timeout ' + str(self.get_option("request_timeout")) + 's '
-                + '--delay 200ms '  # Small delay to prevent overwhelming
+                + '" --delay 200ms '  # Small delay to prevent overwhelming
                 + '-z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_'
                 + name
                 + '.txt"'
@@ -380,7 +374,7 @@ class DirBuster(ServiceScan):
                 service.error("dirsearch does not support IPv6.")
             else:
                 cmd = (
-                    "timeout " + str(parallel_timeout) + " dirsearch -u {http_scheme}://{address}:{port}/ -t "
+                    "dirsearch -u {http_scheme}://{address}:{port}/ -t "
                     + str(self.get_option("threads"))
                     + ' -e "'
                     + self.get_option("ext")
@@ -397,7 +391,7 @@ class DirBuster(ServiceScan):
 
         elif self.get_option("tool") == "ffuf":
             cmd = (
-                "timeout " + str(parallel_timeout) + " ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t "
+                "ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t "
                 + str(self.get_option("threads"))
                 + ' -w "'
                 + wordlist
@@ -415,7 +409,7 @@ class DirBuster(ServiceScan):
 
         elif self.get_option("tool") == "dirb":
             cmd = (
-                'timeout ' + str(parallel_timeout) + ' dirb {http_scheme}://{addressv6}:{port}/ "'
+                'dirb {http_scheme}://{addressv6}:{port}/ "'
                 + wordlist
                 + '" -l '
                 + ("" if self.get_option("recursive") else "-r ")
