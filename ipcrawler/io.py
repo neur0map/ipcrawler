@@ -20,6 +20,16 @@ except ImportError:
     RICH_AVAILABLE = False
     rich_console = None
 
+# Import our clean live status system
+try:
+    from ipcrawler.live_status import (
+        live_status, start_live_status, stop_live_status, 
+        update_status, add_scan, complete_scan, add_finding
+    )
+    LIVE_STATUS_AVAILABLE = True
+except ImportError:
+    LIVE_STATUS_AVAILABLE = False
+
 
 def get_ipcrawler_ascii():
     """Generate creepy ASCII art for ipcrawler startup"""
@@ -406,137 +416,155 @@ def info(*args, sep=" ", end="\n", file=sys.stdout, **kvargs):
         if RICH_AVAILABLE and not config.get("accessible", False):
             message = sep.join(str(arg) for arg in args)
             
-            # Plugin execution start - simple format (only show at verbosity 2+)
+            # Plugin execution start - clean format with live status update
             if "running against" in message and any(x in message for x in ["Service scan", "Port scan"]):
-                # Only show individual plugin starts at verbosity 2 or higher
+                # Extract plugin name and target from message
+                plugin_name = "Unknown"
+                target_info = "target"
+                
+                if "Service scan" in message:
+                    parts = message.split("Service scan")
+                    if len(parts) > 1:
+                        remaining = parts[1].strip()
+                        if " running against " in remaining:
+                            plugin_part, target_part = remaining.split(" running against ", 1)
+                            plugin_name = plugin_part.strip()
+                            target_info = target_part.strip()
+                elif "Port scan" in message:
+                    parts = message.split("Port scan")
+                    if len(parts) > 1:
+                        remaining = parts[1].strip()
+                        if " running against " in remaining:
+                            plugin_part, target_part = remaining.split(" running against ", 1)
+                            plugin_name = plugin_part.strip()
+                            target_info = target_part.strip()
+                
+                # Update live status instead of printing
+                if LIVE_STATUS_AVAILABLE:
+                    add_scan(plugin_name, target_info)
+                
+                # Only show in verbose mode 2+
                 if config.get("verbose", 0) >= 2:
-                    # Extract plugin name and target from message
-                    plugin_name = "Unknown"
-                    target_info = "target"
-                    scan_type = "SCAN"
-                    
-                    if "Service scan" in message:
-                        scan_type = "SERVICE"
-                        parts = message.split("Service scan")
-                        if len(parts) > 1:
-                            remaining = parts[1].strip()
-                            # Extract plugin name from the format "Plugin_Name running against target:port"
-                            if " running against " in remaining:
-                                plugin_part, target_part = remaining.split(" running against ", 1)
-                                plugin_name = plugin_part.strip()
-                                target_info = target_part.strip()
-                    elif "Port scan" in message:
-                        scan_type = "PORT"
-                        parts = message.split("Port scan")
-                        if len(parts) > 1:
-                            remaining = parts[1].strip()
-                            if " running against " in remaining:
-                                plugin_part, target_part = remaining.split(" running against ", 1)
-                                plugin_name = plugin_part.strip()
-                                target_info = target_part.strip()
-                    
-                    # Simple one-line format instead of big phase box
                     plugin_text = Text.assemble(
-                        ("  ", ""),
-                        ("▶", "bold green"),
-                        (f" {scan_type}", "bold green"),
-                        (" │ ", "dim"),
+                        ("▶", "green"),
+                        (" ", ""),
                         (plugin_name, "white"),
                         (" → ", "dim"),
                         (target_info, "cyan")
                     )
                     rich_console.print(plugin_text)
-                # At verbosity 1, these messages are completely suppressed
                 return
             
-            # Command execution start - simplified format
+            # Command execution start - update live status
             elif "Starting:" in message or "🚀 Started:" in message:
                 command_info = message.replace("🚀 Started:", "").replace("Starting:", "").strip()
                 
-                cmd_text = Text.assemble(
-                    ("  ", ""),
-                    ("▶", "bold green"),
-                    (" EXEC ", "bold green"),
-                    ("│ ", "dim"),
-                    (command_info[:60] + "..." if len(command_info) > 60 else command_info, "white")
-                )
-                rich_console.print(cmd_text)
+                # Update live status
+                if LIVE_STATUS_AVAILABLE:
+                    # Extract tool and target from command
+                    cmd_parts = command_info.split()
+                    tool = cmd_parts[0] if cmd_parts else "unknown"
+                    update_status(tool=tool)
+                
+                # Only show in verbose mode 2+
+                if config.get("verbose", 0) >= 2:
+                    cmd_text = Text.assemble(
+                        ("▶", "green"),
+                        (" ", ""),
+                        (command_info[:60] + "..." if len(command_info) > 60 else command_info, "white")
+                    )
+                    rich_console.print(cmd_text)
                 return
             
-            # Command completion - simplified format  
+            # Command completion - update live status
             elif "✅" in message or "Completed:" in message or "🏁 Finished:" in message:
                 result_info = message.replace("✅ Completed:", "").replace("🏁 Finished:", "").strip()
                 
-                result_text = Text.assemble(
-                    ("  ", ""),
-                    ("✓", "bold green"),
-                    (" DONE ", "bold green"),
-                    ("│ ", "dim"),
-                    (result_info, "green")
-                )
-                rich_console.print(result_text)
+                # Update live status
+                if LIVE_STATUS_AVAILABLE:
+                    # Try to extract tool and target for completion
+                    parts = result_info.split()
+                    if len(parts) >= 2:
+                        tool = parts[0]
+                        target = parts[-1] if ":" in parts[-1] else "unknown"
+                        complete_scan(tool, target)
+                
+                # Only show in verbose mode 2+
+                if config.get("verbose", 0) >= 2:
+                    result_text = Text.assemble(
+                        ("✓", "green"),
+                        (" ", ""),
+                        (result_info, "dim")
+                    )
+                    rich_console.print(result_text)
                 return
             
-            # Discovery results - enhanced format
+            # Discovery results - clean format with live status update
             elif any(indicator in message for indicator in ["tcp/", "udp/", "/tcp", "/udp", "OPEN", "Found:", "Discovered"]):
-                discovery_text = Text.assemble(
-                    ("  ", ""),
-                    ("◉", "bold yellow"),
-                    (" FOUND", "bold yellow"),
-                    (" │ ", "dim"),
-                    (message, "yellow")
-                )
-                rich_console.print(discovery_text)
+                # Update findings counter
+                if LIVE_STATUS_AVAILABLE:
+                    add_finding()
+                
+                # Clean discovery format - only show significant discoveries
+                if config.get("verbose", 0) >= 1:
+                    # Extract the important part
+                    if "OPEN" in message or "Found:" in message or "Discovered" in message:
+                        discovery_text = Text.assemble(
+                            ("●", "yellow"),
+                            (" ", ""),
+                            (message, "white")
+                        )
+                        rich_console.print(discovery_text)
                 return
             
-            # Pattern matches - enhanced format
+            # Pattern matches - important findings
             elif "🔍 Found:" in message or "Match:" in message or "Matched Pattern:" in message:
                 pattern_info = message.replace("🔍 Found:", "").replace("Match:", "").replace("Matched Pattern:", "").strip()
                 
-                pattern_text = Text.assemble(
-                    ("  ", ""),
-                    ("🎯", "bold magenta"),
-                    (" MATCH", "bold magenta"),
-                    (" │ ", "dim"),
-                    (pattern_info, "magenta")
-                )
-                rich_console.print(pattern_text)
+                # Update findings counter
+                if LIVE_STATUS_AVAILABLE:
+                    add_finding()
+                
+                # Show pattern matches - these are important
+                if config.get("verbose", 0) >= 1:
+                    pattern_text = Text.assemble(
+                        ("●", "magenta"),
+                        (" MATCH ", "magenta"),
+                        (pattern_info, "white")
+                    )
+                    rich_console.print(pattern_text)
                 return
             
-            # Error conditions - enhanced format
+            # Error conditions - always show errors
             elif any(error_word in message.lower() for error_word in ["error", "failed", "timeout", "refused"]):
                 error_text = Text.assemble(
-                    ("  ", ""),
-                    ("✗", "bold red"),
-                    (" ERROR", "bold red"),
-                    (" │ ", "dim"),
+                    ("✗", "red"),
+                    (" ", ""),
                     (message, "red")
                 )
                 rich_console.print(error_text)
                 return
             
-            # Warning conditions
+            # Warning conditions - show in verbose mode
             elif any(warn_word in message.lower() for warn_word in ["warning", "skipping", "disabled"]):
-                warn_text = Text.assemble(
-                    ("  ", ""),
-                    ("⚠", "bold yellow"),
-                    (" WARN ", "bold yellow"),
-                    (" │ ", "dim"),
-                    (message, "yellow")
-                )
-                rich_console.print(warn_text)
+                if config.get("verbose", 0) >= 2:
+                    warn_text = Text.assemble(
+                        ("⚠", "yellow"),
+                        (" ", ""),
+                        (message, "dim")
+                    )
+                    rich_console.print(warn_text)
                 return
             
-            # Default info message - simplified format
+            # Default info message - only in high verbosity
             else:
-                info_text = Text.assemble(
-                    ("  ", ""),
-                    ("ⓘ", "bold blue"),
-                    (" INFO ", "bold blue"),
-                    (" │ ", "dim"),
-                    (message, "white")
-                )
-                rich_console.print(info_text)
+                if config.get("verbose", 0) >= 3:
+                    info_text = Text.assemble(
+                        ("·", "dim"),
+                        (" ", ""),
+                        (message, "dim")
+                    )
+                    rich_console.print(info_text)
         else:
             # Fallback to regular output
             cprint(*args, color=Fore.CYAN, char="*", sep=sep, end=end, file=file, **kvargs)
@@ -717,546 +745,87 @@ def show_scan_summary(target_count, total_time, findings_count=0):
     rich_console.print(summary_panel)
 
 
-class ProgressManager:
+class SimpleProgressManager:
+    """Simplified progress manager that integrates with live status"""
     def __init__(self):
         self.active = False
-        self.tasks = {}
-        self.task_keys = {}  # Track existing progress bars by unique key
-        self.progress = None
-        self.live = None
-        self.console = None
-        self._update_lock = None  # Lock to prevent concurrent updates
 
     def start(self):
-        """Start the progress manager with spider theme"""
-        debug(
-            f"ProgressManager.start() called - RICH_AVAILABLE: {RICH_AVAILABLE}, accessible: {config.get('accessible', False)}",
-            verbosity=3,
-        )
-
-        if RICH_AVAILABLE and not config.get("accessible", False):
-            try:
-                import sys
-                import os
-                
-                # Create a dedicated console for progress bars with proper fallback
-                try:
-                    # Try to use stderr as the output stream for progress bars
-                    # This ensures they're visible but separate from regular stdout
-                    progress_file = sys.stderr
-                except Exception:
-                    # Ultimate fallback to stdout if stderr fails
-                    progress_file = sys.stdout
-                
-                # Create a simpler, more robust console for progress only
-                self.console = Console(
-                    file=progress_file, 
-                    force_terminal=True, 
-                    width=120,
-                    stderr=True
-                )
-                
-                # Create custom spider-themed spinner
-                from rich.spinner import Spinner
-                spider_frames = ["🕷️ ", "🕸️ ", "🌐 ", "⚡ ", "🔍 ", "🎯 "]
-                
-                # Create Rich progress display with spider theme
-                self.progress = Progress(
-                    # Custom spider spinner
-                    SpinnerColumn(spinner="dots", style="bold cyan"),
-                    # Spider icon and description
-                    TextColumn("🕷️ [bold cyan]{task.description}", justify="left"),
-                    # Custom web-themed progress bar
-                    BarColumn(
-                        bar_width=40, 
-                        style="dim cyan", 
-                        complete_style="bold green", 
-                        finished_style="bold green",
-                        pulse_style="cyan"
-                    ),
-                    # Task progress with spider emoji
-                    TaskProgressColumn(show_speed=False, text_format="[progress.percentage]{task.percentage:>3.0f}%"),
-                    # Time with spider theme
-                    TextColumn("🌐"),
-                    TimeElapsedColumn(),
-                    console=self.console,
-                    refresh_per_second=2,  # Reduced refresh rate to prevent event spam
-                    expand=False,
-                    speed_estimate_period=30,
-                    transient=False,  # Keep bars to avoid removal conflicts
-                    auto_refresh=True,  # Enable auto refresh
-                )
-                
-                # Use Live display with aggressive refresh settings
-                self.live = Live(
-                    self.progress,
-                    console=self.console,
-                    refresh_per_second=4,  # Higher refresh rate for immediate updates
-                    redirect_stdout=False,  # Don't interfere with stdout
-                    redirect_stderr=False,  # Don't interfere with stderr logging
-                    auto_refresh=True,
-                    transient=True  # Remove completed display to avoid clutter
-                )
-                
-                # Start the Live display
-                self.live.start()
-                self.active = True
-                debug("🕷️ Spider progress manager deployed (Rich Live mode)", verbosity=3)
-                
-            except Exception as e:
-                debug(f"Failed to deploy spider progress manager: {e}, falling back to text mode", verbosity=3)
-                # Fallback to text mode
-                self.progress = None
-                self.live = None
-                self.console = None
-                self.active = True
-        else:
-            # Text mode fallback
-            self.progress = None
-            self.live = None
-            self.console = None  
-            self.active = True
-            debug("🕷️ Spider progress manager deployed (text mode)", verbosity=3)
-        
-        # Initialize async lock for thread-safe updates
-        import asyncio
-        try:
-            self._update_lock = asyncio.Lock()
-        except RuntimeError:
-            # If no event loop, create a basic lock placeholder
-            self._update_lock = None
+        """Start the simplified progress manager"""
+        self.active = True
+        # Start our clean live status instead
+        if LIVE_STATUS_AVAILABLE:
+            start_live_status()
 
     def add_task(self, description, total=100, task_key=None):
-        """Add a new spider task, or reuse existing one if task_key matches"""
-        debug(f"🕷️ add_task called: {description}, active: {self.active}, task_key: {task_key}", verbosity=3)
+        """Simplified task addition - just return a dummy task ID"""
         if not self.active:
-            debug("🕸️ Spider manager not deployed, returning None", verbosity=3)
             return None
-
-        # Aggressive deduplication: if task_key exists and has any active task, reuse it
-        if task_key and task_key in self.task_keys:
-            existing_task_ids = self.task_keys[task_key]
-            # Check all tasks with this key
-            for existing_task_id in existing_task_ids[:]:  # Create copy to avoid modification during iteration
-                if existing_task_id in self.tasks:
-                    task = self.tasks[existing_task_id]
-                    # If task is not explicitly completed, reuse it
-                    if not task.get("completed_flag", False) and not task.get("scan_completed", False):
-                        debug(f"🕸️ Reusing active spider thread {existing_task_id} for key {task_key}", verbosity=3)
-                        # Reset the task description and total if needed
-                        task["description"] = description
-                        task["total"] = total
-                        task["last_update"] = time.time()
-                        return existing_task_id
-                else:
-                    # Clean up stale task ID from the list
-                    existing_task_ids.remove(existing_task_id)
-                    debug(f"🧹 Removed stale thread ID {existing_task_id} from web {task_key}", verbosity=3)
-            
-            # If no active tasks remain, clean up the empty key
-            if not existing_task_ids:
-                del self.task_keys[task_key]
-                debug(f"🧹 Cleaned up empty web node {task_key}", verbosity=3)
-
-        # Clean up any truly stale tasks before creating new ones
-        self.clean_stale_tasks()
-
-        if self.progress and self.live and self.live.is_started:
-            # Use Rich progress bar with Live display and spider theme
-            try:
-                # Enhance description with spider terminology
-                spider_description = f"Crawling: {description}"
-                task_id = self.progress.add_task(spider_description, total=total)
-                self.tasks[task_id] = {
-                    "description": spider_description,
-                    "started": time.time(),
-                    "total": total,
-                    "completed": 0,
-                    "last_update": time.time(),
-                    "rich_task": True,
-                    "task_key": task_key,
-                    "completed_flag": False,
-                    "scan_completed": False,
-                    "completion_message_shown": False,
-                }
-                # Store the mapping for cleanup and deduplication
-                if task_key:
-                    if task_key not in self.task_keys:
-                        self.task_keys[task_key] = []
-                    self.task_keys[task_key].append(task_id)
-                
-                debug(f"🕷️ Spider thread {task_id} deployed: {spider_description}", verbosity=3)
-                
-                # Start a progress updater for this task
-                if hasattr(asyncio, 'create_task'):
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            loop.create_task(self._progress_updater(task_id, 60))  # 60 second default duration
-                    except RuntimeError:
-                        # No event loop running
-                        pass
-                
-                return task_id
-            except Exception as e:
-                debug(f"Error deploying spider thread: {e}", verbosity=3)
-                # Fall through to text mode
-        else:
-            # Fallback to simple tracking with spider theme
-            task_id = len(self.tasks) + 1
-            spider_description = f"Crawling: {description}"
-            self.tasks[task_id] = {
-                "description": spider_description,
-                "started": time.time(),
-                "total": total,
-                "completed": 0,
-                "last_update": time.time(),
-                "rich_task": False,
-                "task_key": task_key,
-                "completed_flag": False,
-                "scan_completed": False,
-                "completion_message_shown": False,
-            }
-            # Store the mapping for cleanup and deduplication
-            if task_key:
-                if task_key not in self.task_keys:
-                    self.task_keys[task_key] = []
-                self.task_keys[task_key].append(task_id)
-                
-            info(f"⚡ Spider deployed: {description}", verbosity=2)
-            debug(f"🕷️ Text spider {task_id} deployed: {spider_description} (web: {task_key})", verbosity=3)
-
-        return task_id
+        
+        # Just return a simple task ID
+        return f"task_{int(time.time() * 1000)}"
 
     def update_task(self, task_id, advance=1):
-        """Update progress on a task"""
-        if not self.active or task_id is None or task_id not in self.tasks:
-            debug(f"update_task: spider {task_id} not found or web inactive", verbosity=3)
-            return
-
-        try:
-            task = self.tasks[task_id]
-            
-            # Don't update if task is already completed
-            if task.get("completed_flag", False):
-                debug(f"update_task: spider {task_id} already completed, skipping update", verbosity=3)
-                return
-                
-            task["completed"] += advance
-            task["last_update"] = time.time()
-
-            if task.get("rich_task", False) and self.progress:
-                # Update Rich progress bar, but avoid triggering completion events
-                try:
-                    # Ensure we don't go over 95% to avoid Rich completion callbacks
-                    max_progress = min(task["completed"], task["total"] * 0.95)
-                    self.progress.update(task_id, completed=max_progress)
-                except Exception as e:
-                    debug(f"Error updating Rich progress for spider {task_id}: {e}", verbosity=3)
-            else:
-                # Simple text completion message for non-Rich tasks
-                if task["completed"] >= task["total"] and not task.get("completion_message_shown", False):
-                    task["completion_message_shown"] = True
-                    info(f"✅ Completed: {task['description']}", verbosity=1)
-
-        except Exception as e:
-            debug(f"Error updating spider task {task_id}: {e}", verbosity=3)
+        """Simplified task update - does nothing""" 
+        pass
 
     def complete_task(self, task_id):
-        """Complete a spider task and schedule its removal"""
-        if not self.active or task_id is None or task_id not in self.tasks:
-            debug(f"complete_task: spider {task_id} not found or web inactive", verbosity=3)
-            return
-
-        try:
-            task = self.tasks[task_id]
-
-            # Check if task was already completed
-            if task.get("completed_flag", False):
-                debug(f"Spider {task_id} already caught prey, skipping duplicate completion", verbosity=3)
-                return
-
-            # Mark as completed to prevent duplicate completion
-            task["completed_flag"] = True
-            task["scan_completed"] = True  # Signal to progress updater to stop
-            elapsed = time.time() - task["started"]
-            
-            debug(f"🕸️ Spider {task_id} task complete: {task.get('description', 'Unknown')} (hunt took {elapsed:.1f}s)", verbosity=3)
-
-            # Show completion message only once
-            if not task.get("completion_message_shown", False):
-                task["completion_message_shown"] = True
-                
-                if task.get("rich_task", False) and self.progress:
-                    try:
-                        # Complete Rich progress bar to 100%
-                        self.progress.update(task_id, completed=task["total"])
-                        debug(f"🕷️ Spider web {task_id} updated to 100%", verbosity=3)
-                        
-                        # Show completion message only once
-                        if RICH_AVAILABLE and not config.get("accessible", False):
-                            completion_text = Text.assemble(
-                                ("🕷️", "bold cyan"),
-                                ("  DONE", "bold green"),
-                                ("      ", ""),
-                                ("200", "bold green"),
-                                ("    ", ""),
-                                ("🕸️ SUCCESS", "bold green"),
-                                ("   ", ""),
-                                (task.get('description', 'Unknown task'), "white")
-                            )
-                            rich_console.print(completion_text)
-                        
-                    except Exception as e:
-                        debug(f"Error updating spider web {task_id}: {e}", verbosity=3)
-                else:
-                    # Show text completion message with spider theme
-                    info(f"🕸️ Web complete: {task['description']} (hunt took {elapsed:.1f}s)", verbosity=1)
-
-            # Remove task immediately with enhanced cleanup
-            self._remove_task_sync_enhanced(task_id)
-                
-        except Exception as e:
-            debug(f"Error completing spider task {task_id}: {e}", verbosity=3)
-
-    async def _remove_task_after_delay(self, task_id, delay=0.1):
-        """Remove completed task after very short delay"""
-        await asyncio.sleep(delay)
-        
-        # Double-check task still exists and manager is active
-        if not self.active or task_id not in self.tasks:
-            debug(f"_remove_task_after_delay: spider {task_id} already removed or manager inactive", verbosity=3)
-            return
-            
-        self._remove_task_sync_enhanced(task_id)
-
-    def _remove_task_sync(self, task_id):
-        """Synchronously remove a spider task with immediate Rich display update"""
-        return self._remove_task_sync_enhanced(task_id)
-
-    def _remove_task_sync_enhanced(self, task_id):
-        """Enhanced synchronous removal with better Rich progress bar cleanup"""
-        if task_id not in self.tasks:
-            debug(f"Spider {task_id} already removed from web", verbosity=3)
-            return
-            
-        task = self.tasks[task_id]
-        task_key = task.get("task_key")
-        
-        # First mark as completed to prevent any further processing
-        task["completed_flag"] = True
-        task["scan_completed"] = True
-        task["marked_for_removal"] = True
-        
-        # Remove from Rich progress with enhanced cleanup
-        if self.progress and hasattr(self.progress, 'remove_task'):
-            try:
-                # Immediately remove the task from Rich progress
-                self.progress.remove_task(task_id)
-                
-                # Force immediate refresh to hide the progress bar
-                if self.live and hasattr(self.live, 'refresh'):
-                    self.live.refresh()
-                    
-                debug(f"🕷️ Spider web {task_id} removed successfully", verbosity=3)
-            except Exception as e:
-                debug(f"Error removing spider web {task_id}: {e}", verbosity=3)
-        
-        # Clean up task key mapping
-        if task_key and task_key in self.task_keys:
-            if task_id in self.task_keys[task_key]:
-                self.task_keys[task_key].remove(task_id)
-                debug(f"🕸️ Spider ID {task_id} removed from web node {task_key}", verbosity=3)
-                
-                # Remove empty task key mappings
-                if not self.task_keys[task_key]:
-                    del self.task_keys[task_key]
-                    debug(f"🧹 Web node {task_key} removed from mapping (no more spiders)", verbosity=3)
-        
-        # Remove from internal tracking
-        del self.tasks[task_id]
-        debug(f"🕷️ Spider task {task_id} removed from web", verbosity=3)
-
-    def simulate_progress(self, task_id, duration=10):
-        """Simulate spider crawling progress for long-running tasks"""
-        if not self.active or task_id is None or task_id not in self.tasks:
-            return
-
-        # Update progress gradually during the scan
-        asyncio.create_task(self._progress_updater(task_id, duration))
-
-    async def _progress_updater(self, task_id, duration):
-        """Gradually update spider crawling progress over duration"""
-        if not self.active or task_id not in self.tasks:
-            return
-
-        start_time = time.time()
-        last_progress_value = 0
-        task = self.tasks[task_id]
-
-        while self.active:
-            try:
-                # Check if task still exists before accessing it
-                if task_id not in self.tasks:
-                    debug(f"🕸️ Spider progress updater: thread {task_id} no longer in web, stopping", verbosity=3)
-                    break
-
-                # Check if scan has completed
-                if self.tasks[task_id].get("scan_completed", False):
-                    debug(f"🕷️ Spider progress updater: hunt completed for thread {task_id}, returning to web", verbosity=3)
-                    break
-
-                elapsed = time.time() - start_time
-
-                # More realistic spider crawling progress curve
-                if elapsed < duration * 0.8:
-                    # Fast progress up to 70% within 80% of estimated duration (spider moving quickly)
-                    progress_percent = (elapsed / (duration * 0.8)) * 70
-                elif elapsed < duration:
-                    # Slower progress from 70% to 85% (spider being more careful)
-                    remaining_progress = ((elapsed - duration * 0.8) / (duration * 0.2)) * 15
-                    progress_percent = 70 + remaining_progress
-                else:
-                    # After estimated duration, slowly approach 92-95% but leave room for completion
-                    overtime = elapsed - duration
-                    # Cap at 95% to leave room for actual completion (spider almost done)
-                    progress_percent = min(95, 85 + (10 * (1 - math.exp(-overtime / 120))))  # 2min time constant
-
-                # Convert percentage to actual progress value based on task total
-                current_progress_value = (progress_percent / 100) * task["total"]
-                
-                # Calculate how much to advance since last update
-                advance_amount = current_progress_value - last_progress_value
-                
-                if advance_amount > 0:
-                    # Check if task is still active before updating
-                    if self.tasks[task_id].get("completed_flag", False):
-                        debug(f"🕷️ Spider progress updater: task {task_id} completed, stopping updates", verbosity=3)
-                        break
-                        
-                    # For Rich tasks, update directly with safe locking
-                    if task.get("rich_task", False) and self.progress:
-                        try:
-                            # Cap progress at 95% to avoid Rich completion triggers
-                            max_progress = min(current_progress_value, task["total"] * 0.95)
-                            
-                            # Use locking if available to prevent conflicts
-                            if self._update_lock:
-                                async with self._update_lock:
-                                    self.progress.update(task_id, completed=max_progress)
-                                    self.tasks[task_id]["completed"] = max_progress
-                                    self.tasks[task_id]["last_update"] = time.time()
-                            else:
-                                self.progress.update(task_id, completed=max_progress)
-                                self.tasks[task_id]["completed"] = max_progress
-                                self.tasks[task_id]["last_update"] = time.time()
-                        except Exception as e:
-                            debug(f"Error updating spider web thread {task_id}: {e}", verbosity=3)
-                    else:
-                        # Use the proper update_task method which handles milestones
-                        self.update_task(task_id, advance=advance_amount)
-                    
-                    last_progress_value = current_progress_value
-
-            except Exception as e:
-                debug(f"🕷️ Spider progress updater error for thread {task_id}: {e}", verbosity=3)
-                break
-
-            # Update every 1 second for responsive progress bars (spider moving)
-            await asyncio.sleep(1.0)  
-            
-            # Periodically clean up stale tasks (every 60 seconds) - web maintenance
-            if elapsed % 60 < 1.0:  # Check every 60 seconds
-                self.clean_stale_tasks()
-
-        debug(f"🕸️ Spider progress updater for thread {task_id} returned to web", verbosity=3)
-
-    def clean_stale_tasks(self):
-        """Clean up any stale or completed spider tasks that weren't properly removed from the web"""
-        if not self.active:
-            return
-            
-        current_time = time.time()
-        stale_tasks = []
-        
-        for task_id, task in list(self.tasks.items()):
-            # Only remove tasks that have been completed AND marked for removal
-            # Don't auto-remove completed tasks as they should be removed by complete_task()
-            if task.get("completed_flag", False) and task.get("marked_for_removal", False):
-                stale_tasks.append(task_id)
-            # Remove tasks that haven't been updated in more than 300 seconds (5 minutes) - spider went missing
-            elif current_time - task.get("last_update", current_time) > 300:
-                debug(f"🧹 Found stale spider {task_id} (no update for {current_time - task.get('last_update', current_time):.0f}s)", verbosity=3)
-                stale_tasks.append(task_id)
-        
-        for task_id in stale_tasks:
-            debug(f"🧹 Cleaning up lost spider {task_id} from web", verbosity=3)
-            self._remove_task_sync_enhanced(task_id)
-        
-        # Also clean up orphaned task_keys (web nodes with no valid spider IDs)
-        orphaned_keys = []
-        for task_key, task_id_list in list(self.task_keys.items()):
-            valid_task_ids = [tid for tid in task_id_list if tid in self.tasks]
-            if not valid_task_ids:
-                orphaned_keys.append(task_key)
-            elif len(valid_task_ids) != len(task_id_list):
-                # Update the list to only contain valid task IDs
-                self.task_keys[task_key] = valid_task_ids
-                debug(f"🧹 Cleaned up web node {task_key}: removed {len(task_id_list) - len(valid_task_ids)} orphaned spider IDs", verbosity=3)
-        
-        for key in orphaned_keys:
-            del self.task_keys[key]
-            debug(f"🧹 Removed orphaned web node: {key}", verbosity=3)
-        
-        if stale_tasks or orphaned_keys:
-            debug(f"🕸️ Web maintenance completed: removed {len(stale_tasks)} lost spiders and {len(orphaned_keys)} orphaned nodes", verbosity=3)
-
-    def refresh_display(self):
-        """Manually refresh the spider web display (useful in verbose mode)"""
-        if self.active and self.progress and self.live is None:
-            try:
-                self.progress.console.print(self.progress)
-            except Exception as e:
-                debug(f"Error refreshing spider web display: {e}", verbosity=3)
+        """Simplified task completion - does nothing"""
+        pass
 
     def stop(self):
-        """Stop the spider manager and recall all spiders"""
-        if self.active:
-            self.active = False
+        """Stop the progress manager"""
+        self.active = False
+        if LIVE_STATUS_AVAILABLE:
+            stop_live_status()
 
-            # Complete any remaining spider tasks
-            for task_id in list(self.tasks.keys()):
-                if not self.tasks[task_id].get("completed_flag", False):
-                    self.tasks[task_id]["scan_completed"] = True
+    def clean_stale_tasks(self):
+        """Simplified cleanup - does nothing"""
+        pass
 
-            # Stop Rich Live display first (most important) - recall spiders
-            if self.live:
-                try:
-                    if hasattr(self.live, 'is_started') and self.live.is_started:
-                        self.live.stop()
-                    debug("🕷️ Spider web display recalled", verbosity=3)
-                except Exception as e:
-                    debug(f"Error recalling spider web display: {e}", verbosity=3)
-                    
-            # Then stop Rich progress - destroy web
-            if self.progress:
-                try:
-                    if hasattr(self.progress, 'stop'):
-                        self.progress.stop()
-                    debug("🕸️ Spider web destroyed", verbosity=3)
-                except Exception as e:
-                    debug(f"Error destroying spider web: {e}", verbosity=3)
+    def simulate_progress(self, task_id, duration=10):
+        """Simplified progress simulation - does nothing"""
+        pass
 
-            # Clean up references - web cleanup
-            self.progress = None
-            self.live = None
-            self.console = None
-
-            debug("🕷️ Spider manager recalled and web cleaned up", verbosity=3)
+    def refresh_display(self):
+        """Simplified display refresh - does nothing"""
+        pass
 
 
-# Global progress manager instance
-progress_manager = ProgressManager()
+# Replace old complex ProgressManager with our simple one
+progress_manager = SimpleProgressManager()
+
+
+# Keep all old function names for backward compatibility
+def start_live_loader():
+    """Legacy function - start live status display"""
+    if LIVE_STATUS_AVAILABLE and config.get("verbose", 0) >= 1:
+        start_live_status()
+
+def stop_live_loader():
+    """Legacy function - stop live status display"""
+    if LIVE_STATUS_AVAILABLE:
+        stop_live_status()
+
+def update_live_loader_from_targets(targets):
+    """Legacy function - does nothing in new system"""
+    pass
+
+def add_scan_to_live_loader(target_address, scan_tag, command=None):
+    """Legacy function - add scan to live status"""
+    if LIVE_STATUS_AVAILABLE:
+        add_scan(scan_tag, target_address)  # tool, target
+
+def complete_scan_in_live_loader(target_address, scan_tag):
+    """Legacy function - complete scan in live status"""
+    if LIVE_STATUS_AVAILABLE:
+        complete_scan(scan_tag, target_address)  # tool, target
+
+
+# Clean up - removed old complex ProgressManager code
+
+
+# Note: progress_manager defined above with SimpleProgressManager
 
 
 def get_console():
@@ -1611,317 +1180,40 @@ class CommandStreamReader(object):
 
 
 class LiveScanLoader:
-    """Live loader showing currently working scans with spider theme"""
+    """Disabled - replaced by clean LiveStatus system"""
     
     def __init__(self):
         self.active = False
-        self.live_display = None
-        self.console = None
-        self.current_scans = {}
-        self.start_time = time.time()
-        self._update_task = None
         
     def start(self):
-        """Start the live scan loader with spider theme"""
-        if not RICH_AVAILABLE or config.get("accessible", False):
-            self.active = True
-            return
-            
-        try:
-            from rich.live import Live
-            from rich.text import Text
-            import sys
-            
-            # Create dedicated console for live loader
-            self.console = Console(
-                file=sys.stderr,
-                force_terminal=True,
-                width=120,
-                height=1  # Keep it to one line
-            )
-            
-            # Start with simple text display
-            initial_text = Text("🕷️ Spider web ready... 🕸️", style="dim cyan")
-            
-            # Start Live display - single line, transient
-            self.live_display = Live(
-                initial_text,
-                console=self.console,
-                refresh_per_second=1,  # Reduced refresh rate
-                redirect_stdout=False,
-                redirect_stderr=False,
-                auto_refresh=True,
-                transient=True  # Don't persist when stopped
-            )
-            
-            self.live_display.start()
-            self.active = True
-            
-            # Start update task
-            if hasattr(asyncio, 'create_task'):
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        self._update_task = loop.create_task(self._update_loop())
-                except RuntimeError:
-                    pass
-                    
-            debug("🕷️ Live scan loader deployed (compact mode)", verbosity=3)
-            
-        except Exception as e:
-            debug(f"Failed to deploy live scan loader: {e}", verbosity=3)
-            self.active = True  # Fallback to simple mode
+        """Disabled - using new LiveStatus instead"""
+        pass
     
     def update_scan_status(self, target_address, scan_tag, status="running", command=None, elapsed=None):
-        """Update the status of a running scan"""
-        if not self.active:
-            return
-            
-        scan_key = f"{target_address}:{scan_tag}"
-        
-        if status == "running":
-            self.current_scans[scan_key] = {
-                "target": target_address,
-                "scan": scan_tag,
-                "command": command or scan_tag,
-                "start_time": time.time() if scan_key not in self.current_scans else self.current_scans[scan_key].get("start_time", time.time()),
-                "status": "running",
-                "last_update": time.time()
-            }
-        elif status == "completed":
-            if scan_key in self.current_scans:
-                del self.current_scans[scan_key]
-        
-        if RICH_AVAILABLE and not config.get("accessible", False) and self.live_display:
-            self._update_display()
-    
-    def _update_display(self):
-        """Update the live display with current scan status - clean, minimal format"""
-        if not self.live_display or not self.active:
-            return
-            
-        try:
-            from rich.text import Text
-            
-            # Clean, minimal status display
-            if not self.current_scans:
-                # No active scans - minimal idle display
-                status_text = Text.assemble(
-                    ("● ", "bold green"),
-                    ("READY", "bold green"),
-                    (" | ", "dim"),
-                    ("Waiting for scans...", "dim")
-                )
-            else:
-                # Active scans - clean minimal format
-                total_elapsed = time.time() - self.start_time
-                minutes, seconds = divmod(int(total_elapsed), 60)
-                elapsed_str = f"{minutes:02d}:{seconds:02d}"
-                
-                # Simple animation
-                spinner_frames = ["●", "○", "◐", "◑", "◒", "◓"]
-                current_frame = int(time.time() * 2) % len(spinner_frames)
-                spinner = spinner_frames[current_frame]
-                
-                scan_count = len(self.current_scans)
-                
-                if scan_count == 1:
-                    # Single scan - clean format
-                    scan_info = list(self.current_scans.values())[0]
-                    scan_elapsed = time.time() - scan_info["start_time"]
-                    scan_minutes, scan_seconds = divmod(int(scan_elapsed), 60)
-                    scan_duration = f"{scan_minutes:02d}:{scan_seconds:02d}"
-                    
-                    command = scan_info["command"]
-                    if len(command) > 20:
-                        command = command[:17] + "..."
-                    
-                    target = scan_info["target"]
-                    if len(target) > 15:
-                        target = target[:12] + "..."
-                    
-                    status_text = Text.assemble(
-                        (spinner, "bold cyan"),
-                        (" RUNNING", "bold cyan"),
-                        (" | ", "dim"),
-                        (command, "white"),
-                        (" on ", "dim"),
-                        (target, "yellow"),
-                        (" | ", "dim"),
-                        (scan_duration, "blue")
-                    )
-                else:
-                    # Multiple scans - show count and latest
-                    latest_scan = max(self.current_scans.values(), key=lambda x: x.get("last_update", 0))
-                    command = latest_scan["command"]
-                    if len(command) > 15:
-                        command = command[:12] + "..."
-                    
-                    status_text = Text.assemble(
-                        (spinner, "bold cyan"),
-                        (" ACTIVE", "bold cyan"),
-                        (" | ", "dim"),
-                        (f"{scan_count} scans", "green"),
-                        (" | Latest: ", "dim"),
-                        (command, "white"),
-                        (" | ", "dim"),
-                        (elapsed_str, "blue")
-                    )
-            
-            # Update the live display
-            self.live_display.update(status_text)
-            
-        except Exception as e:
-            debug(f"Error updating live scan display: {e}", verbosity=3)
-    
-    async def _update_loop(self):
-        """Continuously update the display"""
-        while self.active and self.live_display:
-            try:
-                # Clean up stale scans (older than 5 minutes without update)
-                current_time = time.time()
-                stale_scans = []
-                
-                for scan_key, scan_info in self.current_scans.items():
-                    if current_time - scan_info.get("last_update", current_time) > 300:  # 5 minutes
-                        stale_scans.append(scan_key)
-                
-                for scan_key in stale_scans:
-                    del self.current_scans[scan_key]
-                    debug(f"🧹 Cleaned up stale scan: {scan_key}", verbosity=3)
-                
-                # Update display
-                if RICH_AVAILABLE and not config.get("accessible", False):
-                    self._update_display()
-                    
-                await asyncio.sleep(1.0)  # Update every 1 second for smooth animation
-                
-            except Exception as e:
-                debug(f"Error in live scan loader update loop: {e}", verbosity=3)
-                break
+        """Disabled"""
+        pass
     
     def add_scan(self, target_address, scan_tag, command=None):
-        """Add a new scan to the live loader"""
-        if not self.active:
-            return
-            
-        self.update_scan_status(target_address, scan_tag, "running", command)
-        debug(f"🕷️ Added scan to live loader: {target_address}/{scan_tag}", verbosity=3)
+        """Disabled"""
+        pass
     
     def complete_scan(self, target_address, scan_tag):
-        """Mark a scan as completed and remove from display"""
-        if not self.active:
-            return
-            
-        self.update_scan_status(target_address, scan_tag, "completed")
-        debug(f"🕸️ Completed scan in live loader: {target_address}/{scan_tag}", verbosity=3)
+        """Disabled"""
+        pass
     
     def update_from_running_tasks(self, targets):
-        """Update the loader from the main running_tasks data structure"""
-        if not self.active:
-            return
-            
-        try:
-            # Get current scans from all targets
-            current_keys = set()
-            
-            for target in targets:
-                if hasattr(target, 'running_tasks'):
-                    for tag, task_info in target.running_tasks.items():
-                        scan_key = f"{target.address}:{tag}"
-                        current_keys.add(scan_key)
-                        
-                        # Extract command from task info if available
-                        command = tag
-                        if "processes" in task_info and task_info["processes"]:
-                            try:
-                                cmd = task_info["processes"][0].get("cmd", "")
-                                if cmd:
-                                    # Extract the main command name
-                                    cmd_parts = cmd.split()
-                                    if cmd_parts:
-                                        command = cmd_parts[0].split('/')[-1]  # Get just the binary name
-                            except:
-                                pass
-                        
-                        self.update_scan_status(target.address, tag, "running", command)
-            
-            # Remove scans that are no longer running
-            to_remove = []
-            for scan_key in self.current_scans.keys():
-                if scan_key not in current_keys:
-                    to_remove.append(scan_key)
-            
-            for scan_key in to_remove:
-                target_addr, scan_tag = scan_key.split(':', 1)
-                self.complete_scan(target_addr, scan_tag)
-                
-        except Exception as e:
-            debug(f"Error updating live loader from running tasks: {e}", verbosity=3)
+        """Disabled"""
+        pass
     
     def stop(self):
-        """Stop the live scan loader"""
-        if self.active:
-            self.active = False
-            
-            # Cancel update task
-            if self._update_task:
-                try:
-                    self._update_task.cancel()
-                except:
-                    pass
-            
-            # Stop Live display
-            if self.live_display:
-                try:
-                    self.live_display.stop()
-                    debug("🕷️ Live scan loader recalled", verbosity=3)
-                except Exception as e:
-                    debug(f"Error stopping live scan loader: {e}", verbosity=3)
-            
-            # Clean up references
-            self.live_display = None
-            self.console = None
-            self.current_scans.clear()
-            
-            debug("🕸️ Live scan loader stopped and web cleaned up", verbosity=3)
+        """Disabled"""
+        pass
 
 
-# Global live scan loader instance
+# Old LiveScanLoader completely disabled - using clean LiveStatus system
+
+
+# Global live scan loader instance (disabled)
 live_scan_loader = LiveScanLoader()
 
 
-def start_live_loader():
-    """Start the live scan loader - call this at the beginning of scanning"""
-    # Check verbosity level properly - should work with -v (verbose >= 1), -vv (verbose >= 2), -vvv (verbose >= 3)
-    if config.get("verbose", 0) >= 1:  # Only show live loader if any verbose mode is enabled
-        live_scan_loader.start()
-        debug(f"🕷️ Live loader started for verbosity level: {config.get('verbose', 0)}", verbosity=2)
-    else:
-        debug("🕸️ Live loader disabled - verbose mode required (-v, -vv, or -vvv)", verbosity=1)
-
-
-def stop_live_loader():
-    """Stop the live scan loader - call this at the end of scanning"""
-    live_scan_loader.stop()
-
-
-def update_live_loader_from_targets(targets):
-    """Update the live loader with current running tasks from all targets"""
-    # Only update if verbose mode is enabled
-    if config.get("verbose", 0) >= 1:
-        live_scan_loader.update_from_running_tasks(targets)
-
-
-def add_scan_to_live_loader(target_address, scan_tag, command=None):
-    """Add a scan to the live loader display"""
-    # Only add if verbose mode is enabled
-    if config.get("verbose", 0) >= 1:
-        live_scan_loader.add_scan(target_address, scan_tag, command)
-
-
-def complete_scan_in_live_loader(target_address, scan_tag):
-    """Mark a scan as completed in the live loader"""
-    # Only complete if verbose mode is enabled
-    if config.get("verbose", 0) >= 1:
-        live_scan_loader.complete_scan(target_address, scan_tag)

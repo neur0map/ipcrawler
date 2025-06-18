@@ -3015,11 +3015,8 @@ async def run():
     # Show startup banner with spider-themed interface
     show_startup_banner(ipcrawler.pending_targets, VERSION)
 
-    # Start progress manager for long scans
+    # Start progress manager and live status system
     progress_manager.start()
-
-    # Start live scan loader for real-time scan display
-    start_live_loader()
 
     # Initialize VHost auto-discovery system
     from ipcrawler.io import vhost_manager
@@ -3040,7 +3037,12 @@ async def run():
                      target_desc)
 
     if not config["disable_keyboard_control"]:
-        terminal_settings = termios.tcgetattr(sys.stdin.fileno())
+        try:
+            terminal_settings = termios.tcgetattr(sys.stdin.fileno())
+        except (termios.error, OSError):
+            # Not in a proper terminal, disable keyboard control
+            config["disable_keyboard_control"] = True
+            terminal_settings = None
 
     pending = []
     i = 0
