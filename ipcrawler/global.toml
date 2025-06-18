@@ -4,6 +4,11 @@
 # Wordlists used by scanning tools
 # Install wordlists: sudo apt install seclists wordlists
 #
+# How it works:
+# 1. ipcrawler tries to use the wordlist path you specify below
+# 2. If that path doesn't exist, it automatically falls back to local wordlists
+# 3. This means you can configure for HTB/Kali environments and it still works locally
+#
 # Path Resolution:
 # - Relative paths (e.g., 'wordlists/file.txt') are resolved relative to global.toml location
 # - Absolute paths (e.g., '/usr/share/seclists/...') are used as-is
@@ -15,8 +20,8 @@
 # ========================================
 # Used by: feroxbuster, gobuster, dirsearch, ffuf, dirb
 
-# Configured wordlist path (may exist on target machine)
-directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/dirbuster.txt'
+# Configured wordlist path (will fallback to local if not found)
+directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'
 
 # Alternative: Use absolute path to SecLists (uncomment if installed)
 # directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'
@@ -87,20 +92,24 @@ domain = ''
 # Configuration Examples for Different Environments
 # ========================================
 #
-# For Kali Linux with SecLists installed:
-# directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt'
-# subdomain-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt'
-# username-wordlist = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
-# password-wordlist = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
+# 💡 How to customize wordlists:
+#    Just change any path below to your preferred wordlist!
+#    If your path doesn't exist, ipcrawler automatically falls back to local wordlists.
 #
-# For custom wordlist directories:
-# directory-wordlist = '/opt/wordlists/custom-directories.txt'
-# subdomain-wordlist = '/opt/wordlists/custom-subdomains.txt'
+# Examples of different configurations:
 #
-# For portable installations (relative paths):
-# directory-wordlist = 'wordlists/custom-dirs.txt'
-# subdomain-wordlist = 'wordlists/custom-subs.txt'
+# For local/portable usage (always works):
+# directory-wordlist = 'wordlists/dirbuster.txt'
+# vhost-wordlist = 'wordlists/subdomains-top100.txt'
 #
-# For HTB/CTF environments with custom lists:
-# directory-wordlist = '/home/kali/wordlists/custom-web-dirs.txt'
-# vhost-wordlist = '/home/kali/wordlists/custom-vhosts.txt'
+# For custom wordlists:
+# directory-wordlist = '/home/user/my-wordlists/huge-directory-list.txt'
+# vhost-wordlist = '/opt/seclists/Discovery/DNS/subdomains-top1million-110000.txt'
+#
+# For different SecLists sizes:
+# directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt'  # ~220K entries
+# vhost-wordlist = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt'  # 20K entries
+#
+# Mixed configurations work too:
+# directory-wordlist = '/usr/share/seclists/Discovery/Web-Content/big.txt'        # Use SecLists for directories
+# vhost-wordlist = 'wordlists/subdomains-top100.txt'                             # Use local for vhosts

@@ -247,6 +247,26 @@ class Plugin(object):
         # If none of the above work, return the original path
         # (which will fail validation, but that's handled by validate_wordlists)
         return wordlist_path
+    
+    def _get_local_fallback_wordlists(self, wordlist_type):
+        """
+        Get local fallback wordlists for a given type.
+        
+        Returns a list of relative paths to local wordlists that can be used
+        as fallbacks when the configured wordlist is not found.
+        """
+        fallback_mapping = {
+            'directory': ['wordlists/dirbuster.txt'],
+            'vhost': ['wordlists/subdomains-top100.txt'],
+            'subdomain': ['wordlists/subdomains-top100.txt'],
+            'dns': ['wordlists/subdomains-top100.txt'],
+            'lfi-parameter': ['wordlists/lfi-parameters.txt'],
+            'lfi-payload': ['wordlists/lfi-payloads.txt'],
+            'username': ['wordlists/usernames-top25.txt'],
+            'password': ['wordlists/passwords-top25.txt'],
+        }
+        
+        return fallback_mapping.get(wordlist_type, [])
 
     @final
     def get_validated_wordlists(self, option_name, wordlist_type=None, fallback_wordlists=None):
@@ -275,13 +295,24 @@ class Plugin(object):
                 configured_wordlists = [global_wordlist]
                 self.info(f"Using global {wordlist_type} wordlist: {global_wordlist}")
                 
-                # For global config wordlists, trust the configured path
-                # (it might exist on target machine but not current machine)
+                # Try to resolve the configured path
                 resolved_path = self._resolve_wordlist_path(global_wordlist)
-                if not os.path.isfile(resolved_path):
-                    self.warn(f"Global {wordlist_type} wordlist not found locally: {resolved_path}")
+                if os.path.isfile(resolved_path):
+                    return [resolved_path]
+                else:
+                    self.warn(f"Global {wordlist_type} wordlist not found: {resolved_path}")
+                    # Try fallback to local wordlists
+                    local_fallbacks = self._get_local_fallback_wordlists(wordlist_type)
+                    if local_fallbacks:
+                        self.info(f"Falling back to local {wordlist_type} wordlist")
+                        valid_wordlists = self.validate_wordlists(local_fallbacks, f"local {wordlist_type}")
+                        if valid_wordlists:
+                            return valid_wordlists
+                    
+                    # If no local fallback works, proceed with original path anyway
+                    # (might exist on target machine)
                     self.info(f"Proceeding with configured path (may exist on target machine)")
-                return [resolved_path]
+                    return [resolved_path]
         
         # Validate configured wordlists (for explicitly specified wordlists)
         if configured_wordlists:

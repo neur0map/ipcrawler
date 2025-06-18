@@ -1,4 +1,4 @@
-.PHONY: setup clean setup-docker docker-cmd help update reset
+.PHONY: setup clean setup-docker docker-cmd help update reset wordlists
 
 setup:
 	@echo "Setting up ipcrawler..." && \
@@ -44,6 +44,7 @@ help:
 	@echo "  setup         - Set up system Python dependencies + install 25+ security tools + global command"
 	@echo "  clean         - Remove local setup, global command, and Docker resources"
 	@echo "  reset         - Clear all Python/ipcrawler cache for immediate code updates (OS-aware)"
+	@echo "  wordlists     - Configure wordlists (local/htb/kali modes)"
 	@echo "  setup-docker  - Build Docker image + open interactive terminal for ipcrawler"
 	@echo "  update        - Update repository, tools, and Docker image"
 	@echo "  docker-cmd    - Run interactive Docker container"
@@ -93,6 +94,20 @@ help:
 	@echo "  • Detailed installation feedback and error reporting"
 	@echo "  • Oracle tools (tnscmd10g) with multiple installation attempts"
 	@echo "  • Skip unavailable tools gracefully with --ignore-plugin-checks"
+	@echo ""
+	@echo "Wordlist Configuration:"
+	@echo "  make wordlists            # Show wordlist configuration help"
+	@echo "  make wordlists status     # Show current wordlist configuration"  
+	@echo "  make wordlists test       # Test if configured wordlists are accessible"
+	@echo "  • Edit ipcrawler/global.toml to customize any wordlist path"
+	@echo "  • Automatic fallback to local wordlists if configured paths missing"
 
 update:
 	@./scripts/update.sh
+
+wordlists:
+	@./scripts/configure-wordlists.sh $(filter-out $@,$(MAKECMDGOALS))
+
+# Catch-all rule to allow make wordlists [args]
+%:
+	@:
