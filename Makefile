@@ -1,15 +1,16 @@
 # IPCrawler Makefile - Simple installation and management
 
-.PHONY: install clean update debug help
+.PHONY: install clean clean-all update debug help
 
 # Default target
 help:
 	@echo "IPCrawler Management"
 	@echo "==================="
-	@echo "  make install  - Install ipcrawler and all tools"
-	@echo "  make update   - Update to latest version"
-	@echo "  make clean    - Remove everything (keeps results)"
-	@echo "  make debug    - Show system diagnostics"
+	@echo "  make install   - Install ipcrawler and all tools"
+	@echo "  make update    - Update to latest version"
+	@echo "  make clean     - Remove ipcrawler only (keeps tools & results)"
+	@echo "  make clean-all - Remove everything including tools (keeps results)"
+	@echo "  make debug     - Show system diagnostics"
 	@echo ""
 
 # Complete installation with tool detection
@@ -91,13 +92,58 @@ update:
 	@pipx upgrade ipcrawler || pipx install --force git+https://github.com/neur0map/ipcrawler.git
 	@echo "✅ Update complete!"
 
-# Clean everything
+# Clean ipcrawler only
 clean:
-	@echo "🧹 Cleaning up..."
+	@echo "🧹 Cleaning ipcrawler..."
 	@pipx uninstall ipcrawler 2>/dev/null || true
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
-	@echo "✅ Cleanup complete! (Results directory preserved)"
+	@echo "✅ IPCrawler removed! (Tools and results preserved)"
+
+# Clean everything including tools
+clean-all:
+	@echo "🧹 Complete cleanup - removing all installed tools..."
+	@echo "⚠️  This will remove all penetration testing tools installed by this Makefile"
+	@echo "📁 Results directory will be preserved"
+	@# Remove ipcrawler first
+	@pipx uninstall ipcrawler 2>/dev/null || true
+	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
+	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
+	@# Remove tools based on platform
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		echo "🍎 Removing macOS tools installed via Homebrew..."; \
+		for tool in feroxbuster gobuster nikto masscan john hashcat; do \
+			if brew list | grep -q "^$$tool$$"; then \
+				echo "  Removing $$tool..."; \
+				brew uninstall $$tool 2>/dev/null || true; \
+			fi; \
+		done; \
+		echo "💡 Core tools (python3, pipx, nmap, curl) kept for system stability"; \
+	elif [ -f /etc/debian_version ]; then \
+		echo "🐧 Removing penetration testing tools on Debian/Ubuntu..."; \
+		echo "  Note: This will only remove tools, not dependencies like python3/nmap"; \
+		sudo apt remove --purge -y seclists dnsrecon enum4linux feroxbuster gobuster 2>/dev/null || true; \
+		sudo apt remove --purge -y impacket-scripts nbtscan nikto onesixtyone oscanner 2>/dev/null || true; \
+		sudo apt remove --purge -y redis-tools smbmap sipvicious tnscmd10g whatweb 2>/dev/null || true; \
+		sudo apt remove --purge -y masscan dirb dirsearch john hashcat hydra medusa 2>/dev/null || true; \
+		sudo apt remove --purge -y ncrack sqlmap wfuzz wpscan sublist3r amass fierce 2>/dev/null || true; \
+		sudo snap remove ffuf 2>/dev/null || true; \
+		sudo apt autoremove -y 2>/dev/null || true; \
+		echo "💡 Core tools (python3, pipx, nmap, curl) kept for system stability"; \
+	elif [ -f /etc/arch-release ]; then \
+		echo "🐧 Removing tools on Arch Linux..."; \
+		sudo pacman -R --noconfirm masscan gobuster nikto 2>/dev/null || true; \
+		echo "💡 Core tools (python3, pipx, nmap, curl) kept for system stability"; \
+	else \
+		echo "❓ Unknown platform - manual tool removal may be required"; \
+	fi
+	@echo "📊 Checking results directory..."
+	@if [ -d "results" ]; then \
+		echo "✅ Results directory preserved with $$(find results -type f | wc -l) files"; \
+	else \
+		echo "ℹ️  No results directory found"; \
+	fi
+	@echo "🗑️  Complete cleanup finished! All tools removed, results preserved."
 
 # System diagnostics with tool detection
 debug:
