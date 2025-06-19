@@ -20,25 +20,35 @@ install:
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		echo "📱 macOS detected - Installing base tools..."; \
 		brew install python3 pipx nmap curl 2>/dev/null || true; \
-		echo "🔧 Checking and installing missing penetration testing tools..."; \
-		for tool in feroxbuster gobuster nikto smbclient dnsrecon enum4linux masscan; do \
+		echo "🔧 Installing available penetration testing tools..."; \
+		available_tools="feroxbuster gobuster nikto smbclient masscan john hashcat"; \
+		unavailable_tools="dnsrecon enum4linux impacket-scripts nbtscan onesixtyone oscanner smbmap tnscmd10g"; \
+		for tool in $$available_tools; do \
 			if ! command -v $$tool >/dev/null 2>&1; then \
 				echo "  Installing $$tool..."; \
-				brew install $$tool 2>/dev/null || echo "  ⚠️  $$tool not available via brew"; \
+				brew install $$tool 2>/dev/null || echo "  ⚠️  $$tool failed to install"; \
 			fi; \
 		done; \
+		echo "📝 Note: Some tools are not available on macOS via Homebrew:"; \
+		echo "   Missing: $$unavailable_tools"; \
+		echo "   💡 For complete tool coverage, use Linux (Kali/Ubuntu) instead"; \
 	elif [ -f /etc/debian_version ]; then \
-		echo "🐧 Debian/Ubuntu detected - Installing base tools..."; \
+		echo "🐧 Debian/Ubuntu detected - Installing complete penetration testing suite..."; \
 		sudo apt update; \
+		echo "  📦 Installing base tools..."; \
 		sudo apt install -y python3 python3-pip python3-venv curl nmap; \
 		python3 -m pip install --user pipx && python3 -m pipx ensurepath; \
-		echo "🔧 Installing penetration testing tools..."; \
+		echo "  🔧 Installing core penetration testing tools..."; \
 		sudo apt install -y seclists dnsrecon enum4linux feroxbuster gobuster; \
 		sudo apt install -y impacket-scripts nbtscan nikto onesixtyone oscanner; \
 		sudo apt install -y redis-tools smbclient smbmap snmp sslscan sipvicious; \
 		sudo apt install -y tnscmd10g whatweb masscan dirb dirsearch; \
-		echo "📦 Installing additional tools via snap/other sources..."; \
+		sudo apt install -y john hashcat hydra medusa ncrack sqlmap; \
+		sudo apt install -y wfuzz wpscan sublist3r amass fierce dnsutils; \
+		echo "  📦 Installing additional tools..."; \
 		sudo snap install ffuf 2>/dev/null || echo "  ⚠️  ffuf not available via snap"; \
+		sudo apt install -y zaproxy burpsuite metasploit-framework 2>/dev/null || echo "  ⚠️  Some GUI tools may not be available"; \
+		echo "✅ Complete penetration testing environment installed!"; \
 	elif [ -f /etc/arch-release ]; then \
 		echo "🐧 Arch Linux detected - Installing base tools..."; \
 		sudo pacman -S --noconfirm python python-pip python-pipx nmap curl; \
@@ -94,6 +104,13 @@ debug:
 	@echo "🔬 System Diagnostics"
 	@echo "===================="
 	@echo "OS: $$(uname -s) $$(uname -r)"
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		echo "Platform: macOS (Limited penetration testing tool availability)"; \
+	elif [ -f /etc/debian_version ]; then \
+		echo "Platform: Debian/Ubuntu (Excellent penetration testing tool support)"; \
+	else \
+		echo "Platform: $$(uname -s)"; \
+	fi
 	@echo "Python: $$(python3 --version 2>/dev/null || echo 'Not found')"
 	@echo "Pipx: $$(pipx --version 2>/dev/null || echo 'Not found')"
 	@echo "IPCrawler: $$(ipcrawler --version 2>/dev/null || echo 'Not installed')"
