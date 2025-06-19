@@ -35,7 +35,31 @@ ipcrawler was inspired by three tools which the author used during the OSCP labs
 
 ## Installation
 
-There are three ways to install ipcrawler: pipx, pip, and manually. Before installation using any of these methods, certain requirements need to be fulfilled. If you have not refreshed your apt cache recently, run the following command so you are installing the latest available packages:
+### Quick Installation (Recommended)
+
+For the easiest installation experience, use the provided Makefile:
+
+```bash
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+make install
+```
+
+This will:
+- Automatically detect your operating system
+- Install all required tools and dependencies
+- Set up ipcrawler globally without local code copies
+- Make the `ipcrawler` command available system-wide
+
+**Management Commands:**
+- `make update` - Update ipcrawler and clear cache
+- `make clean` - Complete cleanup (preserves results directory)
+- `make debug` - Run comprehensive diagnostics
+- `make help` - Show all available commands
+
+### Manual Installation
+
+There are three ways to install ipcrawler manually: pipx, pip, and from source. Before installation using any of these methods, certain requirements need to be fulfilled. If you have not refreshed your apt cache recently, run the following command so you are installing the latest available packages:
 
 ```bash
 sudo apt update
@@ -106,7 +130,7 @@ You will have to re-source your ~/.bashrc or ~/.zshrc file (or open a new tab) a
 Install ipcrawler using the following command:
 
 ```bash
-pipx install git+https://github.com/Tib3rius/ipcrawler.git
+pipx install git+https://github.com/neur0map/ipcrawler.git
 ```
 
 Note that if you want to run ipcrawler using sudo (required for faster SYN scanning and UDP scanning), you have to use _one_ of the following examples:
@@ -121,7 +145,7 @@ sudo $(which ipcrawler) [OPTIONS]
 Alternatively you can use `pip` to install ipcrawler using the following command:
 
 ```bash
-python3 -m pip install git+https://github.com/Tib3rius/ipcrawler.git
+python3 -m pip install git+https://github.com/neur0map/ipcrawler.git
 ```
 
 Note that if you want to run ipcrawler using sudo (required for faster SYN scanning and UDP scanning), you will have to run the above command as the root user (or using sudo).
@@ -158,7 +182,7 @@ If you've installed ipcrawler using pip, you will first have to uninstall ipcraw
 
 ```bash
 python3 -m pip uninstall ipcrawler
-python3 -m pip install git+https://github.com/Tib3rius/ipcrawler.git
+python3 -m pip install git+https://github.com/neur0map/ipcrawler.git
 ```
 
 ### Manually
