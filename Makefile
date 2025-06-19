@@ -1,7 +1,7 @@
 # IPCrawler Makefile
 # Handles installation, updates, cleaning, and debugging across different operating systems
 
-.PHONY: install clean update debug help detect-os install-tools setup-ipcrawler detergent test-installation
+.PHONY: install clean update debug help detect-os setup-ipcrawler detergent test-installation
 
 # Default target
 help:
@@ -18,7 +18,7 @@ help:
 	@echo "Updates are immediate via git pull or 'make update'."
 
 # Main installation command
-install: detect-os install-tools setup-ipcrawler test-installation
+install: detect-os setup-ipcrawler test-installation
 	@echo "✅ Installation complete! You can now run 'ipcrawler' from anywhere."
 
 # OS Detection
@@ -46,9 +46,10 @@ detect-os:
 		echo "UNKNOWN" > .os_detected; \
 	fi
 
-# Tool installation based on OS
-install-tools: detect-os
-	@echo "🔧 Installing required tools..."
+
+# IPCrawler setup with tool installation
+setup-ipcrawler:
+	@echo "🔧 Installing required tools and setting up IPCrawler..."
 	@OS=$$(cat .os_detected); \
 	if [ "$$OS" = "MACOS" ]; then \
 		echo "Installing tools for macOS..."; \
@@ -77,11 +78,7 @@ install-tools: detect-os
 		echo "⚠️  Some tools may need to be installed from AUR"; \
 	else \
 		echo "⚠️  Please install Python 3, pip, pipx, and nmap manually for your OS"; \
-	fi; \
-	rm -f .os_detected
-
-# IPCrawler setup
-setup-ipcrawler:
+	fi
 	@echo "🚀 Setting up IPCrawler..."
 	@if ! command -v pipx >/dev/null 2>&1; then \
 		echo "❌ pipx not found. Please ensure pipx is installed and in PATH."; \
