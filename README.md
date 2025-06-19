@@ -116,7 +116,7 @@ results/192.168.1.100/
 
 ### System Requirements
 - **Python 3.8+**
-- **Linux/macOS** (Windows via WSL)
+- **Linux/macOS** (Windows via WSL--NOT FULLY TESTED)
 - **Root privileges** (for SYN scanning and UDP)
 
 ### Dependencies
