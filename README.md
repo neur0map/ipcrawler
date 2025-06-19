@@ -2,6 +2,13 @@
 
 # ipcrawler
 
+![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue.svg)
+![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)
+![License](https://img.shields.io/badge/license-GPL%20v3-green.svg)
+
+**Version:** 0.1.0-alpha  
+**Status:** Alpha Release - Under Active Development
+
 ipcrawler is a multi-threaded network reconnaissance tool which performs automated enumeration of services. It is intended as a time-saving tool for use in CTFs and other penetration testing environments (e.g. OSCP). It may also be useful in real-world engagements.
 
 The tool works by firstly performing port scans / service detection scans. From those initial results, the tool will launch further enumeration scans of those services using a number of different tools. For example, if HTTP is found, feroxbuster will be launched (as well as many others).
@@ -9,6 +16,20 @@ The tool works by firstly performing port scans / service detection scans. From 
 Everything in the tool is highly configurable. The default configuration performs **no automated exploitation** to keep the tool in line with OSCP exam rules. If you wish to add automatic exploit tools to the configuration, you do so at your own risk. The author will not be held responsible for negative actions that result from the mis-use of this tool.
 
 **Disclaimer: While ipcrawler endeavors to perform as much identification and enumeration of services as possible, there is no guarantee that every service will be identified, or that every service will be fully enumerated. Users of ipcrawler (especially students) should perform their own manual enumeration alongside ipcrawler. Do not rely on this tool alone for exams, CTFs, or other engagements.**
+
+## Changelog
+
+### Version 0.1.0-alpha
+- Initial alpha release
+- Core multi-threaded reconnaissance functionality
+- Automated service enumeration capabilities
+- Plugin system for extensible scanning
+- Configurable scanning parameters
+- Comprehensive output directory structure
+- Support for multiple target types (IP, CIDR, hostnames)
+- IPv6 support
+- Real-time verbosity control
+- Pattern matching and highlighting
 
 ## Origin
 

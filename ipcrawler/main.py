@@ -17,7 +17,7 @@ from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, 
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.targets import Target, Service
 
-VERSION = "2.0.36"
+VERSION = "0.1.0-alpha"
 
 if not os.path.exists(config['config_dir']):
 	shutil.rmtree(config['config_dir'], ignore_errors=True, onerror=None)
@@ -972,38 +972,54 @@ async def run():
 	if config['add_plugins_dir']:
 		plugins_dirs.append(config['add_plugins_dir'])
 
+	def load_plugins_from_directory(plugins_dir):
+		"""Recursively load plugins from directory and subdirectories"""
+		plugin_files = []
+		
+		# Walk through directory recursively to find all .py files
+		for root, dirs, files in os.walk(plugins_dir):
+			# Skip hidden directories
+			dirs[:] = [d for d in dirs if not d.startswith('_')]
+			
+			for file in sorted(files):
+				if not file.startswith('_') and file.endswith('.py'):
+					plugin_files.append(os.path.join(root, file))
+		
+		# Sort all plugin files to maintain consistent loading order
+		plugin_files.sort()
+		
+		for plugin_path in plugin_files:
+			dirname, filename = os.path.split(plugin_path)
+			dirname = os.path.abspath(dirname)
+			
+			try:
+				spec = importlib.util.spec_from_file_location("ipcrawler." + filename[:-3], plugin_path)
+				plugin = importlib.util.module_from_spec(spec)
+				spec.loader.exec_module(plugin)
+
+				clsmembers = inspect.getmembers(plugin, predicate=inspect.isclass)
+				for (_, c) in clsmembers:
+					if c.__module__ in ['ipcrawler.plugins', 'ipcrawler.targets']:
+						continue
+
+					if c.__name__.lower() in config['protected_classes']:
+						unknown_help()
+						print('Plugin "' + c.__name__ + '" in ' + filename + ' is using a protected class name. Please change it.')
+						sys.exit(1)
+
+					# Only add classes that are a sub class of either PortScan, ServiceScan, or Report
+					if issubclass(c, PortScan) or issubclass(c, ServiceScan) or issubclass(c, Report):
+						ipcrawler.register(c(), filename)
+					else:
+						print('Plugin "' + c.__name__ + '" in ' + filename + ' is not a subclass of either PortScan, ServiceScan, or Report.')
+			except (ImportError, SyntaxError) as ex:
+				unknown_help()
+				print('cannot import ' + filename + ' plugin')
+				print(ex)
+				sys.exit(1)
+
 	for plugins_dir in plugins_dirs:
-		for plugin_file in sorted(os.listdir(plugins_dir)):
-			if not plugin_file.startswith('_') and plugin_file.endswith('.py'):
-
-				dirname, filename = os.path.split(os.path.join(plugins_dir, plugin_file))
-				dirname = os.path.abspath(dirname)
-
-				try:
-					spec = importlib.util.spec_from_file_location("ipcrawler." + filename[:-3], os.path.join(dirname, filename))
-					plugin = importlib.util.module_from_spec(spec)
-					spec.loader.exec_module(plugin)
-
-					clsmembers = inspect.getmembers(plugin, predicate=inspect.isclass)
-					for (_, c) in clsmembers:
-						if c.__module__ in ['ipcrawler.plugins', 'ipcrawler.targets']:
-							continue
-
-						if c.__name__.lower() in config['protected_classes']:
-							unknown_help()
-							print('Plugin "' + c.__name__ + '" in ' + filename + ' is using a protected class name. Please change it.')
-							sys.exit(1)
-
-						# Only add classes that are a sub class of either PortScan, ServiceScan, or Report
-						if issubclass(c, PortScan) or issubclass(c, ServiceScan) or issubclass(c, Report):
-							ipcrawler.register(c(), filename)
-						else:
-							print('Plugin "' + c.__name__ + '" in ' + filename + ' is not a subclass of either PortScan, ServiceScan, or Report.')
-				except (ImportError, SyntaxError) as ex:
-					unknown_help()
-					print('cannot import ' + filename + ' plugin')
-					print(ex)
-					sys.exit(1)
+		load_plugins_from_directory(plugins_dir)
 
 	for plugin in ipcrawler.plugins.values():
 		if plugin.slug in ipcrawler.taglist:

@@ -5,3 +5,4 @@ poetry.*
 venv/
 .claude/
 .vscode/
+claude.md
