@@ -1,4 +1,6 @@
 from ipcrawler.plugins import ServiceScan
+from ipcrawler.wordlists import get_wordlist_manager
+from ipcrawler.config import config
 from shutil import which
 import os, requests, random, string, urllib3
 
@@ -14,7 +16,8 @@ class VirtualHost(ServiceScan):
 
 	def configure(self):
 		self.add_option('hostname', help='The hostname to use as the base host (e.g. example.com) for virtual host enumeration. Default: %(default)s')
-		self.add_list_option('wordlist', default=['/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt'], help='The wordlist(s) to use when enumerating virtual hosts. Separate multiple wordlists with spaces. Default: %(default)s')
+		# Default to auto-detection - wordlists will be resolved at runtime
+		self.add_list_option('wordlist', default=['auto'], help='The wordlist(s) to use when enumerating virtual hosts. Use "auto" for automatic SecLists detection, or specify custom paths. Default: %(default)s')
 		self.add_option('threads', default=10, help='The number of threads to use when enumerating virtual hosts. Default: %(default)s')
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
@@ -29,7 +32,44 @@ class VirtualHost(ServiceScan):
 			hostnames.append(self.get_global('domain'))
 
 		if len(hostnames) > 0:
-			for wordlist in self.get_option('wordlist'):
+			# Resolve wordlists at runtime
+			wordlists = self.get_option('wordlist')
+			resolved_wordlists = []
+			
+			for wordlist in wordlists:
+				if wordlist == 'auto':
+					# Auto-detect best available wordlist using configured size preference
+					try:
+						wordlist_manager = get_wordlist_manager()
+						current_size = wordlist_manager.get_wordlist_size()
+						vhost_path = wordlist_manager.get_wordlist_path('vhosts', config.get('data_dir'), current_size)
+						if vhost_path and os.path.exists(vhost_path):
+							resolved_wordlists.append(vhost_path)
+						else:
+							# Fallback to hardcoded SecLists path
+							fallback_path = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt'
+							if os.path.exists(fallback_path):
+								resolved_wordlists.append(fallback_path)
+							else:
+								service.warn('No vhost wordlist found. Please install SecLists or specify a custom wordlist.')
+								continue
+					except Exception:
+						# Fallback to hardcoded SecLists path if WordlistManager isn't available
+						fallback_path = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt'
+						if os.path.exists(fallback_path):
+							resolved_wordlists.append(fallback_path)
+						else:
+							service.warn('No vhost wordlist found. Please install SecLists or specify a custom wordlist.')
+							continue
+				else:
+					# User specified a custom wordlist path
+					if os.path.exists(wordlist):
+						resolved_wordlists.append(wordlist)
+					else:
+						service.warn(f'Wordlist not found: {wordlist}')
+						continue
+			
+			for wordlist in resolved_wordlists:
 				name = os.path.splitext(os.path.basename(wordlist))[0]
 				for hostname in hostnames:
 					try:

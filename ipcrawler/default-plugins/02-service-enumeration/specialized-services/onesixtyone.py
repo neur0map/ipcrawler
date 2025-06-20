@@ -1,6 +1,7 @@
 from ipcrawler.plugins import ServiceScan
 from ipcrawler.wordlists import get_wordlist_manager
 from ipcrawler.config import config
+import os
 
 class OneSixtyOne(ServiceScan):
 
@@ -13,17 +14,42 @@ class OneSixtyOne(ServiceScan):
 		self.match_service_name('^snmp')
 		self.match_port('udp', 161)
 		self.run_once(True)
-		# Use WordlistManager to get SNMP community strings wordlist
-		try:
-			wordlist_manager = get_wordlist_manager()
-			snmp_path = wordlist_manager.get_wordlist_path('snmp_communities', config.get('data_dir'))
-			default_snmp_path = snmp_path if snmp_path else '/usr/share/seclists/Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt'
-		except:
-			# Fallback to legacy hardcoded path if WordlistManager isn't available
-			default_snmp_path = '/usr/share/seclists/Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt'
-		
-		self.add_option('community-strings', default=default_snmp_path, help='The file containing a list of community strings to try. Default: %(default)s')
+		# Default to auto-detection - wordlist will be resolved at runtime
+		self.add_option('community-strings', default='auto', help='The file containing a list of community strings to try. Use "auto" for automatic SecLists detection, or specify a custom path. Default: %(default)s')
 
 	async def run(self, service):
 		if service.target.ipversion == 'IPv4':
-			await service.execute('onesixtyone -c ' + self.get_option('community-strings') + ' -dd {address} 2>&1', outfile='{protocol}_{port}_snmp_onesixtyone.txt')
+			# Resolve wordlist at runtime
+			community_strings = self.get_option('community-strings')
+			
+			if community_strings == 'auto':
+				# Auto-detect best available wordlist using configured size preference
+				try:
+					wordlist_manager = get_wordlist_manager()
+					current_size = wordlist_manager.get_wordlist_size()
+					snmp_path = wordlist_manager.get_wordlist_path('snmp_communities', config.get('data_dir'), current_size)
+					if snmp_path and os.path.exists(snmp_path):
+						community_strings = snmp_path
+					else:
+						# Fallback to hardcoded SecLists path
+						fallback_path = '/usr/share/seclists/Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt'
+						if os.path.exists(fallback_path):
+							community_strings = fallback_path
+						else:
+							service.warn('No SNMP community strings wordlist found. Please install SecLists or specify a custom wordlist.')
+							return
+				except Exception:
+					# Fallback to hardcoded SecLists path if WordlistManager isn't available
+					fallback_path = '/usr/share/seclists/Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt'
+					if os.path.exists(fallback_path):
+						community_strings = fallback_path
+					else:
+						service.warn('No SNMP community strings wordlist found. Please install SecLists or specify a custom wordlist.')
+						return
+			else:
+				# User specified a custom wordlist path
+				if not os.path.exists(community_strings):
+					service.warn(f'Community strings file not found: {community_strings}')
+					return
+			
+			await service.execute('onesixtyone -c ' + community_strings + ' -dd {address} 2>&1', outfile='{protocol}_{port}_snmp_onesixtyone.txt')

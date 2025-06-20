@@ -18,9 +18,54 @@ class WordlistManager:
         self.wordlists_config_path = os.path.join(config_dir, 'wordlists.toml')
         self._config = None
         self._cli_overrides = {}
+        self._wordlist_size = 'default'  # Can be 'fast', 'default', or 'comprehensive'
         
-        # Wordlist categories and their SecLists relative paths
+        # Wordlist categories with different sizes for various scan scenarios
         self.categories = {
+            'usernames': {
+                'fast': 'Usernames/top-usernames-shortlist.txt',
+                'default': 'Usernames/top-usernames-shortlist.txt',
+                'comprehensive': 'Usernames/Names/names.txt'
+            },
+            'passwords': {
+                'fast': 'Passwords/Common-Credentials/10-million-password-list-top-100.txt',
+                'default': 'Passwords/Common-Credentials/darkweb2017_top-100.txt',
+                'comprehensive': 'Passwords/Common-Credentials/10-million-password-list-top-1000.txt'
+            },
+            'web_directories': {
+                'fast': 'Discovery/Web-Content/common.txt',
+                'default': 'Discovery/Web-Content/directory-list-2.3-medium.txt',
+                'comprehensive': 'Discovery/Web-Content/directory-list-2.3-big.txt'
+            },
+            'web_files': {
+                'fast': 'Discovery/Web-Content/common.txt',
+                'default': 'Discovery/Web-Content/common.txt',
+                'comprehensive': 'Discovery/Web-Content/raft-medium-files.txt'
+            },
+            'subdomains': {
+                'fast': 'Discovery/DNS/subdomains-top1million-5000.txt',
+                'default': 'Discovery/DNS/subdomains-top1million-20000.txt',
+                'comprehensive': 'Discovery/DNS/subdomains-top1million-110000.txt'
+            },
+            'snmp_communities': {
+                'fast': 'Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt',
+                'default': 'Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt',
+                'comprehensive': 'Discovery/SNMP/common-snmp-community-strings.txt'
+            },
+            'dns_servers': {
+                'fast': 'Discovery/DNS/dns-Jhaddix.txt',
+                'default': 'Discovery/DNS/dns-Jhaddix.txt',
+                'comprehensive': 'Discovery/DNS/dns-Jhaddix.txt'
+            },
+            'vhosts': {
+                'fast': 'Discovery/DNS/subdomains-top1million-5000.txt',
+                'default': 'Discovery/Web-Content/virtual-host-scanning.txt',
+                'comprehensive': 'Discovery/DNS/subdomains-top1million-20000.txt'
+            }
+        }
+        
+        # Fallback to old format for backward compatibility
+        self.categories_legacy = {
             'usernames': 'Usernames/top-usernames-shortlist.txt',
             'passwords': 'Passwords/Common-Credentials/darkweb2017_top-100.txt',
             'web_directories': 'Discovery/Web-Content/directory-list-2.3-medium.txt',
@@ -71,7 +116,8 @@ class WordlistManager:
             'mode': {
                 'type': 'auto',  # 'auto' or 'custom'
                 'auto_update': True,  # Update detected paths on each run
-                'last_detection': None
+                'last_detection': None,
+                'size': 'default'  # 'fast', 'default', or 'comprehensive'
             },
             'detected_paths': {
                 'seclists_base': None,
@@ -88,6 +134,21 @@ class WordlistManager:
             'builtin_paths': {
                 'comment': 'Built-in wordlists shipped with ipcrawler',
                 'data_dir': None  # Will be populated at runtime
+            },
+            'sizes': {
+                'comment': 'Wordlist size configurations for different scan scenarios',
+                'fast': {
+                    'description': 'Small wordlists for quick scans (5-15 minutes)',
+                    'estimated_time': '5-15 minutes per service'
+                },
+                'default': {
+                    'description': 'Medium wordlists for standard scans (15-45 minutes)',
+                    'estimated_time': '15-45 minutes per service'
+                },
+                'comprehensive': {
+                    'description': 'Large wordlists for thorough scans (30-120 minutes)',
+                    'estimated_time': '30-120 minutes per service'
+                }
             }
         }
     
@@ -172,28 +233,39 @@ class WordlistManager:
             config['detected_paths']['seclists_base'] = seclists_path
             config['mode']['last_detection'] = 'success'
             
-            # Add individual category paths, trying multiple variants
-            for category, relative_path in self.categories.items():
-                # Try the default path first
-                full_path = os.path.join(seclists_path, relative_path)
-                if os.path.exists(full_path):
-                    config['detected_paths'][category] = full_path
-                    continue
+            # Add individual category paths for all sizes, trying multiple variants
+            for category, size_paths in self.categories.items():
+                config['detected_paths'][category] = {}
                 
-                # For passwords, try alternative paths for different package versions
-                if category == 'passwords':
-                    alternative_paths = [
-                        'Passwords/darkweb2017-top100.txt',  # Kali package version
-                        'Passwords/Common-Credentials/darkweb2017-top100.txt',  # Alternative naming
-                        'Passwords/darkweb2017_top-100.txt',  # Another variant
-                        'Passwords/Common-Credentials/10k-most-common.txt',  # Fallback
-                        'Passwords/Common-Credentials/best110.txt'  # Another fallback
-                    ]
-                    for alt_path in alternative_paths:
-                        alt_full_path = os.path.join(seclists_path, alt_path)
-                        if os.path.exists(alt_full_path):
-                            config['detected_paths'][category] = alt_full_path
-                            break
+                for size, relative_path in size_paths.items():
+                    # Try the specified path first
+                    full_path = os.path.join(seclists_path, relative_path)
+                    if os.path.exists(full_path):
+                        config['detected_paths'][category][size] = full_path
+                        continue
+                    
+                    # For passwords, try alternative paths for different package versions
+                    if category == 'passwords' and size == 'default':
+                        alternative_paths = [
+                            'Passwords/darkweb2017-top100.txt',  # Kali package version
+                            'Passwords/Common-Credentials/darkweb2017-top100.txt',  # Alternative naming
+                            'Passwords/darkweb2017_top-100.txt',  # Another variant
+                            'Passwords/Common-Credentials/10k-most-common.txt',  # Fallback
+                            'Passwords/Common-Credentials/best110.txt'  # Another fallback
+                        ]
+                        for alt_path in alternative_paths:
+                            alt_full_path = os.path.join(seclists_path, alt_path)
+                            if os.path.exists(alt_full_path):
+                                config['detected_paths'][category][size] = alt_full_path
+                                break
+                    
+                    # For missing files, try to find fallbacks within the same category
+                    if category not in config['detected_paths'] or size not in config['detected_paths'][category]:
+                        # Try using default size as fallback
+                        if size != 'default' and 'default' in size_paths:
+                            fallback_path = os.path.join(seclists_path, size_paths['default'])
+                            if os.path.exists(fallback_path):
+                                config['detected_paths'][category][size] = fallback_path
             
             self._config = config
             self._save_config()
@@ -204,9 +276,15 @@ class WordlistManager:
             self._save_config()
             return False
     
-    def get_wordlist_path(self, category: str, data_dir: str = None) -> Optional[str]:
+    def get_wordlist_path(self, category: str, data_dir: str = None, size: str = None) -> Optional[str]:
         """Get wordlist path for a category with fallback hierarchy"""
         config = self.load_config()
+        
+        # Determine the wordlist size to use
+        if size is None:
+            size = self._wordlist_size
+        if size is None:
+            size = config.get('mode', {}).get('size', 'default')
         
         # 1. CLI override has highest priority
         if category in self._cli_overrides:
@@ -225,13 +303,27 @@ class WordlistManager:
             else:
                 print(f"Warning: Custom path for {category} does not exist: {path}")
         
-        # 3. Auto-detected SecLists paths
+        # 3. Auto-detected SecLists paths (new nested structure)
         if config.get('mode', {}).get('type') == 'auto':
             detected_paths = config.get('detected_paths', {})
-            if category in detected_paths and detected_paths[category]:
-                path = detected_paths[category]
-                if os.path.exists(path):
-                    return path
+            if category in detected_paths:
+                # Try the requested size first
+                if isinstance(detected_paths[category], dict) and size in detected_paths[category]:
+                    path = detected_paths[category][size]
+                    if os.path.exists(path):
+                        return path
+                
+                # Fallback to default size if requested size not available
+                if isinstance(detected_paths[category], dict) and 'default' in detected_paths[category]:
+                    path = detected_paths[category]['default']
+                    if os.path.exists(path):
+                        return path
+                
+                # Legacy format support (single path instead of size dict)
+                elif isinstance(detected_paths[category], str):
+                    path = detected_paths[category]
+                    if os.path.exists(path):
+                        return path
         
         # 4. Built-in fallbacks
         if category in self.builtin_fallbacks and data_dir:
@@ -240,21 +332,33 @@ class WordlistManager:
                 return path
         
         # 5. Legacy hardcoded paths (for backward compatibility)
-        legacy_paths = {
-            'usernames': '/usr/share/seclists/Usernames/top-usernames-shortlist.txt',
-            'passwords': '/usr/share/seclists/Passwords/darkweb2017-top100.txt',
-            'subdomains': '/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt',
-            'snmp_communities': '/usr/share/seclists/Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt'
-        }
-        
-        if category in legacy_paths and os.path.exists(legacy_paths[category]):
-            return legacy_paths[category]
+        if category in self.categories_legacy:
+            legacy_path = '/usr/share/seclists/' + self.categories_legacy[category]
+            if os.path.exists(legacy_path):
+                return legacy_path
         
         return None
     
     def set_cli_override(self, category: str, path: str):
         """Set CLI override for a wordlist category"""
         self._cli_overrides[category] = path
+    
+    def set_wordlist_size(self, size: str):
+        """Set the global wordlist size preference"""
+        if size in ['fast', 'default', 'comprehensive']:
+            self._wordlist_size = size
+            # Also update the config file
+            config = self.load_config()
+            config['mode']['size'] = size
+            self._config = config
+            self._save_config()
+        else:
+            raise ValueError(f"Invalid wordlist size: {size}. Must be 'fast', 'default', or 'comprehensive'")
+    
+    def get_wordlist_size(self) -> str:
+        """Get the current wordlist size preference"""
+        config = self.load_config()
+        return self._wordlist_size or config.get('mode', {}).get('size', 'default')
     
     def get_available_categories(self) -> List[str]:
         """Get list of available wordlist categories"""

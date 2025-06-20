@@ -938,6 +938,20 @@ async def run():
 	wordlist_group.add_argument('--wordlist-dns-servers', action='store', metavar='PATH', help='Override the DNS servers wordlist path')
 	wordlist_group.add_argument('--wordlist-vhosts', action='store', metavar='PATH', help='Override the virtual hosts wordlist path')
 	
+	# Scan speed and scenario arguments
+	scan_group = parser.add_argument_group('scan scenarios', 'Predefined scan configurations for different scenarios')
+	scan_speed_group = scan_group.add_mutually_exclusive_group()
+	scan_speed_group.add_argument('--fast', action='store_true', help='Fast scan mode using smaller wordlists (5-15 min per service). Great for initial reconnaissance.')
+	scan_speed_group.add_argument('--comprehensive', action='store_true', help='Comprehensive scan mode using large wordlists (30-120 min per service). Best for thorough enumeration.')
+	scan_speed_group.add_argument('--wordlist-size', choices=['fast', 'default', 'comprehensive'], metavar='SIZE', help='Set wordlist size preference: fast, default, or comprehensive')
+	
+	# Scenario-based scan presets
+	scenario_group = scan_group.add_mutually_exclusive_group()
+	scenario_group.add_argument('--ctf', action='store_true', help='CTF/lab mode: balanced wordlists with higher threads for practice environments')
+	scenario_group.add_argument('--pentest', action='store_true', help='Penetration testing mode: comprehensive wordlists optimized for real-world assessment')
+	scenario_group.add_argument('--recon', action='store_true', help='Quick reconnaissance mode: fast wordlists for initial target discovery')
+	scenario_group.add_argument('--stealth', action='store_true', help='Stealth mode: slower scans with reduced threads to avoid detection')
+	
 	parser.add_argument('-v', '--verbose', action='count', help='Enable verbose output. Repeat for more verbosity.')
 	parser.add_argument('--version', action='store_true', help='Prints the ipcrawler version and exits.')
 	parser.error = lambda s: fail(s[0].upper() + s[1:])
@@ -1231,6 +1245,35 @@ async def run():
 				fail(f'Error: Wordlist path for {category} does not exist or is not readable: {path}')
 			wordlist_manager.set_cli_override(category, path)
 			debug(f'CLI override set for {category}: {path}')
+	
+	# Process scan scenario flags
+	if args.fast:
+		wordlist_manager.set_wordlist_size('fast')
+		info('Fast scan mode enabled: using smaller wordlists for quicker scans.')
+	elif args.comprehensive:
+		wordlist_manager.set_wordlist_size('comprehensive')
+		info('Comprehensive scan mode enabled: using large wordlists for thorough enumeration.')
+	elif getattr(args, 'wordlist_size', None):
+		wordlist_manager.set_wordlist_size(args.wordlist_size)
+		info(f'Wordlist size set to: {args.wordlist_size}')
+	
+	# Process scenario presets
+	if args.ctf:
+		wordlist_manager.set_wordlist_size('default')
+		config['max_scans'] = config.get('max_scans', 20) + 10  # Higher concurrency
+		info('CTF mode enabled: balanced wordlists with higher concurrency for lab environments.')
+	elif args.pentest:
+		wordlist_manager.set_wordlist_size('comprehensive')
+		info('Penetration testing mode enabled: comprehensive wordlists for real-world assessment.')
+	elif args.recon:
+		wordlist_manager.set_wordlist_size('fast')
+		config['tags'] = 'default+safe'  # Focus on safe, quick scans
+		info('Quick reconnaissance mode enabled: fast wordlists for initial target discovery.')
+	elif args.stealth:
+		wordlist_manager.set_wordlist_size('default')
+		# Reduce thread counts for stealth (will be applied to individual plugins)
+		config['stealth_mode'] = True
+		info('Stealth mode enabled: slower scans with reduced threads to avoid detection.')
 
 	if args.list:
 		show_modern_plugin_list(ipcrawler.plugin_types, args.list)

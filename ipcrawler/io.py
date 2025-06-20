@@ -238,7 +238,10 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 		("Multiple targets", "ipcrawler 10.0.0.1 10.0.0.2 target.com"),
 		("From file", "ipcrawler -t targets.txt"),
 		("Custom ports", "ipcrawler -p 80,443,8080 target.com"),
-		("Verbose scan", "ipcrawler -vv target.com")
+		("Verbose scan", "ipcrawler -vv target.com"),
+		("Fast scan", "ipcrawler --fast target.com"),
+		("CTF mode", "ipcrawler --ctf target.com"),
+		("Stealth scan", "ipcrawler --stealth target.com")
 	]
 	
 	examples_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
@@ -279,6 +282,43 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 		options_table.add_row(option, desc, value)
 	
 	console.print(Panel(options_table, title="🛠️  Core Options", border_style=theme_color, box=box.ROUNDED))
+	console.print()
+	
+	# Scan scenarios
+	speed_options = [
+		("--fast", "Quick scans with small wordlists", "5-15 min/service"),
+		("--comprehensive", "Thorough scans with large wordlists", "30-120 min/service"),
+		("--wordlist-size SIZE", "Manual wordlist size selection", "fast|default|comprehensive")
+	]
+	
+	speed_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
+	speed_table.add_column("Option", style=f"bold {success_color}", width=22)
+	speed_table.add_column("Description", style="white", width=35)
+	speed_table.add_column("Time", style=f"dim {accent_color}", width=20)
+	
+	for option, desc, time in speed_options:
+		speed_table.add_row(option, desc, time)
+	
+	console.print(Panel(speed_table, title="⚡ Speed Control", border_style=success_color, box=box.ROUNDED))
+	console.print()
+	
+	# Scenario presets
+	scenario_options = [
+		("--ctf", "CTF/lab mode: balanced + high threads", "Practice environments"),
+		("--pentest", "Penetration testing mode", "Real-world assessments"),
+		("--recon", "Quick reconnaissance mode", "Initial discovery"),
+		("--stealth", "Stealth mode: reduced threads", "Evasive scanning")
+	]
+	
+	scenario_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
+	scenario_table.add_column("Option", style=f"bold {accent_color}", width=22)
+	scenario_table.add_column("Description", style="white", width=35)
+	scenario_table.add_column("Use Case", style=f"dim {success_color}", width=20)
+	
+	for option, desc, use_case in scenario_options:
+		scenario_table.add_row(option, desc, use_case)
+	
+	console.print(Panel(scenario_table, title="🎯 Scan Scenarios", border_style=accent_color, box=box.ROUNDED))
 	console.print()
 	
 	# Footer

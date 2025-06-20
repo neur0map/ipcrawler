@@ -24,16 +24,8 @@ class DirBuster(ServiceScan):
 				break
 		
 		self.add_choice_option('tool', default=default_tool, choices=['feroxbuster', 'gobuster', 'dirsearch', 'ffuf', 'dirb'], help='The tool to use for directory busting. Default: %(default)s')
-		# Use WordlistManager to get appropriate web directory wordlists
-		try:
-			wordlist_manager = get_wordlist_manager()
-			web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir'))
-			default_wordlists = [web_dirs_path] if web_dirs_path else [os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')]
-		except:
-			# Fallback to built-in wordlist if WordlistManager isn't available
-			default_wordlists = [os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')]
-		
-		self.add_list_option('wordlist', default=default_wordlists, help='The wordlist(s) to use when directory busting. Separate multiple wordlists with spaces. Default: %(default)s')
+		# Default to auto-detection - wordlists will be resolved at runtime
+		self.add_list_option('wordlist', default=['auto'], help='The wordlist(s) to use when directory busting. Use "auto" for automatic SecLists detection, or specify custom paths. Default: %(default)s')
 		self.add_option('threads', default=10, help='The number of threads to use when directory busting. Default: %(default)s')
 		self.add_option('ext', default='txt,html,php,asp,aspx,jsp', help='The extensions you wish to fuzz (no dot, comma separated). Default: %(default)s')
 		self.add_true_option('recursive', help='Enables recursive searching (where available). Warning: This may cause significant increases to scan times. Default: %(default)s')
@@ -63,7 +55,33 @@ class DirBuster(ServiceScan):
 
 	async def run(self, service):
 		dot_extensions = ','.join(['.' + x for x in self.get_option('ext').split(',')])
-		for wordlist in self.get_option('wordlist'):
+		
+		# Resolve wordlists at runtime
+		wordlists = self.get_option('wordlist')
+		resolved_wordlists = []
+		
+		for wordlist in wordlists:
+			if wordlist == 'auto':
+				# Auto-detect best available wordlist using configured size preference
+				try:
+					wordlist_manager = get_wordlist_manager()
+					current_size = wordlist_manager.get_wordlist_size()
+					web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir'), current_size)
+					if web_dirs_path and os.path.exists(web_dirs_path):
+						resolved_wordlists.append(web_dirs_path)
+					else:
+						# Fallback to built-in wordlist
+						fallback_path = os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')
+						resolved_wordlists.append(fallback_path)
+				except Exception:
+					# Fallback to built-in wordlist if WordlistManager isn't available
+					fallback_path = os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')
+					resolved_wordlists.append(fallback_path)
+			else:
+				# User specified a custom wordlist path
+				resolved_wordlists.append(wordlist)
+		
+		for wordlist in resolved_wordlists:
 			name = os.path.splitext(os.path.basename(wordlist))[0]
 			if self.get_option('tool') == 'feroxbuster':
 				await service.execute('feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -x "' + self.get_option('ext') + '" -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
