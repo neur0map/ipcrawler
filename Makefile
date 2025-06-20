@@ -257,13 +257,21 @@ install:
 	fi
 	@echo "🚀 Installing IPCrawler..."
 	@echo "📦 Installing Python dependencies..."
-	@python3 -m pip install --user -r requirements.txt
+	@python3 -m pip install --user --break-system-packages -r requirements.txt 2>/dev/null || \
+	 python3 -m pip install --user -r requirements.txt 2>/dev/null || \
+	 { echo "⚠️  Creating virtual environment for dependencies..."; \
+	   python3 -m venv .venv; \
+	   .venv/bin/pip install -r requirements.txt; }
 	@echo "🔧 Creating executable wrapper..."
 	@mkdir -p ~/.local/bin
 	@echo '#!/bin/bash' > ~/.local/bin/ipcrawler
 	@echo 'SCRIPT_DIR="$$(pwd)"' >> ~/.local/bin/ipcrawler
 	@echo 'if [ -f "$$SCRIPT_DIR/ipcrawler.py" ]; then' >> ~/.local/bin/ipcrawler
-	@echo '    exec python3 "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
+	@echo '    if [ -f "$$SCRIPT_DIR/.venv/bin/python" ]; then' >> ~/.local/bin/ipcrawler
+	@echo '        exec "$$SCRIPT_DIR/.venv/bin/python" "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
+	@echo '    else' >> ~/.local/bin/ipcrawler
+	@echo '        exec python3 "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
+	@echo '    fi' >> ~/.local/bin/ipcrawler
 	@echo 'else' >> ~/.local/bin/ipcrawler
 	@echo '    echo "Error: Please run ipcrawler from the git repository directory containing ipcrawler.py"' >> ~/.local/bin/ipcrawler
 	@echo '    echo "cd /path/to/ipcrawler && ipcrawler [options]"' >> ~/.local/bin/ipcrawler
@@ -285,13 +293,19 @@ install:
 update:
 	@echo "🔄 Updating IPCrawler..."
 	@git pull
-	@python3 -m pip install --user -r requirements.txt
+	@if [ -f ".venv/bin/pip" ]; then \
+		.venv/bin/pip install -r requirements.txt; \
+	else \
+		python3 -m pip install --user --break-system-packages -r requirements.txt 2>/dev/null || \
+		python3 -m pip install --user -r requirements.txt; \
+	fi
 	@echo "✅ Update complete!"
 
 # Clean ipcrawler only
 clean:
 	@echo "🧹 Cleaning ipcrawler..."
 	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
+	@rm -rf .venv 2>/dev/null || true
 	@python3 -m pip uninstall -y platformdirs colorama impacket psutil requests toml Unidecode rich 2>/dev/null || true
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
@@ -304,6 +318,7 @@ clean-all:
 	@echo "📁 Results directory will be preserved"
 	@# Remove ipcrawler first
 	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
+	@rm -rf .venv 2>/dev/null || true
 	@python3 -m pip uninstall -y platformdirs colorama impacket psutil requests toml Unidecode rich 2>/dev/null || true
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
