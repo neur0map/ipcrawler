@@ -553,6 +553,7 @@ Just as a gun manufacturer is not responsible for how their product is used, **t
 
 #### **✅ Recommended Environments:**
 - **Hack The Box machines** - Legal, isolated targets designed for security testing
+- **OSCP exam labs** - Tool is OSCP compliant and safe for certification testing
 - **Kali Linux virtual machines** - Isolated from your main system
 - **Personal lab environments** - Networks you own completely
 - **TryHackMe platforms** - Legal practice environments
@@ -618,6 +619,7 @@ If you choose to use this tool despite the risks:
 
 If you're learning about security, consider these safer alternatives:
 - **Hack The Box** - Legal practice targets
+- **OSCP certification labs** - This tool is fully compliant with OSCP exam guidelines
 - **TryHackMe** - Guided learning platform
 - **VulnHub VMs** - Downloadable vulnerable machines
 - **DVWA** - Damn Vulnerable Web Application
