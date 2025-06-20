@@ -128,10 +128,7 @@ class WordlistManager:
                     '# web_directories': '/path/to/custom/web-dirs.txt'
                 }
             },
-            'builtin_paths': {
-                'comment': 'Built-in wordlists shipped with ipcrawler',
-                'data_dir': None  # Will be populated at runtime
-            },
+            # No built-in wordlists - removed to force use of proper SecLists installation
             'sizes': {
                 'comment': 'Wordlist size configurations for different scan scenarios',
                 'fast': {
