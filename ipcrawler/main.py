@@ -20,6 +20,18 @@ from ipcrawler.wordlists import init_wordlist_manager
 
 VERSION = "0.1.0-alpha"
 
+def copy_tree_ignore_broken_symlinks(src, dst):
+	"""Copy directory tree, ignoring broken symlinks"""
+	def ignore_broken_symlinks(dir, files):
+		ignore = []
+		for file in files:
+			file_path = os.path.join(dir, file)
+			if os.path.islink(file_path) and not os.path.exists(file_path):
+				ignore.append(file)
+		return ignore
+	
+	shutil.copytree(src, dst, ignore=ignore_broken_symlinks)
+
 if not os.path.exists(config['config_dir']):
 	shutil.rmtree(config['config_dir'], ignore_errors=True, onerror=None)
 	os.makedirs(config['config_dir'], exist_ok=True)
@@ -40,12 +52,12 @@ if not os.path.exists(config['data_dir']):
 	os.makedirs(config['data_dir'], exist_ok=True)
 	open(os.path.join(config['data_dir'], 'VERSION-' + VERSION), 'a').close()
 	shutil.copytree(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'default-plugins'), os.path.join(config['data_dir'], 'plugins'))
-	shutil.copytree(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'wordlists'), os.path.join(config['data_dir'], 'wordlists'))
+	copy_tree_ignore_broken_symlinks(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'wordlists'), os.path.join(config['data_dir'], 'wordlists'))
 else:
 	if not os.path.exists(os.path.join(config['data_dir'], 'plugins')):
 		shutil.copytree(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'default-plugins'), os.path.join(config['data_dir'], 'plugins'))
 	if not os.path.exists(os.path.join(config['data_dir'], 'wordlists')):
-		shutil.copytree(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'wordlists'), os.path.join(config['data_dir'], 'wordlists'))
+		copy_tree_ignore_broken_symlinks(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'wordlists'), os.path.join(config['data_dir'], 'wordlists'))
 	if not os.path.exists(os.path.join(config['data_dir'], 'VERSION-' + VERSION)):
 		warn('It looks like the plugins in ' + config['data_dir'] + ' are outdated. Please remove the ' + config['data_dir'] + ' directory and re-run ipcrawler to rebuild them.')
 
