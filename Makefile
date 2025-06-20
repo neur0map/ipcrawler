@@ -52,30 +52,85 @@ install:
 	elif [ -f /etc/debian_version ]; then \
 		echo "🐧 Debian/Ubuntu detected - Installing complete penetration testing suite..."; \
 		sudo apt update; \
-		echo "  📦 Installing base tools..."; \
-		sudo apt install -y python3 python3-pip python3-venv curl nmap pipx; \
-		echo "  🔧 Installing core penetration testing tools..."; \
-		sudo apt install -y dnsrecon; \
-		echo "  🔧 Installing gobuster..."; \
-		if ! command -v gobuster >/dev/null 2>&1; then \
-			sudo apt install -y gobuster 2>/dev/null || \
-			{ echo "  📦 Installing gobuster from GitHub releases..."; \
-			  GOBUSTER_VERSION=$$(curl -s https://api.github.com/repos/OJ/gobuster/releases/latest | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4 | sed 's/v//'); \
-			  if [ "$$GOBUSTER_VERSION" ]; then \
-				ARCH=$$(dpkg --print-architecture 2>/dev/null || echo "amd64"); \
-				if [ "$$ARCH" = "amd64" ]; then GOBUSTER_ARCH="Linux_x86_64"; \
-				elif [ "$$ARCH" = "arm64" ]; then GOBUSTER_ARCH="Linux_arm64"; \
-				else GOBUSTER_ARCH="Linux_x86_64"; fi; \
-				wget -q "https://github.com/OJ/gobuster/releases/download/v$$GOBUSTER_VERSION/gobuster_$${GOBUSTER_VERSION}_$${GOBUSTER_ARCH}.tar.gz" -O /tmp/gobuster.tar.gz && \
-				sudo tar -xzf /tmp/gobuster.tar.gz -C /usr/local/bin/ gobuster && \
-				sudo chmod +x /usr/local/bin/gobuster && \
-				rm -f /tmp/gobuster.tar.gz && \
-				echo "  ✅ gobuster installed from GitHub"; \
-			  else \
-				echo "  ⚠️  Could not install gobuster automatically. Install manually with: apt install gobuster"; \
-			  fi; }; \
+		echo "  📦 Checking and installing base tools..."; \
+		base_tools="python3 python3-pip python3-venv curl nmap pipx"; \
+		missing_base=""; \
+		for tool in $$base_tools; do \
+			if command -v $$tool >/dev/null 2>&1 || dpkg -l | grep -q "^ii.*$$tool"; then \
+				echo "  ✅ $$tool already available"; \
+			else \
+				missing_base="$$missing_base $$tool"; \
+			fi; \
+		done; \
+		if [ -n "$$missing_base" ]; then \
+			echo "  📦 Installing missing base tools:$$missing_base"; \
+			sudo apt install -y $$missing_base; \
 		else \
-			echo "  ✅ gobuster already installed"; \
+			echo "  ✅ All base tools already installed"; \
+		fi; \
+		echo "  🔧 Checking and installing penetration testing tools..."; \
+		core_tools="dnsrecon gobuster feroxbuster"; \
+		missing_tools=""; \
+		for tool in $$core_tools; do \
+			if command -v $$tool >/dev/null 2>&1; then \
+				echo "  ✅ $$tool already installed"; \
+			else \
+				missing_tools="$$missing_tools $$tool"; \
+			fi; \
+		done; \
+		if [ -n "$$missing_tools" ]; then \
+			echo "  📦 Installing missing tools:$$missing_tools"; \
+			for tool in $$missing_tools; do \
+				case $$tool in \
+					dnsrecon) \
+						sudo apt install -y dnsrecon 2>/dev/null && echo "  ✅ dnsrecon installed" || echo "  ⚠️  dnsrecon install failed"; \
+						;; \
+					gobuster) \
+						if sudo apt install -y gobuster 2>/dev/null; then \
+							echo "  ✅ gobuster installed via apt"; \
+						else \
+							echo "  📦 Installing gobuster from GitHub..."; \
+							GOBUSTER_VERSION=$$(curl -s https://api.github.com/repos/OJ/gobuster/releases/latest | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4 | sed 's/v//'); \
+							if [ "$$GOBUSTER_VERSION" ]; then \
+								ARCH=$$(dpkg --print-architecture 2>/dev/null || echo "amd64"); \
+								if [ "$$ARCH" = "amd64" ]; then GOBUSTER_ARCH="Linux_x86_64"; \
+								elif [ "$$ARCH" = "arm64" ]; then GOBUSTER_ARCH="Linux_arm64"; \
+								else GOBUSTER_ARCH="Linux_x86_64"; fi; \
+								wget -q "https://github.com/OJ/gobuster/releases/download/v$$GOBUSTER_VERSION/gobuster_$${GOBUSTER_VERSION}_$${GOBUSTER_ARCH}.tar.gz" -O /tmp/gobuster.tar.gz && \
+								sudo tar -xzf /tmp/gobuster.tar.gz -C /usr/local/bin/ gobuster && \
+								sudo chmod +x /usr/local/bin/gobuster && \
+								rm -f /tmp/gobuster.tar.gz && \
+								echo "  ✅ gobuster installed from GitHub"; \
+							else \
+								echo "  ⚠️  gobuster install failed"; \
+							fi; \
+						fi; \
+						;; \
+					feroxbuster) \
+						if sudo apt install -y feroxbuster 2>/dev/null; then \
+							echo "  ✅ feroxbuster installed via apt"; \
+						else \
+							echo "  📦 Installing feroxbuster from GitHub..."; \
+							FEROX_VERSION=$$(curl -s https://api.github.com/repos/epi052/feroxbuster/releases/latest | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4 | sed 's/v//'); \
+							if [ "$$FEROX_VERSION" ]; then \
+								ARCH=$$(dpkg --print-architecture 2>/dev/null || echo "amd64"); \
+								if [ "$$ARCH" = "amd64" ]; then FEROX_ARCH="x86_64-linux"; \
+								elif [ "$$ARCH" = "arm64" ]; then FEROX_ARCH="aarch64-linux"; \
+								else FEROX_ARCH="x86_64-linux"; fi; \
+								wget -q "https://github.com/epi052/feroxbuster/releases/download/v$$FEROX_VERSION/feroxbuster_$${FEROX_VERSION}_$${FEROX_ARCH}.zip" -O /tmp/feroxbuster.zip && \
+								sudo unzip -j /tmp/feroxbuster.zip feroxbuster -d /usr/local/bin/ && \
+								sudo chmod +x /usr/local/bin/feroxbuster && \
+								rm -f /tmp/feroxbuster.zip && \
+								echo "  ✅ feroxbuster installed from GitHub"; \
+							else \
+								echo "  ⚠️  feroxbuster install failed"; \
+							fi; \
+						fi; \
+						;; \
+				esac; \
+			done; \
+		else \
+			echo "  ✅ All core tools already installed"; \
 		fi; \
 		echo "  🔧 Installing SecLists wordlists..."; \
 		if [ ! -d "/usr/share/seclists" ]; then \
@@ -85,27 +140,6 @@ install:
 			echo "  ⚠️  SecLists installation failed, wordlists will be limited"; \
 		else \
 			echo "  ✅ SecLists already installed"; \
-		fi; \
-		echo "  🔧 Installing feroxbuster..."; \
-		if ! command -v feroxbuster >/dev/null 2>&1; then \
-			sudo apt install -y feroxbuster 2>/dev/null || \
-			{ echo "  📦 Installing feroxbuster from GitHub releases..."; \
-			  FEROX_VERSION=$$(curl -s https://api.github.com/repos/epi052/feroxbuster/releases/latest | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4 | sed 's/v//'); \
-			  if [ "$$FEROX_VERSION" ]; then \
-				ARCH=$$(dpkg --print-architecture 2>/dev/null || echo "amd64"); \
-				if [ "$$ARCH" = "amd64" ]; then FEROX_ARCH="x86_64-linux"; \
-				elif [ "$$ARCH" = "arm64" ]; then FEROX_ARCH="aarch64-linux"; \
-				else FEROX_ARCH="x86_64-linux"; fi; \
-				wget -q "https://github.com/epi052/feroxbuster/releases/download/v$$FEROX_VERSION/feroxbuster_$${FEROX_ARCH}.zip" -O /tmp/feroxbuster.zip && \
-				sudo unzip -j /tmp/feroxbuster.zip feroxbuster -d /usr/local/bin/ && \
-				sudo chmod +x /usr/local/bin/feroxbuster && \
-				rm -f /tmp/feroxbuster.zip && \
-				echo "  ✅ feroxbuster installed from GitHub"; \
-			  else \
-				echo "  ⚠️  Could not install feroxbuster automatically. Install manually with: apt install feroxbuster"; \
-			  fi; }; \
-		else \
-			echo "  ✅ feroxbuster already installed"; \
 		fi; \
 		sudo apt install -y nbtscan nikto onesixtyone oscanner; \
 		sudo apt install -y smbclient smbmap snmp sslscan sipvicious; \
