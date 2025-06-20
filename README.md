@@ -40,25 +40,36 @@ graph LR
 
 ## ⚡ Quick Start
 
-### Installation
+### Automated Installation (System-wide)
 
 ```bash
 git clone https://github.com/neur0map/ipcrawler.git
 cd ipcrawler
-make install
+make install          # Installs tools system-wide
+ipcrawler --version   # Test installation
+```
+
+### Manual Setup (No System Changes)
+
+```bash
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+pip install -r requirements.txt
+python3 ipcrawler.py --version  # Test setup
 ```
 
 ### Basic Usage
 
 ```bash
-# Scan a single target
+# With automated installation
 ipcrawler 192.168.1.100
-
-# Scan multiple targets
 ipcrawler 192.168.1.0/24
-
-# Scan with custom verbosity
 ipcrawler -vv target.com
+
+# With manual setup  
+python3 ipcrawler.py 192.168.1.100
+python3 ipcrawler.py 192.168.1.0/24
+python3 ipcrawler.py -vv target.com
 ```
 
 ### Example Output Structure
@@ -119,16 +130,166 @@ results/192.168.1.100/
 - **Linux/macOS** (Windows via WSL--NOT FULLY TESTED)
 - **Root privileges** (for SYN scanning and UDP)
 
-### Dependencies
-The installation automatically handles ALL dependencies:
+### 🚨 Installation Options
 
-**Essential Tools:** nmap, curl, feroxbuster, gobuster, nikto  
-**Wordlists:** SecLists package (119k+ wordlists) + built-in collections  
-**Database Tools:** MySQL, MSSQL, Oracle clients  
-**Network Tools:** dnsrecon, enum4linux, smbclient  
-**Platform Support:** Full on Kali/Ubuntu, Limited on macOS
+<details>
+<summary><b>⚡ Automated Installation (Recommended)</b></summary>
 
-> **Note:** Unlike other tools, ipcrawler automatically installs SecLists - no separate installation needed!
+The `make install` command automatically handles ALL dependencies and system setup:
+
+```bash
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+make install
+```
+
+**What `make install` does:**
+- Installs Python dependencies via pipx (isolated environment)
+- Downloads and installs penetration testing tools
+- Clones SecLists wordlists to `/usr/share/seclists` (or `~/tools/SecLists`)
+- Adds tool binaries to system PATH
+- Creates configuration directories
+
+**⚠️ System Modifications Warning:**
+This command modifies your system by installing packages and tools to:
+- `/usr/local/bin/` - Tool binaries (gobuster, feroxbuster, etc.)
+- `/usr/share/seclists/` - SecLists wordlist repository
+- `/opt/` - Additional tools and resources
+- System package manager (apt, brew, pacman)
+
+**Make Commands Available:**
+- `make install` - Full installation with tools and dependencies
+- `make clean` - Remove ipcrawler only (keeps tools and results)
+- `make clean-all` - Remove everything including installed tools
+- `make debug` - Show system diagnostics and tool availability
+- `make help` - Show all available commands
+
+</details>
+
+<details>
+<summary><b>🛡️ Manual Setup (No System Modifications)</b></summary>
+
+If you prefer not to modify system files or are using a restricted environment:
+
+```bash
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+pip install -r requirements.txt
+python3 ipcrawler.py --version
+```
+
+**Run scans directly:**
+```bash
+python3 ipcrawler.py 192.168.1.100
+python3 ipcrawler.py -vv target.com
+```
+
+**Required Tools for Manual Setup:**
+
+<details>
+<summary>Essential Tools (Core functionality)</summary>
+
+- **nmap** - Port scanning and service detection
+- **curl** - HTTP requests and web testing
+- **python3** - Runtime environment
+- **git** - Repository management
+
+**Installation:**
+```bash
+# Ubuntu/Debian
+sudo apt install nmap curl python3 git
+
+# macOS
+brew install nmap curl python3 git
+
+# Arch Linux
+sudo pacman -S nmap curl python3 git
+```
+
+</details>
+
+<details>
+<summary>Web Enumeration Tools (Recommended)</summary>
+
+- **feroxbuster** - Fast directory/file discovery
+- **gobuster** - Directory/DNS enumeration  
+- **nikto** - Web vulnerability scanner
+- **whatweb** - Web technology identification
+
+**Installation:**
+```bash
+# Ubuntu/Debian
+sudo apt install feroxbuster gobuster nikto
+
+# Install from GitHub if not available:
+# Feroxbuster: https://github.com/epi052/feroxbuster/releases
+# Gobuster: https://github.com/OJ/gobuster/releases
+```
+
+</details>
+
+<details>
+<summary>Network Enumeration Tools (Optional)</summary>
+
+- **dnsrecon** - DNS enumeration
+- **enum4linux** - SMB/NetBIOS enumeration
+- **smbclient** - SMB client testing
+- **nbtscan** - NetBIOS name scanning
+- **onesixtyone** - SNMP scanning
+
+**Installation:**
+```bash
+# Ubuntu/Debian
+sudo apt install dnsrecon enum4linux smbclient nbtscan onesixtyone
+
+# Alternative enum4linux-ng:
+git clone https://github.com/cddmp/enum4linux-ng.git
+```
+
+</details>
+
+<details>
+<summary>Database Tools (Optional)</summary>
+
+- **mysql-client** - MySQL enumeration
+- **redis-tools** - Redis enumeration
+- **impacket-scripts** - Windows/AD tools
+
+**Installation:**
+```bash
+# Ubuntu/Debian
+sudo apt install mysql-client redis-tools impacket-scripts
+
+# Or via pip:
+pip3 install impacket
+```
+
+</details>
+
+**SecLists Wordlists (Required for many plugins):**
+
+```bash
+# Clone to home directory
+git clone https://github.com/danielmiessler/SecLists.git ~/tools/SecLists
+
+# Or system-wide (requires sudo)
+sudo git clone https://github.com/danielmiessler/SecLists.git /usr/share/seclists
+```
+
+**Verify Manual Setup:**
+```bash
+python3 ipcrawler.py --version
+python3 ipcrawler.py -l  # List available plugins
+```
+
+</details>
+
+### Platform Support
+- **Full Support:** Kali Linux, Ubuntu, Debian
+- **Partial Support:** macOS (limited tool availability)
+- **Basic Support:** Arch Linux, RedHat/CentOS
+
+> **💡 Pro Tip:** For VM environments or when you want to avoid system modifications, use the manual setup with `python3 ipcrawler.py`
 
 ---
 
@@ -234,17 +395,17 @@ ipcrawler --wordlist-web-directories /custom/dirs.txt target.com
 
 ## 🔧 Troubleshooting
 
-### Common Issues on Kali Linux
+### Common Issues
 
 **Missing Tools Error:**
 ```bash
 [!] The following plugins failed checks that prevent ipcrawler from running: dirbuster
 ```
 
-**Solution:** Run the installation command to install missing tools:
-```bash
-make install
-```
+**Solutions:**
+1. **Automated installation:** `make install` (installs all tools)
+2. **Manual installation:** Install specific tools as shown in manual setup section
+3. **Bypass checks:** `ipcrawler --ignore-plugin-checks target.com`
 
 **SecLists Not Detected:**
 ```bash
@@ -252,20 +413,35 @@ make install
 ```
 
 **Solutions:**
-1. **Install SecLists package:** `sudo apt install seclists`
-2. **Or run full installation:** `make install` (includes SecLists)
-3. **Check installation:** SecLists should be at `/usr/share/seclists`
-
-**Plugin Check Failures:**
-If some tools can't be installed, you can bypass checks:
-```bash
-ipcrawler --ignore-plugin-checks target.com
-```
+1. **With make install:** Automatically clones SecLists to `/usr/share/seclists`
+2. **Manual clone:** `git clone https://github.com/danielmiessler/SecLists.git ~/tools/SecLists`
+3. **Package install:** `sudo apt install seclists` (may have different structure)
 
 **Permission Issues:**
-For UDP scanning, run with sudo:
+For UDP scanning and system-wide tool installation:
 ```bash
+# For scanning
 sudo ipcrawler target.com
+# OR manual setup
+sudo python3 ipcrawler.py target.com
+
+# For make install (requires sudo for system modifications)
+make install
+```
+
+**Restricted Environments:**
+If you cannot install tools system-wide, use manual setup:
+```bash
+pip install -r requirements.txt
+python3 ipcrawler.py target.com  # Runs with available tools only
+```
+
+**Tool Detection Failures:**
+Check what tools are available:
+```bash
+make debug  # Shows comprehensive tool status
+# OR manually
+python3 ipcrawler.py -l  # List plugins (shows which need tools)
 ```
 
 ---
