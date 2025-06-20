@@ -134,10 +134,28 @@ install:
 		fi; \
 		echo "  🔧 Installing SecLists wordlists..."; \
 		if [ ! -d "/usr/share/seclists" ]; then \
-			echo "  📦 Installing SecLists from GitHub (Kali package often broken)..."; \
-			sudo git clone --depth 1 https://github.com/danielmiessler/SecLists.git /usr/share/seclists 2>/dev/null && \
-			echo "  ✅ SecLists installed to /usr/share/seclists" || \
-			echo "  ⚠️  SecLists installation failed, wordlists will be limited"; \
+			echo "  📦 Installing SecLists from GitHub (this may take a few minutes)..."; \
+			{ \
+				sudo git clone --depth 1 https://github.com/danielmiessler/SecLists.git /usr/share/seclists 2>/dev/null; \
+				echo $$? > /tmp/seclists_status; \
+			} & \
+			CLONE_PID=$$!; \
+			spinner="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"; \
+			i=0; \
+			printf "  "; \
+			while kill -0 $$CLONE_PID 2>/dev/null; do \
+				printf "\b$${spinner:$$i:1}"; \
+				i=$$(( (i+1) % 10 )); \
+				sleep 0.1; \
+			done; \
+			wait $$CLONE_PID; \
+			STATUS=$$(cat /tmp/seclists_status 2>/dev/null || echo "1"); \
+			rm -f /tmp/seclists_status; \
+			if [ "$$STATUS" = "0" ]; then \
+				printf "\b✅ SecLists installed to /usr/share/seclists\n"; \
+			else \
+				printf "\b⚠️  SecLists installation failed, wordlists will be limited\n"; \
+			fi; \
 		else \
 			echo "  ✅ SecLists already installed"; \
 		fi; \
