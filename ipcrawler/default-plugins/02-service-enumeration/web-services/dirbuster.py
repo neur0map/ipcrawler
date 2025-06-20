@@ -1,5 +1,6 @@
 from ipcrawler.plugins import ServiceScan
 from ipcrawler.config import config
+from ipcrawler.wordlists import get_wordlist_manager
 from shutil import which
 import os
 
@@ -14,7 +15,16 @@ class DirBuster(ServiceScan):
 
 	def configure(self):
 		self.add_choice_option('tool', default='feroxbuster', choices=['feroxbuster', 'gobuster', 'dirsearch', 'ffuf', 'dirb'], help='The tool to use for directory busting. Default: %(default)s')
-		self.add_list_option('wordlist', default=[os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')], help='The wordlist(s) to use when directory busting. Separate multiple wordlists with spaces. Default: %(default)s')
+		# Use WordlistManager to get appropriate web directory wordlists
+		try:
+			wordlist_manager = get_wordlist_manager()
+			web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir'))
+			default_wordlists = [web_dirs_path] if web_dirs_path else [os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')]
+		except:
+			# Fallback to built-in wordlist if WordlistManager isn't available
+			default_wordlists = [os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')]
+		
+		self.add_list_option('wordlist', default=default_wordlists, help='The wordlist(s) to use when directory busting. Separate multiple wordlists with spaces. Default: %(default)s')
 		self.add_option('threads', default=10, help='The number of threads to use when directory busting. Default: %(default)s')
 		self.add_option('ext', default='txt,html,php,asp,aspx,jsp', help='The extensions you wish to fuzz (no dot, comma separated). Default: %(default)s')
 		self.add_true_option('recursive', help='Enables recursive searching (where available). Warning: This may cause significant increases to scan times. Default: %(default)s')

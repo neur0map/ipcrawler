@@ -120,12 +120,15 @@ results/192.168.1.100/
 - **Root privileges** (for SYN scanning and UDP)
 
 ### Dependencies
-The installation automatically handles tool dependencies:
+The installation automatically handles ALL dependencies:
 
 **Essential Tools:** nmap, curl, feroxbuster, gobuster, nikto  
+**Wordlists:** SecLists package (119k+ wordlists) + built-in collections  
 **Database Tools:** MySQL, MSSQL, Oracle clients  
 **Network Tools:** dnsrecon, enum4linux, smbclient  
 **Platform Support:** Full on Kali/Ubuntu, Limited on macOS
+
+> **Note:** Unlike other tools, ipcrawler automatically installs SecLists - no separate installation needed!
 
 ---
 
@@ -247,6 +250,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ### Built with ❤️ for the cybersecurity community
 
-[Report Bug](https://github.com/neur0map/ipcrawler/issues) · [Request Feature](https://github.com/neur0map/ipcrawler/issues) · [Documentation](CLAUDE.md)
+[Report Bug](https://github.com/neur0map/ipcrawler/issues) · [Request Feature](https://github.com/neur0map/ipcrawler/issues)
 
 </div>

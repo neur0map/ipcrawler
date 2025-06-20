@@ -16,6 +16,7 @@ from ipcrawler.config import config, configurable_keys, configurable_boolean_key
 from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.targets import Target, Service
+from ipcrawler.wordlists import init_wordlist_manager
 
 VERSION = "0.1.0-alpha"
 
@@ -904,6 +905,18 @@ async def run():
 	parser.add_argument('-mpti', '--max-plugin-target-instances', action='store', nargs='+', metavar='PLUGIN:NUMBER', help='A space separated list of plugin slugs with the max number of instances (per target) in the following style: nmap-http:2 dirbuster:1. Default: %(default)s')
 	parser.add_argument('-mpgi', '--max-plugin-global-instances', action='store', nargs='+', metavar='PLUGIN:NUMBER', help='A space separated list of plugin slugs with the max number of global instances in the following style: nmap-http:2 dirbuster:1. Default: %(default)s')
 	parser.add_argument('--accessible', action='store_true', help='Attempts to make ipcrawler output more accessible to screenreaders. Default: %(default)s')
+	
+	# Wordlist management arguments
+	wordlist_group = parser.add_argument_group('wordlist management', 'Options for customizing wordlist paths')
+	wordlist_group.add_argument('--wordlist-usernames', action='store', metavar='PATH', help='Override the usernames wordlist path')
+	wordlist_group.add_argument('--wordlist-passwords', action='store', metavar='PATH', help='Override the passwords wordlist path')
+	wordlist_group.add_argument('--wordlist-web-directories', action='store', metavar='PATH', help='Override the web directories wordlist path')
+	wordlist_group.add_argument('--wordlist-web-files', action='store', metavar='PATH', help='Override the web files wordlist path')
+	wordlist_group.add_argument('--wordlist-subdomains', action='store', metavar='PATH', help='Override the subdomains wordlist path')
+	wordlist_group.add_argument('--wordlist-snmp-communities', action='store', metavar='PATH', help='Override the SNMP community strings wordlist path')
+	wordlist_group.add_argument('--wordlist-dns-servers', action='store', metavar='PATH', help='Override the DNS servers wordlist path')
+	wordlist_group.add_argument('--wordlist-vhosts', action='store', metavar='PATH', help='Override the virtual hosts wordlist path')
+	
 	parser.add_argument('-v', '--verbose', action='count', help='Enable verbose output. Repeat for more verbosity.')
 	parser.add_argument('--version', action='store_true', help='Prints the ipcrawler version and exits.')
 	parser.error = lambda s: fail(s[0].upper() + s[1:])
@@ -1170,6 +1183,33 @@ async def run():
 				continue
 			config[key] = args_dict[key]
 	ipcrawler.args = args
+
+	# Initialize WordlistManager and perform auto-detection on first run
+	wordlist_manager = init_wordlist_manager(config['config_dir'])
+	if wordlist_manager.load_config().get('mode', {}).get('auto_update', True):
+		if wordlist_manager.update_detected_paths():
+			info('SecLists installation detected and wordlists configured automatically.')
+		else:
+			debug('No SecLists installation detected. Using built-in wordlists where available.')
+	
+	# Process wordlist CLI overrides
+	wordlist_overrides = {
+		'usernames': getattr(args, 'wordlist_usernames', None),
+		'passwords': getattr(args, 'wordlist_passwords', None),
+		'web_directories': getattr(args, 'wordlist_web_directories', None),
+		'web_files': getattr(args, 'wordlist_web_files', None),
+		'subdomains': getattr(args, 'wordlist_subdomains', None),
+		'snmp_communities': getattr(args, 'wordlist_snmp_communities', None),
+		'dns_servers': getattr(args, 'wordlist_dns_servers', None),
+		'vhosts': getattr(args, 'wordlist_vhosts', None)
+	}
+	
+	for category, path in wordlist_overrides.items():
+		if path:
+			if not wordlist_manager.validate_wordlist_path(path):
+				fail(f'Error: Wordlist path for {category} does not exist or is not readable: {path}')
+			wordlist_manager.set_cli_override(category, path)
+			debug(f'CLI override set for {category}: {path}')
 
 	if args.list:
 		type = args.list.lower()
