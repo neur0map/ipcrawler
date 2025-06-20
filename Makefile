@@ -40,9 +40,21 @@ install:
 		sudo apt install -y python3 python3-pip python3-venv curl nmap; \
 		python3 -m pip install --user pipx && python3 -m pipx ensurepath; \
 		echo "  🔧 Installing core penetration testing tools..."; \
-		sudo apt install -y seclists dnsrecon enum4linux feroxbuster gobuster; \
-		sudo apt install -y impacket-scripts nbtscan nikto onesixtyone oscanner; \
+		sudo apt install -y seclists dnsrecon feroxbuster gobuster; \
+		sudo apt install -y nbtscan nikto onesixtyone oscanner; \
 		sudo apt install -y redis-tools smbclient smbmap snmp sslscan sipvicious; \
+		echo "  🔧 Installing enum4linux and impacket tools..."; \
+		sudo apt install -y enum4linux-ng || sudo apt install -y enum4linux || echo "  ⚠️  enum4linux not available, will try alternative installation"; \
+		sudo apt install -y impacket-scripts || sudo apt install -y python3-impacket || echo "  ⚠️  impacket-scripts not available, installing via pip"; \
+		if ! command -v enum4linux-ng >/dev/null 2>&1 && ! command -v enum4linux >/dev/null 2>&1; then \
+			echo "  📦 Installing enum4linux-ng from GitHub..."; \
+			sudo git clone https://github.com/cddmp/enum4linux-ng.git /opt/enum4linux-ng 2>/dev/null || true; \
+			sudo ln -sf /opt/enum4linux-ng/enum4linux-ng.py /usr/local/bin/enum4linux-ng 2>/dev/null || true; \
+		fi; \
+		if ! command -v impacket-scripts >/dev/null 2>&1 && ! dpkg -l | grep -q python3-impacket; then \
+			echo "  📦 Installing impacket via pip..."; \
+			python3 -m pip install --user impacket || sudo python3 -m pip install impacket; \
+		fi; \
 		sudo apt install -y tnscmd10g whatweb masscan dirb dirsearch; \
 		sudo apt install -y john hashcat hydra medusa ncrack sqlmap; \
 		sudo apt install -y wfuzz wpscan sublist3r amass fierce dnsutils; \
@@ -133,8 +145,10 @@ clean-all:
 	elif [ -f /etc/debian_version ]; then \
 		echo "🐧 Removing penetration testing tools on Debian/Ubuntu..."; \
 		echo "  Note: This will only remove tools, not dependencies like python3/nmap"; \
-		sudo apt remove --purge -y seclists dnsrecon enum4linux feroxbuster gobuster 2>/dev/null || true; \
-		sudo apt remove --purge -y impacket-scripts nbtscan nikto onesixtyone oscanner 2>/dev/null || true; \
+		sudo apt remove --purge -y seclists dnsrecon feroxbuster gobuster 2>/dev/null || true; \
+		sudo apt remove --purge -y enum4linux enum4linux-ng nbtscan nikto onesixtyone oscanner 2>/dev/null || true; \
+		sudo apt remove --purge -y impacket-scripts python3-impacket 2>/dev/null || true; \
+		sudo rm -rf /opt/enum4linux-ng 2>/dev/null || true; \
 		sudo apt remove --purge -y redis-tools smbmap sipvicious tnscmd10g whatweb 2>/dev/null || true; \
 		sudo apt remove --purge -y masscan dirb dirsearch john hashcat hydra medusa 2>/dev/null || true; \
 		sudo apt remove --purge -y ncrack sqlmap wfuzz wpscan sublist3r amass fierce 2>/dev/null || true; \
@@ -183,19 +197,37 @@ debug:
 	done
 	@echo ""
 	@echo "Penetration testing tools:"
-	@for tool in dnsrecon enum4linux feroxbuster gobuster nikto smbclient masscan; do \
+	@for tool in dnsrecon feroxbuster gobuster nikto smbclient masscan; do \
 		if command -v $$tool >/dev/null 2>&1; then \
 			echo "✅ $$tool"; \
 		else \
 			echo "⚠️  $$tool"; \
 		fi \
 	done
+	@# Check enum4linux variants
+	@if command -v enum4linux-ng >/dev/null 2>&1; then \
+		echo "✅ enum4linux-ng"; \
+	elif command -v enum4linux >/dev/null 2>&1; then \
+		echo "✅ enum4linux"; \
+	else \
+		echo "⚠️  enum4linux (neither enum4linux nor enum4linux-ng found)"; \
+	fi
 	@echo ""
 	@echo "Additional tools:"
-	@for tool in impacket-scripts nbtscan onesixtyone oscanner redis-tools smbmap snmpwalk sslscan tnscmd10g whatweb ffuf dirb dirsearch; do \
+	@for tool in nbtscan onesixtyone oscanner redis-tools smbmap snmpwalk sslscan tnscmd10g whatweb ffuf dirb dirsearch; do \
 		if command -v $$tool >/dev/null 2>&1; then \
 			echo "✅ $$tool"; \
 		else \
 			echo "⚠️  $$tool"; \
 		fi \
 	done
+	@# Check impacket variants
+	@if command -v impacket-scripts >/dev/null 2>&1; then \
+		echo "✅ impacket-scripts"; \
+	elif dpkg -l 2>/dev/null | grep -q python3-impacket; then \
+		echo "✅ python3-impacket (package installed)"; \
+	elif python3 -c "import impacket" 2>/dev/null; then \
+		echo "✅ impacket (python module)"; \
+	else \
+		echo "⚠️  impacket-scripts (no impacket installation found)"; \
+	fi
