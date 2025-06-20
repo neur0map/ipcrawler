@@ -14,7 +14,15 @@ class DirBuster(ServiceScan):
 		self.tags = ['default', 'safe', 'long', 'http']
 
 	def configure(self):
-		self.add_choice_option('tool', default='feroxbuster', choices=['feroxbuster', 'gobuster', 'dirsearch', 'ffuf', 'dirb'], help='The tool to use for directory busting. Default: %(default)s')
+		# Auto-detect available tools and pick the best default
+		tool_priority = ['feroxbuster', 'gobuster', 'ffuf', 'dirsearch', 'dirb']
+		default_tool = 'feroxbuster'  # fallback
+		for tool in tool_priority:
+			if which(tool) is not None:
+				default_tool = tool
+				break
+		
+		self.add_choice_option('tool', default=default_tool, choices=['feroxbuster', 'gobuster', 'dirsearch', 'ffuf', 'dirb'], help='The tool to use for directory busting. Default: %(default)s')
 		# Use WordlistManager to get appropriate web directory wordlists
 		try:
 			wordlist_manager = get_wordlist_manager()
@@ -34,21 +42,23 @@ class DirBuster(ServiceScan):
 
 	def check(self):
 		tool = self.get_option('tool')
-		if tool == 'feroxbuster' and which('feroxbuster') is None:
-			self.error('The feroxbuster program could not be found. Make sure it is installed. (On Kali, run: sudo apt install feroxbuster)')
-			return False
-		elif tool == 'gobuster' and which('gobuster') is None:
-			self.error('The gobuster program could not be found. Make sure it is installed. (On Kali, run: sudo apt install gobuster)')
-			return False
-		elif tool == 'dirsearch' and which('dirsearch') is None:
-			self.error('The dirsearch program could not be found. Make sure it is installed. (On Kali, run: sudo apt install dirsearch)')
-			return False
-		elif tool == 'ffuf' and which('ffuf') is None:
-			self.error('The ffuf program could not be found. Make sure it is installed. (On Kali, run: sudo apt install ffuf)')
-			return False
-		elif tool == 'dirb' and which('dirb') is None:
-			self.error('The dirb program could not be found. Make sure it is installed. (On Kali, run: sudo apt install dirb)')
-			return False
+		
+		# Check if the selected tool is available
+		if which(tool) is None:
+			# Check if any alternative tools are available
+			alternatives = []
+			for alt_tool in ['feroxbuster', 'gobuster', 'ffuf', 'dirsearch', 'dirb']:
+				if alt_tool != tool and which(alt_tool) is not None:
+					alternatives.append(alt_tool)
+			
+			if alternatives:
+				self.error(f'The {tool} program could not be found, but {", ".join(alternatives)} is available. Use --dirbuster.tool={alternatives[0]} to use an alternative.')
+				return False
+			else:
+				self.error(f'The {tool} program could not be found. Make sure it is installed. (On Kali, try: sudo apt install {tool})')
+				return False
+		
+		return True
 
 	async def run(self, service):
 		dot_extensions = ','.join(['.' + x for x in self.get_option('ext').split(',')])
