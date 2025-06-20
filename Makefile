@@ -341,66 +341,157 @@ clean-all:
 	fi
 	@echo "🗑️  Complete cleanup finished! All tools removed, results preserved."
 
-# System diagnostics with tool detection
+# System diagnostics with comprehensive tool detection
 debug:
-	@echo "🔬 System Diagnostics"
-	@echo "===================="
+	@echo "🔬 IPCrawler System Diagnostics"
+	@echo "================================"
+	@echo ""
+	@echo "📋 System Information"
 	@echo "OS: $$(uname -s) $$(uname -r)"
 	@if [ "$$(uname)" = "Darwin" ]; then \
-		echo "Platform: macOS (Limited penetration testing tool availability)"; \
+		echo "Platform: macOS (Limited tool availability via Homebrew)"; \
+		echo "Package Manager: Homebrew"; \
 	elif [ -f /etc/debian_version ]; then \
-		echo "Platform: Debian/Ubuntu (Excellent penetration testing tool support)"; \
-	else \
-		echo "Platform: $$(uname -s)"; \
-	fi
-	@echo "Python: $$(python3 --version 2>/dev/null || echo 'Not found')"
-	@echo "Pipx: $$(pipx --version 2>/dev/null || echo 'Not found')"
-	@echo "IPCrawler: $$(ipcrawler --version 2>/dev/null || echo 'Not installed')"
-	@echo "IPCrawler location: $$(which ipcrawler 2>/dev/null || echo 'Not in PATH')"
-	@echo ""
-	@echo "Essential tools:"
-	@for tool in python3 pipx nmap curl; do \
-		if command -v $$tool >/dev/null 2>&1; then \
-			echo "✅ $$tool ($$($$tool --version 2>/dev/null | head -1 || echo 'version unknown'))"; \
+		if [ -f /etc/kali_version ]; then \
+			echo "Platform: Kali Linux (Excellent penetration testing support)"; \
 		else \
-			echo "❌ $$tool"; \
-		fi \
+			echo "Platform: Debian/Ubuntu (Good penetration testing support)"; \
+		fi; \
+		echo "Package Manager: APT"; \
+	elif [ -f /etc/arch-release ]; then \
+		echo "Platform: Arch Linux (Manual tool installation required)"; \
+		echo "Package Manager: Pacman"; \
+	else \
+		echo "Platform: $$(uname -s) (Unknown - manual setup required)"; \
+	fi
+	@echo "Shell: $$SHELL"
+	@echo "User: $$(whoami)"
+	@echo ""
+	@echo "🐍 Python Environment"
+	@echo "Python: $$(python3 --version 2>/dev/null || echo 'Not found')"
+	@echo "Python Path: $$(which python3 2>/dev/null || echo 'Not in PATH')"
+	@echo "Pip: $$(python3 -m pip --version 2>/dev/null || echo 'Not found')"
+	@echo "Pipx: $$(pipx --version 2>/dev/null || echo 'Not found')"
+	@if command -v pipx >/dev/null 2>&1; then \
+		echo "Pipx Path: $$(which pipx)"; \
+	fi
+	@echo ""
+	@echo "🕷️  IPCrawler Installation"
+	@echo "IPCrawler: $$(ipcrawler --version 2>/dev/null || echo 'Not installed')"
+	@echo "IPCrawler Path: $$(which ipcrawler 2>/dev/null || echo 'Not in PATH')"
+	@if command -v ipcrawler >/dev/null 2>&1; then \
+		echo "Installation Type: $$(if pipx list | grep -q ipcrawler; then echo 'Pipx (isolated)'; else echo 'System/Other'; fi)"; \
+		if [ -f "pyproject.toml" ]; then \
+			echo "Development Mode: $$(if pipx list | grep -q 'editable'; then echo 'Yes (editable install)'; else echo 'No (static install)'; fi)"; \
+		fi; \
+	fi
+	@echo ""
+	@echo "📚 Wordlists & SecLists"
+	@for path in "/usr/share/seclists" "/usr/share/SecLists" "/opt/SecLists" "$$HOME/tools/SecLists" "$$HOME/SecLists"; do \
+		if [ -d "$$path" ]; then \
+			echo "✅ SecLists found at: $$path"; \
+			if [ -f "$$path/Usernames/top-usernames-shortlist.txt" ]; then \
+				echo "   └─ Usernames: ✅"; \
+			else \
+				echo "   └─ Usernames: ❌"; \
+			fi; \
+			if [ -f "$$path/Passwords/Common-Credentials/darkweb2017_top-100.txt" ]; then \
+				echo "   └─ Passwords: ✅"; \
+			elif [ -f "$$path/Passwords/darkweb2017-top100.txt" ]; then \
+				echo "   └─ Passwords: ✅ (alt structure)"; \
+			else \
+				echo "   └─ Passwords: ❌"; \
+			fi; \
+			break; \
+		fi; \
+	done; \
+	if [ ! -d "/usr/share/seclists" ] && [ ! -d "/usr/share/SecLists" ] && [ ! -d "/opt/SecLists" ] && [ ! -d "$$HOME/tools/SecLists" ] && [ ! -d "$$HOME/SecLists" ]; then \
+		echo "❌ SecLists not found in standard locations"; \
+		echo "   💡 Run 'make install' to auto-install"; \
+	fi
+	@echo ""
+	@echo "🔧 Core Tools (Required)"
+	@for tool in python3 pipx nmap curl git; do \
+		if command -v $$tool >/dev/null 2>&1; then \
+			version=$$($$tool --version 2>/dev/null | head -1 | sed 's/.*version //' | sed 's/ .*//' || echo 'unknown'); \
+			echo "✅ $$tool ($$version) - $$(which $$tool)"; \
+		else \
+			echo "❌ $$tool - Required for installation"; \
+		fi; \
 	done
 	@echo ""
-	@echo "Penetration testing tools:"
-	@for tool in dnsrecon feroxbuster gobuster nikto smbclient masscan; do \
+	@echo "🎯 Directory Busting Tools"
+	@found_dirb_tools=0; \
+	for tool in feroxbuster gobuster ffuf dirsearch dirb; do \
 		if command -v $$tool >/dev/null 2>&1; then \
-			echo "✅ $$tool"; \
+			echo "✅ $$tool - $$(which $$tool)"; \
+			found_dirb_tools=1; \
 		else \
 			echo "⚠️  $$tool"; \
-		fi \
+		fi; \
+	done; \
+	if [ $$found_dirb_tools -eq 0 ]; then \
+		echo "❌ No directory busting tools found!"; \
+		echo "   💡 Install with: sudo apt install feroxbuster gobuster"; \
+	fi
+	@echo ""
+	@echo "🌐 Network Enumeration Tools"
+	@for tool in dnsrecon nikto smbclient masscan; do \
+		if command -v $$tool >/dev/null 2>&1; then \
+			echo "✅ $$tool - $$(which $$tool)"; \
+		else \
+			echo "⚠️  $$tool"; \
+		fi; \
 	done
+	@echo ""
+	@echo "🔍 Specialized Tools"
 	@# Check enum4linux variants
 	@if command -v enum4linux-ng >/dev/null 2>&1; then \
-		echo "✅ enum4linux-ng"; \
+		echo "✅ enum4linux-ng - $$(which enum4linux-ng)"; \
 	elif command -v enum4linux >/dev/null 2>&1; then \
-		echo "✅ enum4linux"; \
+		echo "✅ enum4linux - $$(which enum4linux)"; \
 	else \
-		echo "⚠️  enum4linux (neither enum4linux nor enum4linux-ng found)"; \
+		echo "⚠️  enum4linux (Windows/SMB enumeration)"; \
 	fi
-	@echo ""
-	@echo "Additional tools:"
-	@for tool in nbtscan onesixtyone oscanner redis-tools smbmap snmpwalk sslscan tnscmd10g whatweb ffuf dirb dirsearch; do \
-		if command -v $$tool >/dev/null 2>&1; then \
-			echo "✅ $$tool"; \
-		else \
-			echo "⚠️  $$tool"; \
-		fi \
-	done
 	@# Check impacket variants
 	@if command -v impacket-scripts >/dev/null 2>&1; then \
-		echo "✅ impacket-scripts"; \
+		echo "✅ impacket-scripts - $$(which impacket-scripts)"; \
 	elif dpkg -l 2>/dev/null | grep -q python3-impacket; then \
 		echo "✅ python3-impacket (package installed)"; \
 	elif python3 -c "import impacket" 2>/dev/null; then \
 		echo "✅ impacket (python module)"; \
 	else \
-		echo "⚠️  impacket-scripts (no impacket installation found)"; \
+		echo "⚠️  impacket (Windows/AD tools)"; \
+	fi
+	@for tool in nbtscan onesixtyone oscanner redis-cli smbmap snmpwalk sslscan whatweb hydra sqlmap; do \
+		if command -v $$tool >/dev/null 2>&1; then \
+			echo "✅ $$tool - $$(which $$tool)"; \
+		else \
+			echo "⚠️  $$tool"; \
+		fi; \
+	done
+	@echo ""
+	@echo "📊 Summary"
+	@core_missing=0; \
+	for tool in python3 pipx nmap curl git; do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			core_missing=$$((core_missing + 1)); \
+		fi; \
+	done; \
+	dirb_available=0; \
+	for tool in feroxbuster gobuster ffuf dirsearch dirb; do \
+		if command -v $$tool >/dev/null 2>&1; then \
+			dirb_available=1; \
+			break; \
+		fi; \
+	done; \
+	if [ $$core_missing -eq 0 ] && [ $$dirb_available -eq 1 ]; then \
+		echo "✅ System ready for IPCrawler!"; \
+	elif [ $$core_missing -gt 0 ]; then \
+		echo "❌ Missing $$core_missing core tools - run 'make install'"; \
+	else \
+		echo "⚠️  System mostly ready - some tools missing"; \
+		echo "   💡 Run 'make install' to install missing tools"; \
 	fi
 
 # Development installation - same as install but explicit
