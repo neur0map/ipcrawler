@@ -5,6 +5,7 @@ class NmapHTTP(ServiceScan):
 	def __init__(self):
 		super().__init__()
 		self.name = "Nmap HTTP"
+		self.description = "HTTP service enumeration using nmap scripts"
 		self.tags = ['default', 'safe', 'http']
 
 	def configure(self):

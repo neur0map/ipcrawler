@@ -6,6 +6,7 @@ class Enum4Linux(ServiceScan):
 	def __init__(self):
 		super().__init__()
 		self.name = "Enum4Linux"
+		self.description = "SMB/CIFS enumeration for Windows and Linux systems"
 		self.tags = ['default', 'safe', 'active-directory']
 
 	def configure(self):

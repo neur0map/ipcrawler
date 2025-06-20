@@ -5,6 +5,7 @@ class NmapFTP(ServiceScan):
 	def __init__(self):
 		super().__init__()
 		self.name = 'Nmap FTP'
+		self.description = "FTP service enumeration using nmap scripts"
 		self.tags = ['default', 'safe', 'ftp']
 
 	def configure(self):

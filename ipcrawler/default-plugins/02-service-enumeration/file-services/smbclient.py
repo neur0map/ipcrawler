@@ -5,6 +5,7 @@ class SMBClient(ServiceScan):
 	def __init__(self):
 		super().__init__()
 		self.name = "SMBClient"
+		self.description = "SMB share enumeration and access testing"
 		self.tags = ['default', 'safe', 'smb', 'active-directory']
 
 	def configure(self):

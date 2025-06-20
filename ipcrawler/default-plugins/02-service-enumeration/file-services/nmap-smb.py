@@ -5,6 +5,7 @@ class NmapSMB(ServiceScan):
 	def __init__(self):
 		super().__init__()
 		self.name = "Nmap SMB"
+		self.description = "SMB service enumeration using nmap scripts"
 		self.tags = ['default', 'safe', 'smb', 'active-directory']
 
 	def configure(self):

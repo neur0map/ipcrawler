@@ -10,6 +10,7 @@ class DirBuster(ServiceScan):
 		super().__init__()
 		self.name = "Directory Buster"
 		self.slug = 'dirbuster'
+		self.description = "Discovers hidden directories and files on web servers using wordlists"
 		self.priority = 0
 		self.tags = ['default', 'safe', 'long', 'http']
 

@@ -5,6 +5,7 @@ class NmapSSH(ServiceScan):
 	def __init__(self):
 		super().__init__()
 		self.name = "Nmap SSH"
+		self.description = "SSH service enumeration using nmap scripts"
 		self.tags = ['default', 'safe', 'ssh']
 
 	def configure(self):

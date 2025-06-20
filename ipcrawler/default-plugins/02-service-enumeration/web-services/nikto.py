@@ -5,6 +5,7 @@ class Nikto(ServiceScan):
 	def __init__(self):
 		super().__init__()
 		self.name = 'nikto'
+		self.description = "Web server vulnerability scanner for common security issues"
 		self.tags = ['default', 'safe', 'long', 'http']
 
 	def configure(self):

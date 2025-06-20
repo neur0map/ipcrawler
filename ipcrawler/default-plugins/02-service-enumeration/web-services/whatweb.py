@@ -5,6 +5,7 @@ class WhatWeb(ServiceScan):
 	def __init__(self):
 		super().__init__()
 		self.name = "whatweb"
+		self.description = "Web application and technology identification"
 		self.tags = ['default', 'safe', 'http']
 
 	def configure(self):
