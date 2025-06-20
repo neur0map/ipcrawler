@@ -42,7 +42,20 @@ install:
 		echo "  🔧 Installing core penetration testing tools..."; \
 		sudo apt install -y seclists dnsrecon feroxbuster gobuster; \
 		sudo apt install -y nbtscan nikto onesixtyone oscanner; \
-		sudo apt install -y redis-tools smbclient smbmap snmp sslscan sipvicious; \
+		sudo apt install -y smbclient smbmap snmp sslscan sipvicious; \
+		echo "  🔧 Installing redis-tools..."; \
+		if ! command -v redis-cli >/dev/null 2>&1; then \
+			sudo apt install -y redis-tools 2>/dev/null || \
+			sudo apt install -y redis 2>/dev/null || \
+			sudo apt install -y redis-server 2>/dev/null || \
+			sudo apt install -y redis-cli 2>/dev/null || \
+			{ echo "  📦 Installing redis-cli via pip..."; \
+			  python3 -m pip install --user redis-py-cli 2>/dev/null || \
+			  python3 -m pip install --user redis 2>/dev/null || \
+			  echo "  ⚠️  Could not install redis-cli, redis enumeration will be limited. Install manually with: apt install redis-tools"; }; \
+		else \
+			echo "  ✅ redis-cli already available"; \
+		fi; \
 		echo "  🔧 Installing enum4linux and impacket tools..."; \
 		sudo apt install -y enum4linux-ng || sudo apt install -y enum4linux || echo "  ⚠️  enum4linux not available, will try alternative installation"; \
 		sudo apt install -y impacket-scripts || sudo apt install -y python3-impacket || echo "  ⚠️  impacket-scripts not available, installing via pip"; \
@@ -59,7 +72,28 @@ install:
 		sudo apt install -y john hashcat hydra medusa ncrack sqlmap; \
 		sudo apt install -y wfuzz wpscan sublist3r amass fierce dnsutils; \
 		echo "  📦 Installing additional tools..."; \
-		sudo snap install ffuf 2>/dev/null || echo "  ⚠️  ffuf not available via snap"; \
+		echo "  🔧 Installing ffuf..."; \
+		if ! command -v ffuf >/dev/null 2>&1; then \
+			sudo apt install -y ffuf 2>/dev/null || \
+			sudo snap install ffuf 2>/dev/null || \
+			{ echo "  📦 Installing ffuf from GitHub releases..."; \
+			  FFUF_VERSION=$$(curl -s https://api.github.com/repos/ffuf/ffuf/releases/latest | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4 | sed 's/v//'); \
+			  if [ "$$FFUF_VERSION" ]; then \
+				ARCH=$$(dpkg --print-architecture 2>/dev/null || echo "amd64"); \
+				if [ "$$ARCH" = "amd64" ]; then FFUF_ARCH="linux_amd64"; \
+				elif [ "$$ARCH" = "arm64" ]; then FFUF_ARCH="linux_arm64"; \
+				else FFUF_ARCH="linux_amd64"; fi; \
+				wget -q "https://github.com/ffuf/ffuf/releases/download/v$$FFUF_VERSION/ffuf_$${FFUF_VERSION}_$${FFUF_ARCH}.tar.gz" -O /tmp/ffuf.tar.gz && \
+				sudo tar -xzf /tmp/ffuf.tar.gz -C /usr/local/bin/ ffuf && \
+				sudo chmod +x /usr/local/bin/ffuf && \
+				rm -f /tmp/ffuf.tar.gz && \
+				echo "  ✅ ffuf installed from GitHub"; \
+			  else \
+				echo "  ⚠️  Could not determine ffuf version, skipping"; \
+			  fi; }; \
+		else \
+			echo "  ✅ ffuf already installed"; \
+		fi; \
 		sudo apt install -y zaproxy burpsuite metasploit-framework 2>/dev/null || echo "  ⚠️  Some GUI tools may not be available"; \
 		echo "✅ Complete penetration testing environment installed!"; \
 	elif [ -f /etc/arch-release ]; then \
@@ -149,10 +183,13 @@ clean-all:
 		sudo apt remove --purge -y enum4linux enum4linux-ng nbtscan nikto onesixtyone oscanner 2>/dev/null || true; \
 		sudo apt remove --purge -y impacket-scripts python3-impacket 2>/dev/null || true; \
 		sudo rm -rf /opt/enum4linux-ng 2>/dev/null || true; \
-		sudo apt remove --purge -y redis-tools smbmap sipvicious tnscmd10g whatweb 2>/dev/null || true; \
+		sudo apt remove --purge -y redis-tools redis redis-server redis-cli smbmap sipvicious tnscmd10g whatweb 2>/dev/null || true; \
+		sudo rm -f /usr/local/bin/redis-cli 2>/dev/null || true; \
 		sudo apt remove --purge -y masscan dirb dirsearch john hashcat hydra medusa 2>/dev/null || true; \
 		sudo apt remove --purge -y ncrack sqlmap wfuzz wpscan sublist3r amass fierce 2>/dev/null || true; \
+		sudo apt remove --purge -y ffuf 2>/dev/null || true; \
 		sudo snap remove ffuf 2>/dev/null || true; \
+		sudo rm -f /usr/local/bin/ffuf 2>/dev/null || true; \
 		sudo apt autoremove -y 2>/dev/null || true; \
 		echo "💡 Core tools (python3, pipx, nmap, curl) kept for system stability"; \
 	elif [ -f /etc/arch-release ]; then \
