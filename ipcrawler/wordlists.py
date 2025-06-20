@@ -254,7 +254,7 @@ class WordlistManager:
                                 break
                     
                     # For missing files, try to find fallbacks within the same category
-                    if category not in config['detected_paths'] or size not in config['detected_paths'][category]:
+                    if size not in config['detected_paths'][category]:
                         # Try using default size as fallback
                         if size != 'default' and 'default' in size_paths:
                             fallback_path = os.path.join(seclists_path, size_paths['default'])

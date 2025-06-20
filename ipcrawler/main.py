@@ -1224,7 +1224,7 @@ async def run():
 		if wordlist_manager.update_detected_paths():
 			info('SecLists installation detected and wordlists configured automatically.')
 		else:
-			debug('No SecLists installation detected. Using built-in wordlists where available.')
+			debug('No SecLists installation detected. Please install SecLists for wordlist functionality.')
 	
 	# Process wordlist CLI overrides
 	wordlist_overrides = {

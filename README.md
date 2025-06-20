@@ -503,12 +503,131 @@ python3 ipcrawler.py --version
 
 ---
 
-## ⚖️ Legal & Ethics
+<details>
+<summary><h2>⚠️ SECURITY WARNING & LEGAL DISCLAIMER - READ BEFORE USE</h2></summary>
 
-- **Educational Purpose**: Designed for authorized security testing only
-- **OSCP Compliant**: No automated exploitation in default configuration  
-- **Your Responsibility**: Ensure you have permission before scanning any systems
-- **Disclaimer**: Authors not responsible for misuse
+### 🚨 **CRITICAL SECURITY NOTICE FOR USERS**
+
+**ipcrawler is a powerful penetration testing tool that carries significant security and legal risks. By downloading and using this software, you acknowledge and accept full responsibility for your actions.**
+
+#### **This Tool is Like a Firearm - Use with Extreme Caution**
+Just as a gun manufacturer is not responsible for how their product is used, **the developers of ipcrawler are NOT responsible for any illegal activities, damages, or consequences resulting from your use of this tool.** You are solely liable for your actions.
+
+### **CRITICAL RISKS - What You're Exposing Yourself To**
+
+#### **1. Legal Liability Exposure**
+- **THE RISK**: This tool can easily violate computer crime laws
+- **WHAT YOU'RE DOING**: 
+  - Port scanning (illegal in many jurisdictions without permission)
+  - Brute force attacks (definitely illegal against systems you don't own)
+  - Service enumeration (can violate terms of service)
+  - Vulnerability scanning (often considered hostile reconnaissance)
+
+#### **2. You're Running Untrusted Code with Root Privileges**
+- **THE RISK**: This tool requires `sudo` and root access to function
+- **WHAT THIS MEANS**: The entire codebase can do ANYTHING to your system
+- **EVIDENCE**: 
+  - Documentation requires root for SYN scanning
+  - `make install` modifies system directories (`/usr/local/bin/`, `/opt/`, `/usr/share/`)
+  - Installs tools and dependencies system-wide
+
+#### **3. Your Network Activity Will Be Highly Suspicious**
+- **THE RISK**: Running this tool makes you look like an attacker
+- **WHAT HAPPENS**:
+  - Your IP will trigger intrusion detection systems
+  - Network admins will flag your traffic as malicious
+  - Your ISP may investigate or terminate service
+  - Law enforcement could investigate your activities
+
+#### **4. Credential and Forensic Evidence Creation**
+- **THE RISK**: This tool creates forensic evidence that could be used against you
+- **WHAT GETS STORED**:
+  - All scan results in `results/` directory
+  - Command history with targets in `_commands.log`
+  - Discovered credentials in plaintext files
+  - Network reconnaissance data that prosecutors could use
+
+### **🎯 INTENDED USE CASE - Isolated Lab Environments**
+
+**This tool was designed and intended to be used ONLY in:**
+
+#### **✅ Recommended Environments:**
+- **Hack The Box machines** - Legal, isolated targets designed for security testing
+- **Kali Linux virtual machines** - Isolated from your main system
+- **Personal lab environments** - Networks you own completely
+- **TryHackMe platforms** - Legal practice environments
+- **Authorized penetration testing** - With explicit written permission
+
+#### **✅ Optimal Security & Performance Setup:**
+```bash
+# Run in Kali Linux VM for maximum isolation
+# Install in Kali for optimal tool compatibility
+sudo apt update && sudo apt install -y git make
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+make install  # All tools pre-installed in Kali
+```
+
+### **❌ DO NOT USE AGAINST:**
+- **Any system you don't own**
+- **Corporate networks without authorization**
+- **Cloud services or hosting providers**
+- **Internet-facing systems without permission**
+- **Your employer's network (unless explicitly authorized)**
+- **Educational institution networks**
+- **Government systems**
+
+### **Bottom Line for Users**
+
+**This tool is designed for professional penetration testers and security researchers who:**
+- ✅ Have explicit written authorization to test targets
+- ✅ Understand the legal implications
+- ✅ Run it in isolated lab environments
+- ✅ Have proper operational security practices
+
+**As a user downloading this from GitHub, you are:**
+- ❌ Running untrusted code with root privileges
+- ❌ Creating evidence of potentially illegal activities  
+- ❌ Exposing yourself to detection and investigation
+- ❌ Installing a toolkit primarily used by attackers
+- ❌ Taking on significant legal and technical risks
+
+### **⚖️ LEGAL DISCLAIMER**
+
+**BY USING THIS SOFTWARE, YOU AGREE THAT:**
+
+1. **You have explicit authorization** to test all target systems
+2. **You understand your local computer crime laws** and will comply with them
+3. **You accept full legal responsibility** for your actions
+4. **The developers are not liable** for any damages, legal issues, or consequences
+5. **You will only use this tool** in legal, authorized scenarios
+6. **You understand the security risks** of running this software
+
+### **🛡️ SECURITY RECOMMENDATIONS**
+
+If you choose to use this tool despite the risks:
+
+1. **Only scan systems you own or have explicit permission to test**
+2. **Run in isolated virtual machines** to limit exposure to your main system
+3. **Use VPN or proxy chains** to protect your identity (but this doesn't make illegal activity legal)
+4. **Regularly review and securely delete scan results**
+5. **Understand that detection is likely** and plan accordingly
+6. **Consult with legal counsel** if you're unsure about authorization
+
+### **🎓 LEARNING ALTERNATIVES**
+
+If you're learning about security, consider these safer alternatives:
+- **Hack The Box** - Legal practice targets
+- **TryHackMe** - Guided learning platform
+- **VulnHub VMs** - Downloadable vulnerable machines
+- **DVWA** - Damn Vulnerable Web Application
+- **Security courses** with provided lab environments
+
+---
+
+**Remember: With great power comes great responsibility. Use this tool wisely, legally, and ethically.**
+
+</details>
 
 ---
 
