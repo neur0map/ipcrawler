@@ -70,13 +70,11 @@ class DirBuster(ServiceScan):
 					if web_dirs_path and os.path.exists(web_dirs_path):
 						resolved_wordlists.append(web_dirs_path)
 					else:
-						# Fallback to built-in wordlist
-						fallback_path = os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')
-						resolved_wordlists.append(fallback_path)
-				except Exception:
-					# Fallback to built-in wordlist if WordlistManager isn't available
-					fallback_path = os.path.join(config['data_dir'], 'wordlists', 'dirbuster.txt')
-					resolved_wordlists.append(fallback_path)
+						service.error(f'No wordlist found for size "{current_size}". Please install SecLists or configure custom wordlists in WordlistManager.')
+						return
+				except Exception as e:
+					service.error(f'WordlistManager unavailable: {e}. Please install SecLists or configure custom wordlists.')
+					return
 			else:
 				# User specified a custom wordlist path
 				resolved_wordlists.append(wordlist)
@@ -103,24 +101,42 @@ class DirBuster(ServiceScan):
 
 	def manual(self, service, plugin_was_run):
 		dot_extensions = ','.join(['.' + x for x in self.get_option('ext').split(',')])
+		
+		# Get wordlist path from WordlistManager for manual commands
+		try:
+			wordlist_manager = get_wordlist_manager()
+			current_size = wordlist_manager.get_wordlist_size()
+			web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir'), current_size)
+			if not web_dirs_path or not os.path.exists(web_dirs_path):
+				service.add_manual_command('Directory enumeration requires wordlists - Install SecLists or configure custom wordlists:', [
+					'# No wordlists available. Install SecLists: apt install seclists',
+					'# Or configure custom wordlists in WordlistManager'
+				])
+				return
+		except Exception:
+			service.add_manual_command('Directory enumeration requires WordlistManager configuration:', [
+				'# WordlistManager not available. Please check configuration.'
+			])
+			return
+		
 		if self.get_option('tool') == 'feroxbuster':
-			service.add_manual_command('(feroxbuster) Multi-threaded recursive directory/file enumeration for web servers using various wordlists:', [
-				'feroxbuster -u {http_scheme}://{addressv6}:{port} -t ' + str(self.get_option('threads')) + ' -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x "' + self.get_option('ext') + '" -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-e -r -o {scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_dirbuster.txt' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+			service.add_manual_command('(feroxbuster) Multi-threaded recursive directory/file enumeration for web servers:', [
+				'feroxbuster -u {http_scheme}://{addressv6}:{port} -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -x "' + self.get_option('ext') + '" -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-e -r -o {scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_manual.txt' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 			])
 		elif self.get_option('tool') == 'gobuster':
-			service.add_manual_command('(gobuster v3) Multi-threaded directory/file enumeration for web servers using various wordlists:', [
-				'gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t ' + str(self.get_option('threads')) + ' -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -e -k -x "' + self.get_option('ext') + '" -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_dirbuster.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+			service.add_manual_command('(gobuster v3) Multi-threaded directory/file enumeration for web servers:', [
+				'gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -e -k -x "' + self.get_option('ext') + '" -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 			])
 		elif self.get_option('tool') == 'dirsearch':
 			if service.target.ipversion == 'IPv4':
-				service.add_manual_command('(dirsearch) Multi-threaded recursive directory/file enumeration for web servers using various wordlists:', [
-					'dirsearch -u {http_scheme}://{address}:{port}/ -t ' + str(self.get_option('threads')) + ' -e "' + self.get_option('ext') + '" -f -F ' + ('-r ' if self.get_option('recursive') else '') + '-w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt --format=plain --output="{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_dirbuster.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+				service.add_manual_command('(dirsearch) Multi-threaded recursive directory/file enumeration for web servers:', [
+					'dirsearch -u {http_scheme}://{address}:{port}/ -t ' + str(self.get_option('threads')) + ' -e "' + self.get_option('ext') + '" -f -F ' + ('-r ' if self.get_option('recursive') else '') + '-w ' + web_dirs_path + ' --format=plain --output="{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 				])
 		elif self.get_option('tool') == 'ffuf':
-			service.add_manual_command('(ffuf) Multi-threaded recursive directory/file enumeration for web servers using various wordlists:', [
-				'ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t ' + str(self.get_option('threads')) + ' -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -e "' + dot_extensions + '" -v -r ' + ('-recursion ' if self.get_option('recursive') else '') + '-noninteractive' + (' ' + self.get_option('extras') if self.get_option('extras') else '') + ' | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_dirbuster.txt'
+			service.add_manual_command('(ffuf) Multi-threaded recursive directory/file enumeration for web servers:', [
+				'ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -e "' + dot_extensions + '" -v -r ' + ('-recursion ' if self.get_option('recursive') else '') + '-noninteractive' + (' ' + self.get_option('extras') if self.get_option('extras') else '') + ' | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_manual.txt'
 			])
 		elif self.get_option('tool') == 'dirb':
-			service.add_manual_command('(dirb) Recursive directory/file enumeration for web servers using various wordlists:', [
-				'dirb {http_scheme}://{addressv6}:{port}/ /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -l ' + ('' if self.get_option('recursive') else '-r ')  + '-X ",' + dot_extensions + '" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_dirbuster.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+			service.add_manual_command('(dirb) Recursive directory/file enumeration for web servers:', [
+				'dirb {http_scheme}://{addressv6}:{port}/ ' + web_dirs_path + ' -l ' + ('' if self.get_option('recursive') else '-r ')  + '-X ",' + dot_extensions + '" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 			])

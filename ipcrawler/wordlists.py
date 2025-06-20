@@ -88,11 +88,8 @@ class WordlistManager:
             os.path.expanduser('~/tools/SecLists')  # Common pentesting setup
         ]
         
-        # Built-in fallback wordlists (relative to ipcrawler data directory)
-        self.builtin_fallbacks = {
-            'web_directories': 'wordlists/dirbuster.txt',
-            'web_files': 'wordlists/dirbuster.txt'
-        }
+        # No built-in fallback wordlists - WordlistManager should fail if no proper wordlists found
+        self.builtin_fallbacks = {}
     
     def load_config(self) -> Dict:
         """Load or create wordlists configuration"""
@@ -325,11 +322,8 @@ class WordlistManager:
                     if os.path.exists(path):
                         return path
         
-        # 4. Built-in fallbacks
-        if category in self.builtin_fallbacks and data_dir:
-            path = os.path.join(data_dir, self.builtin_fallbacks[category])
-            if os.path.exists(path):
-                return path
+        # 4. Built-in fallbacks - REMOVED: No more fallback wordlists
+        # WordlistManager should return None if no proper wordlists are found
         
         # 5. Legacy hardcoded paths (for backward compatibility)
         if category in self.categories_legacy:
