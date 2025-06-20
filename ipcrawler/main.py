@@ -13,7 +13,7 @@ except ModuleNotFoundError:
 colorama.init()
 
 from ipcrawler.config import config, configurable_keys, configurable_boolean_keys
-from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader, show_modern_help, show_modern_version, show_modern_plugin_list
+from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader, show_modern_help, show_modern_version, show_modern_plugin_list, show_ascii_art
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.targets import Target, Service
 from ipcrawler.wordlists import init_wordlist_manager
@@ -153,12 +153,13 @@ async def start_heartbeat(target, period=60):
 		async with target.lock:
 			count = len(target.running_tasks)
 
-			if config['verbose'] >= 1:
+			# Only show heartbeat messages at high verbosity to avoid interference with loading interface
+			if config['verbose'] >= 2 and count > 0:
 				tasks_list = []
 				for tag, task in target.running_tasks.items():
 					task_str = tag
 
-					if config['verbose'] >= 2:
+					if config['verbose'] >= 3:
 						processes = []
 						for process_dict in task['processes']:
 							if process_dict['process'].returncode is None:
@@ -170,20 +171,18 @@ async def start_heartbeat(target, period=60):
 									pass
 						
 						if processes:
-							task_str += ' (PID' + ('s' if len(processes) > 1 else '') + ': ' + ', '.join(processes) + ')'
+							task_str += ' (PIDs: ' + ', '.join(processes) + ')'
 						
 					tasks_list.append(task_str)
 
-				tasks_list = ': {bblue}' + ', '.join(tasks_list) + '{rst}'
-			else:
-				tasks_list = ''
+				current_time = datetime.now().strftime('%H:%M:%S')
+				task_names = ', '.join(tasks_list)
 
-			current_time = datetime.now().strftime('%H:%M:%S')
-
-			if count > 1:
-				info('{bgreen}' + current_time + '{rst} - There are {byellow}' + str(count) + '{rst} scans still running against {byellow}' + target.address + '{rst}' + tasks_list)
-			elif count == 1:
-				info('{bgreen}' + current_time + '{rst} - There is {byellow}1{rst} scan still running against {byellow}' + target.address + '{rst}' + tasks_list)
+				# Simple, clean heartbeat message
+				if count > 1:
+					info(f'{current_time} - {count} scans running: {task_names}')
+				elif count == 1:
+					info(f'{current_time} - 1 scan running: {task_names}')
 
 async def keyboard():
 	input = ''
@@ -216,39 +215,32 @@ async def keyboard():
 						async with target.lock:
 							count = len(target.running_tasks)
 
-							tasks_list = []
-							if config['verbose'] >= 1:
+							if count > 0:
+								current_time = datetime.now().strftime('%H:%M:%S')
+								
+								# Simple status display
+								tasks_list = []
 								for tag, task in target.running_tasks.items():
 									elapsed_time = calculate_elapsed_time(task['start'], short=True)
-
-									task_str = '{bblue}' + tag + '{rst}' + ' (elapsed: ' + elapsed_time + ')'
-
+									task_str = f"{tag} ({elapsed_time})"
+									
 									if config['verbose'] >= 2:
 										processes = []
 										for process_dict in task['processes']:
 											if process_dict['process'].returncode is None:
 												processes.append(str(process_dict['process'].pid))
-												try:
-													for child in psutil.Process(process_dict['process'].pid).children(recursive=True):
-														processes.append(str(child.pid))
-												except psutil.NoSuchProcess:
-													pass
-										
 										if processes:
-											task_str += ' (PID' + ('s' if len(processes) > 1 else '') + ': ' + ', '.join(processes) + ')'
+											task_str += f" [PIDs: {', '.join(processes)}]"
 									
 									tasks_list.append(task_str)
 
-								tasks_list = ':\n    ' + '\n    '.join(tasks_list)
-							else:
-								tasks_list = ''
-
-							current_time = datetime.now().strftime('%H:%M:%S')
-
-							if count > 1:
-								info('{bgreen}' + current_time + '{rst} - There are {byellow}' + str(count) + '{rst} scans still running against {byellow}' + target.address + '{rst}' + tasks_list)
-							elif count == 1:
-								info('{bgreen}' + current_time + '{rst} - There is {byellow}1{rst} scan still running against {byellow}' + target.address + '{rst}' + tasks_list)
+								# Clean status message
+								if count > 1:
+									info(f'{current_time} - {count} scans active on {target.address}:')
+									for task in tasks_list:
+										info(f'  • {task}')
+								elif count == 1:
+									info(f'{current_time} - 1 scan active on {target.address}: {tasks_list[0]}')
 				else:
 					input = input[1:]
 		await asyncio.sleep(0.1)
@@ -307,7 +299,8 @@ async def port_scan(plugin, target):
 					return {'type':'port', 'plugin':plugin, 'result':[]}
 
 	async with target.ipcrawler.port_scan_semaphore:
-		info('Port scan {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} running against {byellow}' + target.address + '{rst}', verbosity=1)
+		# Only show scan start at higher verbosity to avoid interference with loading interface
+		info(f'Started: {plugin.name} → {target.address}', verbosity=2)
 
 		start_time = time.time()
 
@@ -349,7 +342,8 @@ async def port_scan(plugin, target):
 		async with target.lock:
 			target.running_tasks.pop(plugin.slug, None)
 
-		info('Port scan {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} against {byellow}' + target.address + '{rst} finished in ' + elapsed_time, verbosity=2)
+		# Clean completion message
+		info(f'✅ {plugin.name} → {target.address} completed ({elapsed_time})', verbosity=2)
 		return {'type':'port', 'plugin':plugin, 'result':result}
 
 async def service_scan(plugin, service):
@@ -431,7 +425,8 @@ async def service_scan(plugin, service):
 
 			tag = service.tag() + '/' + plugin.slug
 
-			info('Service scan {bblue}' + plugin.name + ' {green}(' + tag + '){rst} running against {byellow}' + service.target.address + '{rst}', verbosity=1)
+			# Only show service scan start at higher verbosity to avoid interference with loading interface  
+			info(f'Started: {plugin.name} → {service.target.address}:{service.port}', verbosity=2)
 
 			start_time = time.time()
 
@@ -473,7 +468,8 @@ async def service_scan(plugin, service):
 			async with service.target.lock:
 				service.target.running_tasks.pop(tag, None)
 
-			info('Service scan {bblue}' + plugin.name + ' {green}(' + tag + '){rst} against {byellow}' + service.target.address + '{rst} finished in ' + elapsed_time, verbosity=2)
+			# Clean service completion message
+			info(f'✅ {plugin.name} → {service.target.address}:{service.port} completed ({elapsed_time})', verbosity=2)
 			return {'type':'service', 'plugin':plugin, 'result':result}
 
 async def generate_report(plugin, targets):
@@ -627,7 +623,8 @@ async def scan_target(target):
 			else:
 				continue
 
-			info('Identified service {bmagenta}' + service.name + '{rst} on {bmagenta}' + service.protocol + '/' + str(service.port) + '{rst} on {byellow}' + target.address + '{rst}', verbosity=1)
+			# Clean service identification message
+			info(f'🎯 Found: {service.name} on {service.protocol}/{service.port} ({target.address})', verbosity=1)
 
 			if not config['only_scans_dir']:
 				with open(os.path.join(target.reportdir, 'notes.txt'), 'a') as file:
@@ -1636,6 +1633,15 @@ async def run():
 	config['port_scan_plugin_count'] = port_scan_plugin_count
 
 	num_initial_targets = max(1, math.ceil(config['max_port_scans'] / port_scan_plugin_count))
+
+	# Display ASCII art and give user time to admire it
+	show_ascii_art()
+	print()
+	info(f'🚀 Starting scan of {len(ipcrawler.pending_targets)} target(s)...')
+	print()
+	info('⏳ Initializing scan engines... (5 seconds)')
+	await asyncio.sleep(5)
+	print()
 
 	start_time = time.time()
 

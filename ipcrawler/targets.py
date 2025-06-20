@@ -2,6 +2,7 @@ import asyncio, inspect, os
 from typing import final
 from ipcrawler.config import config
 from ipcrawler.io import e, info, warn, error
+from ipcrawler.loading import start_tool_loading, stop_tool_loading, update_tool_progress, scan_status
 
 class Target:
 
@@ -45,6 +46,30 @@ class Target:
 	def error(self, msg, verbosity=0):
 		plugin = inspect.currentframe().f_back.f_locals['self']
 		error('{bright}[{yellow}' + self.address + '{crst}/{bgreen}' + plugin.slug + '{crst}]{rst} ' + msg)
+		
+	def _estimate_port_scan_time(self, plugin_name: str) -> int:
+		"""Estimate port scan time based on plugin characteristics"""
+		plugin_lower = plugin_name.lower()
+		
+		# Fast scans (1-3 minutes)
+		if any(fast in plugin_lower for fast in ['top-100', 'top-1000', 'guess']):
+			return 2
+		
+		# Medium scans (3-8 minutes)
+		elif any(medium in plugin_lower for medium in ['top', 'common']):
+			return 4
+		
+		# Slow scans (8+ minutes)
+		elif any(slow in plugin_lower for slow in ['all', 'full', '-p-']):
+			return 10
+		
+		# UDP scans are generally slower
+		elif 'udp' in plugin_lower:
+			return 8
+		
+		# Default estimate
+		else:
+			return 3
 
 	async def execute(self, cmd, blocking=True, outfile=None, errfile=None, future_outfile=None):
 		target = self
@@ -74,7 +99,12 @@ class Target:
 		cmd = e(cmd)
 		tag = plugin.slug
 
-		info('Port scan {bblue}' + plugin.name + ' {green}(' + tag + '){rst} is running the following command against {byellow}' + address + '{rst}: ' + cmd, verbosity=2)
+		# Start loading interface for port scan with intelligent estimates
+		estimated_time = self._estimate_port_scan_time(plugin.name)
+		start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
+		
+		# Command execution details (only at high verbosity)
+		info(f'🔧 {plugin.name}: {cmd}', verbosity=3)
 
 		if outfile is not None:
 			outfile = os.path.join(target.scandir, e(outfile))
@@ -100,6 +130,10 @@ class Target:
 			while (not (stdout.ended and stderr.ended)):
 				await asyncio.sleep(0.1)
 			await process.wait()
+			
+			# Stop loading interface and show completion
+			success = process.returncode == 0
+			stop_tool_loading(success, f"Exit code: {process.returncode}")
 
 		return process, stdout, stderr
 
@@ -150,6 +184,30 @@ class Service:
 		plugin = inspect.currentframe().f_back.f_locals['self']
 		error('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag() + '/' + plugin.slug + '{crst}]{rst} ' + msg)
 
+	def _estimate_service_scan_time(self, plugin_name: str) -> int:
+		"""Estimate scan time based on plugin characteristics"""
+		plugin_lower = plugin_name.lower()
+		
+		# Fast tools (1-3 minutes)
+		if any(fast in plugin_lower for fast in ['nmap', 'curl', 'whatweb', 'sslscan']):
+			return 2
+		
+		# Medium tools (3-8 minutes)  
+		elif any(medium in plugin_lower for medium in ['nikto', 'enum4linux', 'smbclient', 'showmount']):
+			return 5
+		
+		# Slow tools (8-15 minutes)
+		elif any(slow in plugin_lower for slow in ['dirbuster', 'dirb', 'gobuster', 'wfuzz']):
+			return 10
+		
+		# Very slow tools (15+ minutes)
+		elif any(very_slow in plugin_lower for very_slow in ['hydra', 'medusa', 'john', 'hashcat']):
+			return 20
+		
+		# Default estimate
+		else:
+			return 5
+
 	@final
 	async def execute(self, cmd, blocking=True, outfile=None, errfile=None, future_outfile=None):
 		target = self.target
@@ -195,7 +253,12 @@ class Service:
 		if plugin.run_once_boolean:
 			plugin_tag = plugin.slug
 
-		info('Service scan {bblue}' + plugin.name + ' {green}(' + tag + '){rst} is running the following command against {byellow}' + address + '{rst}: ' + cmd, verbosity=2)
+		# Start loading interface for service scan with intelligent estimates
+		estimated_time = self._estimate_service_scan_time(plugin.name)
+		start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
+		
+		# Command execution details (only at high verbosity)  
+		info(f'🔧 {plugin.name}: {cmd}', verbosity=3)
 
 		if outfile is not None:
 			outfile = os.path.join(scandir, e(outfile))
@@ -221,5 +284,9 @@ class Service:
 			while (not (stdout.ended and stderr.ended)):
 				await asyncio.sleep(0.1)
 			await process.wait()
+			
+			# Stop loading interface and show completion
+			success = process.returncode == 0
+			stop_tool_loading(success, f"Exit code: {process.returncode}")
 
 		return process, stdout, stderr

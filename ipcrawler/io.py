@@ -1,6 +1,15 @@
 import asyncio, colorama, os, re, string, sys, unidecode
 from colorama import Fore, Style
 from ipcrawler.config import config
+from ipcrawler.loading import scan_status, is_loading_active, record_tool_activity
+
+# ASCII art imports
+try:
+	import pyfiglet
+	from termcolor import colored
+	PYFIGLET_AVAILABLE = True
+except ImportError:
+	PYFIGLET_AVAILABLE = False
 
 # Modern UI imports
 try:
@@ -60,7 +69,7 @@ def cprint(*args, color=Fore.RESET, char='*', sep=' ', end='\n', frame_index=1, 
 	}
 
 	if config['accessible']:
-		 vals = {'bgreen':'', 'bred':'', 'bblue':'', 'byellow':'', 'bmagenta':'', 'green':'', 'red':'', 'blue':'', 'yellow':'', 'magenta':'', 'bright':'', 'srst':'', 'crst':'', 'rst':''}
+		vals = {'bgreen':'', 'bred':'', 'bblue':'', 'byellow':'', 'bmagenta':'', 'green':'', 'red':'', 'blue':'', 'yellow':'', 'magenta':'', 'bright':'', 'srst':'', 'crst':'', 'rst':''}
 
 	vals.update(frame.f_globals)
 	vals.update(frame.f_locals)
@@ -73,7 +82,7 @@ def cprint(*args, color=Fore.RESET, char='*', sep=' ', end='\n', frame_index=1, 
 
 	fmted = unfmt
 
-	for attempt in range(10):
+	for _ in range(10):
 		try:
 			fmted = string.Formatter().vformat(unfmt, args, vals)
 			break
@@ -93,6 +102,19 @@ def debug(*args, color=Fore.GREEN, sep=' ', end='\n', file=sys.stdout, **kvargs)
 		cprint(*args, color=color, char='-', sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def info(*args, sep=' ', end='\n', file=sys.stdout, **kvargs):
+	# Use modern status display if loading is active
+	if is_loading_active() and len(args) >= 1:
+		# Try to parse target/plugin from the formatted message
+		message = ' '.join(str(arg) for arg in args)
+		if '[' in message and ']' in message:
+			# Extract target and message parts
+			parts = message.split(']', 1)
+			if len(parts) == 2:
+				target_part = parts[0].replace('[', '').strip()
+				msg_part = parts[1].strip()
+				scan_status.show_scan_result(target_part, "scan", msg_part, "info", config['verbose'])
+				return
+	
 	cprint(*args, color=Fore.BLUE, char='*', sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def warn(*args, sep=' ', end='\n', file=sys.stderr,**kvargs):
@@ -138,7 +160,12 @@ class CommandStreamReader(object):
 				continue
 
 			if line != '':
-				info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} ' + line.strip().replace('{', '{{').replace('}', '}}'), verbosity=3)
+				# Record activity for loading interface
+				if is_loading_active():
+					record_tool_activity("output")
+					scan_status.show_command_output(self.target.address, self.tag, line.strip(), config['verbose'])
+				else:
+					info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} ' + line.strip().replace('{', '{{').replace('}', '}}'), verbosity=3)
 
 			# Check lines for pattern matches.
 			for p in self.patterns:
@@ -163,13 +190,24 @@ class CommandStreamReader(object):
 
 						async with self.target.lock:
 							with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
-								info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} {bmagenta}' + description + '{rst}', verbosity=2)
+								# Record pattern match activity and use modern status display
+								if is_loading_active():
+									record_tool_activity("pattern_match")
+									scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
+								else:
+									info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} {bmagenta}' + description + '{rst}', verbosity=2)
 								file.writelines(description + '\n\n')
 					else:
-						info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} {bmagenta}Matched Pattern: ' + line[match.start():match.end()] + '{rst}', verbosity=2)
+						# Use modern status display for pattern matches (no description)
+						match_text = line[match.start():match.end()]
+						if is_loading_active():
+							record_tool_activity("pattern_match")
+							scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
+						else:
+							info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} {bmagenta}Matched Pattern: ' + match_text + '{rst}', verbosity=2)
 						async with self.target.lock:
 							with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
-								file.writelines('Matched Pattern: ' + line[match.start():match.end()] + '\n\n')
+								file.writelines('Matched Pattern: ' + match_text + '\n\n')
 
 			if self.outfile is not None:
 				with open(self.outfile, 'a') as writer:
@@ -349,8 +387,93 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 	)
 	console.print(Panel(Align.center(footer_text), border_style=f"dim {accent_color}", box=box.SIMPLE))
 
+def show_ascii_art():
+	"""Display clean ASCII art for ipcrawler - uses single consistent design"""
+	if PYFIGLET_AVAILABLE and RICH_AVAILABLE:
+		# Create modern ASCII art with pyfiglet and rich styling
+		ascii_text = pyfiglet.figlet_format("IPCRAWLER", font="slant")
+		
+		console.print("═" * 75, style="dim cyan")
+		console.print()
+		
+		# Split lines and apply gradient colors
+		lines = ascii_text.split('\n')
+		colors = ['red', 'yellow', 'green', 'cyan', 'blue', 'magenta']
+		
+		for i, line in enumerate(lines):
+			if line.strip():
+				color = colors[i % len(colors)]
+				console.print(line, style=f"bold {color}")
+			else:
+				console.print(line)
+		
+		console.print()
+		console.print("    🕷️  Multi-threaded Network Reconnaissance & Service Crawler  🕷️", style="bold bright_magenta")
+		console.print()
+		console.print("═" * 75, style="dim cyan")
+		console.print()
+		
+	elif PYFIGLET_AVAILABLE:
+		# Fallback to basic pyfiglet with termcolor if rich not available
+		ascii_text = pyfiglet.figlet_format("IPCRAWLER", font="slant")
+		
+		print(colored("═" * 75, 'cyan'))
+		print()
+		
+		lines = ascii_text.split('\n')
+		colors = ['red', 'yellow', 'green', 'cyan', 'magenta', 'white']
+		
+		for i, line in enumerate(lines):
+			if line.strip():
+				color = colors[i % len(colors)]
+				print(colored(line, color, attrs=['bold']))
+			else:
+				print(line)
+		
+		print()
+		print(colored("    🕷️  Multi-threaded Network Reconnaissance & Service Crawler  🕷️", 'magenta', attrs=['bold']))
+		print()
+		print(colored("═" * 75, 'cyan'))
+		print()
+		
+	else:
+		# Final fallback - simple text banner
+		banner = """
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║  ██╗██████╗  ██████╗██████╗  █████╗ ██╗    ██╗██╗     ███████╗██████╗        ║
+║  ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██║    ██║██║     ██╔════╝██╔══██╗       ║
+║  ██║██████╔╝██║     ██████╔╝███████║██║ █╗ ██║██║     █████╗  ██████╔╝       ║
+║  ██║██╔═══╝ ██║     ██╔══██╗██╔══██║██║███╗██║██║     ██╔══╝  ██╔══██╗       ║
+║  ██║██║     ╚██████╗██║  ██║██║  ██║╚███╔███╔╝███████╗███████╗██║  ██║       ║
+║  ╚═╝╚═╝      ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝  ╚═╝       ║
+║                                                                              ║
+║       🕷️  Multi-threaded Network Reconnaissance & Service Crawler  🕷️        ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+		if RICH_AVAILABLE:
+			console.print(banner, style="bold cyan")
+		else:
+			print(banner)
+
 def show_modern_version(version: str = "0.1.0-alpha"):
-	"""Display modern version using rich"""
+	"""Display modern version using rich (includes ASCII art)"""
+	show_ascii_art()
+	print()
+	
+	if not RICH_AVAILABLE:
+		print(f"ipcrawler v{version}")
+		return
+		
+	version_text = Text.assemble(
+		("🕷️  ", "cyan"), ("ipcrawler ", "bold cyan"),
+		(f"v{version}", "bold green"), ("  🕸️", "dim bright_magenta")
+	)
+	console.print(Panel(Align.center(version_text), border_style="cyan", box=box.DOUBLE, padding=(1, 2)))
+
+def show_version_only(version: str = "0.1.0-alpha"):
+	"""Display just version info without ASCII art"""
 	if not RICH_AVAILABLE:
 		print(f"ipcrawler v{version}")
 		return

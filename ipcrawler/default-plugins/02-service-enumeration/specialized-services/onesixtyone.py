@@ -31,21 +31,11 @@ class OneSixtyOne(ServiceScan):
 					if snmp_path and os.path.exists(snmp_path):
 						community_strings = snmp_path
 					else:
-						# Fallback to hardcoded SecLists path
-						fallback_path = '/usr/share/seclists/Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt'
-						if os.path.exists(fallback_path):
-							community_strings = fallback_path
-						else:
-							service.warn('No SNMP community strings wordlist found. Please install SecLists or specify a custom wordlist.')
-							return
-				except Exception:
-					# Fallback to hardcoded SecLists path if WordlistManager isn't available
-					fallback_path = '/usr/share/seclists/Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt'
-					if os.path.exists(fallback_path):
-						community_strings = fallback_path
-					else:
-						service.warn('No SNMP community strings wordlist found. Please install SecLists or specify a custom wordlist.')
+						service.error(f'No SNMP community strings wordlist found for size "{current_size}". Please install SecLists or configure custom wordlists in WordlistManager.')
 						return
+				except Exception as e:
+					service.error(f'WordlistManager unavailable: {e}. Please install SecLists or configure custom wordlists.')
+					return
 			else:
 				# User specified a custom wordlist path
 				if not os.path.exists(community_strings):
