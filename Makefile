@@ -126,21 +126,18 @@ install:
 	else \
 		echo "✅ All essential tools are available"; \
 	fi
-	@echo "🚀 Installing IPCrawler from GitHub..."
-	@pipx install --force git+https://github.com/neur0map/ipcrawler.git
+	@echo "🚀 Installing IPCrawler..."
+	@if [ -f "pyproject.toml" ] && [ -f "ipcrawler.py" ]; then \
+		echo "📦 Local development environment detected, installing from current directory..."; \
+		pipx uninstall ipcrawler 2>/dev/null || true; \
+		pipx install . --force; \
+	else \
+		echo "📦 Installing from GitHub repository..."; \
+		pipx install --force git+https://github.com/neur0map/ipcrawler.git; \
+	fi
 	@pipx ensurepath
-	@echo "📝 Setting up wordlist configuration..."
-	@python3 -c "import os, toml, platformdirs; \
-	config_dir = platformdirs.user_config_dir('IPCrawler'); \
-	os.makedirs(config_dir, exist_ok=True); \
-	wordlists_config = { \
-		'mode': {'type': 'auto', 'auto_update': True, 'last_detection': None}, \
-		'detected_paths': {'seclists_base': None, 'comment': 'Auto-generated paths - do not edit manually'}, \
-		'custom_paths': {'comment': 'Add your custom wordlist paths here', 'examples': {'# usernames': '/path/to/custom/usernames.txt', '# passwords': '/path/to/custom/passwords.txt', '# web_directories': '/path/to/custom/web-dirs.txt'}}, \
-		'builtin_paths': {'comment': 'Built-in wordlists shipped with ipcrawler', 'data_dir': None} \
-	}; \
-	with open(os.path.join(config_dir, 'wordlists.toml'), 'w') as f: toml.dump(wordlists_config, f)" 2>/dev/null || echo "  ⚠️  Could not create wordlists.toml (will be auto-generated on first run)"
 	@echo "✅ Installation complete! Run 'ipcrawler --version' to test."
+	@echo "💡 Wordlist configuration will be auto-generated on first run."
 
 # Update everything
 update:

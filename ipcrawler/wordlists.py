@@ -97,8 +97,40 @@ class WordlistManager:
         try:
             with open(self.wordlists_config_path, 'w') as f:
                 toml.dump(self._config, f)
+            
+            # Create user shortcut for easy access
+            self._create_user_shortcut()
         except Exception as e:
             print(f"Warning: Could not save wordlists config: {e}")
+    
+    def _create_user_shortcut(self):
+        """Create a symlink for easy user access to wordlists configuration"""
+        try:
+            # Find the wordlists directory relative to this file
+            import inspect
+            current_file = inspect.getfile(inspect.currentframe())
+            ipcrawler_dir = os.path.dirname(current_file)
+            wordlists_dir = os.path.join(ipcrawler_dir, 'wordlists')
+            
+            # Create wordlists directory if it doesn't exist
+            os.makedirs(wordlists_dir, exist_ok=True)
+            
+            shortcut_path = os.path.join(wordlists_dir, 'wordlists.toml')
+            
+            # Only create if it doesn't exist and the source file exists
+            if os.path.exists(self.wordlists_config_path) and not os.path.exists(shortcut_path):
+                try:
+                    # Create cross-platform symlink to the actual config location
+                    os.symlink(self.wordlists_config_path, shortcut_path)
+                    print(f"📝 Wordlist config shortcut created: {shortcut_path}")
+                    print(f"💡 Points to: {self.wordlists_config_path}")
+                    print(f"💡 You can now easily access your wordlist configuration by navigating to the ipcrawler/wordlists/ directory")
+                except (OSError, FileExistsError):
+                    # Symlink creation can fail on some systems, that's okay
+                    pass
+        except Exception:
+            # Don't let shortcut creation break anything
+            pass
     
     def detect_seclists_installation(self) -> Optional[str]:
         """Detect SecLists installation path"""

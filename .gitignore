@@ -6,3 +6,4 @@ venv/
 .claude/
 .vscode/
 claude.md
+ipcrawler/wordlists/wordlists.toml
