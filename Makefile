@@ -56,7 +56,16 @@ install:
 		sudo apt install -y python3 python3-pip python3-venv curl nmap; \
 		python3 -m pip install --user pipx && python3 -m pipx ensurepath; \
 		echo "  🔧 Installing core penetration testing tools..."; \
-		sudo apt install -y seclists dnsrecon gobuster; \
+		sudo apt install -y dnsrecon gobuster; \
+		echo "  🔧 Installing SecLists wordlists..."; \
+		if [ ! -d "/usr/share/seclists" ]; then \
+			echo "  📦 Installing SecLists from GitHub (Kali package often broken)..."; \
+			sudo git clone --depth 1 https://github.com/danielmiessler/SecLists.git /usr/share/seclists 2>/dev/null && \
+			echo "  ✅ SecLists installed to /usr/share/seclists" || \
+			echo "  ⚠️  SecLists installation failed, wordlists will be limited"; \
+		else \
+			echo "  ✅ SecLists already installed"; \
+		fi; \
 		echo "  🔧 Installing feroxbuster..."; \
 		if ! command -v feroxbuster >/dev/null 2>&1; then \
 			sudo apt install -y feroxbuster 2>/dev/null || \
@@ -219,7 +228,9 @@ clean-all:
 	elif [ -f /etc/debian_version ]; then \
 		echo "🐧 Removing penetration testing tools on Debian/Ubuntu..."; \
 		echo "  Note: This will only remove tools, not dependencies like python3/nmap"; \
-		sudo apt remove --purge -y seclists dnsrecon feroxbuster gobuster 2>/dev/null || true; \
+		sudo apt remove --purge -y dnsrecon feroxbuster gobuster 2>/dev/null || true; \
+		echo "  🗑️  Removing SecLists installation..."; \
+		sudo rm -rf /usr/share/seclists 2>/dev/null || true; \
 		sudo apt remove --purge -y enum4linux enum4linux-ng nbtscan nikto onesixtyone oscanner 2>/dev/null || true; \
 		sudo apt remove --purge -y impacket-scripts python3-impacket 2>/dev/null || true; \
 		sudo rm -rf /opt/enum4linux-ng 2>/dev/null || true; \
