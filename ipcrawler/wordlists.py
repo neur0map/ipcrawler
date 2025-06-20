@@ -22,7 +22,7 @@ class WordlistManager:
         # Wordlist categories and their SecLists relative paths
         self.categories = {
             'usernames': 'Usernames/top-usernames-shortlist.txt',
-            'passwords': 'Passwords/darkweb2017-top100.txt',
+            'passwords': 'Passwords/Common-Credentials/darkweb2017_top-100.txt',
             'web_directories': 'Discovery/Web-Content/directory-list-2.3-medium.txt',
             'web_files': 'Discovery/Web-Content/common.txt',
             'subdomains': 'Discovery/DNS/subdomains-top1million-110000.txt',
@@ -136,14 +136,27 @@ class WordlistManager:
         """Detect SecLists installation path"""
         for path in self.seclists_search_paths:
             if os.path.isdir(path):
-                # Verify it's actually SecLists by checking for key files
-                test_files = [
-                    'Usernames/top-usernames-shortlist.txt',
-                    'Passwords/darkweb2017-top100.txt'
+                # Try different SecLists variants (GitHub vs package versions)
+                test_scenarios = [
+                    # GitHub version structure
+                    [
+                        'Usernames/top-usernames-shortlist.txt',
+                        'Passwords/Common-Credentials/darkweb2017_top-100.txt'
+                    ],
+                    # Kali package version structure
+                    [
+                        'Usernames/top-usernames-shortlist.txt',
+                        'Passwords/darkweb2017-top100.txt'
+                    ],
+                    # Alternative structure - just check usernames exists
+                    [
+                        'Usernames/top-usernames-shortlist.txt'
+                    ]
                 ]
                 
-                if all(os.path.exists(os.path.join(path, f)) for f in test_files):
-                    return path
+                for test_files in test_scenarios:
+                    if all(os.path.exists(os.path.join(path, f)) for f in test_files):
+                        return path
         
         return None
     
@@ -161,11 +174,28 @@ class WordlistManager:
             config['detected_paths']['seclists_base'] = seclists_path
             config['mode']['last_detection'] = 'success'
             
-            # Add individual category paths
+            # Add individual category paths, trying multiple variants
             for category, relative_path in self.categories.items():
+                # Try the default path first
                 full_path = os.path.join(seclists_path, relative_path)
                 if os.path.exists(full_path):
                     config['detected_paths'][category] = full_path
+                    continue
+                
+                # For passwords, try alternative paths for different package versions
+                if category == 'passwords':
+                    alternative_paths = [
+                        'Passwords/darkweb2017-top100.txt',  # Kali package version
+                        'Passwords/Common-Credentials/darkweb2017-top100.txt',  # Alternative naming
+                        'Passwords/darkweb2017_top-100.txt',  # Another variant
+                        'Passwords/Common-Credentials/10k-most-common.txt',  # Fallback
+                        'Passwords/Common-Credentials/best110.txt'  # Another fallback
+                    ]
+                    for alt_path in alternative_paths:
+                        alt_full_path = os.path.join(seclists_path, alt_path)
+                        if os.path.exists(alt_full_path):
+                            config['detected_paths'][category] = alt_full_path
+                            break
             
             self._config = config
             self._save_config()

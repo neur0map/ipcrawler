@@ -180,7 +180,8 @@ ipcrawler -l service
 ipcrawler uses TOML configuration files for customization:
 
 ```toml
-# ~/.config/ipcrawler/config.toml
+# ~/.config/ipcrawler/config.toml (Linux)
+# ~/Library/Application Support/IPCrawler/config.toml (macOS)
 verbose = 1
 max-scans = 50
 heartbeat = 30
@@ -189,6 +190,82 @@ heartbeat = 30
 tool = "feroxbuster"
 threads = 20
 wordlist = ["/usr/share/wordlists/dirb/common.txt"]
+```
+
+### 📚 Wordlist Configuration
+
+ipcrawler automatically detects and configures wordlists from SecLists. The wordlist configuration is managed through a dedicated file:
+
+**Configuration File Locations:**
+- **Linux:** `~/.config/ipcrawler/wordlists.toml`
+- **macOS:** `~/Library/Application Support/IPCrawler/wordlists.toml`
+- **Shortcut:** `ipcrawler/wordlists/wordlists.toml` (symlink for easy access)
+
+```toml
+# Auto-generated wordlist configuration
+[mode]
+type = "auto"              # Use auto-detected SecLists paths
+auto_update = true         # Update paths on each run
+
+[custom_paths]
+# Add your custom wordlist paths here
+usernames = "/path/to/custom/usernames.txt"
+passwords = "/path/to/custom/passwords.txt"
+web_directories = "/path/to/custom/web-dirs.txt"
+```
+
+**Available wordlist categories:**
+- `usernames` - User enumeration wordlists
+- `passwords` - Password lists for brute force
+- `web_directories` - Directory/file discovery
+- `web_files` - Common web files
+- `subdomains` - Subdomain enumeration
+- `snmp_communities` - SNMP community strings
+- `dns_servers` - DNS server lists
+- `vhosts` - Virtual host discovery
+
+**Override wordlists via command line:**
+```bash
+ipcrawler --wordlist-usernames /custom/users.txt target.com
+ipcrawler --wordlist-web-directories /custom/dirs.txt target.com
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues on Kali Linux
+
+**Missing Tools Error:**
+```bash
+[!] The following plugins failed checks that prevent ipcrawler from running: dirbuster
+```
+
+**Solution:** Run the installation command to install missing tools:
+```bash
+make install
+```
+
+**SecLists Not Detected:**
+```bash
+[-] No SecLists installation detected. Using built-in wordlists where available.
+```
+
+**Solutions:**
+1. **Install SecLists package:** `sudo apt install seclists`
+2. **Or run full installation:** `make install` (includes SecLists)
+3. **Check installation:** SecLists should be at `/usr/share/seclists`
+
+**Plugin Check Failures:**
+If some tools can't be installed, you can bypass checks:
+```bash
+ipcrawler --ignore-plugin-checks target.com
+```
+
+**Permission Issues:**
+For UDP scanning, run with sudo:
+```bash
+sudo ipcrawler target.com
 ```
 
 ---

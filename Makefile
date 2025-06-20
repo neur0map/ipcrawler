@@ -33,6 +33,21 @@ install:
 		echo "📝 Note: Some tools are not available on macOS via Homebrew:"; \
 		echo "   Missing: $$unavailable_tools"; \
 		echo "   💡 For complete tool coverage, use Linux (Kali/Ubuntu) instead"; \
+		echo "🔧 Installing SecLists wordlists..."; \
+		if [ ! -d "/usr/local/share/seclists" ] && [ ! -d "/opt/SecLists" ]; then \
+			echo "  📦 Installing SecLists from GitHub..."; \
+			sudo mkdir -p /opt 2>/dev/null || mkdir -p ~/tools 2>/dev/null; \
+			if [ -w /opt ]; then \
+				git clone --depth 1 https://github.com/danielmiessler/SecLists.git /opt/SecLists 2>/dev/null && \
+				sudo ln -sf /opt/SecLists /usr/local/share/seclists 2>/dev/null || \
+				echo "  ✅ SecLists installed to /opt/SecLists"; \
+			else \
+				git clone --depth 1 https://github.com/danielmiessler/SecLists.git ~/tools/SecLists 2>/dev/null && \
+				echo "  ✅ SecLists installed to ~/tools/SecLists"; \
+			fi; \
+		else \
+			echo "  ✅ SecLists already installed"; \
+		fi; \
 	elif [ -f /etc/debian_version ]; then \
 		echo "🐧 Debian/Ubuntu detected - Installing complete penetration testing suite..."; \
 		sudo apt update; \
@@ -40,7 +55,28 @@ install:
 		sudo apt install -y python3 python3-pip python3-venv curl nmap; \
 		python3 -m pip install --user pipx && python3 -m pipx ensurepath; \
 		echo "  🔧 Installing core penetration testing tools..."; \
-		sudo apt install -y seclists dnsrecon feroxbuster gobuster; \
+		sudo apt install -y seclists dnsrecon gobuster; \
+		echo "  🔧 Installing feroxbuster..."; \
+		if ! command -v feroxbuster >/dev/null 2>&1; then \
+			sudo apt install -y feroxbuster 2>/dev/null || \
+			{ echo "  📦 Installing feroxbuster from GitHub releases..."; \
+			  FEROX_VERSION=$$(curl -s https://api.github.com/repos/epi052/feroxbuster/releases/latest | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4 | sed 's/v//'); \
+			  if [ "$$FEROX_VERSION" ]; then \
+				ARCH=$$(dpkg --print-architecture 2>/dev/null || echo "amd64"); \
+				if [ "$$ARCH" = "amd64" ]; then FEROX_ARCH="x86_64-linux"; \
+				elif [ "$$ARCH" = "arm64" ]; then FEROX_ARCH="aarch64-linux"; \
+				else FEROX_ARCH="x86_64-linux"; fi; \
+				wget -q "https://github.com/epi052/feroxbuster/releases/download/v$$FEROX_VERSION/feroxbuster_$${FEROX_ARCH}.zip" -O /tmp/feroxbuster.zip && \
+				sudo unzip -j /tmp/feroxbuster.zip feroxbuster -d /usr/local/bin/ && \
+				sudo chmod +x /usr/local/bin/feroxbuster && \
+				rm -f /tmp/feroxbuster.zip && \
+				echo "  ✅ feroxbuster installed from GitHub"; \
+			  else \
+				echo "  ⚠️  Could not install feroxbuster automatically. Install manually with: apt install feroxbuster"; \
+			  fi; }; \
+		else \
+			echo "  ✅ feroxbuster already installed"; \
+		fi; \
 		sudo apt install -y nbtscan nikto onesixtyone oscanner; \
 		sudo apt install -y smbclient smbmap snmp sslscan sipvicious; \
 		echo "  🔧 Installing redis-tools..."; \
