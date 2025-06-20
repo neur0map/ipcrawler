@@ -53,10 +53,30 @@ install:
 		echo "🐧 Debian/Ubuntu detected - Installing complete penetration testing suite..."; \
 		sudo apt update; \
 		echo "  📦 Installing base tools..."; \
-		sudo apt install -y python3 python3-pip python3-venv curl nmap; \
-		python3 -m pip install --user pipx && python3 -m pipx ensurepath; \
+		sudo apt install -y python3 python3-pip python3-venv curl nmap pipx; \
 		echo "  🔧 Installing core penetration testing tools..."; \
-		sudo apt install -y dnsrecon gobuster; \
+		sudo apt install -y dnsrecon; \
+		echo "  🔧 Installing gobuster..."; \
+		if ! command -v gobuster >/dev/null 2>&1; then \
+			sudo apt install -y gobuster 2>/dev/null || \
+			{ echo "  📦 Installing gobuster from GitHub releases..."; \
+			  GOBUSTER_VERSION=$$(curl -s https://api.github.com/repos/OJ/gobuster/releases/latest | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4 | sed 's/v//'); \
+			  if [ "$$GOBUSTER_VERSION" ]; then \
+				ARCH=$$(dpkg --print-architecture 2>/dev/null || echo "amd64"); \
+				if [ "$$ARCH" = "amd64" ]; then GOBUSTER_ARCH="Linux_x86_64"; \
+				elif [ "$$ARCH" = "arm64" ]; then GOBUSTER_ARCH="Linux_arm64"; \
+				else GOBUSTER_ARCH="Linux_x86_64"; fi; \
+				wget -q "https://github.com/OJ/gobuster/releases/download/v$$GOBUSTER_VERSION/gobuster_$${GOBUSTER_VERSION}_$${GOBUSTER_ARCH}.tar.gz" -O /tmp/gobuster.tar.gz && \
+				sudo tar -xzf /tmp/gobuster.tar.gz -C /usr/local/bin/ gobuster && \
+				sudo chmod +x /usr/local/bin/gobuster && \
+				rm -f /tmp/gobuster.tar.gz && \
+				echo "  ✅ gobuster installed from GitHub"; \
+			  else \
+				echo "  ⚠️  Could not install gobuster automatically. Install manually with: apt install gobuster"; \
+			  fi; }; \
+		else \
+			echo "  ✅ gobuster already installed"; \
+		fi; \
 		echo "  🔧 Installing SecLists wordlists..."; \
 		if [ ! -d "/usr/share/seclists" ]; then \
 			echo "  📦 Installing SecLists from GitHub (Kali package often broken)..."; \
