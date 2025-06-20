@@ -65,8 +65,7 @@ if not os.path.exists(config['data_dir']):
 else:
 	if not os.path.exists(os.path.join(config['data_dir'], 'plugins')):
 		shutil.copytree(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'default-plugins'), os.path.join(config['data_dir'], 'plugins'))
-	if not os.path.exists(os.path.join(config['data_dir'], 'wordlists')):
-		# Wordlists are now managed by WordlistManager - no built-in wordlists to copy
+	# Wordlists are now managed by WordlistManager - no built-in wordlists to copy
 	if not os.path.exists(os.path.join(config['data_dir'], 'VERSION-' + VERSION)):
 		warn('It looks like the plugins in ' + config['data_dir'] + ' are outdated. Please remove the ' + config['data_dir'] + ' directory and re-run ipcrawler to rebuild them.')
 
