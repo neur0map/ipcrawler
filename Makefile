@@ -144,7 +144,18 @@ install:
 			i=0; \
 			printf "  "; \
 			while kill -0 $$CLONE_PID 2>/dev/null; do \
-				printf "\b$${spinner:$$i:1}"; \
+				case $$i in \
+					0) printf "\b⠋";; \
+					1) printf "\b⠙";; \
+					2) printf "\b⠹";; \
+					3) printf "\b⠸";; \
+					4) printf "\b⠼";; \
+					5) printf "\b⠴";; \
+					6) printf "\b⠦";; \
+					7) printf "\b⠧";; \
+					8) printf "\b⠇";; \
+					9) printf "\b⠏";; \
+				esac; \
 				i=$$(( (i+1) % 10 )); \
 				sleep 0.1; \
 			done; \
