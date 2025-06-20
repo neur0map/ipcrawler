@@ -288,7 +288,8 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 	speed_options = [
 		("--fast", "Quick scans with small wordlists", "5-15 min/service"),
 		("--comprehensive", "Thorough scans with large wordlists", "30-120 min/service"),
-		("--wordlist-size SIZE", "Manual wordlist size selection", "fast|default|comprehensive")
+		("--wordlist-size SIZE", "Manual wordlist size selection", "fast|default|comprehensive"),
+		("(default)", "Medium wordlists when no flags used", "15-45 min/service")
 	]
 	
 	speed_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
@@ -307,7 +308,8 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 		("--ctf", "CTF/lab mode: balanced + high threads", "Practice environments"),
 		("--pentest", "Penetration testing mode", "Real-world assessments"),
 		("--recon", "Quick reconnaissance mode", "Initial discovery"),
-		("--stealth", "Stealth mode: reduced threads", "Evasive scanning")
+		("--stealth", "Stealth mode: reduced threads", "Evasive scanning"),
+		("(default)", "Standard scan with default plugins", "Balanced approach")
 	]
 	
 	scenario_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
@@ -319,6 +321,24 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 		scenario_table.add_row(option, desc, use_case)
 	
 	console.print(Panel(scenario_table, title="🎯 Scan Scenarios", border_style=accent_color, box=box.ROUNDED))
+	console.print()
+	
+	# Default behavior explanation
+	default_info = [
+		("🔸 Without flags", "Uses medium-sized wordlists and balanced settings"),
+		("🔸 Plugin selection", "Runs 'default' tagged plugins (most common tools)"),
+		("🔸 Wordlist sources", "Auto-detects SecLists or falls back to built-in lists"),
+		("🔸 Time estimate", "~15-45 minutes per service depending on findings")
+	]
+	
+	default_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+	default_table.add_column("Behavior", style=f"{success_color}", width=20)
+	default_table.add_column("Description", style="dim white", width=45)
+	
+	for behavior, desc in default_info:
+		default_table.add_row(behavior, desc)
+	
+	console.print(Panel(default_table, title="ℹ️  Default Behavior", border_style=f"dim {success_color}", box=box.ROUNDED))
 	console.print()
 	
 	# Footer
