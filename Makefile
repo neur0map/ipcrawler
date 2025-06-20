@@ -165,10 +165,15 @@ install:
 	fi
 	@echo "🚀 Installing IPCrawler..."
 	@if [ -f "pyproject.toml" ] && [ -f "ipcrawler.py" ]; then \
-		echo "📦 Local development environment detected, reinstalling from current directory..."; \
+		echo "📦 Local development environment detected, installing with live updates..."; \
 		pipx uninstall ipcrawler 2>/dev/null || true; \
-		pipx install . --force; \
-		echo "💡 For development with live updates, use 'make dev-install' instead"; \
+		if pipx install --editable . --force 2>/dev/null; then \
+			echo "✅ Editable install successful! Code changes will take effect immediately."; \
+		else \
+			echo "⚠️  Editable install failed, using regular install..."; \
+			pipx install . --force; \
+			echo "💡 Run 'make install' again after code changes to update."; \
+		fi; \
 	else \
 		echo "📦 Installing from GitHub repository..."; \
 		pipx install --force git+https://github.com/neur0map/ipcrawler.git; \
@@ -304,22 +309,6 @@ debug:
 		echo "⚠️  impacket-scripts (no impacket installation found)"; \
 	fi
 
-# Development installation - for live code updates
-dev-install:
-	@echo "🛠️  Installing IPCrawler for development..."
-	@if [ ! -f "pyproject.toml" ] || [ ! -f "ipcrawler.py" ]; then \
-		echo "❌ Not in ipcrawler source directory. Run this from the git repo."; \
-		exit 1; \
-	fi
-	@echo "📦 Uninstalling existing version..."
-	@pipx uninstall ipcrawler 2>/dev/null || true
-	@echo "📦 Installing in development mode (live updates)..."
-	@if pipx install --editable . --force 2>/dev/null; then \
-		echo "✅ Editable install successful! Code changes will take effect immediately."; \
-	else \
-		echo "⚠️  Editable install failed, falling back to regular install..."; \
-		pipx install . --force; \
-		echo "✅ Installation complete. Run 'make dev-install' again after code changes."; \
-	fi
-	@pipx ensurepath
-	@echo "💡 Development tip: Changes to Python files take effect immediately with editable install."
+# Development installation - same as install but explicit
+dev-install: install
+	@echo "💡 'make install' now automatically sets up live updates when run from git repo"
