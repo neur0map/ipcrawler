@@ -250,6 +250,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ### Built with ❤️ for the cybersecurity community
 
-[Report Bug](https://github.com/neur0map/ipcrawler/issues) · [Request Feature](https://github.com/neur0map/ipcrawler/issues)
+[Report Bug](https://github.com/neur0map/ipcrawler/issues) · [Request Feature](https://github.com/neur0map/ipcrawler/issues) · [Learn More] (http://localhost:5173/ipcrawler/overview)
 
 </div>
