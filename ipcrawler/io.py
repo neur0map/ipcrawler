@@ -2,6 +2,22 @@ import asyncio, colorama, os, re, string, sys, unidecode
 from colorama import Fore, Style
 from ipcrawler.config import config
 
+# Modern UI imports
+try:
+	from typing import List, Dict, Any
+	from rich.console import Console
+	from rich.table import Table
+	from rich.panel import Panel
+	from rich.text import Text
+	from rich.align import Align
+	from rich import box
+	
+	# Create rich console for modern UI features
+	console = Console()
+	RICH_AVAILABLE = True
+except ImportError:
+	RICH_AVAILABLE = False
+
 def slugify(name):
 	return re.sub(r'[\W_]+', '-', unidecode.unidecode(name).lower()).strip('-')
 
@@ -182,3 +198,191 @@ class CommandStreamReader(object):
 			else:
 				break
 		return lines
+
+# Modern UI Functions (requires rich library)
+def show_modern_help(version: str = "0.1.0-alpha"):
+	"""Display modern help interface using rich"""
+	if not RICH_AVAILABLE:
+		print("ipcrawler help - install rich library for enhanced interface")
+		return
+		
+	# Spider theme colors
+	theme_color = "cyan"
+	accent_color = "bright_magenta"
+	success_color = "green"
+	
+	# Banner
+	banner_text = Text()
+	banner_text.append("🕷️  ipcrawler", style=f"bold {theme_color}")
+	banner_text.append("  🕸️", style=f"dim {accent_color}")
+	subtitle = Text("Smart Network Reconnaissance Made Simple", style=f"italic {accent_color}")
+	
+	console.print(Panel(
+		Align.center(Text.assemble(banner_text, "\n", subtitle)),
+		box=box.DOUBLE, border_style=theme_color, padding=(1, 2)
+	))
+	console.print()
+	
+	# Usage
+	usage_text = Text.assemble(
+		("Usage: ", "bold white"), ("ipcrawler ", f"bold {theme_color}"),
+		("[OPTIONS] ", f"{accent_color}"), ("TARGET(S)", f"bold {success_color}")
+	)
+	console.print(Panel(usage_text, title="🎯 Usage", border_style=theme_color, box=box.ROUNDED))
+	console.print()
+	
+	# Examples
+	examples = [
+		("Single target", "ipcrawler 192.168.1.100"),
+		("CIDR range", "ipcrawler 192.168.1.0/24"),
+		("Multiple targets", "ipcrawler 10.0.0.1 10.0.0.2 target.com"),
+		("From file", "ipcrawler -t targets.txt"),
+		("Custom ports", "ipcrawler -p 80,443,8080 target.com"),
+		("Verbose scan", "ipcrawler -vv target.com")
+	]
+	
+	examples_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+	examples_table.add_column("Description", style=f"{accent_color}")
+	examples_table.add_column("Command", style=f"bold {theme_color}")
+	
+	for desc, cmd in examples:
+		examples_table.add_row(f"🔸 {desc}", cmd)
+	
+	console.print(Panel(examples_table, title="⚡ Quick Examples", border_style=theme_color, box=box.ROUNDED))
+	console.print()
+	
+	# Core options
+	core_options = [
+		("-t, --target-file", "Read targets from file", "FILE"),
+		("-p, --ports", "Custom ports to scan", "PORTS"),
+		("-o, --output", "Output directory for results", "DIR"),
+		("-m, --max-scans", "Max concurrent scans", "NUM"),
+		("-v, --verbose", "Verbose output (repeat for more)", ""),
+		("-l, --list", "List available plugins", "[TYPE]"),
+		("--tags", "Include plugins with tags", "TAGS"),
+		("--exclude-tags", "Exclude plugins with tags", "TAGS"),
+		("--timeout", "Max scan time in minutes", "MIN"),
+		("--target-timeout", "Max time per target in minutes", "MIN"),
+		("--heartbeat", "Status update interval in seconds", "SEC"),
+		("--proxychains", "Run through proxychains", ""),
+		("--accessible", "Screenreader-friendly output", ""),
+		("--version", "Show version and exit", ""),
+		("-h, --help", "Show this help message", "")
+	]
+	
+	options_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
+	options_table.add_column("Option", style=f"bold {theme_color}", width=22)
+	options_table.add_column("Description", style="white", width=35)
+	options_table.add_column("Value", style=f"dim {accent_color}", width=8)
+	
+	for option, desc, value in core_options:
+		options_table.add_row(option, desc, value)
+	
+	console.print(Panel(options_table, title="🛠️  Core Options", border_style=theme_color, box=box.ROUNDED))
+	console.print()
+	
+	# Footer
+	footer_text = Text.assemble(
+		(f"ipcrawler v{version}", f"bold {theme_color}"),
+		(" | Built for the cybersecurity community ", "dim white"),
+		("🕷️", f"{accent_color}")
+	)
+	console.print(Panel(Align.center(footer_text), border_style=f"dim {accent_color}", box=box.SIMPLE))
+
+def show_modern_version(version: str = "0.1.0-alpha"):
+	"""Display modern version using rich"""
+	if not RICH_AVAILABLE:
+		print(f"ipcrawler v{version}")
+		return
+		
+	version_text = Text.assemble(
+		("🕷️  ", "cyan"), ("ipcrawler ", "bold cyan"),
+		(f"v{version}", "bold green"), ("  🕸️", "dim bright_magenta")
+	)
+	console.print(Panel(Align.center(version_text), border_style="cyan", box=box.DOUBLE, padding=(1, 2)))
+
+def show_modern_plugin_list(plugin_types: Dict[str, List[Any]], list_type: str = "plugins"):
+	"""Display modern plugin listing using rich"""
+	if not RICH_AVAILABLE:
+		print("Plugin list - install rich library for enhanced interface")
+		return
+		
+	theme_color = "cyan"
+	accent_color = "bright_magenta"
+	
+	# Banner
+	banner_text = Text()
+	banner_text.append("🕷️  ipcrawler", style=f"bold {theme_color}")
+	banner_text.append("  🕸️", style=f"dim {accent_color}")
+	subtitle = Text("Smart Network Reconnaissance Made Simple", style=f"italic {accent_color}")
+	
+	console.print(Panel(
+		Align.center(Text.assemble(banner_text, "\n", subtitle)),
+		box=box.DOUBLE, border_style=theme_color, padding=(1, 2)
+	))
+	console.print()
+	
+	# Determine what to show
+	type_lower = list_type.lower()
+	show_port = type_lower in ['plugin', 'plugins', 'port', 'ports', 'portscan', 'portscans']
+	show_service = type_lower in ['plugin', 'plugins', 'service', 'services', 'servicescan', 'servicescans']
+	show_report = type_lower in ['plugin', 'plugins', 'report', 'reports', 'reporting']
+	
+	# Port scan plugins
+	if show_port and 'port' in plugin_types:
+		port_table = Table(box=box.ROUNDED, show_header=True, header_style=f"bold {theme_color}")
+		port_table.add_column("🎯 Plugin Name", style="bold white", width=25)
+		port_table.add_column("Slug", style=f"{accent_color}", width=20)
+		port_table.add_column("Description", style="dim white", width=50)
+		
+		for plugin in plugin_types['port']:
+			description = plugin.description if hasattr(plugin, 'description') and plugin.description else "No description available"
+			port_table.add_row(plugin.name, plugin.slug, description)
+		
+		console.print(Panel(port_table, title="🔍 Port Scan Plugins", border_style=theme_color, box=box.DOUBLE))
+		console.print()
+	
+	# Service scan plugins
+	if show_service and 'service' in plugin_types:
+		service_table = Table(box=box.ROUNDED, show_header=True, header_style=f"bold {theme_color}")
+		service_table.add_column("🎯 Plugin Name", style="bold white", width=25)
+		service_table.add_column("Slug", style=f"{accent_color}", width=20)
+		service_table.add_column("Description", style="dim white", width=50)
+		
+		for plugin in plugin_types['service']:
+			description = plugin.description if hasattr(plugin, 'description') and plugin.description else "No description available"
+			service_table.add_row(plugin.name, plugin.slug, description)
+		
+		console.print(Panel(service_table, title="🛠️  Service Scan Plugins", border_style=theme_color, box=box.DOUBLE))
+		console.print()
+	
+	# Report plugins
+	if show_report and 'report' in plugin_types:
+		report_table = Table(box=box.ROUNDED, show_header=True, header_style=f"bold {theme_color}")
+		report_table.add_column("🎯 Plugin Name", style="bold white", width=25)
+		report_table.add_column("Slug", style=f"{accent_color}", width=20)
+		report_table.add_column("Description", style="dim white", width=50)
+		
+		for plugin in plugin_types['report']:
+			description = plugin.description if hasattr(plugin, 'description') and plugin.description else "No description available"
+			report_table.add_row(plugin.name, plugin.slug, description)
+		
+		console.print(Panel(report_table, title="📋 Report Plugins", border_style=theme_color, box=box.DOUBLE))
+		console.print()
+	
+	# Usage tips
+	tips = [
+		("🔸 Use tags to filter:", "--tags safe,web"),
+		("🔸 Exclude specific types:", "--exclude-tags slow"),
+		("🔸 Override plugin selection:", "--service-scans dirbuster,nikto"),
+		("🔸 List specific types:", "-l service, -l port, -l report")
+	]
+	
+	tips_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+	tips_table.add_column("Tip", style=f"{accent_color}", width=25)
+	tips_table.add_column("Example", style=f"bold {theme_color}", width=35)
+	
+	for tip, example in tips:
+		tips_table.add_row(tip, example)
+	
+	console.print(Panel(tips_table, title="💡 Plugin Usage Tips", border_style=f"dim {accent_color}", box=box.ROUNDED))

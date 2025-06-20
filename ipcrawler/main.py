@@ -4,7 +4,7 @@ import argparse, asyncio, importlib.util, inspect, ipaddress, math, os, re, sele
 from datetime import datetime
 
 try:
-	import colorama, impacket, platformdirs, psutil, requests, toml, unidecode
+	import colorama, impacket, platformdirs, psutil, requests, rich, toml, unidecode
 	from colorama import Fore, Style
 except ModuleNotFoundError:
 	print('One or more required modules was not installed. Please run or re-run: ' + ('sudo ' if os.getuid() == 0 else '') + 'python3 -m pip install -r requirements.txt')
@@ -13,12 +13,21 @@ except ModuleNotFoundError:
 colorama.init()
 
 from ipcrawler.config import config, configurable_keys, configurable_boolean_keys
-from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader
+from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader, show_modern_help, show_modern_version, show_modern_plugin_list
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.targets import Target, Service
 from ipcrawler.wordlists import init_wordlist_manager
 
 VERSION = "0.1.0-alpha"
+
+class ModernHelpAction(argparse.Action):
+	"""Custom help action to display modern UI"""
+	def __init__(self, option_strings, dest=argparse.SUPPRESS, default=argparse.SUPPRESS, help=None):
+		super().__init__(option_strings=option_strings, dest=dest, default=default, nargs=0, help=help)
+	
+	def __call__(self, parser, namespace, values, option_string=None):
+		show_modern_help(VERSION)
+		parser.exit()
 
 def copy_tree_ignore_broken_symlinks(src, dst):
 	"""Copy directory tree, ignoring broken symlinks"""
@@ -939,7 +948,7 @@ async def run():
 	ipcrawler.argparse = parser
 
 	if args.version:
-		print('ipcrawler v' + VERSION)
+		show_modern_version(VERSION)
 		sys.exit(0)
 
 	def unknown_help():
@@ -1183,7 +1192,7 @@ async def run():
 		if key not in other_options:
 			ipcrawler.argparse.set_defaults(**{key: val})
 
-	parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show this help message and exit.')
+	parser.add_argument('-h', '--help', action=ModernHelpAction, help='Show this help message and exit.')
 	parser.error = lambda s: fail(s[0].upper() + s[1:])
 	args = parser.parse_args()
 
@@ -1224,17 +1233,7 @@ async def run():
 			debug(f'CLI override set for {category}: {path}')
 
 	if args.list:
-		type = args.list.lower()
-		if type in ['plugin', 'plugins', 'port', 'ports', 'portscan', 'portscans']:
-			for p in ipcrawler.plugin_types['port']:
-				print('PortScan: ' + p.name + ' (' + p.slug + ')' + (' - ' + p.description if p.description else ''))
-		if type in ['plugin', 'plugins', 'service', 'services', 'servicescan', 'servicescans']:
-			for p in ipcrawler.plugin_types['service']:
-				print('ServiceScan: ' + p.name + ' (' + p.slug + ')' + (' - ' + p.description if p.description else ''))
-		if type in ['plugin', 'plugins', 'report', 'reports', 'reporting']:
-			for p in ipcrawler.plugin_types['report']:
-				print('Report: ' + p.name + ' (' + p.slug + ')' + (' - ' + p.description if p.description else ''))
-
+		show_modern_plugin_list(ipcrawler.plugin_types, args.list)
 		sys.exit(0)
 
 	max_plugin_target_instances = {}

@@ -35,7 +35,7 @@ install:
 		echo "   Missing: $$unavailable_tools"; \
 		echo "   💡 For complete tool coverage, use Linux (Kali/Ubuntu) instead"; \
 		echo "🔧 Installing SecLists wordlists..."; \
-		if [ ! -d "/usr/local/share/seclists" ] && [ ! -d "/opt/SecLists" ]; then \
+		if [ ! -d "/usr/local/share/seclists" ] && [ ! -d "/opt/SecLists" ] && [ ! -d "$$HOME/tools/SecLists" ]; then \
 			echo "  📦 Installing SecLists from GitHub..."; \
 			sudo mkdir -p /opt 2>/dev/null || mkdir -p ~/tools 2>/dev/null; \
 			if [ -w /opt ]; then \
@@ -256,20 +256,11 @@ install:
 		echo "✅ All essential tools are available"; \
 	fi
 	@echo "🚀 Installing IPCrawler..."
-	@if [ -f "pyproject.toml" ] && [ -f "ipcrawler.py" ]; then \
-		echo "📦 Local development environment detected, installing with live updates..."; \
-		pipx uninstall ipcrawler 2>/dev/null || true; \
-		if pipx install --editable . --force 2>/dev/null; then \
-			echo "✅ Editable install successful! Code changes will take effect immediately."; \
-		else \
-			echo "⚠️  Editable install failed, using regular install..."; \
-			pipx install . --force; \
-			echo "💡 Run 'make install' again after code changes to update."; \
-		fi; \
-	else \
-		echo "📦 Installing from GitHub repository..."; \
-		pipx install --force git+https://github.com/neur0map/ipcrawler.git; \
-	fi
+	@echo "📦 Installing from GitHub repository (git pull + make install workflow)..."
+	@pipx uninstall ipcrawler 2>/dev/null || true
+	@pipx install --force git+https://github.com/neur0map/ipcrawler.git
+	@echo "🔧 Injecting rich library for modern UI..."
+	@pipx inject ipcrawler rich 2>/dev/null || echo "⚠️  Rich injection failed, run: pipx inject ipcrawler rich"
 	@pipx ensurepath
 	@echo "✅ Installation complete! Run 'ipcrawler --version' to test."
 	@echo "💡 Wordlist configuration will be auto-generated on first run."
