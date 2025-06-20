@@ -18,10 +18,10 @@ help:
 install:
 	@echo "🚀 Installing IPCrawler..."
 	@echo "🔍 Detecting system and missing tools..."
-	@# Detect OS and install basic tools + pipx
+	@# Detect OS and install basic tools
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		echo "📱 macOS detected - Installing base tools..."; \
-		brew install python3 pipx nmap curl 2>/dev/null || true; \
+		brew install python3 nmap curl 2>/dev/null || true; \
 		echo "🔧 Installing available penetration testing tools..."; \
 		available_tools="feroxbuster gobuster nikto smbclient masscan john hashcat"; \
 		unavailable_tools="dnsrecon enum4linux impacket-scripts nbtscan onesixtyone oscanner smbmap tnscmd10g"; \
@@ -53,7 +53,7 @@ install:
 		echo "🐧 Debian/Ubuntu detected - Installing complete penetration testing suite..."; \
 		sudo apt update; \
 		echo "  📦 Checking and installing base tools..."; \
-		base_tools="python3 python3-pip python3-venv curl nmap pipx"; \
+		base_tools="python3 python3-pip python3-venv curl nmap"; \
 		missing_base=""; \
 		for tool in $$base_tools; do \
 			if command -v $$tool >/dev/null 2>&1 || dpkg -l | grep -q "^ii.*$$tool"; then \
@@ -227,20 +227,20 @@ install:
 		echo "✅ Complete penetration testing environment installed!"; \
 	elif [ -f /etc/arch-release ]; then \
 		echo "🐧 Arch Linux detected - Installing base tools..."; \
-		sudo pacman -S --noconfirm python python-pip python-pipx nmap curl; \
+		sudo pacman -S --noconfirm python python-pip nmap curl; \
 		echo "🔧 Installing penetration testing tools..."; \
 		sudo pacman -S --noconfirm nmap masscan gobuster nikto smbclient; \
 		echo "  ⚠️  Some tools may need to be installed from AUR"; \
 	elif [ -f /etc/redhat-release ]; then \
 		echo "🐧 RedHat/CentOS/Fedora detected - Installing base tools..."; \
 		sudo dnf install -y python3 python3-pip nmap curl; \
-		python3 -m pip install --user pipx && python3 -m pipx ensurepath; \
+ \
 		echo "🔧 Installing available penetration testing tools..."; \
 		sudo dnf install -y nmap smbclient; \
 		echo "  ⚠️  Additional tools may need manual installation"; \
 	else \
 		echo "❓ Unknown OS - Installing basic requirements..."; \
-		echo "  Please install manually: python3, pip, pipx, nmap, curl"; \
+		echo "  Please install manually: python3, pip, nmap, curl"; \
 	fi
 	@echo "🔍 Checking for remaining missing tools..."
 	@missing_tools=""; \
@@ -256,26 +256,43 @@ install:
 		echo "✅ All essential tools are available"; \
 	fi
 	@echo "🚀 Installing IPCrawler..."
-	@echo "📦 Installing from GitHub repository (git pull + make install workflow)..."
-	@pipx uninstall ipcrawler 2>/dev/null || true
-	@pipx install --force git+https://github.com/neur0map/ipcrawler.git
-	@echo "🔧 Injecting rich library for modern UI..."
-	@pipx inject ipcrawler rich 2>/dev/null || echo "⚠️  Rich injection failed, run: pipx inject ipcrawler rich"
-	@pipx ensurepath
-	@echo "✅ Installation complete! Run 'ipcrawler --version' to test."
-	@echo "💡 Wordlist configuration will be auto-generated on first run."
+	@echo "📦 Installing Python dependencies..."
+	@python3 -m pip install --user -r requirements.txt
+	@echo "🔧 Creating executable wrapper..."
+	@mkdir -p ~/.local/bin
+	@echo '#!/bin/bash' > ~/.local/bin/ipcrawler
+	@echo 'SCRIPT_DIR="$$(pwd)"' >> ~/.local/bin/ipcrawler
+	@echo 'if [ -f "$$SCRIPT_DIR/ipcrawler.py" ]; then' >> ~/.local/bin/ipcrawler
+	@echo '    exec python3 "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
+	@echo 'else' >> ~/.local/bin/ipcrawler
+	@echo '    echo "Error: Please run ipcrawler from the git repository directory containing ipcrawler.py"' >> ~/.local/bin/ipcrawler
+	@echo '    echo "cd /path/to/ipcrawler && ipcrawler [options]"' >> ~/.local/bin/ipcrawler
+	@echo '    exit 1' >> ~/.local/bin/ipcrawler
+	@echo 'fi' >> ~/.local/bin/ipcrawler
+	@chmod +x ~/.local/bin/ipcrawler
+	@echo "🔧 Adding ~/.local/bin to PATH if needed..."
+	@if ! echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \
+		echo 'export PATH="$$HOME/.local/bin:$$PATH"' >> ~/.bashrc 2>/dev/null || true; \
+		echo 'export PATH="$$HOME/.local/bin:$$PATH"' >> ~/.zshrc 2>/dev/null || true; \
+		echo "💡 Added ~/.local/bin to PATH in shell config files"; \
+		echo "⚠️  Run 'source ~/.bashrc' or restart your terminal to update PATH"; \
+	fi
+	@echo "✅ Installation complete!"
+	@echo "💡 Usage: cd to this directory and run 'ipcrawler --version' to test."
+	@echo "💡 Updates: Use 'git pull && make update' to get latest changes."
 
 # Update everything
 update:
 	@echo "🔄 Updating IPCrawler..."
-	@git pull 2>/dev/null || true
-	@pipx upgrade ipcrawler || pipx install --force git+https://github.com/neur0map/ipcrawler.git
+	@git pull
+	@python3 -m pip install --user -r requirements.txt
 	@echo "✅ Update complete!"
 
 # Clean ipcrawler only
 clean:
 	@echo "🧹 Cleaning ipcrawler..."
-	@pipx uninstall ipcrawler 2>/dev/null || true
+	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
+	@python3 -m pip uninstall -y platformdirs colorama impacket psutil requests toml Unidecode rich 2>/dev/null || true
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
 	@echo "✅ IPCrawler removed! (Tools and results preserved)"
@@ -286,7 +303,8 @@ clean-all:
 	@echo "⚠️  This will remove all penetration testing tools installed by this Makefile"
 	@echo "📁 Results directory will be preserved"
 	@# Remove ipcrawler first
-	@pipx uninstall ipcrawler 2>/dev/null || true
+	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
+	@python3 -m pip uninstall -y platformdirs colorama impacket psutil requests toml Unidecode rich 2>/dev/null || true
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
 	@# Remove tools based on platform
@@ -362,18 +380,14 @@ debug:
 	@echo "Python: $$(python3 --version 2>/dev/null || echo 'Not found')"
 	@echo "Python Path: $$(which python3 2>/dev/null || echo 'Not in PATH')"
 	@echo "Pip: $$(python3 -m pip --version 2>/dev/null || echo 'Not found')"
-	@echo "Pipx: $$(pipx --version 2>/dev/null || echo 'Not found')"
-	@if command -v pipx >/dev/null 2>&1; then \
-		echo "Pipx Path: $$(which pipx)"; \
-	fi
 	@echo ""
 	@echo "🕷️  IPCrawler Installation"
 	@echo "IPCrawler: $$(ipcrawler --version 2>/dev/null || echo 'Not installed')"
 	@echo "IPCrawler Path: $$(which ipcrawler 2>/dev/null || echo 'Not in PATH')"
 	@if command -v ipcrawler >/dev/null 2>&1; then \
-		echo "Installation Type: $$(if pipx list | grep -q ipcrawler; then echo 'Pipx (isolated)'; else echo 'System/Other'; fi)"; \
-		if [ -f "pyproject.toml" ]; then \
-			echo "Development Mode: $$(if pipx list | grep -q 'editable'; then echo 'Yes (editable install)'; else echo 'No (static install)'; fi)"; \
+		echo "Installation Type: Direct (git clone)"; \
+		if [ -f "requirements.txt" ]; then \
+			echo "Development Mode: Yes (live updates via git pull)"; \
 		fi; \
 	fi
 	@echo ""
@@ -402,7 +416,7 @@ debug:
 	fi
 	@echo ""
 	@echo "🔧 Core Tools (Required)"
-	@for tool in python3 pipx nmap curl git; do \
+	@for tool in python3 pip nmap curl git; do \
 		if command -v $$tool >/dev/null 2>&1; then \
 			version=$$($$tool --version 2>/dev/null | head -1 | sed 's/.*version //' | sed 's/ .*//' || echo 'unknown'); \
 			echo "✅ $$tool ($$version) - $$(which $$tool)"; \
@@ -464,7 +478,7 @@ debug:
 	@echo ""
 	@echo "📊 Summary"
 	@core_missing=0; \
-	for tool in python3 pipx nmap curl git; do \
+	for tool in python3 pip nmap curl git; do \
 		if ! command -v $$tool >/dev/null 2>&1; then \
 			core_missing=$$((core_missing + 1)); \
 		fi; \
