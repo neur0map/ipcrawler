@@ -36,7 +36,9 @@ Get a quick, easy-to-read overview of this project from top AI providers:
 ## What is ipcrawler?
 
 ipcrawler is an **intelligent multi-threaded network reconnaissance tool** that automates the tedious parts of penetration testing. Instead of manually running dozens of enumeration commands, ipcrawler discovers services and automatically launches the right tools for comprehensive reconnaissance.
-Beginner friendlier fork of AutoRecon
+
+## This beginner friendly fork of AutoRecon.
+Core functionality stayed the same, this fork has an advanced and extremely easy way to install the needed tools, seclists and overall it's extremely easy to use and to understand the results of your scans.
 
 **Perfect for:** OSCP exam prep, CTFs, penetration testing, and security research.
 
