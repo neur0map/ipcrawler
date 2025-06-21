@@ -60,7 +60,7 @@ Core functionality stayed the same, this fork has an advanced and extremely easy
 - **Beautiful Output** → Rich, colorful terminal interface with real-time progress
 - **Organized Results** → Structured file output for easy analysis
 
-*Demo target: Personal domain scan showcasing web service enumeration*
+*Demo target: Personal domain scan showcasing web service enumeration;*
 *Note: --ignore-plugins-checks flag was issue because test was done in MacOS and tools are not natively available*
 
 </div>
