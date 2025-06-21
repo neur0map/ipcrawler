@@ -198,7 +198,7 @@ class CommandStreamReader(object):
 									record_tool_activity("pattern_match")
 									scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
 								else:
-									scan_status.show_pattern_match(self.target.address, self.tag, description, match_text, config['verbose'])
+									scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
 								file.writelines(description + '\n\n')
 					else:
 						# Use modern status display for pattern matches (no description)
