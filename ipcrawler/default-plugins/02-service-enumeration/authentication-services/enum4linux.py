@@ -18,12 +18,29 @@ class Enum4Linux(ServiceScan):
 
 	def check(self):
 		tool = self.get_option('tool')
+		
+		# macOS compatibility - use nmap scripts as fallback
+		import platform
+		is_macos = platform.system() == 'Darwin'
+		
 		if tool == 'enum4linux' and which('enum4linux') is None:
-			self.error('The enum4linux program could not be found. Make sure it is installed. (On Kali, run: sudo apt install enum4linux)')
-			return False
+			if is_macos:
+				self.warn('enum4linux not available on macOS. Using nmap SMB scripts as alternative.')
+				self.add_choice_option('tool', default='nmap-smb', choices=['nmap-smb'], help='SMB enumeration using nmap scripts (macOS compatible)')
+				return True
+			else:
+				self.error('The enum4linux program could not be found. Make sure it is installed. (On Kali, run: sudo apt install enum4linux)')
+				return False
 		elif tool == 'enum4linux-ng' and which('enum4linux-ng') is None:
-			self.error('The enum4linux-ng program could not be found. Make sure it is installed. (https://github.com/cddmp/enum4linux-ng)')
-			return False
+			if is_macos:
+				self.warn('enum4linux-ng not available on macOS. Using nmap SMB scripts as alternative.')
+				self.add_choice_option('tool', default='nmap-smb', choices=['nmap-smb'], help='SMB enumeration using nmap scripts (macOS compatible)')
+				return True
+			else:
+				self.error('The enum4linux-ng program could not be found. Make sure it is installed. (https://github.com/cddmp/enum4linux-ng)')
+				return False
+		
+		return True
 
 	async def run(self, service):
 		if service.target.ipversion == 'IPv4':
@@ -33,3 +50,11 @@ class Enum4Linux(ServiceScan):
 					await service.execute('enum4linux -a -M -l -d {address} 2>&1', outfile='enum4linux.txt')
 				elif tool == 'enum4linux-ng':
 					await service.execute('enum4linux-ng -A -d -v {address} 2>&1', outfile='enum4linux-ng.txt')
+				elif tool == 'nmap-smb':
+					# macOS-compatible SMB enumeration using nmap scripts
+					await service.execute('nmap -sS -O -p {port} --script smb-enum-users,smb-enum-shares,smb-os-discovery,smb-security-mode {address} 2>&1', outfile='nmap_smb_enum.txt')
+					# Additional SMB vulnerability checks
+					await service.execute('nmap -p {port} --script smb-vuln-* {address} 2>&1', outfile='nmap_smb_vulns.txt')
+					# NetBIOS enumeration if port 137/139
+					if service.port in [137, 139]:
+						await service.execute('nmap -sU -p 137 --script nbstat {address} 2>&1', outfile='nmap_netbios.txt')

@@ -12,11 +12,29 @@ class OracleTNScmd(ServiceScan):
 		self.match_service_name('^oracle')
 
 	def check(self):
+		import platform
+		is_macos = platform.system() == 'Darwin'
+		
 		if which('tnscmd10g') is None:
-			self.error('The tnscmd10g program could not be found. Make sure it is installed. (On Kali, run: sudo apt install tnscmd10g)')
-			return False
+			if is_macos:
+				self.warn('tnscmd10g not available on macOS. Using nmap Oracle TNS scripts as alternative.')
+				return True
+			else:
+				self.error('The tnscmd10g program could not be found. Make sure it is installed. (On Kali, run: sudo apt install tnscmd10g)')
+				return False
+		return True
 
 	async def run(self, service):
 		if service.target.ipversion == 'IPv4':
-			await service.execute('tnscmd10g ping -h {address} -p {port} 2>&1', outfile='{protocol}_{port}_oracle_tnscmd_ping.txt')
-			await service.execute('tnscmd10g version -h {address} -p {port} 2>&1', outfile='{protocol}_{port}_oracle_tnscmd_version.txt')
+			from shutil import which
+			import platform
+			is_macos = platform.system() == 'Darwin'
+			
+			if which('tnscmd10g') is not None:
+				await service.execute('tnscmd10g ping -h {address} -p {port} 2>&1', outfile='{protocol}_{port}_oracle_tnscmd_ping.txt')
+				await service.execute('tnscmd10g version -h {address} -p {port} 2>&1', outfile='{protocol}_{port}_oracle_tnscmd_version.txt')
+			elif is_macos:
+				# macOS-compatible Oracle TNS enumeration using nmap scripts
+				await service.execute('nmap -p {port} --script oracle-tns-version,oracle-sid-brute {address} 2>&1', outfile='{protocol}_{port}_oracle_tns_nmap.txt')
+				# Basic connectivity test
+				await service.execute('nmap -p {port} -sV {address} 2>&1', outfile='{protocol}_{port}_oracle_version.txt')

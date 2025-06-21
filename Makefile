@@ -31,8 +31,9 @@ install:
 				brew install $$tool 2>/dev/null || echo "  ⚠️  $$tool failed to install"; \
 			fi; \
 		done; \
-		echo "📝 Note: Some tools are not available on macOS via Homebrew:"; \
+		echo "📝 Note: Some Linux-specific tools are not available on macOS:"; \
 		echo "   Missing: $$unavailable_tools"; \
+		echo "   ✅ ipcrawler automatically uses nmap script alternatives on macOS"; \
 		echo "   💡 For complete tool coverage, use Linux (Kali/Ubuntu) instead"; \
 		echo "🔧 Installing SecLists wordlists..."; \
 		if [ ! -d "/usr/local/share/seclists" ] && [ ! -d "/opt/SecLists" ] && [ ! -d "$$HOME/tools/SecLists" ]; then \
