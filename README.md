@@ -52,7 +52,7 @@ Core functionality stayed the same, this fork has an advanced and extremely easy
 
 *Watch ipcrawler automatically discover and enumerate services with beautiful, real-time output*
 
-<img src="media/ipcrawler-gif.mp4" alt="ipcrawler Live Demo - Smart Network Reconnaissance" width="100%" style="border-radius: 10px; border: 2px solid #00ff41; box-shadow: 0 4px 20px rgba(0, 255, 65, 0.3);">
+<img src="media/ipcrawler-demo-small.gif" alt="ipcrawler Live Demo - Smart Network Reconnaissance" width="100%" style="border-radius: 10px; border: 2px solid #00ff41; box-shadow: 0 4px 20px rgba(0, 255, 65, 0.3);">
 
 **🎯 What you're seeing:**
 - **Port Discovery** → Intelligent service detection  
