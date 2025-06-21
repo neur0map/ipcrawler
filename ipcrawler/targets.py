@@ -103,8 +103,8 @@ class Target:
 		estimated_time = self._estimate_port_scan_time(plugin.name)
 		start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
 		
-		# Command execution details (only at high verbosity)
-		info(f'🔧 {plugin.name}: {cmd}', verbosity=3)
+		# Show beautiful command execution details
+		scan_status.show_command_execution(address, plugin.name, cmd, config['verbose'])
 
 		if outfile is not None:
 			outfile = os.path.join(target.scandir, e(outfile))
@@ -257,8 +257,8 @@ class Service:
 		estimated_time = self._estimate_service_scan_time(plugin.name)
 		start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
 		
-		# Command execution details (only at high verbosity)  
-		info(f'🔧 {plugin.name}: {cmd}', verbosity=3)
+		# Show beautiful command execution details
+		scan_status.show_command_execution(f"{self.target.address}:{self.port}", plugin.name, cmd, config['verbose'])
 
 		if outfile is not None:
 			outfile = os.path.join(scandir, e(outfile))

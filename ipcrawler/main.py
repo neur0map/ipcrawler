@@ -14,6 +14,7 @@ colorama.init()
 
 from ipcrawler.config import config, configurable_keys, configurable_boolean_keys
 from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader, show_modern_help, show_modern_version, show_modern_plugin_list, show_ascii_art
+from ipcrawler.loading import scan_status
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.targets import Target, Service
 from ipcrawler.wordlists import init_wordlist_manager
@@ -153,8 +154,8 @@ async def start_heartbeat(target, period=60):
 		async with target.lock:
 			count = len(target.running_tasks)
 
-			# Only show heartbeat messages at high verbosity to avoid interference with loading interface
-			if config['verbose'] >= 2 and count > 0:
+			# Show heartbeat messages to provide progress updates
+			if config['verbose'] >= 1 and count > 0:
 				tasks_list = []
 				for tag, task in target.running_tasks.items():
 					task_str = tag
@@ -175,14 +176,31 @@ async def start_heartbeat(target, period=60):
 						
 					tasks_list.append(task_str)
 
-				current_time = datetime.now().strftime('%H:%M:%S')
-				task_names = ', '.join(tasks_list)
-
-				# Simple, clean heartbeat message
-				if count > 1:
-					info(f'{current_time} - {count} scans running: {task_names}')
-				elif count == 1:
-					info(f'{current_time} - 1 scan running: {task_names}')
+				# Create beautiful progress summary
+				active_scans = []
+				for tag, task in target.running_tasks.items():
+					# Calculate duration
+					start_time = task.get('start', time.time())
+					elapsed = time.time() - start_time
+					duration = calculate_elapsed_time(start_time, short=True)
+					
+					# Extract tool name and target from tag
+					parts = tag.split('/')
+					if len(parts) >= 2:
+						tool_name = task.get('plugin', {}).name if hasattr(task.get('plugin', {}), 'name') else parts[-1]
+						target_info = f"{target.address}:{parts[1]}" if parts[1].isdigit() else target.address
+					else:
+						tool_name = tag
+						target_info = target.address
+					
+					active_scans.append({
+						'tool': tool_name,
+						'target': target_info,
+						'duration': duration
+					})
+				
+				# Show beautiful progress summary
+				scan_status.show_progress_summary(active_scans, config['verbose'])
 
 async def keyboard():
 	input = ''
@@ -299,8 +317,8 @@ async def port_scan(plugin, target):
 					return {'type':'port', 'plugin':plugin, 'result':[]}
 
 	async with target.ipcrawler.port_scan_semaphore:
-		# Only show scan start at higher verbosity to avoid interference with loading interface
-		info(f'Started: {plugin.name} → {target.address}', verbosity=2)
+		# Show beautiful scan start message
+		scan_status.show_scan_start(target.address, plugin.name, config['verbose'])
 
 		start_time = time.time()
 
@@ -343,8 +361,8 @@ async def port_scan(plugin, target):
 		async with target.lock:
 			target.running_tasks.pop(plugin.slug, None)
 
-		# Clean completion message
-		info(f'✅ {plugin.name} → {target.address} completed ({elapsed_time})', verbosity=2)
+		# Show beautiful completion message
+		scan_status.show_scan_completion(target.address, plugin.name, elapsed_time, True, config['verbose'])
 		return {'type':'port', 'plugin':plugin, 'result':result}
 
 async def service_scan(plugin, service):
@@ -426,8 +444,8 @@ async def service_scan(plugin, service):
 
 			tag = service.tag() + '/' + plugin.slug
 
-			# Only show service scan start at higher verbosity to avoid interference with loading interface  
-			info(f'Started: {plugin.name} → {service.target.address}:{service.port}', verbosity=2)
+			# Show beautiful service scan start message
+			scan_status.show_scan_start(f"{service.target.address}:{service.port}", plugin.name, config['verbose'])
 
 			start_time = time.time()
 
@@ -470,8 +488,8 @@ async def service_scan(plugin, service):
 			async with service.target.lock:
 				service.target.running_tasks.pop(tag, None)
 
-			# Clean service completion message
-			info(f'✅ {plugin.name} → {service.target.address}:{service.port} completed ({elapsed_time})', verbosity=2)
+			# Show beautiful service completion message
+			scan_status.show_scan_completion(f"{service.target.address}:{service.port}", plugin.name, elapsed_time, True, config['verbose'])
 			return {'type':'service', 'plugin':plugin, 'result':result}
 
 async def generate_report(plugin, targets):
@@ -626,8 +644,8 @@ async def scan_target(target):
 			else:
 				continue
 
-			# Clean service identification message
-			info(f'🎯 Found: {service.name} on {service.protocol}/{service.port} ({target.address})', verbosity=1)
+			# Show beautiful service discovery message
+			scan_status.show_service_discovery(target.address, service.name, service.protocol, service.port, config['verbose'])
 
 			if not config['only_scans_dir']:
 				with open(os.path.join(target.reportdir, 'notes.txt'), 'a') as file:

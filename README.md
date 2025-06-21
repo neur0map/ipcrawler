@@ -42,6 +42,30 @@ Core functionality stayed the same, this fork has an advanced and extremely easy
 
 **Perfect for:** OSCP exam prep, CTFs, penetration testing, and security research.
 
+---
+
+## 🎬 See ipcrawler in Action
+
+<div align="center">
+
+### 🕷️ **Live Reconnaissance Demo**
+
+*Watch ipcrawler automatically discover and enumerate services with beautiful, real-time output*
+
+<img src="media/ipcrawler-gif.mp4" alt="ipcrawler Live Demo - Smart Network Reconnaissance" width="100%" style="border-radius: 10px; border: 2px solid #00ff41; box-shadow: 0 4px 20px rgba(0, 255, 65, 0.3);">
+
+**🎯 What you're seeing:**
+- **Port Discovery** → Intelligent service detection  
+- **Smart Enumeration** → Automatic tool selection based on findings
+- **Beautiful Output** → Rich, colorful terminal interface with real-time progress
+- **Organized Results** → Structured file output for easy analysis
+
+*Demo target: Personal domain scan showcasing web service enumeration*
+
+</div>
+
+---
+
 ### 🎯 How it Works
 
 ```mermaid
