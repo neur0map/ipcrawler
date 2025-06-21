@@ -61,6 +61,7 @@ Core functionality stayed the same, this fork has an advanced and extremely easy
 - **Organized Results** → Structured file output for easy analysis
 
 *Demo target: Personal domain scan showcasing web service enumeration*
+*Note: --ignore-plugins-checks flag was issue because test was done in MacOS and tools are not natively available*
 
 </div>
 
