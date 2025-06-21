@@ -194,17 +194,17 @@ async def keyboard():
 					if input[:3] == '\x1b[A':
 						input = ''
 						if config['verbose'] == 3:
-							info('Verbosity is already at the highest level.')
+							info('🔊 Verbosity already at maximum level', verbosity=0)
 						else:
 							config['verbose'] += 1
-							info('Verbosity increased to ' + str(config['verbose']))
+							info(f'🔊 Verbosity increased to {config["verbose"]}', verbosity=0)
 					elif input[:3] == '\x1b[B':
 						input = ''
 						if config['verbose'] == 0:
-							info('Verbosity is already at the lowest level.')
+							info('🔇 Verbosity already at minimum level', verbosity=0)
 						else:
 							config['verbose'] -= 1
-							info('Verbosity decreased to ' + str(config['verbose']))
+							info(f'🔉 Verbosity decreased to {config["verbose"]}', verbosity=0)
 					else:
 						if input[0] != 's':
 							input = input[1:]
@@ -288,14 +288,14 @@ async def port_scan(plugin, target):
 			if config['ports']['udp']:
 				target.ports['udp'] = ','.join(config['ports']['udp'])
 			if plugin.specific_ports is False:
-				warn('Port scan {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} cannot be used to scan specific ports, and --ports was used. Skipping.', verbosity=2)
+				warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) cannot scan specific ports with --ports. Skipping.', verbosity=2)
 				return {'type':'port', 'plugin':plugin, 'result':[]}
 			else:
 				if plugin.type == 'tcp' and not config['ports']['tcp']:
-					warn('Port scan {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} is a TCP port scan but no TCP ports were set using --ports. Skipping', verbosity=2)
+					warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) is TCP but no TCP ports set with --ports. Skipping.', verbosity=2)
 					return {'type':'port', 'plugin':plugin, 'result':[]}
 				elif plugin.type == 'udp' and not config['ports']['udp']:
-					warn('Port scan {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} is a UDP port scan but no UDP ports were set using --ports. Skipping', verbosity=2)
+					warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) is UDP but no UDP ports set with --ports. Skipping.', verbosity=2)
 					return {'type':'port', 'plugin':plugin, 'result':[]}
 
 	async with target.ipcrawler.port_scan_semaphore:
@@ -312,11 +312,12 @@ async def port_scan(plugin, target):
 		except Exception as ex:
 			exc_type, exc_value, exc_tb = sys.exc_info()
 			error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-			raise Exception(cprint('Error: Port scan {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} running against {byellow}' + target.address + '{rst} produced an exception:\n\n' + error_text, color=Fore.RED, char='!', printmsg=False))
+			error(f'❌ Port scan {plugin.name} ({plugin.slug}) → {target.address} failed with exception', verbosity=1)
+			raise Exception(f'Port scan {plugin.name} ({plugin.slug}) → {target.address} exception:\n\n{error_text}')
 
 		for process_dict in target.running_tasks[plugin.slug]['processes']:
 			if process_dict['process'].returncode is None:
-				warn('A process was left running after port scan {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} against {byellow}' + target.address + '{rst} finished. Please ensure non-blocking processes are awaited before the run coroutine finishes. Awaiting now.', verbosity=2)
+				warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) → {target.address} left process running, awaiting completion', verbosity=2)
 				await process_dict['process'].wait()
 
 			if process_dict['process'].returncode != 0:
@@ -327,13 +328,13 @@ async def port_scan(plugin, target):
 						errors.append(line + '\n')
 					else:
 						break
-				error('Port scan {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} ran a command against {byellow}' + target.address + '{rst} which returned a non-zero exit code (' + str(process_dict['process'].returncode) + '). Check ' + target.scandir + '/_errors.log for more details.', verbosity=2)
+				error(f'❌ Port scan {plugin.name} ({plugin.slug}) → {target.address} exited with code {process_dict["process"].returncode}. Check {target.scandir}/_errors.log', verbosity=2)
 				async with target.lock:
 					with open(os.path.join(target.scandir, '_errors.log'), 'a') as file:
-						file.writelines('[*] Port scan ' + plugin.name + ' (' + plugin.slug + ') ran a command which returned a non-zero exit code (' + str(process_dict['process'].returncode) + ').\n')
-						file.writelines('[-] Command: ' + process_dict['cmd'] + '\n')
+						file.writelines(f'❌ Port scan {plugin.name} ({plugin.slug}) exited with code {process_dict["process"].returncode}\n')
+						file.writelines(f'🔧 Command: {process_dict["cmd"]}\n')
 						if errors:
-							file.writelines(['[-] Error Output:\n'] + errors + ['\n'])
+							file.writelines(['❌ Error Output:\n'] + errors + ['\n'])
 						else:
 							file.writelines('\n')
 
@@ -438,11 +439,12 @@ async def service_scan(plugin, service):
 			except Exception as ex:
 				exc_type, exc_value, exc_tb = sys.exc_info()
 				error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-				raise Exception(cprint('Error: Service scan {bblue}' + plugin.name + ' {green}(' + tag + '){rst} running against {byellow}' + service.target.address + '{rst} produced an exception:\n\n' + error_text, color=Fore.RED, char='!', printmsg=False))
+				error(f'❌ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} failed with exception', verbosity=1)
+				raise Exception(f'Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} exception:\n\n{error_text}')
 
 			for process_dict in service.target.running_tasks[tag]['processes']:
 				if process_dict['process'].returncode is None:
-					warn('A process was left running after service scan {bblue}' + plugin.name + ' {green}(' + tag + '){rst} against {byellow}' + service.target.address + '{rst} finished. Please ensure non-blocking processes are awaited before the run coroutine finishes. Awaiting now.', verbosity=2)
+					warn(f'⚠️ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} left process running, awaiting completion', verbosity=2)
 					await process_dict['process'].wait()
 
 				if process_dict['process'].returncode != 0 and not (process_dict['cmd'].startswith('curl') and process_dict['process'].returncode == 22):
@@ -453,13 +455,13 @@ async def service_scan(plugin, service):
 							errors.append(line + '\n')
 						else:
 							break
-					error('Service scan {bblue}' + plugin.name + ' {green}(' + tag + '){rst} ran a command against {byellow}' + service.target.address + '{rst} which returned a non-zero exit code (' + str(process_dict['process'].returncode) + '). Check ' + service.target.scandir + '/_errors.log for more details.', verbosity=2)
+					error(f'❌ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} exited with code {process_dict["process"].returncode}. Check {service.target.scandir}/_errors.log', verbosity=2)
 					async with service.target.lock:
 						with open(os.path.join(service.target.scandir, '_errors.log'), 'a') as file:
-							file.writelines('[*] Service scan ' + plugin.name + ' (' + tag + ') ran a command which returned a non-zero exit code (' + str(process_dict['process'].returncode) + ').\n')
-							file.writelines('[-] Command: ' + process_dict['cmd'] + '\n')
+							file.writelines(f'❌ Service scan {plugin.name} ({tag}) exited with code {process_dict["process"].returncode}\n')
+							file.writelines(f'🔧 Command: {process_dict["cmd"]}\n')
 							if errors:
-								file.writelines(['[-] Error Output:\n'] + errors + ['\n'])
+								file.writelines(['❌ Error Output:\n'] + errors + ['\n'])
 							else:
 								file.writelines('\n')
 
@@ -484,7 +486,8 @@ async def generate_report(plugin, targets):
 		except Exception as ex:
 			exc_type, exc_value, exc_tb = sys.exc_info()
 			error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-			raise Exception(cprint('Error: Report plugin {bblue}' + plugin.name + ' {green}(' + plugin.slug + '){rst} produced an exception:\n\n' + error_text, color=Fore.RED, char='!', printmsg=False))
+			error(f'❌ Report plugin {plugin.name} ({plugin.slug}) failed with exception', verbosity=1)
+			raise Exception(f'Report plugin {plugin.name} ({plugin.slug}) exception:\n\n{error_text}')
 
 async def scan_target(target):
 	os.makedirs(os.path.abspath(config['output']), exist_ok=True)
@@ -583,7 +586,7 @@ async def scan_target(target):
 		ipcrawler.scanning_targets.append(target)
 
 	start_time = time.time()
-	info('Scanning target {byellow}' + target.address + '{rst}')
+	info(f'🎯 Scanning target: {target.address}', verbosity=1)
 
 	timed_out = False
 	while pending:
@@ -628,7 +631,7 @@ async def scan_target(target):
 
 			if not config['only_scans_dir']:
 				with open(os.path.join(target.reportdir, 'notes.txt'), 'a') as file:
-					file.writelines('[*] ' + service.name + ' found on ' + service.protocol + '/' + str(service.port) + '.\n\n\n\n')
+					file.writelines(f'🎯 {service.name} found on {service.protocol}/{service.port}\n\n\n\n')
 
 			service.target = target
 
@@ -723,7 +726,7 @@ async def scan_target(target):
 								for s in target.scans['services']:
 									if plugin.slug in target.scans['services'][s]:
 										plugin_queued = True
-										warn('{byellow}[' + plugin_tag + ' against ' + target.address + ']{srst} Plugin should only be run once and it appears to have already been queued. Skipping.{rst}', verbosity=2)
+										warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (run_once). Skipping.', verbosity=2)
 										break
 								if plugin_queued:
 									break
@@ -736,18 +739,18 @@ async def scan_target(target):
 							# Skip plugin if service port is in ignore_ports:
 							if port in plugin.ignore_ports[protocol]:
 								plugin_service_match = False
-								warn('{byellow}[' + plugin_tag + ' against ' + target.address + ']{srst} Plugin cannot be run against ' + protocol + ' port ' + str(port) + '. Skipping.{rst}', verbosity=2)
+								warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run on {protocol} port {port}. Skipping.', verbosity=2)
 								break
 
 							# Skip plugin if plugin has required ports and service port is not in them:
 							if plugin.ports[protocol] and port not in plugin.ports[protocol]:
 								plugin_service_match = False
-								warn('{byellow}[' + plugin_tag + ' against ' + target.address + ']{srst} Plugin can only run on specific ports. Skipping.{rst}', verbosity=2)
+								warn(f'⚠️ Plugin {plugin_tag} → {target.address} restricted to specific ports. Skipping.', verbosity=2)
 								break
 
 							for i in plugin.ignore_service_names:
 								if re.search(i, service.name):
-									warn('{byellow}[' + plugin_tag + ' against ' + target.address + ']{srst} Plugin cannot be run against this service. Skipping.{rst}', verbosity=2)
+									warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run against service {service.name}. Skipping.', verbosity=2)
 									break
 
 							# TODO: check if plugin matches tags, BUT run manual commands anyway!
@@ -761,7 +764,7 @@ async def scan_target(target):
 								except Exception as ex:
 									exc_type, exc_value, exc_tb = sys.exc_info()
 									error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-									cprint('Error: Service scan {bblue}' + plugin.name + ' {green}(' + plugin_tag + '){rst} running against {byellow}' + target.address + '{rst} produced an exception when generating manual commands:\n\n' + error_text, color=Fore.RED, char='!', printmsg=True)
+									error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed generating manual commands', verbosity=1)
 
 								if service.manual_commands:
 									plugin_run = False
@@ -772,17 +775,17 @@ async def scan_target(target):
 									if not plugin.run_once_boolean or (plugin.run_once_boolean and not plugin_run):
 										with open(os.path.join(target.scandir, '_manual_commands.txt'), 'a') as file:
 											if not heading:
-												file.write(e('[*] {service.name} on {service.protocol}/{service.port}\n\n'))
+												file.write(e('🎯 {service.name} on {service.protocol}/{service.port}\n\n'))
 												heading = True
 											for description, commands in service.manual_commands.items():
 												try:
-													file.write('\t[-] ' + e(description) + '\n\n')
+													file.write('\t🔧 ' + e(description) + '\n\n')
 													for command in commands:
 														file.write('\t\t' + e(command) + '\n\n')
 												except Exception as ex:
 													exc_type, exc_value, exc_tb = sys.exc_info()
 													error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-													cprint('Error: Service scan {bblue}' + plugin.name + ' {green}(' + plugin_tag + '){rst} running against {byellow}' + target.address + '{rst} produced an exception when evaluating manual commands:\n\n' + error_text, color=Fore.RED, char='!', printmsg=True)
+													error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed evaluating manual commands', verbosity=1)
 											file.flush()
 
 								service.manual_commands = {}
@@ -804,7 +807,7 @@ async def scan_target(target):
 					for s in target.scans['services']:
 						if plugin_tag in target.scans['services'][s]:
 							plugin_queued = True
-							warn('{byellow}[' + plugin_tag + ' against ' + target.address + ']{srst} Plugin appears to have already been queued, but it is not marked as run_once. Possible duplicate service tag? Skipping.{rst}', verbosity=2)
+							warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (not run_once). Possible duplicate? Skipping.', verbosity=2)
 							break
 
 				if plugin_queued:
@@ -817,7 +820,7 @@ async def scan_target(target):
 				pending.add(asyncio.create_task(service_scan(plugin, service)))
 
 			if not service_match:
-				warn('{byellow}[' + target.address + ']{srst} Service ' + service.full_tag() + ' did not match any plugins based on the service name.{rst}', verbosity=2)
+				warn(f'⚠️ [{target.address}] Service {service.full_tag()} did not match any plugins', verbosity=2)
 				if service.name not in config['service_exceptions'] and service.full_tag() not in target.ipcrawler.missing_services:
 					target.ipcrawler.missing_services.append(service.full_tag())
 
@@ -861,9 +864,9 @@ async def scan_target(target):
 				except ProcessLookupError:
 					pass
 
-		warn('{byellow}Scanning target ' + target.address + ' took longer than the specified target period (' + str(config['target_timeout']) + ' min). Cancelling scans and moving to next target.{rst}')
+		warn(f'⏰ Target {target.address} timeout ({config["target_timeout"]} min). Moving to next target.', verbosity=0)
 	else:
-		info('Finished scanning target {byellow}' + target.address + '{rst} in ' + elapsed_time)
+		info(f'✅ Target {target.address} completed in {elapsed_time}', verbosity=1)
 
 	async with ipcrawler.lock:
 		ipcrawler.completed_targets.append(target)
@@ -1219,9 +1222,9 @@ async def run():
 	wordlist_manager = init_wordlist_manager(config['config_dir'])
 	if wordlist_manager.load_config().get('mode', {}).get('auto_update', True):
 		if wordlist_manager.update_detected_paths():
-			info('SecLists installation detected and wordlists configured automatically.')
+			info('📚 SecLists detected - wordlists configured automatically', verbosity=1)
 		else:
-			debug('No SecLists installation detected. Please install SecLists for wordlist functionality.')
+			debug('📚 No SecLists installation detected. Install SecLists for wordlist functionality.')
 	
 	# Process wordlist CLI overrides
 	wordlist_overrides = {
@@ -1245,13 +1248,13 @@ async def run():
 	# Process scan scenario flags
 	if args.fast:
 		wordlist_manager.set_wordlist_size('fast')
-		info('Fast scan mode enabled: using smaller wordlists for quicker scans.')
+		info('⚡ Fast scan mode: using smaller wordlists for quicker scans', verbosity=1)
 	elif args.comprehensive:
 		wordlist_manager.set_wordlist_size('comprehensive')
-		info('Comprehensive scan mode enabled: using large wordlists for thorough enumeration.')
+		info('🔍 Comprehensive scan mode: using large wordlists for thorough enumeration', verbosity=1)
 	elif getattr(args, 'wordlist_size', None):
 		wordlist_manager.set_wordlist_size(args.wordlist_size)
-		info(f'Wordlist size set to: {args.wordlist_size}')
+		info(f'📝 Wordlist size: {args.wordlist_size}', verbosity=1)
 	
 	# Process scenario presets
 	if args.ctf:
@@ -1737,17 +1740,17 @@ async def run():
 		cancel_all_tasks(None, None)
 
 		elapsed_time = calculate_elapsed_time(start_time)
-		warn('{byellow}ipcrawler took longer than the specified timeout period (' + str(config['timeout']) + ' min). Cancelling all scans and exiting.{rst}')
+		warn(f'⏰ Timeout reached ({config["timeout"]} min). Cancelling all scans and exiting.', verbosity=0)
 	else:
 		while len(asyncio.all_tasks()) > 1: # this code runs in the main() task so it will be the only task left running
 			await asyncio.sleep(1)
 
 		elapsed_time = calculate_elapsed_time(start_time)
-		info('{bright}Finished scanning all targets in ' + elapsed_time + '!{rst}')
-		info('{bright}Don\'t forget to check out more commands to run manually in the _manual_commands.txt file in each target\'s scans directory!')
+		info(f'✅ All targets completed in {elapsed_time}!', verbosity=1)
+		info('📄 Check _manual_commands.txt files for additional commands to run manually', verbosity=1)
 
 	if ipcrawler.missing_services:
-		warn('{byellow}ipcrawler identified the following services, but could not match them to any plugins based on the service name. Please report these to Tib3rius: ' + ', '.join(ipcrawler.missing_services) + '{rst}')
+		warn(f'⚠️ Unmatched services found: {", ".join(ipcrawler.missing_services)}', verbosity=1)
 
 	if not config['disable_keyboard_control']:
 		# Restore original terminal settings.

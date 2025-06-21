@@ -35,17 +35,17 @@ class Target:
 	@final
 	def info(self, msg, verbosity=0):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		info('{bright}[{yellow}' + self.address + '{crst}/{bgreen}' + plugin.slug + '{crst}]{rst} ' + msg)
+		info(f'🎯 [{self.address}/{plugin.slug}] {msg}', verbosity=verbosity)
 
 	@final
 	def warn(self, msg, verbosity=0):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		warn('{bright}[{yellow}' + self.address + '{crst}/{bgreen}' + plugin.slug + '{crst}]{rst} ' + msg)
+		warn(f'⚠️ [{self.address}/{plugin.slug}] {msg}', verbosity=verbosity)
 
 	@final
 	def error(self, msg, verbosity=0):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		error('{bright}[{yellow}' + self.address + '{crst}/{bgreen}' + plugin.slug + '{crst}]{rst} ' + msg)
+		error(f'❌ [{self.address}/{plugin.slug}] {msg}', verbosity=verbosity)
 		
 	def _estimate_port_scan_time(self, plugin_name: str) -> int:
 		"""Estimate port scan time based on plugin characteristics"""
@@ -170,19 +170,19 @@ class Service:
 		self.add_manual_commands(description, command)
 
 	@final
-	def info(self, msg):
+	def info(self, msg, verbosity=0):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag() + '/' + plugin.slug + '{crst}]{rst} ' + msg)
+		info(f'🎯 [{self.target.address}:{self.port}/{plugin.slug}] {msg}', verbosity=verbosity)
 
 	@final
-	def warn(self, msg):
+	def warn(self, msg, verbosity=0):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		warn('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag() + '/' + plugin.slug + '{crst}]{rst} ' + msg)
+		warn(f'⚠️ [{self.target.address}:{self.port}/{plugin.slug}] {msg}', verbosity=verbosity)
 
 	@final
-	def error(self, msg):
+	def error(self, msg, verbosity=0):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		error('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag() + '/' + plugin.slug + '{crst}]{rst} ' + msg)
+		error(f'❌ [{self.target.address}:{self.port}/{plugin.slug}] {msg}', verbosity=verbosity)
 
 	def _estimate_service_scan_time(self, plugin_name: str) -> int:
 		"""Estimate scan time based on plugin characteristics"""

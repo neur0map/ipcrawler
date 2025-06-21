@@ -23,4 +23,4 @@ class CurlRobots(ServiceScan):
 				with open(filename, mode='wt', encoding='utf8') as robots:
 					robots.write('\n'.join(lines))
 			else:
-				service.info('{bblue}[' + fformat('{tag}') + ']{rst} There did not appear to be a robots.txt file in the webroot (/).')
+				service.info('No robots.txt file found in webroot (/)', verbosity=2)

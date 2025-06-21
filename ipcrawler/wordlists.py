@@ -59,8 +59,8 @@ class WordlistManager:
             },
             'vhosts': {
                 'fast': 'Discovery/DNS/subdomains-top1million-5000.txt',
-                'default': 'Discovery/Web-Content/virtual-host-scanning.txt',
-                'comprehensive': 'Discovery/DNS/subdomains-top1million-20000.txt'
+                'default': 'Discovery/DNS/subdomains-top1million-20000.txt',
+                'comprehensive': 'Discovery/DNS/subdomains-top1million-110000.txt'
             }
         }
         
@@ -73,7 +73,7 @@ class WordlistManager:
             'subdomains': 'Discovery/DNS/subdomains-top1million-110000.txt',
             'snmp_communities': 'Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt',
             'dns_servers': 'Discovery/DNS/dns-Jhaddix.txt',
-            'vhosts': 'Discovery/Web-Content/virtual-host-scanning.txt'
+            'vhosts': 'Discovery/DNS/subdomains-top1million-20000.txt'
         }
         
         # Possible SecLists installation paths (ordered by likelihood)
@@ -260,6 +260,15 @@ class WordlistManager:
                             fallback_path = os.path.join(seclists_path, size_paths['default'])
                             if os.path.exists(fallback_path):
                                 config['detected_paths'][category][size] = fallback_path
+                        
+                        # If still missing, try other sizes as fallbacks
+                        if size not in config['detected_paths'][category]:
+                            for fallback_size in ['default', 'fast', 'comprehensive']:
+                                if fallback_size != size and fallback_size in size_paths:
+                                    fallback_path = os.path.join(seclists_path, size_paths[fallback_size])
+                                    if os.path.exists(fallback_path):
+                                        config['detected_paths'][category][size] = fallback_path
+                                        break
             
             self._config = config
             self._save_config()
@@ -312,6 +321,14 @@ class WordlistManager:
                     path = detected_paths[category]['default']
                     if os.path.exists(path):
                         return path
+                
+                # Try any available size as fallback
+                if isinstance(detected_paths[category], dict):
+                    for fallback_size in ['default', 'fast', 'comprehensive']:
+                        if fallback_size in detected_paths[category]:
+                            path = detected_paths[category][fallback_size]
+                            if os.path.exists(path):
+                                return path
                 
                 # Legacy format support (single path instead of size dict)
                 elif isinstance(detected_paths[category], str):

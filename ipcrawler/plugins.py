@@ -100,15 +100,15 @@ class Plugin(object):
 
 	@final
 	def info(self, msg, verbosity=0):
-		info('{bright}[{bgreen}' + self.slug + '{crst}]{rst} ' + msg)
+		info(f'🔧 [{self.slug}] {msg}', verbosity=1)
 
 	@final
 	def warn(self, msg, verbosity=0):
-		warn('{bright}[{bgreen}' + self.slug + '{crst}]{rst} ' + msg)
+		warn(f'⚠️ [{self.slug}] {msg}', verbosity=verbosity)
 
 	@final
 	def error(self, msg, verbosity=0):
-		error('{bright}[{bgreen}' + self.slug + '{crst}]{rst} ' + msg)
+		error(f'❌ [{self.slug}] {msg}', verbosity=verbosity)
 
 class PortScan(Plugin):
 

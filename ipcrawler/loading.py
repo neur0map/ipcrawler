@@ -42,6 +42,7 @@ class LoadingManager:
         # Update display immediately
         if self.live:
             self.live.update(self._render_status())
+            self.live.refresh()
         
     def start_loading(self, tool_name: str, target: str, command: str = "", estimated_minutes: Optional[int] = None):
         """Start the simple loading interface"""
@@ -61,11 +62,13 @@ class LoadingManager:
         self.is_stalled = False
         
         # Start simple live display - no progress bar, just status line
-        self.live = Live(refresh_per_second=2, console=console)
+        # Use auto_refresh=False and control refreshes manually for better performance
+        self.live = Live(refresh_per_second=2, console=console, auto_refresh=False)
         self.live.start()
         
         # Initial render
         self.live.update(self._render_status())
+        self.live.refresh()
         
         # Start background thread for updates
         self._stop_event = threading.Event()
@@ -85,6 +88,7 @@ class LoadingManager:
         # Update display
         if self.live:
             self.live.update(self._render_status())
+            self.live.refresh()
     
     def record_activity(self, activity_type: str = "output"):
         """Record tool activity"""
@@ -131,6 +135,7 @@ class LoadingManager:
                 # Update the live display
                 if self.live and self._is_active:
                     self.live.update(self._render_status())
+                    self.live.refresh()
                 
                 # Wait 0.5 seconds before next update (2 updates per second)
                 self._stop_event.wait(0.5)
@@ -248,8 +253,10 @@ class ScanStatus:
     
     @staticmethod
     def show_command_output(target: str, plugin_name: str, line: str, verbosity: int = 0):
-        """Show command output (only at highest verbosity)"""
-        if verbosity >= 3:  # Only at -vvv
+        """Show command output (only at highest verbosity and when loading is not active)"""
+        # Suppress output when loading interface is active to avoid interference
+        # Only show at highest verbosity to avoid clutter
+        if verbosity >= 3 and not is_loading_active():
             console.print(f"📝 [{target}] {line}", style="dim white")
 
 # Global status instance

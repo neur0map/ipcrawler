@@ -81,7 +81,7 @@ class VirtualHost(ServiceScan):
 						)
 						size = str(len(wildcard.content))
 					except requests.exceptions.RequestException as e:
-						service.error(f"[!] Wildcard request failed for {hostname}: {e}")
+						service.error(f"Wildcard request failed for {hostname}: {e}", verbosity=1)
 						continue
 
 					await service.execute(

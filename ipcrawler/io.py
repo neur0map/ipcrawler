@@ -99,7 +99,7 @@ def debug(*args, color=Fore.GREEN, sep=' ', end='\n', file=sys.stdout, **kvargs)
 	if config['verbose'] >= 2:
 		if config['accessible']:
 			args = ('Debug:',) + args
-		cprint(*args, color=color, char='-', sep=sep, end=end, file=file, frame_index=2, **kvargs)
+		cprint(*args, color=color, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def info(*args, sep=' ', end='\n', file=sys.stdout, **kvargs):
 	# Use modern status display if loading is active
@@ -115,22 +115,22 @@ def info(*args, sep=' ', end='\n', file=sys.stdout, **kvargs):
 				scan_status.show_scan_result(target_part, "scan", msg_part, "info", config['verbose'])
 				return
 	
-	cprint(*args, color=Fore.BLUE, char='*', sep=sep, end=end, file=file, frame_index=2, **kvargs)
+	cprint(*args, color=Fore.BLUE, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def warn(*args, sep=' ', end='\n', file=sys.stderr,**kvargs):
 	if config['accessible']:
 		args = ('Warning:',) + args
-	cprint(*args, color=Fore.YELLOW, char='!', sep=sep, end=end, file=file, frame_index=2, **kvargs)
+	cprint(*args, color=Fore.YELLOW, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def error(*args, sep=' ', end='\n', file=sys.stderr, **kvargs):
 	if config['accessible']:
 		args = ('Error:',) + args
-	cprint(*args, color=Fore.RED, char='!', sep=sep, end=end, file=file, frame_index=2, **kvargs)
+	cprint(*args, color=Fore.RED, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def fail(*args, sep=' ', end='\n', file=sys.stderr, **kvargs):
 	if config['accessible']:
 		args = ('Failure:',) + args
-	cprint(*args, color=Fore.RED, char='!', sep=sep, end=end, file=file, frame_index=2, **kvargs)
+	cprint(*args, color=Fore.RED, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 	exit(-1)
 
 class CommandStreamReader(object):
@@ -165,7 +165,10 @@ class CommandStreamReader(object):
 					record_tool_activity("output")
 					scan_status.show_command_output(self.target.address, self.tag, line.strip(), config['verbose'])
 				else:
-					info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} ' + line.strip().replace('{', '{{').replace('}', '}}'), verbosity=3)
+					# Use Rich console for consistency (only at highest verbosity)
+					if config['verbose'] >= 3:
+						from rich.console import Console
+						Console().print(f"📝 [{self.target.address}/{self.tag}] {line.strip()}", style="dim white")
 
 			# Check lines for pattern matches.
 			for p in self.patterns:
@@ -195,7 +198,7 @@ class CommandStreamReader(object):
 									record_tool_activity("pattern_match")
 									scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
 								else:
-									info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} {bmagenta}' + description + '{rst}', verbosity=2)
+									scan_status.show_pattern_match(self.target.address, self.tag, description, match_text, config['verbose'])
 								file.writelines(description + '\n\n')
 					else:
 						# Use modern status display for pattern matches (no description)
@@ -204,7 +207,7 @@ class CommandStreamReader(object):
 							record_tool_activity("pattern_match")
 							scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
 						else:
-							info('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} {bmagenta}Matched Pattern: ' + match_text + '{rst}', verbosity=2)
+							scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
 						async with self.target.lock:
 							with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
 								file.writelines('Matched Pattern: ' + match_text + '\n\n')

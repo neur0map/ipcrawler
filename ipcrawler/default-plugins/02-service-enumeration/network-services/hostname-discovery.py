@@ -28,12 +28,12 @@ class RedirectHostnameDiscovery(ServiceScan):
 				redirect_host = parsed.hostname
 
 				if redirect_host:
-					service.info(f"[+] Redirect detected: {url} → {location}")
-					service.info(f"[+] Hostname found in redirect: {redirect_host}")
+					service.info(f"🔄 Redirect detected: {url} → {location}", verbosity=1)
+					service.info(f"🌐 Hostname found in redirect: {redirect_host}", verbosity=1)
 				else:
-					service.info(f"[+] Redirect detected, but no hostname could be parsed: {location}")
+					service.info(f"🔄 Redirect detected, but no hostname parsed: {location}", verbosity=2)
 			else:
-				service.info(f"[-] No redirect detected at {url}")
+				service.info(f"ℹ️ No redirect detected at {url}", verbosity=3)
 
 		except Exception as e:
-			service.error(f"[!] Error during redirect check on {service.target.address}:{service.port} — {e}")
+			service.error(f"Error during redirect check: {e}", verbosity=1)
