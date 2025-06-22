@@ -15,4 +15,17 @@ class Curl(ServiceScan):
 
 	async def run(self, service):
 		if service.protocol == 'tcp':
-			await service.execute('curl -sSik {http_scheme}://{addressv6}:{port}' + self.get_option('path'), outfile='{protocol}_{port}_{http_scheme}_curl.html')
+			# Get all hostnames to scan (discovered vhosts + fallback to IP)
+			hostnames = service.target.get_all_hostnames()
+			best_hostname = service.target.get_best_hostname()
+			
+			service.info(f"🌐 Using hostnames for curl scan: {', '.join(hostnames)}")
+			
+			# Scan each hostname
+			for hostname in hostnames:
+				hostname_label = hostname.replace('.', '_').replace(':', '_')
+				scan_hostname = hostname
+				if ':' in hostname and not hostname.startswith('['):
+					scan_hostname = f'[{hostname}]'
+				
+				await service.execute('curl -sSik {http_scheme}://' + scan_hostname + ':{port}' + self.get_option('path'), outfile='{protocol}_{port}_{http_scheme}_curl_' + hostname_label + '.html')

@@ -257,9 +257,9 @@ install:
 		echo "✅ All essential tools are available"; \
 	fi
 	@echo "🚀 Installing IPCrawler..."
-	@echo "📦 Installing Python dependencies..."
-	@python3 -m pip install --user --break-system-packages -r requirements.txt 2>/dev/null || \
-	 python3 -m pip install --user -r requirements.txt 2>/dev/null || \
+	@echo "📦 Installing Python dependencies system-wide (for sudo compatibility)..."
+	@sudo python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null || \
+	 sudo python3 -m pip install -r requirements.txt 2>/dev/null || \
 	 { echo "⚠️  Creating virtual environment for dependencies..."; \
 	   python3 -m venv .venv; \
 	   .venv/bin/pip install -r requirements.txt; }

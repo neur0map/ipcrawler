@@ -14,4 +14,12 @@ class WhatWeb(ServiceScan):
 
 	async def run(self, service):
 		if service.protocol == 'tcp' and service.target.ipversion == 'IPv4':
-			await service.execute('whatweb --color=never --no-errors -a 3 -v {http_scheme}://{address}:{port} 2>&1', outfile='{protocol}_{port}_{http_scheme}_whatweb.txt')
+			# Get all hostnames to scan (discovered vhosts + fallback to IP)
+			hostnames = service.target.get_all_hostnames()
+			
+			service.info(f"🌐 Using hostnames for whatweb scan: {', '.join(hostnames)}")
+			
+			# Scan each hostname
+			for hostname in hostnames:
+				hostname_label = hostname.replace('.', '_').replace(':', '_')
+				await service.execute('whatweb --color=never --no-errors -a 3 -v {http_scheme}://' + hostname + ':{port} 2>&1', outfile='{protocol}_{port}_{http_scheme}_whatweb_' + hostname_label + '.txt')

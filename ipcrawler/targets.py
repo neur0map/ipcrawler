@@ -21,10 +21,45 @@ class Target:
 		self.services = []
 		self.scans = {'ports':{}, 'services':{}}
 		self.running_tasks = {}
+		self.discovered_hostnames = []  # Store discovered hostnames from vhost discovery
 
 	async def add_service(self, service):
 		async with self.lock:
 			self.pending_services.append(service)
+
+	async def add_discovered_hostname(self, hostname):
+		"""Add a discovered hostname from vhost discovery"""
+		async with self.lock:
+			if hostname and hostname != self.address and hostname != self.ip:
+				if hostname not in self.discovered_hostnames:
+					self.discovered_hostnames.append(hostname)
+					self.info(f"Added discovered hostname: {hostname}")
+
+	def get_best_hostname(self):
+		"""Get the best hostname to use for web scanning (prefers discovered hostnames)"""
+		if self.discovered_hostnames:
+			return self.discovered_hostnames[0]  # Use first discovered hostname
+		elif self.type == 'hostname':
+			return self.address  # Use original hostname if target was a hostname
+		else:
+			return self.ip  # Fallback to IP address
+
+	def get_all_hostnames(self):
+		"""Get all available hostnames for comprehensive scanning"""
+		hostnames = []
+		
+		# Add discovered hostnames first (highest priority)
+		hostnames.extend(self.discovered_hostnames)
+		
+		# Add original hostname if it was a hostname target
+		if self.type == 'hostname' and self.address not in hostnames:
+			hostnames.append(self.address)
+		
+		# Always include IP as fallback
+		if self.ip not in hostnames:
+			hostnames.append(self.ip)
+		
+		return hostnames
 
 	def extract_service(self, line, regex=None):
 		return self.ipcrawler.extract_service(line, regex)

@@ -30,6 +30,13 @@ class VirtualHost(ServiceScan):
 			hostnames.append(service.target.address)
 		if self.get_global('domain') and self.get_global('domain') not in hostnames:
 			hostnames.append(self.get_global('domain'))
+		
+		# Add already discovered hostnames as base domains for further vhost discovery
+		discovered_hostnames = service.target.discovered_hostnames
+		for discovered in discovered_hostnames:
+			if discovered not in hostnames:
+				hostnames.append(discovered)
+				service.info(f"🔄 Using previously discovered hostname as base: {discovered}")
 
 		if len(hostnames) > 0:
 			# Resolve wordlists at runtime

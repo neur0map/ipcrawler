@@ -113,6 +113,8 @@ class RedirectHostnameDiscovery(PortScan):
 								target.info(f"ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
 							
 							discovered_hostnames.append(redirect_host)
+							# Store hostname in target for other plugins to use
+							await target.add_discovered_hostname(redirect_host)
 					
 					# Also check common redirect paths
 					redirect_paths = ['/', '/index.html', '/home', '/admin', '/login']
@@ -138,6 +140,8 @@ class RedirectHostnameDiscovery(PortScan):
 											target.info(f"✅ Added to /etc/hosts: {target.address} {redirect_host}")
 									
 									discovered_hostnames.append(redirect_host)
+									# Store hostname in target for other plugins to use
+									await target.add_discovered_hostname(redirect_host)
 						except:
 							continue  # Skip failed path checks
 							

@@ -56,6 +56,14 @@ class DirBuster(ServiceScan):
 	async def run(self, service):
 		dot_extensions = ','.join(['.' + x for x in self.get_option('ext').split(',')])
 		
+		# Get all hostnames to scan (discovered vhosts + fallback to IP)
+		hostnames = service.target.get_all_hostnames()
+		best_hostname = service.target.get_best_hostname()
+		
+		service.info(f"🌐 Using hostnames for directory busting: {', '.join(hostnames)}")
+		if len(hostnames) > 1:
+			service.info(f"🎯 Primary hostname: {best_hostname}")
+		
 		# Resolve wordlists at runtime
 		wordlists = self.get_option('wordlist')
 		resolved_wordlists = []
@@ -79,28 +87,42 @@ class DirBuster(ServiceScan):
 				# User specified a custom wordlist path
 				resolved_wordlists.append(wordlist)
 		
-		for wordlist in resolved_wordlists:
-			name = os.path.splitext(os.path.basename(wordlist))[0]
-			if self.get_option('tool') == 'feroxbuster':
-				await service.execute('feroxbuster -u {http_scheme}://{addressv6}:{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -x "' + self.get_option('ext') + '" -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
+		# Scan each hostname with each wordlist
+		for hostname in hostnames:
+			hostname_label = hostname.replace('.', '_').replace(':', '_')
+			for wordlist in resolved_wordlists:
+				name = os.path.splitext(os.path.basename(wordlist))[0]
+				
+				# Use IPv6 brackets if needed for IP addresses
+				scan_hostname = hostname
+				if ':' in hostname and not hostname.startswith('['):
+					scan_hostname = f'[{hostname}]'
+				
+				if self.get_option('tool') == 'feroxbuster':
+					await service.execute('feroxbuster -u {http_scheme}://' + scan_hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -x "' + self.get_option('ext') + '" -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + hostname_label + '_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
 
-			elif self.get_option('tool') == 'gobuster':
-				await service.execute('gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -e -k -x "' + self.get_option('ext') + '" -z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
+				elif self.get_option('tool') == 'gobuster':
+					await service.execute('gobuster dir -u {http_scheme}://' + scan_hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -e -k -x "' + self.get_option('ext') + '" -z -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_' + hostname_label + '_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
 
-			elif self.get_option('tool') == 'dirsearch':
-				if service.target.ipversion == 'IPv6':
-					service.error('dirsearch does not support IPv6.')
-				else:
-					await service.execute('dirsearch -u {http_scheme}://{address}:{port}/ -t ' + str(self.get_option('threads')) + ' -e "' + self.get_option('ext') + '" -f -q -F ' + ('-r ' if self.get_option('recursive') else '') + '-w ' + wordlist + ' --format=plain -o "{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
+				elif self.get_option('tool') == 'dirsearch':
+					if service.target.ipversion == 'IPv6' and hostname == service.target.ip:
+						service.error('dirsearch does not support IPv6.')
+						continue
+					else:
+						await service.execute('dirsearch -u {http_scheme}://' + hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -e "' + self.get_option('ext') + '" -f -q -F ' + ('-r ' if self.get_option('recursive') else '') + '-w ' + wordlist + ' --format=plain -o "{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_' + hostname_label + '_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
 
-			elif self.get_option('tool') == 'ffuf':
-				await service.execute('ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -e "' + dot_extensions + '" -v -r ' + ('-recursion ' if self.get_option('recursive') else '') + '-noninteractive' + (' ' + self.get_option('extras') if self.get_option('extras') else '') + ' | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_' + name + '.txt')
+				elif self.get_option('tool') == 'ffuf':
+					await service.execute('ffuf -u {http_scheme}://' + scan_hostname + ':{port}/FUZZ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -e "' + dot_extensions + '" -v -r ' + ('-recursion ' if self.get_option('recursive') else '') + '-noninteractive' + (' ' + self.get_option('extras') if self.get_option('extras') else '') + ' | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_' + hostname_label + '_' + name + '.txt')
 
-			elif self.get_option('tool') == 'dirb':
-				await service.execute('dirb {http_scheme}://{addressv6}:{port}/ ' + wordlist + ' -l ' + ('' if self.get_option('recursive') else '-r ')  + '-S -X ",' + dot_extensions + '" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
+				elif self.get_option('tool') == 'dirb':
+					await service.execute('dirb {http_scheme}://' + scan_hostname + ':{port}/ ' + wordlist + ' -l ' + ('' if self.get_option('recursive') else '-r ')  + '-S -X ",' + dot_extensions + '" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_' + hostname_label + '_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
 
 	def manual(self, service, plugin_was_run):
 		dot_extensions = ','.join(['.' + x for x in self.get_option('ext').split(',')])
+		
+		# Get all hostnames to scan
+		hostnames = service.target.get_all_hostnames()
+		best_hostname = service.target.get_best_hostname()
 		
 		# Get wordlist path from WordlistManager for manual commands
 		try:
@@ -119,24 +141,33 @@ class DirBuster(ServiceScan):
 			])
 			return
 		
-		if self.get_option('tool') == 'feroxbuster':
-			service.add_manual_command('(feroxbuster) Multi-threaded recursive directory/file enumeration for web servers:', [
-				'feroxbuster -u {http_scheme}://{addressv6}:{port} -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -x "' + self.get_option('ext') + '" -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-e -r -o {scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_manual.txt' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
-			])
-		elif self.get_option('tool') == 'gobuster':
-			service.add_manual_command('(gobuster v3) Multi-threaded directory/file enumeration for web servers:', [
-				'gobuster dir -u {http_scheme}://{addressv6}:{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -e -k -x "' + self.get_option('ext') + '" -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
-			])
-		elif self.get_option('tool') == 'dirsearch':
-			if service.target.ipversion == 'IPv4':
-				service.add_manual_command('(dirsearch) Multi-threaded recursive directory/file enumeration for web servers:', [
-					'dirsearch -u {http_scheme}://{address}:{port}/ -t ' + str(self.get_option('threads')) + ' -e "' + self.get_option('ext') + '" -f -F ' + ('-r ' if self.get_option('recursive') else '') + '-w ' + web_dirs_path + ' --format=plain --output="{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+		# Add commands for each discovered hostname
+		for hostname in hostnames:
+			hostname_label = hostname.replace('.', '_').replace(':', '_')
+			scan_hostname = hostname
+			if ':' in hostname and not hostname.startswith('['):
+				scan_hostname = f'[{hostname}]'
+			
+			hostname_desc = f" ({hostname})" if hostname != service.target.ip else " (IP fallback)"
+			
+			if self.get_option('tool') == 'feroxbuster':
+				service.add_manual_command(f'(feroxbuster) Multi-threaded recursive directory/file enumeration{hostname_desc}:', [
+					'feroxbuster -u {http_scheme}://' + scan_hostname + ':{port} -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -x "' + self.get_option('ext') + '" -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-e -r -o {scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + hostname_label + '_manual.txt' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 				])
-		elif self.get_option('tool') == 'ffuf':
-			service.add_manual_command('(ffuf) Multi-threaded recursive directory/file enumeration for web servers:', [
-				'ffuf -u {http_scheme}://{addressv6}:{port}/FUZZ -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -e "' + dot_extensions + '" -v -r ' + ('-recursion ' if self.get_option('recursive') else '') + '-noninteractive' + (' ' + self.get_option('extras') if self.get_option('extras') else '') + ' | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_manual.txt'
-			])
-		elif self.get_option('tool') == 'dirb':
-			service.add_manual_command('(dirb) Recursive directory/file enumeration for web servers:', [
-				'dirb {http_scheme}://{addressv6}:{port}/ ' + web_dirs_path + ' -l ' + ('' if self.get_option('recursive') else '-r ')  + '-X ",' + dot_extensions + '" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
-			])
+			elif self.get_option('tool') == 'gobuster':
+				service.add_manual_command(f'(gobuster v3) Multi-threaded directory/file enumeration{hostname_desc}:', [
+					'gobuster dir -u {http_scheme}://' + scan_hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -e -k -x "' + self.get_option('ext') + '" -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_' + hostname_label + '_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+				])
+			elif self.get_option('tool') == 'dirsearch':
+				if not (service.target.ipversion == 'IPv6' and hostname == service.target.ip):
+					service.add_manual_command(f'(dirsearch) Multi-threaded recursive directory/file enumeration{hostname_desc}:', [
+						'dirsearch -u {http_scheme}://' + hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -e "' + self.get_option('ext') + '" -f -F ' + ('-r ' if self.get_option('recursive') else '') + '-w ' + web_dirs_path + ' --format=plain --output="{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_' + hostname_label + '_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+					])
+			elif self.get_option('tool') == 'ffuf':
+				service.add_manual_command(f'(ffuf) Multi-threaded recursive directory/file enumeration{hostname_desc}:', [
+					'ffuf -u {http_scheme}://' + scan_hostname + ':{port}/FUZZ -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -e "' + dot_extensions + '" -v -r ' + ('-recursion ' if self.get_option('recursive') else '') + '-noninteractive' + (' ' + self.get_option('extras') if self.get_option('extras') else '') + ' | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_' + hostname_label + '_manual.txt'
+				])
+			elif self.get_option('tool') == 'dirb':
+				service.add_manual_command(f'(dirb) Recursive directory/file enumeration{hostname_desc}:', [
+					'dirb {http_scheme}://' + scan_hostname + ':{port}/ ' + web_dirs_path + ' -l ' + ('' if self.get_option('recursive') else '-r ')  + '-X ",' + dot_extensions + '" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_' + hostname_label + '_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+				])
