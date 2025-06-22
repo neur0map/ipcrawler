@@ -18,6 +18,7 @@ from ipcrawler.loading import scan_status
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.targets import Target, Service
 from ipcrawler.wordlists import init_wordlist_manager
+from ipcrawler.consolidator import IPCrawlerConsolidator
 
 VERSION = "0.1.0-alpha"
 
@@ -74,6 +75,9 @@ else:
 # Saves current terminal settings so we can restore them.
 terminal_settings = None
 
+# Global args for consolidator on interruption
+consolidator_args_global = None
+
 ipcrawler = ipcrawler()
 
 def calculate_elapsed_time(start_time, short=False):
@@ -120,6 +124,7 @@ def calculate_elapsed_time(start_time, short=False):
 def cancel_all_tasks(sig, frame):
 	for task in asyncio.all_tasks():
 		task.cancel()
+	
 
 	processes = []
 
@@ -143,6 +148,26 @@ def cancel_all_tasks(sig, frame):
 	if len(alive) > 0:
 		error('The following process IDs could not be killed: ' + ', '.join([str(x.pid) for x in sorted(alive, key=lambda x: x.pid)]))
 	
+	# Generate consolidator HTML report on interruption
+	if consolidator_args_global is not None:
+		try:
+			consolidator = IPCrawlerConsolidator(config['output'])
+			
+			# Set target filter if specified
+			if hasattr(consolidator_args_global, 'report_target') and consolidator_args_global.report_target:
+				consolidator.specific_target = consolidator_args_global.report_target
+			
+			# Generate report from existing files
+			output_file = getattr(consolidator_args_global, 'report_output', None)
+			if hasattr(consolidator_args_global, 'partial') and consolidator_args_global.partial:
+				consolidator.generate_partial_report(output_file)
+			else:
+				consolidator.generate_html_report(output_file)
+			
+			info('🕷️  HTML report generated after interruption', verbosity=1)
+		except Exception as e:
+			warn(f'Failed to generate HTML report after interruption: {e}')
+
 	if not config['disable_keyboard_control']:
 		# Restore original terminal settings.
 		if terminal_settings is not None:
@@ -924,7 +949,7 @@ async def run():
 	parser.add_argument('--reports', action='store', type=str, metavar='PLUGINS', help='Override --tags / --exclude-tags for the listed Report plugins (comma separated). Default: %(default)s')
 	parser.add_argument('--plugins-dir', action='store', type=str, help='The location of the plugins directory. Default: %(default)s')
 	parser.add_argument('--add-plugins-dir', action='store', type=str, metavar='PLUGINS_DIR', help='The location of an additional plugins directory to add to the main one. Default: %(default)s')
-	parser.add_argument('-l', '--list', action='store', nargs='?', const='plugins', metavar='TYPE', help='List all plugins or plugins of a specific type. e.g. --list, --list port, --list service')
+	parser.add_argument('-l', '--list', action='store', nargs='?', const='plugins', metavar='TYPE', help='List all plugins or plugins of a specific type. Use --list consolidator to show consolidator usage. e.g. --list, --list port, --list service, --list consolidator')
 	parser.add_argument('-o', '--output', action='store', help='The output directory for results. Default: %(default)s')
 	parser.add_argument('--single-target', action='store_true', help='Only scan a single target. A directory named after the target will not be created. Instead, the directory structure will be created within the output directory. Default: %(default)s')
 	parser.add_argument('--only-scans-dir', action='store_true', help='Only create the "scans" directory for results. Other directories (e.g. exploit, loot, report) will not be created. Default: %(default)s')
@@ -968,6 +993,11 @@ async def run():
 	scenario_group.add_argument('--pentest', action='store_true', help='Penetration testing mode: comprehensive wordlists optimized for real-world assessment')
 	scenario_group.add_argument('--recon', action='store_true', help='Quick reconnaissance mode: fast wordlists for initial target discovery')
 	scenario_group.add_argument('--stealth', action='store_true', help='Stealth mode: slower scans with reduced threads to avoid detection')
+	parser.add_argument('-w', '--watch', action='store_true', help='Watch mode: continuously update HTML reports as scans progress')
+	parser.add_argument('-d', '--daemon', action='store_true', help='Daemon mode: real-time monitoring and live HTML report generation')
+	parser.add_argument('--partial', action='store_true', help='Generate partial HTML report from incomplete/interrupted scans')
+	parser.add_argument('-r', '--report-target', type=str, metavar='TARGET', help='Generate HTML report for specific target only')
+	parser.add_argument('--report-output', action='store', metavar='FILE', help='Custom output file for HTML report')
 	
 	parser.add_argument('-v', '--verbose', action='count', help='Enable verbose output. Repeat for more verbosity.')
 	parser.add_argument('--version', action='store_true', help='Prints the ipcrawler version and exits.')
@@ -1293,7 +1323,30 @@ async def run():
 		info('Stealth mode enabled: slower scans with reduced threads to avoid detection.')
 
 	if args.list:
-		show_modern_plugin_list(ipcrawler.plugin_types, args.list)
+		if args.list == 'consolidator':
+			print('\n🕷️ ipcrawler Consolidator Usage:')
+			print('='*50)
+			print('Generate comprehensive HTML reports from scan results')
+			print()
+			print('📝 Basic Usage:')
+			print('  --consolidator-output FILE    Custom output file for HTML report')
+			print('  --consolidator-target TARGET  Generate report for specific target only')
+			print()
+			print('🔄 Live Modes:')
+			print('  --consolidator-watch          Watch mode: continuously update report as scans progress')
+			print('  --consolidator-daemon         Daemon mode: real-time monitoring and live reports')
+			print('  --consolidator-partial        Generate partial report from interrupted scans')
+			print()
+			print('⏱️  Timing:')
+			print('  --consolidator-interval N     Update interval in seconds (default: 30 for watch, 5 for daemon)')
+			print()
+			print('📄 Examples:')
+			print('  ipcrawler 192.168.1.1 --consolidator-watch')
+			print('  ipcrawler 192.168.1.0/24 --consolidator-daemon --consolidator-interval 10')
+			print('  ipcrawler 192.168.1.1 --consolidator-target 192.168.1.1 --consolidator-output custom.html')
+			print()
+		else:
+			show_modern_plugin_list(ipcrawler.plugin_types, args.list)
 		sys.exit(0)
 
 	max_plugin_target_instances = {}
@@ -1661,10 +1714,30 @@ async def run():
 	info(f'🚀 Starting scan of {len(ipcrawler.pending_targets)} target(s)...')
 	print()
 	info('⏳ Initializing scan engines... (5 seconds)')
+	
+	
 	await asyncio.sleep(5)
 	print()
 
 	start_time = time.time()
+	
+	# Store args globally for Ctrl+C report generation
+	global consolidator_args_global
+	consolidator_args_global = args
+	
+	# Show message about HTML report generation
+	flags = []
+	if hasattr(args, 'watch') and args.watch:
+		flags.append('-w')
+	if hasattr(args, 'daemon') and args.daemon:
+		flags.append('-d')
+	if hasattr(args, 'partial') and args.partial:
+		flags.append('--partial')
+	
+	if flags:
+		info(f'🕷️  HTML report will be generated on scan completion or Ctrl+C (flags: {" ".join(flags)})', verbosity=1)
+	else:
+		info('🕷️  HTML report will be generated on scan completion or Ctrl+C', verbosity=1)
 
 	if not config['disable_keyboard_control']:
 		terminal_settings = termios.tcgetattr(sys.stdin.fileno())
@@ -1766,6 +1839,29 @@ async def run():
 		elapsed_time = calculate_elapsed_time(start_time)
 		info(f'✅ All targets completed in {elapsed_time}!', verbosity=1)
 		info('📄 Check _manual_commands.txt files for additional commands to run manually', verbosity=1)
+		
+		# Generate consolidator HTML report
+		try:
+			consolidator = IPCrawlerConsolidator(config['output'])
+			
+			# Set target filter if specified
+			if hasattr(args, 'report_target') and args.report_target:
+				consolidator.specific_target = args.report_target
+			
+			# Generate report from existing files
+			output_file = getattr(args, 'report_output', None)
+			if hasattr(args, 'partial') and args.partial:
+				info('🕷️  Generating partial HTML report from scan results...', verbosity=1)
+				consolidator.generate_partial_report(output_file)
+			else:
+				info('🕷️  Generating HTML report from scan results...', verbosity=1)
+				consolidator.generate_html_report(output_file)
+			
+			info('📄 HTML report generated successfully', verbosity=1)
+		except Exception as e:
+			warn(f'⚠️ Failed to generate HTML report: {e}', verbosity=1)
+			debug(f'Consolidator error details: {str(e)}', verbosity=2)
+
 
 	if ipcrawler.missing_services:
 		warn(f'⚠️ Unmatched services found: {", ".join(ipcrawler.missing_services)}', verbosity=1)

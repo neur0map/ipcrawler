@@ -325,6 +325,26 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 	console.print(Panel(options_table, title="🛠️  Core Options", border_style=theme_color, box=box.ROUNDED))
 	console.print()
 	
+	# Reporting options
+	reporting_options = [
+		("-w, --watch", "Enable watch mode (HTML reports always generated)", ""),
+		("-d, --daemon", "Enable daemon mode (HTML reports always generated)", ""),
+		("--partial", "Generate partial HTML report from incomplete scans", ""),
+		("-r, --report-target", "Report for specific target only", "TARGET"),
+		("--report-output", "Custom HTML report filename", "FILE")
+	]
+	
+	reporting_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
+	reporting_table.add_column("Option", style=f"bold {success_color}", width=22)
+	reporting_table.add_column("Description", style="white", width=35)
+	reporting_table.add_column("Value", style=f"dim {accent_color}", width=8)
+	
+	for option, desc, value in reporting_options:
+		reporting_table.add_row(option, desc, value)
+	
+	console.print(Panel(reporting_table, title="📊 HTML Reporting", border_style=success_color, box=box.ROUNDED))
+	console.print()
+	
 	# Scan scenarios
 	speed_options = [
 		("--fast", "Quick scans with small wordlists", "5-15 min/service"),
