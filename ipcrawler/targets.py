@@ -59,6 +59,9 @@ class Target:
 		if self.ip not in hostnames:
 			hostnames.append(self.ip)
 		
+		# Debug logging
+		print(f"🔧 DEBUG get_all_hostnames(): discovered_hostnames={self.discovered_hostnames}, type={self.type}, address={self.address}, ip={self.ip}, final_hostnames={hostnames}")
+		
 		return hostnames
 
 	def extract_service(self, line, regex=None):

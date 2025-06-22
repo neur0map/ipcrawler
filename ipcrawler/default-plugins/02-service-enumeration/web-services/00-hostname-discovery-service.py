@@ -164,5 +164,7 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 			service.info(f"🎯 Total hostnames discovered for service: {len(discovered_hostnames)}")
 			for hostname in discovered_hostnames:
 				service.info(f"   - {hostname}")
+			service.info(f"🔧 DEBUG: Target now has {len(service.target.discovered_hostnames)} total discovered hostnames")
 		else:
 			service.info(f"ℹ️ No hostname redirects found for this service")
+			service.info(f"🔧 DEBUG: No redirects found, target.discovered_hostnames = {service.target.discovered_hostnames}")
