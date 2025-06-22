@@ -203,6 +203,15 @@ This command modifies your system by installing packages and tools to:
 - `/opt/` - Additional tools and resources
 - System package manager (apt, brew, pacman)
 
+**🔐 Sudo Privileges Warning:**
+The `make install` command automatically configures the `ipcrawler` command to run with sudo privileges. This means:
+- **All scans run as root** - No password prompts, but full system access
+- **UDP scans work automatically** - No "requires root privileges" errors
+- **Automatic /etc/hosts modification** - Discovered hostnames added automatically on Kali/HTB systems
+- **Security implications** - The tool has complete system access when running
+
+This design choice eliminates the need to type `sudo ipcrawler` for every scan, but users should be aware that all enumeration runs with elevated privileges.
+
 **Make Commands Available:**
 - `make install` - Full installation with tools and dependencies
 - `make clean` - Remove ipcrawler only (keeps tools and results)

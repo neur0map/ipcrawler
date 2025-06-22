@@ -263,15 +263,15 @@ install:
 	 { echo "⚠️  Creating virtual environment for dependencies..."; \
 	   python3 -m venv .venv; \
 	   .venv/bin/pip install -r requirements.txt; }
-	@echo "🔧 Creating executable wrapper..."
+	@echo "🔧 Creating executable wrapper with sudo privileges..."
 	@mkdir -p ~/.local/bin
 	@echo '#!/bin/bash' > ~/.local/bin/ipcrawler
 	@echo 'SCRIPT_DIR="$$(pwd)"' >> ~/.local/bin/ipcrawler
 	@echo 'if [ -f "$$SCRIPT_DIR/ipcrawler.py" ]; then' >> ~/.local/bin/ipcrawler
 	@echo '    if [ -f "$$SCRIPT_DIR/.venv/bin/python" ]; then' >> ~/.local/bin/ipcrawler
-	@echo '        exec "$$SCRIPT_DIR/.venv/bin/python" "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
+	@echo '        exec sudo "$$SCRIPT_DIR/.venv/bin/python" "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
 	@echo '    else' >> ~/.local/bin/ipcrawler
-	@echo '        exec python3 "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
+	@echo '        exec sudo python3 "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
 	@echo '    fi' >> ~/.local/bin/ipcrawler
 	@echo 'else' >> ~/.local/bin/ipcrawler
 	@echo '    echo "Error: Please run ipcrawler from the git repository directory containing ipcrawler.py"' >> ~/.local/bin/ipcrawler

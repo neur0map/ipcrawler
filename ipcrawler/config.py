@@ -67,7 +67,7 @@ config = {
 	'heartbeat': 60,
 	'timeout': None,
 	'target_timeout': None,
-	'nmap': '-vv --reason -Pn -T4',
+	'nmap': '-vv --reason -Pn -T4 --min-rate=5000',
 	'nmap_append': '',
 	'proxychains': False,
 	'disable_sanity_checks': False,
