@@ -100,21 +100,23 @@ class RedirectHostnameDiscovery(PortScan):
 						redirect_host = parsed.hostname
 						
 						if redirect_host and redirect_host != target.address:
-							target.info(f"🔄 Redirect found: {url} → {location}")
-							target.info(f"🌐 Hostname discovered: {redirect_host}")
+							print(f"🎯 [{target.address}/hostname-discovery] 🔄 Redirect found: {url} → {location}")
+							print(f"🎯 [{target.address}/hostname-discovery] 🌐 Hostname discovered: {redirect_host}")
 							
 							# Check if we should add to /etc/hosts
 							if self.is_kali_or_htb():
 								if self.add_to_hosts(target.address, redirect_host):
-									target.info(f"✅ Added to /etc/hosts: {target.address} {redirect_host}")
+									print(f"🎯 [{target.address}/hostname-discovery] ✅ Added to /etc/hosts: {target.address} {redirect_host}")
 								else:
-									target.info(f"ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
+									print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
 							else:
-								target.info(f"ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
+								print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
 							
-							discovered_hostnames.append(redirect_host)
-							# Store hostname in target for other plugins to use
-							await target.add_discovered_hostname(redirect_host)
+							if redirect_host not in discovered_hostnames:
+								discovered_hostnames.append(redirect_host)
+								# Add to target's discovered hostnames directly
+								target.discovered_hostnames.append(redirect_host)
+								print(f"🎯 [{target.address}/hostname-discovery] Added discovered hostname: {redirect_host}")
 					
 					# Also check common redirect paths
 					redirect_paths = ['/', '/index.html', '/home', '/admin', '/login']
@@ -132,16 +134,16 @@ class RedirectHostnameDiscovery(PortScan):
 								redirect_host = parsed.hostname
 								
 								if redirect_host and redirect_host != target.address and redirect_host not in discovered_hostnames:
-									target.info(f"🔄 Redirect found at {path}: {path_url} → {location}")
-									target.info(f"🌐 Additional hostname: {redirect_host}")
+									print(f"🎯 [{target.address}/hostname-discovery] 🔄 Redirect found at {path}: {path_url} → {location}")
+									print(f"🎯 [{target.address}/hostname-discovery] 🌐 Additional hostname: {redirect_host}")
 									
 									if self.is_kali_or_htb():
 										if self.add_to_hosts(target.address, redirect_host):
-											target.info(f"✅ Added to /etc/hosts: {target.address} {redirect_host}")
+											print(f"🎯 [{target.address}/hostname-discovery] ✅ Added to /etc/hosts: {target.address} {redirect_host}")
 									
 									discovered_hostnames.append(redirect_host)
-									# Store hostname in target for other plugins to use
-									await target.add_discovered_hostname(redirect_host)
+									# Store hostname in target directly (avoid async call in PortScan)
+									target.discovered_hostnames.append(redirect_host)
 						except:
 							continue  # Skip failed path checks
 							
@@ -150,12 +152,12 @@ class RedirectHostnameDiscovery(PortScan):
 				except requests.exceptions.ConnectionError:
 					continue  # Port likely closed  
 				except Exception as e:
-					target.error(f"Error checking {scheme}://{target.address}:{port}/: {e}", verbosity=2)
+					print(f"❌ [{target.address}/hostname-discovery] Error checking {scheme}://{target.address}:{port}/: {e}")
 					continue
 		
 		if discovered_hostnames:
-			target.info(f"🎯 Total hostnames discovered: {len(discovered_hostnames)}")
+			print(f"🎯 [{target.address}/hostname-discovery] Total hostnames discovered: {len(discovered_hostnames)}")
 			for hostname in discovered_hostnames:
-				target.info(f"   - {hostname}")
+				print(f"🎯 [{target.address}/hostname-discovery]    - {hostname}")
 		
 		return []  # PortScan plugins return services, but we're doing discovery
