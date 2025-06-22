@@ -545,7 +545,7 @@ python3 ipcrawler.py --version
 
 ### 🎮 **Connect with Fellow Security Enthusiasts**
 
-<a href="https://discord.gg/D77fqNHHzc">
+<a href="https://discord.gg/ua2hRhWkSq">
   <img src="https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"/>
 </a>
 
