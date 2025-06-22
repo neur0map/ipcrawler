@@ -1000,6 +1000,7 @@ async def run():
 	parser.add_argument('--report-output', action='store', metavar='FILE', help='Custom output file for HTML report')
 	
 	parser.add_argument('-v', '--verbose', action='count', help='Enable verbose output. Repeat for more verbosity.')
+	parser.add_argument('--debug', action='store_true', help='Enable debug mode with detailed plugin output. Default: %(default)s')
 	parser.add_argument('--version', action='store_true', help='Prints the ipcrawler version and exits.')
 	parser.error = lambda s: fail(s[0].upper() + s[1:])
 	args, unknown = parser.parse_known_args()

@@ -60,6 +60,11 @@ class DirBuster(ServiceScan):
 		hostnames = service.target.get_all_hostnames()
 		best_hostname = service.target.get_best_hostname()
 		
+		# Debug output only with --debug flag
+		if config.get('debug', False):
+			service.info(f"🐛 DEBUG: Target discovered_hostnames = {service.target.discovered_hostnames}")
+			service.info(f"🐛 DEBUG: All hostnames = {hostnames}")
+		
 		service.info(f"🌐 Using hostnames for directory busting: {', '.join(hostnames)}")
 		if len(hostnames) > 1:
 			service.info(f"🎯 Primary hostname: {best_hostname}")

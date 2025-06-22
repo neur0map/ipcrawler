@@ -31,7 +31,8 @@ configurable_keys = [
 	'max_plugin_target_instances',
 	'max_plugin_global_instances',
 	'accessible',
-	'verbose'
+	'verbose',
+	'debug'
 ]
 
 configurable_boolean_keys = [
@@ -41,7 +42,8 @@ configurable_boolean_keys = [
 	'proxychains',
 	'disable_sanity_checks',
 	'ignore_plugin_checks',
-	'accessible'
+	'accessible',
+	'debug'
 ]
 
 config = {
@@ -77,5 +79,6 @@ config = {
 	'max_plugin_target_instances': None,
 	'max_plugin_global_instances': None,
 	'accessible': False,
-	'verbose': 0
+	'verbose': 0,
+	'debug': False
 }
