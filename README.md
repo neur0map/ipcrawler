@@ -539,6 +539,30 @@ python3 ipcrawler.py --version
 
 ---
 
+## 💬 Join Our Community
+
+<div align="center">
+
+### 🎮 **Connect with Fellow Security Enthusiasts**
+
+<a href="https://discord.gg/D77fqNHHzc">
+  <img src="https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"/>
+</a>
+
+**Join our Discord community to:**
+- 🤝 **Get Help** - Ask questions and get support from experienced users
+- 💡 **Share Knowledge** - Exchange tips, techniques, and discoveries  
+- 🔧 **Plugin Development** - Collaborate on new plugins and features
+- 🎯 **CTF & Lab Discussion** - Share findings from Hack The Box, OSCP labs, and CTFs
+- 🚀 **Feature Requests** - Suggest improvements and vote on new features
+- 📢 **Updates & Announcements** - Be the first to know about new releases
+
+*Connect with pentesting enthusiasts, share your reconnaissance discoveries, and learn from the community!*
+
+</div>
+
+---
+
 <details>
 <summary><h2>⚠️ SECURITY WARNING & LEGAL DISCLAIMER - READ BEFORE USE</h2></summary>
 
