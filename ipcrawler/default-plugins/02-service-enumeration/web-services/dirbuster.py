@@ -30,6 +30,7 @@ class DirBuster(ServiceScan):
 		self.add_option('ext', default='txt,html,php,asp,aspx,jsp', help='The extensions you wish to fuzz (no dot, comma separated). Default: %(default)s')
 		self.add_true_option('recursive', help='Enables recursive searching (where available). Warning: This may cause significant increases to scan times. Default: %(default)s')
 		self.add_option('extras', default='', help='Any extra options you wish to pass to the tool when it runs. e.g. --dirbuster.extras=\'-s 200,301 --discover-backup\'')
+		self.add_choice_option('vhost-mode', default='smart', choices=['all', 'best', 'smart'], help='How to handle multiple discovered hostnames: all=scan all, best=scan best only, smart=scan best + unique domains. Default: %(default)s')
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
 
@@ -56,18 +57,42 @@ class DirBuster(ServiceScan):
 	async def run(self, service):
 		dot_extensions = ','.join(['.' + x for x in self.get_option('ext').split(',')])
 		
-		# Get all hostnames to scan (discovered vhosts + fallback to IP)
-		hostnames = service.target.get_all_hostnames()
+		# Get hostnames based on vhost-mode setting
+		all_hostnames = service.target.get_all_hostnames()
 		best_hostname = service.target.get_best_hostname()
+		vhost_mode = self.get_option('vhost-mode')
 		
-		# Debug output only with --debug flag
-		if config.get('debug', False):
-			service.info(f"🐛 DEBUG: Target discovered_hostnames = {service.target.discovered_hostnames}")
-			service.info(f"🐛 DEBUG: All hostnames = {hostnames}")
+		# Always show hostname info for now (debugging)
+		service.info(f"🐛 DEBUG: Target discovered_hostnames = {service.target.discovered_hostnames}")
+		service.info(f"🐛 DEBUG: All hostnames = {all_hostnames}")
 		
-		service.info(f"🌐 Using hostnames for directory busting: {', '.join(hostnames)}")
+		# Select hostnames based on mode
+		if vhost_mode == 'best':
+			hostnames = [best_hostname]
+			service.info(f"🌐 Using best hostname only: {best_hostname}")
+		elif vhost_mode == 'smart':
+			# Use best hostname + unique domains (avoid scanning similar subdomains)
+			hostnames = [best_hostname]
+			seen_domains = set()
+			if '.' in best_hostname:
+				seen_domains.add('.'.join(best_hostname.split('.')[-2:]))  # Get root domain
+			
+			for hostname in all_hostnames:
+				if hostname != best_hostname:
+					# Add if it's a different root domain or IP
+					if '.' not in hostname or '.'.join(hostname.split('.')[-2:]) not in seen_domains:
+						hostnames.append(hostname)
+						if '.' in hostname:
+							seen_domains.add('.'.join(hostname.split('.')[-2:]))
+			
+			service.info(f"🌐 Using smart hostname selection: {', '.join(hostnames)}")
+		else:  # 'all'
+			hostnames = all_hostnames
+			service.info(f"🌐 Using all hostnames: {', '.join(hostnames)}")
+		
 		if len(hostnames) > 1:
 			service.info(f"🎯 Primary hostname: {best_hostname}")
+			service.info(f"⚡ Scanning {len(hostnames)} hostname(s) - use --dirbuster.vhost-mode=best for faster scans")
 		
 		# Resolve wordlists at runtime
 		wordlists = self.get_option('wordlist')

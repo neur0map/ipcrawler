@@ -82,6 +82,7 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 
 	async def run(self, service):
 		"""Run hostname discovery on the discovered HTTP service"""
+		service.info(f"🔍 Starting hostname discovery for {service.target.address}:{service.port}")
 		discovered_hostnames = []
 		
 		# Check both HTTP and HTTPS if applicable
