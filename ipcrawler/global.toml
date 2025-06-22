@@ -1,10 +1,9 @@
-[global.username-wordlist]
-default = '/usr/share/seclists/Usernames/top-usernames-shortlist.txt'
-help = 'A wordlist of usernames, useful for bruteforcing. Default: %(default)s'
+# Global Configuration for ipcrawler
+# ===================================
+# This file contains global plugin defaults and pattern matching configurations.
+# Wordlist management is handled automatically by SecLists detection.
 
-[global.password-wordlist]
-default = '/usr/share/seclists/Passwords/darkweb2017-top100.txt'
-help = 'A wordlist of passwords, useful for bruteforcing. Default: %(default)s'
+# This file will only be used as fallback in case auto-detection of seclists fails.
 
 [global.domain]
 help = 'The domain to use (if known). Used for DNS and/or Active Directory. Default: %(default)s'

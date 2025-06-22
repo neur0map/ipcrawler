@@ -1,18 +1,45 @@
-# Configure regular ipcrawler options at the top of this file.
+# ipcrawler Configuration File
+# ===========================
+# This file allows you to set default values for commonly used options.
+# All settings here can be overridden by command-line arguments.
+# 
+# NOTE: Wordlist management is handled automatically by SecLists detection.
+# Only configure scan behavior and plugin settings here.
 
-# nmap-append = '-T3'
-# verbose = 1
-# max-scans = 30
+# Basic Scan Configuration
+# ------------------------
+# Uncomment and modify any settings you want to change from defaults:
 
-# Configure global options here.
-# [global]
-# username-wordlist = '/usr/share/seclists/Usernames/cirt-default-usernames.txt'
+# verbose = 1                    # Verbosity level (0-3)
+# max-scans = 50                 # Maximum concurrent scans  
+# timeout = 60                   # Global timeout in minutes
+# target-timeout = 30            # Per-target timeout in minutes
+# heartbeat = 60                 # Status update interval in seconds
+# nmap-append = '-T3'            # Additional nmap arguments
+# output = 'results'             # Results output directory
 
-# Configure plugin options here.
+# Plugin Control
+# --------------
+# tags = 'default,safe'          # Only run plugins with these tags
+# exclude-tags = 'slow,bruteforce' # Skip plugins with these tags
+
+# Network Settings  
+# ----------------
+# proxychains = true             # Run scans through proxychains
+
+# Accessibility
+# -------------
+# accessible = true              # Screen reader friendly output
+
+# Plugin-Specific Configuration
+# -----------------------------
+# Configure individual plugins (uncomment sections as needed):
+
 # [dirbuster]
-# threads = 50
-# wordlist = [
-# 	'/usr/share/seclists/Discovery/Web-Content/common.txt',
-# 	'/usr/share/seclists/Discovery/Web-Content/big.txt',
-# 	'/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt'
-# ]
+# threads = 30                   # Directory enumeration threads
+
+# [nikto] 
+# timeout = 300                  # Nikto scan timeout
+
+# [nmap-http]
+# scripts = 'http-title,http-headers'  # Custom nmap scripts
