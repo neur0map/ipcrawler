@@ -886,7 +886,7 @@ class IPCrawlerConsolidator:
                 for line in content.split('\n'):
                     line = line.strip()
                     # Filter out non-executable content
-                    if self._is_valid_manual_command(line):
+                    if self.parser._is_valid_manual_command(line):
                         results.manual_commands.append(line)
                         
             except Exception as e:
@@ -927,7 +927,7 @@ class IPCrawlerConsolidator:
         
         return self.targets
     
-    def generate_html_report(self, output_file: str = None, force_update: bool = False, static_mode: bool = False):
+    def generate_html_report(self, output_file: Optional[str] = None, force_update: bool = False, static_mode: bool = False):
         """Generate the consolidated HTML report"""
         
         # Check if we need to update (for incremental mode)
@@ -1007,7 +1007,7 @@ class IPCrawlerConsolidator:
         
         return newest_time
     
-    def watch_and_update(self, output_file: str = None, interval: int = 30):
+    def watch_and_update(self, output_file: Optional[str] = None, interval: int = 30):
         """Watch for file changes and update report incrementally"""
         self.watch_mode = True
         
@@ -1069,7 +1069,7 @@ class IPCrawlerConsolidator:
         else:
             print(f"✅ Final report saved: {output_file}")
     
-    def generate_partial_report(self, output_file: str = None):
+    def generate_partial_report(self, output_file: Optional[str] = None):
         """Generate a report even from incomplete/interrupted scans"""
         
         if RICH_AVAILABLE:
@@ -1096,10 +1096,10 @@ class IPCrawlerConsolidator:
                 # Generate target-specific report
                 target_dir = self.results_dir / self.specific_target / "report"
                 target_dir.mkdir(parents=True, exist_ok=True)
-                output_file = target_dir / "ipcrawler_report.html"
+                output_file = str(target_dir / "ipcrawler_report.html")
             else:
                 # Generate consolidated report
-                output_file = self.results_dir / "consolidated_report.html"
+                output_file = str(self.results_dir / "consolidated_report.html")
         
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -2211,7 +2211,7 @@ Spider/Web themed report with intelligent prioritization of:
                 # Generate reports for interrupted scans
                 for target in interrupted_targets:
                     consolidator.specific_target = target
-                    consolidator.generate_partial_report(None)
+                    consolidator.generate_partial_report()
                 
                 # Reset specific target for main report generation
                 consolidator.specific_target = args.target
