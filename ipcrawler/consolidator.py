@@ -442,6 +442,48 @@ class ResultParser:
                 result.append(data['text'])
         
         return result
+    
+    def _is_valid_manual_command(self, line: str) -> bool:
+        """Check if a line is a valid manual command"""
+        if not line or len(line) < 10:
+            return False
+            
+        # Skip comments and empty lines
+        if line.startswith('#') or line.startswith('//'):
+            return False
+            
+        # Skip section headers and decorative text
+        decorative_patterns = [
+            r'^[🎯🔧⚙️🌐]+\s*\w+\s*on\s+tcp/',  # "🎯 ssh on tcp/22"
+            r'^[🎯🔧⚙️🌐]+\s*\([^)]+\)\s*',      # "🔧 (feroxbuster) Multi-threaded..."
+            r'^[🎯🔧⚙️🌐]+\s*[A-Z][^:]*:$',      # "🔧 Bruteforce logins:"
+            r'^\s*[-=_]{3,}\s*$',                 # Separator lines
+            r'^\s*$',                             # Empty lines
+        ]
+        
+        for pattern in decorative_patterns:
+            if re.match(pattern, line):
+                return False
+        
+        # Must contain actual command-like content
+        command_indicators = [
+            # Common penetration testing tools
+            r'\b(nmap|hydra|medusa|feroxbuster|gobuster|wpscan|nikto|sqlmap|dirb|ffuf)\b',
+            # Common shell commands with arguments
+            r'\b(curl|wget|ssh|ftp|telnet|nc|netcat)\s+',
+            # Tools with specific flags
+            r'\s-[a-zA-Z]\b',  # Command line flags
+            r'\s--[a-zA-Z]',   # Long flags
+            # File paths and URLs
+            r'https?://',
+            r'/[a-zA-Z0-9].*\.(txt|php|html|asp|jsp)',
+        ]
+        
+        for pattern in command_indicators:
+            if re.search(pattern, line, re.IGNORECASE):
+                return True
+                
+        return False
 
 class IPCrawlerConsolidator:
     """Main consolidator class for ipcrawler results"""
@@ -843,7 +885,8 @@ class IPCrawlerConsolidator:
                     
                 for line in content.split('\n'):
                     line = line.strip()
-                    if line and not line.startswith('#') and len(line) > 10:
+                    # Filter out non-executable content
+                    if self._is_valid_manual_command(line):
                         results.manual_commands.append(line)
                         
             except Exception as e:
@@ -1795,11 +1838,17 @@ class IPCrawlerConsolidator:
         
         # Web Services
         if all_web_services:
+            total_web = len(all_web_services)
+            displayed_web = min(10, total_web)
             web_list = "\n".join([f'<li><a href="{url.split(" - ")[0]}" class="url" target="_blank">{url}</a></li>' 
-                                 for url in all_web_services[:10]])  # Limit to first 10
+                                 for url in all_web_services[:displayed_web]])
+            
+            if total_web > displayed_web:
+                web_list += f'\n<li style="color: #888; font-style: italic;">... and {total_web - displayed_web} more web services</li>'
+                
             html += f"""
             <div class="quick-access-item">
-                <h4>🌐 Web Services</h4>
+                <h4>🌐 Web Services (showing {displayed_web} of {total_web})</h4>
                 <ul class="quick-access-list">
                     {web_list}
                 </ul>
@@ -1808,10 +1857,16 @@ class IPCrawlerConsolidator:
         
         # Virtual Hosts
         if all_vhosts:
-            vhost_list = "\n".join([f"<li>{vhost}</li>" for vhost in sorted(all_vhosts)[:10]])
+            total_vhosts = len(all_vhosts)
+            displayed_vhosts = min(10, total_vhosts)
+            vhost_list = "\n".join([f"<li>{vhost}</li>" for vhost in sorted(all_vhosts)[:displayed_vhosts]])
+            
+            if total_vhosts > displayed_vhosts:
+                vhost_list += f'\n<li style="color: #888; font-style: italic;">... and {total_vhosts - displayed_vhosts} more virtual hosts</li>'
+                
             html += f"""
             <div class="quick-access-item">
-                <h4>🏠 Virtual Hosts</h4>
+                <h4>🏠 Virtual Hosts (showing {displayed_vhosts} of {total_vhosts})</h4>
                 <ul class="quick-access-list">
                     {vhost_list}
                 </ul>
@@ -1905,9 +1960,13 @@ class IPCrawlerConsolidator:
                     """
                 
                 if web.directories:
-                    dir_list = "</li><li>".join(web.directories[:10])  # Limit to first 10
+                    total_dirs = len(web.directories)
+                    displayed_dirs = min(10, total_dirs)
+                    dir_list = "</li><li>".join(web.directories[:displayed_dirs])
+                    dir_count_text = f" (showing {displayed_dirs} of {total_dirs})" if total_dirs > displayed_dirs else ""
+                    
                     html += f"""
-                    <p><strong>Directories Found:</strong></p>
+                    <p><strong>Directories Found{dir_count_text}:</strong></p>
                     <ul class="styled-list">
                         <li>{dir_list}</li>
                     </ul>
@@ -1945,13 +2004,21 @@ class IPCrawlerConsolidator:
         
         # Pattern Matches Section
         if target_data.patterns:
+            total_patterns = len(target_data.patterns)
+            displayed_patterns = min(20, total_patterns)
+            count_text = f"showing {displayed_patterns} of {total_patterns}" if total_patterns > displayed_patterns else str(total_patterns)
+            
             html += f"""
-            <button class="collapsible">🕸️ Pattern Matches ({len(target_data.patterns)})</button>
+            <button class="collapsible">🕸️ Pattern Matches ({count_text})</button>
             <div class="content">
                 <ul class="styled-list">
             """
-            for pattern in target_data.patterns[:20]:  # Limit to first 20
+            for pattern in target_data.patterns[:displayed_patterns]:
                 html += f"<li>{pattern}</li>"
+            
+            if total_patterns > displayed_patterns:
+                html += f'<li style="color: #888; font-style: italic;">... and {total_patterns - displayed_patterns} more patterns</li>'
+                
             html += """
                 </ul>
             </div>
@@ -1959,12 +2026,20 @@ class IPCrawlerConsolidator:
         
         # Manual Commands Section
         if target_data.manual_commands:
+            total_commands = len(target_data.manual_commands)
+            displayed_commands = min(15, total_commands)  # Show up to 15 commands
+            count_text = f"showing {displayed_commands} of {total_commands}" if total_commands > displayed_commands else str(total_commands)
+            
             html += f"""
-            <button class="collapsible">⚙️ Manual Commands ({len(target_data.manual_commands)})</button>
+            <button class="collapsible">⚙️ Manual Commands ({count_text})</button>
             <div class="content">
             """
-            for cmd in target_data.manual_commands[:10]:  # Limit to first 10
+            for cmd in target_data.manual_commands[:displayed_commands]:
                 html += f'<div class="code-block">{cmd}</div>'
+            
+            if total_commands > displayed_commands:
+                html += f'<div class="code-block" style="color: #888; font-style: italic;">... and {total_commands - displayed_commands} more commands (check _manual_commands.txt for full list)</div>'
+            
             html += "</div>"
         
         html += "</div>"  # Close target-section
