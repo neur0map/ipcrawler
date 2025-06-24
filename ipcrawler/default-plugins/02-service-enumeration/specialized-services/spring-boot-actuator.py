@@ -55,7 +55,7 @@ class SpringBootActuator(ServiceScan):
 				service.info(f"📋 Getting basic server information...")
 				timeout = self.get_option("timeout")
 				await service.execute(
-					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ -w "\\n--- Response Info ---\\nHTTP Code: %%{{http_code}}\\nTotal Time: %%{{time_total}}s\\nSize: %%{{size_download}} bytes\\n" 2>&1',
+					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
 				)
 				
@@ -81,8 +81,7 @@ class SpringBootActuator(ServiceScan):
 				await service.execute(
 					f'while read -r url; do '
 					f'echo "=== Checking: $url ==="; '
-					f'curl -s -m {timeout} -w "HTTP Code: %%{{http_code}} | Size: %%{{size_download}} bytes | Time: %%{{time_total}}s\\n" '
-					f'"$url" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>/dev/null || echo "Connection failed"; '
+					f'curl -s -m {timeout} "$url" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed"; '
 					f'echo ""; '
 					f'done < {url_file}',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
