@@ -55,7 +55,10 @@ class SpringBootActuator(ServiceScan):
 				service.info(f"📋 Getting basic server information...")
 				timeout = self.get_option("timeout")
 				await service.execute(
-					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
+					f'echo "=== Basic HTTP Headers ===" && '
+					f'curl -v -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'echo "=== Response Body Sample ===" && '
+					f'curl -v -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -20',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
 				)
 				
@@ -81,7 +84,7 @@ class SpringBootActuator(ServiceScan):
 				await service.execute(
 					f'while read -r url; do '
 					f'echo "=== Checking: $url ==="; '
-					f'curl -s -m {timeout} "$url" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed"; '
+					f'curl -v -m {timeout} "$url" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed"; '
 					f'echo ""; '
 					f'done < {url_file}',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
@@ -91,7 +94,8 @@ class SpringBootActuator(ServiceScan):
 				service.info(f"🚨 Checking for information disclosure...")
 				timeout = self.get_option("timeout")
 				await service.execute(
-					f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/error '
+					f'echo "=== Testing /error endpoint ===" && '
+					f'curl -v -m {timeout} {{http_scheme}}://{hostname}:{{port}}/error '
 					f'-H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_error_{hostname_label}.txt'
 				)
@@ -100,11 +104,11 @@ class SpringBootActuator(ServiceScan):
 				service.info(f"🔐 Testing authentication bypass techniques...")
 				await service.execute(
 					f'echo "=== Testing admin:admin ===" && '
-					f'curl -s -m {timeout} -u admin:admin {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
-					f'echo -e "\\n=== Testing default:default ===" && '
-					f'curl -s -m {timeout} -u default:default {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
-					f'echo -e "\\n=== Testing empty credentials ===" && '
-					f'curl -s -m {timeout} -u : {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
+					f'curl -v -s -m {timeout} -u admin:admin {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'printf "\\n=== Testing default:default ===\\n" && '
+					f'curl -v -s -m {timeout} -u default:default {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'printf "\\n=== Testing empty credentials ===\\n" && '
+					f'curl -v -s -m {timeout} -u : {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_auth_test_{hostname_label}.txt'
 				)
 				
