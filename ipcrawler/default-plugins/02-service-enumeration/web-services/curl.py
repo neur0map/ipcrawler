@@ -19,7 +19,13 @@ class Curl(ServiceScan):
 			hostnames = service.target.get_all_hostnames()
 			best_hostname = service.target.get_best_hostname()
 			
+			# CRITICAL: Ensure we always have hostnames - safety check
+			if not hostnames:
+				service.error("❌ CRITICAL: No hostnames available for curl! Using IP fallback.")
+				hostnames = [service.target.ip if service.target.ip else service.target.address]
+			
 			service.info(f"🌐 Using hostnames for curl scan: {', '.join(hostnames)}")
+			service.info(f"✅ Final hostnames for curl scan: {', '.join(hostnames)}")
 			
 			# Scan each hostname
 			for hostname in hostnames:
@@ -28,4 +34,5 @@ class Curl(ServiceScan):
 				if ':' in hostname and not hostname.startswith('['):
 					scan_hostname = f'[{hostname}]'
 				
+				service.info(f"🔧 Running curl against: {hostname}")
 				await service.execute('curl -sSik {http_scheme}://' + scan_hostname + ':{port}' + self.get_option('path'), outfile='{protocol}_{port}_{http_scheme}_curl_' + hostname_label + '.html')

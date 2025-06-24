@@ -68,6 +68,14 @@ class DirBuster(ServiceScan):
 		service.info(f"🔍 All hostnames: {all_hostnames}")
 		service.info(f"🔍 Best hostname: {best_hostname}")
 		
+		# CRITICAL: Ensure we always have hostnames - safety check
+		if not all_hostnames:
+			service.error("❌ CRITICAL: No hostnames available! Using IP fallback.")
+			all_hostnames = [service.target.ip if service.target.ip else service.target.address]
+		if not best_hostname:
+			service.error("❌ CRITICAL: No best hostname available! Using IP fallback.")
+			best_hostname = service.target.ip if service.target.ip else service.target.address
+		
 		# Select hostnames based on mode
 		if vhost_mode == 'best':
 			hostnames = [best_hostname]
@@ -92,9 +100,16 @@ class DirBuster(ServiceScan):
 			hostnames = all_hostnames
 			service.info(f"🌐 Using all hostnames: {', '.join(hostnames)}")
 		
+		# FINAL SAFETY CHECK: Ensure we have hostnames to scan
+		if not hostnames:
+			service.error("❌ CRITICAL: No hostnames to scan! Emergency IP fallback.")
+			hostnames = [service.target.ip if service.target.ip else service.target.address]
+		
 		if len(hostnames) > 1:
 			service.info(f"🎯 Primary hostname: {best_hostname}")
 			service.info(f"⚡ Scanning {len(hostnames)} hostname(s) - use --dirbuster.vhost-mode=best for faster scans")
+		
+		service.info(f"✅ Final hostnames for directory enumeration: {', '.join(hostnames)}")
 		
 		# Resolve wordlists at runtime
 		wordlists = self.get_option('wordlist')

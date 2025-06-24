@@ -19,22 +19,37 @@ class Nikto(ServiceScan):
 			hostnames = service.target.get_all_hostnames()
 			best_hostname = service.target.get_best_hostname()
 			
-			# Always show hostname info for now (debugging)
-			service.info(f"🐛 DEBUG: Target discovered_hostnames = {service.target.discovered_hostnames}")
-			service.info(f"🐛 DEBUG: All hostnames = {hostnames}")
+			# CRITICAL: Ensure we always have hostnames - safety check
+			if not hostnames:
+				service.error("❌ CRITICAL: No hostnames available for nikto! Using IP fallback.")
+				hostnames = [service.target.ip if service.target.ip else service.target.address]
+			if not best_hostname:
+				service.error("❌ CRITICAL: No best hostname available for nikto! Using IP fallback.")
+				best_hostname = service.target.ip if service.target.ip else service.target.address
+			
+			# Show hostname debug info
+			service.info(f"🔍 Target discovered_hostnames = {service.target.discovered_hostnames}")
+			service.info(f"🔍 All hostnames = {hostnames}")
 			service.info(f"🌐 Using hostnames for nikto scan: {', '.join(hostnames)}")
 			if len(hostnames) > 1:
 				service.info(f"🎯 Primary hostname: {best_hostname}")
 			
+			service.info(f"✅ Final hostnames for nikto scan: {', '.join(hostnames)}")
+			
 			# Scan each hostname
 			for hostname in hostnames:
 				hostname_label = hostname.replace('.', '_').replace(':', '_')
+				service.info(f"🔧 Running nikto against: {hostname}")
 				await service.execute('nikto -ask=no -Tuning=x4567890ac -nointeractive -host {http_scheme}://' + hostname + ':{port} 2>&1 | tee "{scandir}/{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt"')
 
 	def manual(self, service, plugin_was_run):
 		if service.target.ipversion == 'IPv4' and not plugin_was_run:
 			# Get all hostnames for manual commands
 			hostnames = service.target.get_all_hostnames()
+			
+			# CRITICAL: Ensure we always have hostnames for manual commands
+			if not hostnames:
+				hostnames = [service.target.ip if service.target.ip else service.target.address]
 			
 			# Add manual commands for each discovered hostname
 			for hostname in hostnames:

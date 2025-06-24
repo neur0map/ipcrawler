@@ -37,27 +37,34 @@ class Target:
 
 	def get_best_hostname(self):
 		"""Get the best hostname to use for web scanning (prefers discovered hostnames)"""
-		if self.discovered_hostnames:
+		if self.discovered_hostnames and len(self.discovered_hostnames) > 0:
 			return self.discovered_hostnames[0]  # Use first discovered hostname
-		elif self.type == 'hostname':
+		elif self.type == 'hostname' and self.address:
 			return self.address  # Use original hostname if target was a hostname
 		else:
-			return self.ip  # Fallback to IP address
+			# Always fall back to IP - this should never be None
+			return self.ip if self.ip else self.address
 
 	def get_all_hostnames(self):
 		"""Get all available hostnames for comprehensive scanning"""
 		hostnames = []
 		
 		# Add discovered hostnames first (highest priority)
-		hostnames.extend(self.discovered_hostnames)
+		if self.discovered_hostnames:
+			hostnames.extend(self.discovered_hostnames)
 		
 		# Add original hostname if it was a hostname target
-		if self.type == 'hostname' and self.address not in hostnames:
+		if self.type == 'hostname' and self.address and self.address not in hostnames:
 			hostnames.append(self.address)
 		
-		# Always include IP as fallback
-		if self.ip not in hostnames:
-			hostnames.append(self.ip)
+		# Always include IP as fallback - CRITICAL for scan functionality
+		fallback_ip = self.ip if self.ip else self.address
+		if fallback_ip and fallback_ip not in hostnames:
+			hostnames.append(fallback_ip)
+		
+		# Ensure we ALWAYS have at least one hostname (the IP)
+		if not hostnames:
+			hostnames = [self.ip if self.ip else self.address]
 		
 		# Debug logging
 		print(f"🔧 DEBUG get_all_hostnames(): discovered_hostnames={self.discovered_hostnames}, type={self.type}, address={self.address}, ip={self.ip}, final_hostnames={hostnames}")

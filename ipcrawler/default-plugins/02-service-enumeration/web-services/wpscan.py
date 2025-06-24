@@ -20,6 +20,10 @@ class WPScan(ServiceScan):
 		# Get all hostnames for manual commands (includes discovered hostnames + IP fallback)
 		hostnames = service.target.get_all_hostnames()
 		
+		# CRITICAL: Ensure we always have hostnames for manual commands
+		if not hostnames:
+			hostnames = [service.target.ip if service.target.ip else service.target.address]
+		
 		# Add manual commands for each discovered hostname
 		for hostname in hostnames:
 			hostname_label = hostname.replace('.', '_').replace(':', '_')
