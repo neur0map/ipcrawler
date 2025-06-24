@@ -1,0 +1,139 @@
+from ipcrawler.plugins import ServiceScan
+from shutil import which
+
+class SpringBootActuator(ServiceScan):
+
+	def __init__(self):
+		super().__init__()
+		self.name = "Spring Boot Actuator"
+		self.slug = 'spring-boot-actuator'
+		self.description = "Enumerates Spring Boot applications and actuator endpoints"
+		self.priority = 0
+		self.tags = ['default', 'safe', 'web', 'java']
+
+	def configure(self):
+		self.add_option('threads', default=10, help='Number of threads for endpoint enumeration. Default: %(default)s')
+		self.add_option('timeout', default=10, help='Request timeout in seconds. Default: %(default)s')
+		self.add_list_option('common-paths', default=[
+			'/', '/actuator', '/actuator/health', '/actuator/info', '/actuator/env',
+			'/actuator/beans', '/actuator/configprops', '/actuator/dump', '/actuator/trace',
+			'/actuator/mappings', '/actuator/metrics', '/actuator/shutdown', '/actuator/jolokia',
+			'/manage', '/management', '/monitoring', '/admin', '/api', '/api/v1', '/api/v2',
+			'/health', '/info', '/status', '/version', '/env', '/beans', '/metrics'
+		], help='Common Spring Boot and management endpoints to check. Default: %(default)s')
+		
+		# Match unknown services on common Spring Boot ports
+		self.match_service_name('^unknown$')
+		# Also match HTTP services that might be Spring Boot
+		self.match_service_name('^http')
+		self.match_service_name('^nacn_http$', negative_match=True)
+
+	def check(self):
+		if which('curl') is None:
+			self.error('The curl program could not be found. Make sure it is installed.')
+			return False
+		return True
+
+	async def run(self, service):
+		if service.protocol == 'tcp':
+			# Get all hostnames to scan (discovered vhosts + fallback to IP)
+			hostnames = service.target.get_all_hostnames()
+			
+			# Safety check for hostnames
+			if not hostnames:
+				service.error("❌ No hostnames available! Using IP fallback.")
+				hostnames = [service.target.ip if service.target.ip else service.target.address]
+			
+			service.info(f"🌐 Scanning Spring Boot endpoints on: {', '.join(hostnames)}")
+			
+			# Scan each hostname
+			for hostname in hostnames:
+				hostname_label = hostname.replace('.', '_').replace(':', '_')
+				service.info(f"🔧 Checking Spring Boot endpoints on: {hostname}")
+				
+				# Test basic connectivity and get server info
+				service.info(f"📋 Getting basic server information...")
+				await service.execute(
+					f'curl -s -I -m {self.get_option("timeout")} {{http_scheme}}://{hostname}:{{port}}/ -w "\\n--- Response Info ---\\nHTTP Code: %{{http_code}}\\nTotal Time: %{{time_total}}s\\nSize: %{{size_download}} bytes\\n" 2>&1',
+					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
+				)
+				
+				# Check for Spring Boot actuator endpoints
+				service.info(f"🔍 Enumerating Spring Boot actuator endpoints...")
+				common_paths = self.get_option('common-paths')
+				if not common_paths:
+					common_paths = ['/actuator', '/health', '/info']
+				
+				# Create a list of URLs to check
+				url_file = f'{{scandir}}/{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_urls_{hostname_label}.txt'
+				urls = [f'{{http_scheme}}://{hostname}:{{port}}{path}' for path in common_paths]
+				
+				# Write URLs to file for reference
+				url_list = ' '.join([f'"{url}"' for url in urls])
+				await service.execute(
+					f'printf "%s\\n" {url_list} > {url_file}',
+					outfile=None
+				)
+				
+				# Use curl to check each endpoint efficiently
+				await service.execute(
+					f'while read -r url; do '
+					f'echo "=== Checking: $url ==="; '
+					f'curl -s -m {self.get_option("timeout")} -w "HTTP Code: %{{http_code}} | Size: %{{size_download}} bytes | Time: %{{time_total}}s\\n" '
+					f'"$url" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>/dev/null || echo "Connection failed"; '
+					f'echo ""; '
+					f'done < {url_file}',
+					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
+				)
+				
+				# Check for common Spring Boot error pages and info disclosure
+				service.info(f"🚨 Checking for information disclosure...")
+				await service.execute(
+					f'curl -s -m {self.get_option("timeout")} {{http_scheme}}://{hostname}:{{port}}/error '
+					f'-H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1',
+					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_error_{hostname_label}.txt'
+				)
+				
+				# Try common authentication bypass techniques
+				service.info(f"🔐 Testing authentication bypass techniques...")
+				await service.execute(
+					f'echo "=== Testing admin:admin ===" && '
+					f'curl -s -m {self.get_option("timeout")} -u admin:admin {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'echo -e "\\n=== Testing default:default ===" && '
+					f'curl -s -m {self.get_option("timeout")} -u default:default {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'echo -e "\\n=== Testing empty credentials ===" && '
+					f'curl -s -m {self.get_option("timeout")} -u : {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
+					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_auth_test_{hostname_label}.txt'
+				)
+				
+				service.info(f"✅ Spring Boot enumeration completed for {hostname}")
+
+	def manual(self, service, plugin_was_run):
+		# Get all hostnames to scan
+		hostnames = service.target.get_all_hostnames()
+		if not hostnames:
+			hostnames = [service.target.ip if service.target.ip else service.target.address]
+		
+		for hostname in hostnames:
+			hostname_label = hostname.replace('.', '_').replace(':', '_')
+			hostname_desc = f" ({hostname})" if hostname != service.target.ip else " (IP fallback)"
+			
+			service.add_manual_command(f'Spring Boot Actuator enumeration{hostname_desc}:', [
+				f'# Basic connectivity test',
+				f'curl -s -I {{http_scheme}}://{hostname}:{{port}}/',
+				f'',
+				f'# Check actuator endpoints',
+				f'for endpoint in /actuator /actuator/health /actuator/info /actuator/env /actuator/beans; do',
+				f'  echo "=== $endpoint ===";',
+				f'  curl -s {{http_scheme}}://{hostname}:{{port}}$endpoint;',
+				f'  echo "";',
+				f'done',
+				f'',
+				f'# Test common credentials',
+				f'curl -s -u admin:admin {{http_scheme}}://{hostname}:{{port}}/',
+				f'curl -s -u admin:password {{http_scheme}}://{hostname}:{{port}}/',
+				f'',
+				f'# Check for management interfaces',
+				f'curl -s {{http_scheme}}://{hostname}:{{port}}/manage',
+				f'curl -s {{http_scheme}}://{hostname}:{{port}}/admin'
+			])
