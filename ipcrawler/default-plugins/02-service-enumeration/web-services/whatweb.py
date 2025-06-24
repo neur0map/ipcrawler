@@ -11,7 +11,7 @@ class WhatWeb(ServiceScan):
 
 	def configure(self):
 		self.add_choice_option('aggression', default='1', choices=['1', '2', '3', '4'], help='WhatWeb aggression level (1=passive, 4=aggressive). Default: %(default)s')
-		self.add_true_option('ignore-errors', default=True, help='Continue scanning even if HTTP errors occur. Default: %(default)s')
+		self.add_true_option('ignore-errors', help='Continue scanning even if HTTP errors occur')
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
 
