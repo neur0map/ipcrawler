@@ -732,109 +732,110 @@ async def scan_target(target):
 					else:
 						continue
 
+				# Check if this plugin matches the discovered service
 				for s in plugin.service_names:
 					if re.search(s, service.name):
 						plugin_service_match = True
+						break
 
-					if plugin_service_match:
-						if config['service_scans'] and plugin.slug in config['service_scans']:
-							matching_tags = True
-							excluded_tags = False
+				# Only process the plugin if it matched the service
+				if plugin_service_match:
+					if config['service_scans'] and plugin.slug in config['service_scans']:
+						matching_tags = True
+						excluded_tags = False
+					else:
+						plugin_tag_set = set(plugin.tags)
+
+						matching_tags = False
+						for tag_group in target.ipcrawler.tags:
+							if set(tag_group).issubset(plugin_tag_set):
+								matching_tags = True
+								break
+
+						excluded_tags = False
+						for tag_group in target.ipcrawler.excluded_tags:
+							if set(tag_group).issubset(plugin_tag_set):
+								excluded_tags = True
+								break
+
+					# TODO: Maybe make this less messy, keep manual-only plugins separate?
+					plugin_is_runnable = False
+					for member_name, _ in inspect.getmembers(plugin, predicate=inspect.ismethod):
+						if member_name == 'run':
+							plugin_is_runnable = True
+							break
+
+					if plugin_is_runnable and matching_tags and not excluded_tags:
+						# Skip plugin if run_once_boolean and plugin already in target scans
+						if plugin.run_once_boolean:
+							plugin_queued = False
+							for s in target.scans['services']:
+								if plugin.slug in target.scans['services'][s]:
+									plugin_queued = True
+									warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (run_once). Skipping.', verbosity=2)
+									break
+							if plugin_queued:
+								continue  # Skip this plugin but continue with manual commands
+
+						# Skip plugin if require_ssl_boolean and port is not secure
+						if plugin.require_ssl_boolean and not service.secure:
+							plugin_service_match = False
+						# Skip plugin if service port is in ignore_ports:
+						elif port in plugin.ignore_ports[protocol]:
+							plugin_service_match = False
+							warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run on {protocol} port {port}. Skipping.', verbosity=2)
+						# Skip plugin if plugin has required ports and service port is not in them:
+						elif plugin.ports[protocol] and port not in plugin.ports[protocol]:
+							plugin_service_match = False
+							warn(f'⚠️ Plugin {plugin_tag} → {target.address} restricted to specific ports. Skipping.', verbosity=2)
 						else:
-							plugin_tag_set = set(plugin.tags)
-
-							matching_tags = False
-							for tag_group in target.ipcrawler.tags:
-								if set(tag_group).issubset(plugin_tag_set):
-									matching_tags = True
-									break
-
-							excluded_tags = False
-							for tag_group in target.ipcrawler.excluded_tags:
-								if set(tag_group).issubset(plugin_tag_set):
-									excluded_tags = True
-									break
-
-						# TODO: Maybe make this less messy, keep manual-only plugins separate?
-						plugin_is_runnable = False
-						for member_name, _ in inspect.getmembers(plugin, predicate=inspect.ismethod):
-							if member_name == 'run':
-								plugin_is_runnable = True
-								break
-
-						if plugin_is_runnable and matching_tags and not excluded_tags:
-							# Skip plugin if run_once_boolean and plugin already in target scans
-							if plugin.run_once_boolean:
-								plugin_queued = False
-								for s in target.scans['services']:
-									if plugin.slug in target.scans['services'][s]:
-										plugin_queued = True
-										warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (run_once). Skipping.', verbosity=2)
-										break
-								if plugin_queued:
-									break
-
-							# Skip plugin if require_ssl_boolean and port is not secure
-							if plugin.require_ssl_boolean and not service.secure:
-								plugin_service_match = False
-								break
-
-							# Skip plugin if service port is in ignore_ports:
-							if port in plugin.ignore_ports[protocol]:
-								plugin_service_match = False
-								warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run on {protocol} port {port}. Skipping.', verbosity=2)
-								break
-
-							# Skip plugin if plugin has required ports and service port is not in them:
-							if plugin.ports[protocol] and port not in plugin.ports[protocol]:
-								plugin_service_match = False
-								warn(f'⚠️ Plugin {plugin_tag} → {target.address} restricted to specific ports. Skipping.', verbosity=2)
-								break
-
+							# Check ignore_service_names
+							plugin_blocked = False
 							for i in plugin.ignore_service_names:
 								if re.search(i, service.name):
 									warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run against service {service.name}. Skipping.', verbosity=2)
+									plugin_blocked = True
 									break
 
-							# TODO: check if plugin matches tags, BUT run manual commands anyway!
-							plugin_was_run = True
-							matching_plugins.append(plugin)
+							if not plugin_blocked:
+								# Plugin is good to run!
+								plugin_was_run = True
+								matching_plugins.append(plugin)
 
-						for member_name, _ in inspect.getmembers(plugin, predicate=inspect.ismethod):
-							if member_name == 'manual':
-								try:
-									plugin.manual(service, plugin_was_run)
-								except Exception as ex:
-									exc_type, exc_value, exc_tb = sys.exc_info()
-									error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-									error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed generating manual commands', verbosity=1)
+					# Always generate manual commands for matching plugins
+					for member_name, _ in inspect.getmembers(plugin, predicate=inspect.ismethod):
+						if member_name == 'manual':
+							try:
+								plugin.manual(service, plugin_was_run)
+							except Exception as ex:
+								exc_type, exc_value, exc_tb = sys.exc_info()
+								error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
+								error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed generating manual commands', verbosity=1)
 
-								if service.manual_commands:
-									plugin_run = False
-									for s in target.scans['services']:
-										if plugin.slug in target.scans['services'][s]:
-											plugin_run = True
-											break
-									if not plugin.run_once_boolean or (plugin.run_once_boolean and not plugin_run):
-										with open(os.path.join(target.scandir, '_manual_commands.txt'), 'a') as file:
-											if not heading:
-												file.write(e('🎯 {service.name} on {service.protocol}/{service.port}\n\n'))
-												heading = True
-											for description, commands in service.manual_commands.items():
-												try:
-													file.write('\t🔧 ' + e(description) + '\n\n')
-													for command in commands:
-														file.write('\t\t' + e(command) + '\n\n')
-												except Exception as ex:
-													exc_type, exc_value, exc_tb = sys.exc_info()
-													error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-													error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed evaluating manual commands', verbosity=1)
-											file.flush()
+							if service.manual_commands:
+								plugin_run = False
+								for s in target.scans['services']:
+									if plugin.slug in target.scans['services'][s]:
+										plugin_run = True
+										break
+								if not plugin.run_once_boolean or (plugin.run_once_boolean and not plugin_run):
+									with open(os.path.join(target.scandir, '_manual_commands.txt'), 'a') as file:
+										if not heading:
+											file.write(e('🎯 {service.name} on {service.protocol}/{service.port}\n\n'))
+											heading = True
+										for description, commands in service.manual_commands.items():
+											try:
+												file.write('\t🔧 ' + e(description) + '\n\n')
+												for command in commands:
+													file.write('\t\t' + e(command) + '\n\n')
+											except Exception as ex:
+												exc_type, exc_value, exc_tb = sys.exc_info()
+												error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
+												error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed evaluating manual commands', verbosity=1)
+										file.flush()
 
-								service.manual_commands = {}
-								break
-
-						break
+							service.manual_commands = {}
+							break
 
 				if plugin_service_match:
 					service_match = True
