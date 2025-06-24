@@ -23,6 +23,15 @@
 # tags = 'default,safe'          # Only run plugins with these tags
 # exclude-tags = 'slow,bruteforce' # Skip plugins with these tags
 
+# Port Scanning Options
+# ---------------------
+enable-udp-scan = false           # Enable/disable UDP port scanning (can be slow)
+
+# Web Enumeration Options
+# -----------------------
+# auto-hostname-discovery = true   # Automatically discover hostnames for better web enumeration
+# vhost-enumeration-for-ips = true # Enable vhost enumeration for IP targets with discovered hostnames
+
 # Network Settings  
 # ----------------
 # proxychains = true             # Run scans through proxychains

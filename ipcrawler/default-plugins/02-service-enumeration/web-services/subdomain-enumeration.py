@@ -28,6 +28,18 @@ class SubdomainEnumeration(ServiceScan):
 		if self.get_global('domain') and self.get_global('domain') not in domains:
 			domains.append(self.get_global('domain'))
 
+		# Add discovered hostnames as potential domains for subdomain enumeration
+		discovered_hostnames = service.target.discovered_hostnames
+		for discovered in discovered_hostnames:
+			if discovered not in domains:
+				domains.append(discovered)
+				service.info(f"🔄 Using discovered hostname for subdomain enum: {discovered}")
+
+		# For IP targets, provide helpful guidance
+		if len(domains) == 0 and service.target.type == 'ip':
+			service.info(f"💡 To enumerate subdomains for IP {service.target.address}, use: --subdomain-enum.domain=example.com")
+			return
+
 		if len(domains) > 0:
 			# Resolve wordlists at runtime
 			wordlists = self.get_option('wordlist')

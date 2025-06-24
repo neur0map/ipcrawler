@@ -14,12 +14,20 @@ class CurlRobots(ServiceScan):
 
 	async def run(self, service):
 		if service.protocol == 'tcp':
-			process, stdout, _ = await service.execute('curl -sSikf {http_scheme}://{addressv6}:{port}/robots.txt', future_outfile='{protocol}_{port}_{http_scheme}_curl-robots.txt')
+			# Get best hostname (discovered hostname or IP fallback)
+			best_hostname = service.target.get_best_hostname()
+			hostname_label = best_hostname.replace('.', '_').replace(':', '_')
+			
+			scan_hostname = best_hostname
+			if ':' in best_hostname and not best_hostname.startswith('['):
+				scan_hostname = f'[{best_hostname}]'
+			
+			process, stdout, _ = await service.execute('curl -sSikf {http_scheme}://' + scan_hostname + ':{port}/robots.txt', future_outfile='{protocol}_{port}_{http_scheme}_curl-robots_' + hostname_label + '.txt')
 
 			lines = await stdout.readlines()
 
 			if process.returncode == 0 and lines:
-				filename = fformat('{scandir}/{protocol}_{port}_{http_scheme}_curl-robots.txt')
+				filename = fformat('{scandir}/{protocol}_{port}_{http_scheme}_curl-robots_' + hostname_label + '.txt')
 				with open(filename, mode='wt', encoding='utf8') as robots:
 					robots.write('\n'.join(lines))
 			else:

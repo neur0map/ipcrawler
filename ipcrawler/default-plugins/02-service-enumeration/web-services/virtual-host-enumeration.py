@@ -38,6 +38,29 @@ class VirtualHost(ServiceScan):
 				hostnames.append(discovered)
 				service.info(f"🔄 Using previously discovered hostname as base: {discovered}")
 
+		# If no hostnames found but we have an IP target, try to discover hostnames first
+		if len(hostnames) == 0 and service.target.type == 'ip':
+			# For IP targets, we can still attempt vhost enumeration if the user explicitly enables it
+			# or if we find hostnames through other means (reverse DNS, certificates, etc.)
+			if self.get_option('hostname'):
+				# User provided explicit hostname for IP target
+				hostnames.append(self.get_option('hostname'))
+			else:
+				# Try reverse DNS lookup for the IP
+				try:
+					import socket
+					reverse_dns = socket.gethostbyaddr(service.target.address)[0]
+					if reverse_dns and reverse_dns != service.target.address:
+						hostnames.append(reverse_dns)
+						service.info(f"🔍 Discovered hostname via reverse DNS: {reverse_dns}")
+				except:
+					pass
+				
+				# If still no hostnames, inform user how to enable vhost enumeration for IP targets
+				if len(hostnames) == 0:
+					service.info(f"💡 To enumerate virtual hosts on IP {service.target.address}, use: --vhost-enum.hostname=example.com")
+					return
+
 		if len(hostnames) > 0:
 			# Resolve wordlists at runtime
 			wordlists = self.get_option('wordlist')

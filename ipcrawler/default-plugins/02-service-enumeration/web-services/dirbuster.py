@@ -62,9 +62,11 @@ class DirBuster(ServiceScan):
 		best_hostname = service.target.get_best_hostname()
 		vhost_mode = self.get_option('vhost-mode')
 		
-		# Always show hostname info for now (debugging)
-		service.info(f"🐛 DEBUG: Target discovered_hostnames = {service.target.discovered_hostnames}")
-		service.info(f"🐛 DEBUG: All hostnames = {all_hostnames}")
+		# Show hostname debug info
+		service.info(f"🔍 Target type: {service.target.type}, address: {service.target.address}")
+		service.info(f"🔍 Discovered hostnames: {service.target.discovered_hostnames}")
+		service.info(f"🔍 All hostnames: {all_hostnames}")
+		service.info(f"🔍 Best hostname: {best_hostname}")
 		
 		# Select hostnames based on mode
 		if vhost_mode == 'best':
@@ -98,23 +100,33 @@ class DirBuster(ServiceScan):
 		wordlists = self.get_option('wordlist')
 		resolved_wordlists = []
 		
+		service.info(f"🔍 Wordlist option: {wordlists}")
+		
 		for wordlist in wordlists:
 			if wordlist == 'auto':
 				# Auto-detect best available wordlist using configured size preference
 				try:
 					wordlist_manager = get_wordlist_manager()
 					current_size = wordlist_manager.get_wordlist_size()
+					service.info(f"🔍 WordlistManager size: {current_size}")
+					
 					web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir'), current_size)
+					service.info(f"🔍 Resolved wordlist path: {web_dirs_path}")
+					
 					if web_dirs_path and os.path.exists(web_dirs_path):
 						resolved_wordlists.append(web_dirs_path)
+						service.info(f"✅ Using wordlist: {web_dirs_path}")
 					else:
-						service.error(f'No wordlist found for size "{current_size}". Please install SecLists or configure custom wordlists in WordlistManager.')
+						service.error(f'❌ No wordlist found for size "{current_size}". Path attempted: {web_dirs_path}')
+						service.info(f"💡 Try: --dirbuster.wordlist /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt")
 						return
 				except Exception as e:
-					service.error(f'WordlistManager unavailable: {e}. Please install SecLists or configure custom wordlists.')
+					service.error(f'❌ WordlistManager error: {e}')
+					service.info(f"💡 Try: --dirbuster.wordlist /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt")
 					return
 			else:
 				# User specified a custom wordlist path
+				service.info(f"✅ Using custom wordlist: {wordlist}")
 				resolved_wordlists.append(wordlist)
 		
 		# Scan each hostname with each wordlist

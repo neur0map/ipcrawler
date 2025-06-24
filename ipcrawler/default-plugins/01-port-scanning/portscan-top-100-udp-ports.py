@@ -13,6 +13,11 @@ class Top100UDPPortScan(PortScan):
 		self.tags = ['default', 'default-port-scan', 'long']
 
 	async def run(self, target):
+		# Check if UDP scanning is enabled in config
+		if not config.get('enable_udp_scan', False):
+			target.info('UDP scanning is disabled in config. Set enable-udp-scan = true to enable.', verbosity=1)
+			return []
+		
 		# Only run UDP scan if user is root.
 		if os.getuid() == 0 or config['disable_sanity_checks']:
 			if target.ports:
