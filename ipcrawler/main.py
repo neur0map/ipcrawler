@@ -921,11 +921,8 @@ async def run():
 	else:
 		config['global_file'] = None
 
-	# Find plugins.
-	if os.path.isdir(os.path.join(config['data_dir'], 'plugins')):
-		config['plugins_dir'] = os.path.join(config['data_dir'], 'plugins')
-	else:
-		config['plugins_dir'] = None
+	# Plugins are now loaded directly from git repository - no system directory needed
+	# config['plugins_dir'] already set in config.py to the git repository location
 
 	parser = argparse.ArgumentParser(prog='ipcrawler', add_help=False, allow_abbrev=False, description='Network reconnaissance tool to port scan and automatically enumerate services found on multiple targets.')
 	parser.add_argument('targets', action='store', help='IP addresses (e.g. 10.0.0.1), CIDR notation (e.g. 10.0.0.1/24), or resolvable hostnames (e.g. foo.bar) to scan.', nargs='*')
