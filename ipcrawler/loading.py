@@ -351,9 +351,14 @@ class ScanStatus:
             console.print()  # Add spacing
     
     @staticmethod
-    def show_progress_summary(active_scans: list, verbosity: int = 0):
-        """Show a beautiful progress summary table"""
+    def show_progress_summary(active_scans: list, verbosity: int = 0, preserve_nmap_timing: bool = True):
+        """Show a beautiful progress summary table without overwriting nmap timing"""
         if verbosity >= 1 and active_scans:  # Show at -v level
+            # Check if we should preserve nmap timing output
+            if preserve_nmap_timing:
+                # Add spacing to avoid overwriting timing lines and ensure they stay visible
+                console.print()  # Add spacing to keep timing info above the table
+            
             # Create a beautiful table for active scans
             table = Table(title="🔄 Active Scans", show_header=True, header_style="bold cyan")
             table.add_column("Tool", style="cyan", no_wrap=True)
@@ -363,20 +368,27 @@ class ScanStatus:
             
             for scan in active_scans:
                 duration = scan.get("duration", "0s")
+                status = scan.get("status", "🔄 Running")
+                
                 # Add color coding based on duration
                 if "m" in duration:
                     duration_style = "yellow"  # Long running
                 else:
                     duration_style = "green"   # Still fresh
+                
+                # Check if this is an nmap scan with timing info
+                tool_name = scan.get("tool", "Unknown")
+                if "nmap" in tool_name.lower() or "port" in tool_name.lower():
+                    # Add timing indicator for port scans
+                    status = scan.get("nmap_progress", "🔄 Running")
                     
                 table.add_row(
-                    scan.get("tool", "Unknown"),
+                    tool_name,
                     scan.get("target", "Unknown"),
                     Text(duration, style=duration_style),
-                    "🔄 Running"
+                    status
                 )
             
-            console.print()
             console.print(Align.center(table))
             console.print()
             

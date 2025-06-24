@@ -31,6 +31,7 @@ enable-udp-scan = false           # Enable/disable UDP port scanning (can be slo
 # -----------------------
 # auto-hostname-discovery = true   # Automatically discover hostnames for better web enumeration
 # vhost-enumeration-for-ips = true # Enable vhost enumeration for IP targets with discovered hostnames
+# resilient-mode = true            # Use more reliable/safer default settings for better compatibility
 
 # Network Settings  
 # ----------------
@@ -45,7 +46,11 @@ enable-udp-scan = false           # Enable/disable UDP port scanning (can be slo
 # Configure individual plugins (uncomment sections as needed):
 
 # [dirbuster]
-# threads = 30                   # Directory enumeration threads
+# threads = 20                   # Directory enumeration threads (default: 20)
+
+# [whatweb]
+# aggression = '1'               # WhatWeb aggression level (1-4, default: 1 for reliability)
+# ignore-errors = true           # Continue even with HTTP errors (default: true)
 
 # [nikto] 
 # timeout = 300                  # Nikto scan timeout

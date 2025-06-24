@@ -40,7 +40,8 @@ class Nikto(ServiceScan):
 			for hostname in hostnames:
 				hostname_label = hostname.replace('.', '_').replace(':', '_')
 				service.info(f"🔧 Running nikto against: {hostname}")
-				await service.execute('nikto -ask=no -Tuning=x4567890ac -nointeractive -host {http_scheme}://' + hostname + ':{port} 2>&1 | tee "{scandir}/{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt"')
+				# Use more reliable nikto options - remove aggressive tuning options that might cause issues
+				await service.execute('nikto -ask=no -nointeractive -host {http_scheme}://' + hostname + ':{port} 2>&1 | tee "{scandir}/{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt"')
 
 	def manual(self, service, plugin_was_run):
 		if service.target.ipversion == 'IPv4' and not plugin_was_run:
@@ -55,4 +56,4 @@ class Nikto(ServiceScan):
 			for hostname in hostnames:
 				hostname_label = hostname.replace('.', '_').replace(':', '_')
 				hostname_desc = f" ({hostname})" if hostname != service.target.ip else " (IP fallback)"
-				service.add_manual_command(f'(nikto) Web server enumeration tool{hostname_desc}:', 'nikto -ask=no -h {http_scheme}://' + hostname + ':{port} 2>&1 | tee "{scandir}/{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt"')
+				service.add_manual_command(f'(nikto) Web server enumeration tool{hostname_desc}:', 'nikto -ask=no -nointeractive -h {http_scheme}://' + hostname + ':{port} 2>&1 | tee "{scandir}/{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt"')

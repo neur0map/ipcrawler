@@ -98,19 +98,27 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 			if 'http' not in schemes:
 				schemes.append('http')
 		
+		service.info(f"🔧 Will test schemes: {schemes}")
+		
 		for scheme in schemes:
 			try:
 				url = f"{scheme}://{service.target.address}:{service.port}/"
-				resp = requests.get(url, verify=False, allow_redirects=False, timeout=5)
+				service.info(f"🌐 Testing: {url}")
 				
+				resp = requests.get(url, verify=False, allow_redirects=False, timeout=10)
+				service.info(f"📊 Response: {resp.status_code} for {url}")
+				
+				# Check for redirects in Location header
 				if 'Location' in resp.headers:
 					location = resp.headers['Location']
 					parsed = urlparse(location)
 					redirect_host = parsed.hostname
 					
+					service.info(f"🔄 Redirect found: {url} → {location}")
+					service.info(f"🎯 Parsed hostname: {redirect_host}")
+					
 					if redirect_host and redirect_host != service.target.address:
-						service.info(f"🔄 Redirect found: {url} → {location}")
-						service.info(f"🌐 Hostname discovered: {redirect_host}")
+						service.info(f"✅ NEW hostname discovered: {redirect_host}")
 						
 						# Check if we should add to /etc/hosts
 						if self.is_kali_or_htb():
@@ -125,6 +133,27 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 							discovered_hostnames.append(redirect_host)
 							# Store hostname in target for other plugins to use
 							await service.target.add_discovered_hostname(redirect_host)
+					else:
+						service.info(f"🔍 Redirect hostname same as target or empty: {redirect_host}")
+				else:
+					service.info(f"🔍 No Location header found in response from {url}")
+					
+				# Also check for Server header that might contain hostname info
+				if 'Server' in resp.headers:
+					service.info(f"🔧 Server header: {resp.headers['Server']}")
+					
+				# Check for any hostname in response content (basic check)
+				try:
+					content = resp.text[:1000]  # First 1KB only
+					if service.target.address not in content:
+						# Look for potential hostnames in content
+						import re
+						hostname_pattern = r'(?:https?://)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
+						matches = re.findall(hostname_pattern, content)
+						if matches:
+							service.info(f"🔍 Potential hostnames in content: {matches[:3]}")  # Show first 3
+				except:
+					pass
 				
 				# Also check common redirect paths
 				redirect_paths = ['/index.html', '/home', '/admin', '/login']
@@ -152,19 +181,33 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 					except:
 						continue  # Skip failed path checks
 						
-			except requests.exceptions.ConnectTimeout:
+			except requests.exceptions.ConnectTimeout as e:
+				service.info(f"⏰ Timeout connecting to {scheme}://{service.target.address}:{service.port}/ - {e}")
 				continue  # Timeout, try next scheme
-			except requests.exceptions.ConnectionError:
+			except requests.exceptions.ConnectionError as e:
+				service.info(f"❌ Connection failed to {scheme}://{service.target.address}:{service.port}/ - {e}")
 				continue  # Connection failed, try next scheme  
+			except requests.exceptions.RequestException as e:
+				service.info(f"🌐 Request error for {scheme}://{service.target.address}:{service.port}/ - {e}")
+				continue
 			except Exception as e:
-				service.error(f"Error checking {scheme}://{service.target.address}:{service.port}/: {e}", verbosity=2)
+				service.error(f"❌ Unexpected error checking {scheme}://{service.target.address}:{service.port}/: {e}")
 				continue
 		
+		# Final summary
+		service.info(f"🔍 Hostname Discovery Summary:")
+		service.info(f"   • Schemes tested: {', '.join(schemes)}")
+		service.info(f"   • New hostnames found: {len(discovered_hostnames)}")
+		
 		if discovered_hostnames:
-			service.info(f"🎯 Total hostnames discovered for service: {len(discovered_hostnames)}")
+			service.info(f"🎯 Successfully discovered {len(discovered_hostnames)} hostname(s):")
 			for hostname in discovered_hostnames:
-				service.info(f"   - {hostname}")
-			service.info(f"🔧 DEBUG: Target now has {len(service.target.discovered_hostnames)} total discovered hostnames")
+				service.info(f"   ✅ {hostname}")
+			service.info(f"🔧 Target now has {len(service.target.discovered_hostnames)} total discovered hostnames")
 		else:
-			service.info(f"ℹ️ No hostname redirects found for this service")
-			service.info(f"🔧 DEBUG: No redirects found, target.discovered_hostnames = {service.target.discovered_hostnames}")
+			service.info(f"❌ No hostname redirects found for this service")
+			service.info(f"💡 This is normal - many services don't use hostname redirects")
+			service.info(f"💡 Web enumeration will proceed using IP address: {service.target.address}")
+			service.info(f"🔧 Target.discovered_hostnames = {service.target.discovered_hostnames}")
+			
+		service.info(f"✅ Hostname discovery completed for {service.target.address}:{service.port}")

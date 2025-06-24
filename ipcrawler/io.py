@@ -160,15 +160,62 @@ class CommandStreamReader(object):
 				continue
 
 			if line != '':
-				# Record activity for loading interface
-				if is_loading_active():
-					record_tool_activity("output")
-					scan_status.show_command_output(self.target.address, self.tag, line.strip(), config['verbose'])
+				# Check for nmap timing output and display it prominently
+				import re
+				# Match various nmap timing formats
+				nmap_timing_patterns = [
+					r'(?:.*Timing: )?About\s+([\d.]+)%\s+done.*?ETC:\s+(\d{1,2}:\d{2})\s+\(([^)]+)\s+remaining\)',
+					r'SYN\s+Stealth\s+Scan\s+Timing:\s+About\s+([\d.]+)%\s+done.*?ETC:\s+(\d{1,2}:\d{2})\s+\(([^)]+)\s+remaining\)',
+					r'Stats:\s+.*?(\d+:\d+:\d+)\s+elapsed.*?ETC:\s+(\d{1,2}:\d{2})'
+				]
+				
+				timing_match = None
+				for pattern in nmap_timing_patterns:
+					timing_match = re.search(pattern, line)
+					if timing_match:
+						break
+				
+				if timing_match:
+					# Extract timing info based on what was matched
+					groups = timing_match.groups()
+					
+					# Display nmap timing prominently - this should stay visible
+					from rich.console import Console
+					from rich.text import Text
+					timing_console = Console()
+					
+					timing_text = Text()
+					timing_text.append("📝 ", style="cyan bold")
+					timing_text.append(f"[{self.target.address}/{self.tag}] ", style="yellow")
+					
+					# Handle different timing formats
+					if len(groups) >= 3 and groups[0] and groups[1] and groups[2]:
+						# Full timing with percentage, ETC, and remaining
+						percentage, etc_time, remaining = groups[0], groups[1], groups[2]
+						timing_text.append("SYN Stealth Scan Timing: ", style="white")
+						timing_text.append(f"About {percentage}% done", style="green bold")
+						timing_text.append(f"; ETC: {etc_time} ", style="white")
+						timing_text.append(f"({remaining} remaining)", style="cyan")
+					elif len(groups) >= 2:
+						# Simplified timing with just ETC
+						timing_text.append("Nmap Scan Progress: ", style="white")
+						timing_text.append(f"ETC: {groups[1]}", style="cyan")
+					else:
+						# Fallback - show the original line
+						timing_text.append("Nmap Timing: ", style="white")
+						timing_text.append(line.strip(), style="dim white")
+					
+					timing_console.print(timing_text)
 				else:
-					# Use Rich console for consistency (only at highest verbosity)
-					if config['verbose'] >= 3:
-						from rich.console import Console
-						Console().print(f"📝 [{self.target.address}/{self.tag}] {line.strip()}", style="dim white")
+					# Record activity for loading interface
+					if is_loading_active():
+						record_tool_activity("output")
+						scan_status.show_command_output(self.target.address, self.tag, line.strip(), config['verbose'])
+					else:
+						# Use Rich console for consistency (only at highest verbosity)
+						if config['verbose'] >= 3:
+							from rich.console import Console
+							Console().print(f"📝 [{self.target.address}/{self.tag}] {line.strip()}", style="dim white")
 
 			# Check lines for pattern matches.
 			for p in self.patterns:
