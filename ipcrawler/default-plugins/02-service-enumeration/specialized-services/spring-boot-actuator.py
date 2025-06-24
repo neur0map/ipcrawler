@@ -53,8 +53,9 @@ class SpringBootActuator(ServiceScan):
 				
 				# Test basic connectivity and get server info
 				service.info(f"📋 Getting basic server information...")
+				timeout = self.get_option("timeout")
 				await service.execute(
-					f'curl -s -I -m {self.get_option("timeout")} {{http_scheme}}://{hostname}:{{port}}/ -w "\\n--- Response Info ---\\nHTTP Code: %{{http_code}}\\nTotal Time: %{{time_total}}s\\nSize: %{{size_download}} bytes\\n" 2>&1',
+					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ -w "\\n--- Response Info ---\\nHTTP Code: %%{{http_code}}\\nTotal Time: %%{{time_total}}s\\nSize: %%{{size_download}} bytes\\n" 2>&1',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
 				)
 				
@@ -76,10 +77,11 @@ class SpringBootActuator(ServiceScan):
 				)
 				
 				# Use curl to check each endpoint efficiently
+				timeout = self.get_option("timeout")
 				await service.execute(
 					f'while read -r url; do '
 					f'echo "=== Checking: $url ==="; '
-					f'curl -s -m {self.get_option("timeout")} -w "HTTP Code: %{{http_code}} | Size: %{{size_download}} bytes | Time: %{{time_total}}s\\n" '
+					f'curl -s -m {timeout} -w "HTTP Code: %%{{http_code}} | Size: %%{{size_download}} bytes | Time: %%{{time_total}}s\\n" '
 					f'"$url" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>/dev/null || echo "Connection failed"; '
 					f'echo ""; '
 					f'done < {url_file}',
@@ -88,8 +90,9 @@ class SpringBootActuator(ServiceScan):
 				
 				# Check for common Spring Boot error pages and info disclosure
 				service.info(f"🚨 Checking for information disclosure...")
+				timeout = self.get_option("timeout")
 				await service.execute(
-					f'curl -s -m {self.get_option("timeout")} {{http_scheme}}://{hostname}:{{port}}/error '
+					f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/error '
 					f'-H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_error_{hostname_label}.txt'
 				)
@@ -98,11 +101,11 @@ class SpringBootActuator(ServiceScan):
 				service.info(f"🔐 Testing authentication bypass techniques...")
 				await service.execute(
 					f'echo "=== Testing admin:admin ===" && '
-					f'curl -s -m {self.get_option("timeout")} -u admin:admin {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'curl -s -m {timeout} -u admin:admin {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
 					f'echo -e "\\n=== Testing default:default ===" && '
-					f'curl -s -m {self.get_option("timeout")} -u default:default {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'curl -s -m {timeout} -u default:default {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
 					f'echo -e "\\n=== Testing empty credentials ===" && '
-					f'curl -s -m {self.get_option("timeout")} -u : {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
+					f'curl -s -m {timeout} -u : {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_auth_test_{hostname_label}.txt'
 				)
 				
