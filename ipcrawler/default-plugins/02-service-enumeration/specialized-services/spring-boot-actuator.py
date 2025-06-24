@@ -27,6 +27,13 @@ class SpringBootActuator(ServiceScan):
 		# Also match HTTP services that might be Spring Boot
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
+		
+		# Add patterns to help identify Spring Boot applications
+		self.add_pattern('spring-boot-detected', r'(?i)(spring.boot|whitelabel.error|org\.springframework)')
+		self.add_pattern('eureka-detected', r'(?i)(eureka|netflix|service.registry)')
+		self.add_pattern('actuator-detected', r'(?i)(/actuator|management.endpoints)')
+		self.add_pattern('spring-auth', r'(?i)(spring.security|JSESSIONID)')
+		self.add_pattern('java-app', r'(?i)(tomcat|jetty|undertow|java\.version)')
 
 	def check(self):
 		if which('curl') is None:
@@ -54,13 +61,33 @@ class SpringBootActuator(ServiceScan):
 				# Test basic connectivity and get server info
 				service.info(f"📋 Getting basic server information...")
 				timeout = self.get_option("timeout")
-				await service.execute(
+				process, stdout, stderr = await service.execute(
 					f'echo "=== Basic HTTP Headers ===" && '
 					f'curl -v -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
 					f'echo "=== Response Body Sample ===" && '
 					f'curl -v -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -20',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
 				)
+				
+				# Analyze response to identify the service
+				response_text = stdout + stderr
+				if 'WWW-Authenticate: Basic' in response_text:
+					service.info("🔐 HTTP Basic Authentication detected")
+				
+				# Try to identify the service type from headers and content
+				if any(keyword in response_text.lower() for keyword in ['spring', 'boot', 'actuator']):
+					service.info("🌱 Spring Boot application detected!")
+					# Update service name for better reporting
+					service.name = 'Spring Boot'
+				elif any(keyword in response_text.lower() for keyword in ['eureka', 'netflix']):
+					service.info("🎯 Netflix Eureka service discovery detected!")
+					service.name = 'Netflix Eureka'
+				elif any(keyword in response_text.lower() for keyword in ['tomcat', 'jetty', 'undertow']):
+					service.info("☕ Java web application detected!")
+					service.name = 'Java Web App'
+				elif 'JSESSIONID' in response_text:
+					service.info("☕ Java session-based application detected!")
+					service.name = 'Java Web App'
 				
 				# Check for Spring Boot actuator endpoints
 				service.info(f"🔍 Enumerating Spring Boot actuator endpoints...")
@@ -81,7 +108,7 @@ class SpringBootActuator(ServiceScan):
 				
 				# Use curl to check each endpoint efficiently
 				timeout = self.get_option("timeout")
-				await service.execute(
+				process, stdout, stderr = await service.execute(
 					f'while read -r url; do '
 					f'echo "=== Checking: $url ==="; '
 					f'curl -v -m {timeout} "$url" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed"; '
@@ -89,6 +116,15 @@ class SpringBootActuator(ServiceScan):
 					f'done < {url_file}',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
 				)
+				
+				# Check endpoint responses for additional service identification
+				endpoint_response = stdout + stderr
+				if '/actuator' in endpoint_response and '200' in endpoint_response:
+					service.info("🎯 Spring Boot Actuator endpoints found!")
+				if 'eureka' in endpoint_response.lower() and '200' in endpoint_response:
+					service.info("🎯 Eureka service registry endpoints detected!")
+				if any(endpoint in endpoint_response for endpoint in ['/health', '/info', '/metrics']) and '200' in endpoint_response:
+					service.info("📊 Management endpoints available!")
 				
 				# Check for common Spring Boot error pages and info disclosure
 				service.info(f"🚨 Checking for information disclosure...")
