@@ -308,8 +308,10 @@ clean:
 	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
 	@rm -rf .venv 2>/dev/null || true
 	@python3 -m pip uninstall -y platformdirs colorama impacket psutil requests toml Unidecode rich 2>/dev/null || true
+	@echo "🧹 Removing all IPCrawler system directories to ensure git-only operation..."
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
+	@rm -rf "/root/.local/share/IPCrawler" 2>/dev/null || true
 	@echo "✅ IPCrawler removed! (Tools and results preserved)"
 
 # Clean everything including tools
@@ -321,8 +323,10 @@ clean-all:
 	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
 	@rm -rf .venv 2>/dev/null || true
 	@python3 -m pip uninstall -y platformdirs colorama impacket psutil requests toml Unidecode rich 2>/dev/null || true
+	@echo "🧹 Removing all IPCrawler system directories to ensure git-only operation..."
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
+	@rm -rf "/root/.local/share/IPCrawler" 2>/dev/null || true
 	@# Remove tools based on platform
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		echo "🍎 Removing macOS tools installed via Homebrew..."; \

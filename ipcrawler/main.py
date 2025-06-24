@@ -58,18 +58,10 @@ else:
 		warn('It looks like the config in ' + config['config_dir'] + ' is outdated. Please remove the ' + config['config_dir'] + ' directory and re-run ipcrawler to rebuild it.')
 
 
+# Create minimal data directory only for wordlists.toml if needed
 if not os.path.exists(config['data_dir']):
-	shutil.rmtree(config['data_dir'], ignore_errors=True, onerror=None)
 	os.makedirs(config['data_dir'], exist_ok=True)
-	open(os.path.join(config['data_dir'], 'VERSION-' + VERSION), 'a').close()
-	shutil.copytree(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'default-plugins'), os.path.join(config['data_dir'], 'plugins'))
-	# Wordlists are now managed by WordlistManager - no built-in wordlists to copy
-else:
-	if not os.path.exists(os.path.join(config['data_dir'], 'plugins')):
-		shutil.copytree(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'default-plugins'), os.path.join(config['data_dir'], 'plugins'))
-	# Wordlists are now managed by WordlistManager - no built-in wordlists to copy
-	if not os.path.exists(os.path.join(config['data_dir'], 'VERSION-' + VERSION)):
-		warn('It looks like the plugins in ' + config['data_dir'] + ' are outdated. Please remove the ' + config['data_dir'] + ' directory and re-run ipcrawler to rebuild them.')
+# No plugin copying - plugins are loaded directly from git repository
 
 
 # Saves current terminal settings so we can restore them.
