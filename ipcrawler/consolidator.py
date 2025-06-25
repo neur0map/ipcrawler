@@ -17,7 +17,13 @@ Features:
 
 import os
 import re
-import xml.etree.ElementTree as ET
+try:
+    import defusedxml.ElementTree as ET
+except ImportError:
+    # Fallback to standard library with warning
+    import xml.etree.ElementTree as ET
+    import warnings
+    warnings.warn("defusedxml not available, using potentially unsafe xml.etree.ElementTree. Install defusedxml for security.", SecurityWarning)
 import time
 import signal
 import threading
