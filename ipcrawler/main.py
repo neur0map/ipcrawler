@@ -363,6 +363,26 @@ async def port_scan(plugin, target):
 			exc_type, exc_value, exc_tb = sys.exc_info()
 			error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
 			error(f'❌ Port scan {plugin.name} ({plugin.slug}) → {target.address} failed with exception', verbosity=1)
+			
+			# Send plugin exception to Sentry if available
+			if SENTRY_AVAILABLE:
+				try:
+					import sentry_sdk
+					sentry_sdk.capture_exception(
+						ex,
+						extra={
+							'plugin_name': plugin.name,
+							'plugin_slug': plugin.slug,
+							'target_address': target.address,
+							'scan_type': 'port_scan',
+							'error_traceback': error_text,
+							'plugin_tags': getattr(plugin, 'tags', []),
+							'plugin_description': getattr(plugin, 'description', '')
+						}
+					)
+				except Exception:
+					pass  # Don't let Sentry errors break the scan
+			
 			raise Exception(f'Port scan {plugin.name} ({plugin.slug}) → {target.address} exception:\n\n{error_text}')
 
 		for process_dict in target.running_tasks[plugin.slug]['processes']:
@@ -512,6 +532,29 @@ async def service_scan(plugin, service):
 				exc_type, exc_value, exc_tb = sys.exc_info()
 				error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
 				error(f'❌ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} failed with exception', verbosity=1)
+				
+				# Send plugin exception to Sentry if available
+				if SENTRY_AVAILABLE:
+					try:
+						import sentry_sdk
+						sentry_sdk.capture_exception(
+							ex,
+							extra={
+								'plugin_name': plugin.name,
+								'plugin_slug': plugin.slug,
+								'target_address': service.target.address,
+								'target_port': service.port,
+								'scan_type': 'service_scan',
+								'service_name': service.name,
+								'protocol': service.protocol,
+								'error_traceback': error_text,
+								'plugin_tags': getattr(plugin, 'tags', []),
+								'plugin_description': getattr(plugin, 'description', '')
+							}
+						)
+					except Exception:
+						pass  # Don't let Sentry errors break the scan
+				
 				raise Exception(f'Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} exception:\n\n{error_text}')
 
 			for process_dict in service.target.running_tasks[tag]['processes']:
@@ -1451,6 +1494,24 @@ async def run():
 						failed_check_plugin_slugs.append(slug)
 						continue
 				except Exception as e:
+					# Send plugin check failure to Sentry if available
+					if SENTRY_AVAILABLE:
+						try:
+							import sentry_sdk
+							sentry_sdk.capture_exception(
+								e,
+								extra={
+									'plugin_slug': slug,
+									'plugin_name': getattr(plugin, 'name', slug),
+									'error_type': 'plugin_check_failure',
+									'ignore_plugin_checks': config['ignore_plugin_checks'],
+									'plugin_tags': getattr(plugin, 'tags', []),
+									'plugin_description': getattr(plugin, 'description', '')
+								}
+							)
+						except Exception:
+							pass  # Don't let Sentry errors break the scan
+					
 					if config['ignore_plugin_checks']:
 						failed_check_plugin_slugs.append(slug)
 						warn(f'Plugin {slug} check failed ({e}), but --ignore-plugin-checks is enabled. Plugin will be disabled.', verbosity=1)
