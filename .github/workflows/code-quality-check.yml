@@ -509,6 +509,7 @@ jobs:
     # Send Discord notification AFTER Sentry has received the failure data
     - name: Send Discord notification (After Sentry reporting)
       if: always()
+      continue-on-error: true
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: |
@@ -614,38 +615,43 @@ jobs:
           fi
         fi
         
-        # Prepare detailed issues with modern formatting
+        # Prepare detailed issues with modern formatting (using safer approach)
         ISSUES_DETAILED=""
         
-        # Syntax errors with enhanced presentation
-        if [ -n "${{ steps.syntax-check.outputs.syntax_errors }}" ]; then
-          ISSUES_DETAILED="${ISSUES_DETAILED}> **🔥 Critical Syntax Errors**\n> These prevent the code from running and must be fixed immediately.\n\`\`\`python\n${{ steps.syntax-check.outputs.syntax_errors }}\n\`\`\`\n\n"
+        # Write error data to temp files to avoid shell escaping issues
+        echo '${{ steps.syntax-check.outputs.syntax_errors }}' > /tmp/syntax_errors.txt
+        echo '${{ steps.template-check.outputs.template_errors }}' > /tmp/template_errors.txt  
+        echo '${{ steps.python-lint.outputs.lint_errors }}' > /tmp/lint_errors.txt
+        echo '${{ steps.config-check.outputs.config_errors }}' > /tmp/config_errors.txt
+        echo '${{ steps.python-lint.outputs.lint_warnings }}' > /tmp/lint_warnings.txt
+        echo '${{ steps.safety-check.outputs.safety_warnings }}' > /tmp/safety_warnings.txt
+        
+        # Build issues using file content (safer than direct variable substitution)
+        if [ -s /tmp/syntax_errors.txt ] && [ "$(head -1 /tmp/syntax_errors.txt)" != "" ]; then
+          ISSUES_DETAILED="${ISSUES_DETAILED}> **🔥 Critical Syntax Errors**\n> These prevent the code from running and must be fixed immediately.\n\`\`\`\nSyntax errors found - see workflow logs for details\n\`\`\`\n\n"
         fi
         
-        # Template errors with context
-        if [ -n "${{ steps.template-check.outputs.template_errors }}" ]; then
-          ISSUES_DETAILED="${ISSUES_DETAILED}> **🔧 Template & Control Flow Issues**\n> Problems with \`{{}}\` formatting or loop/function structure.\n\`\`\`python\n${{ steps.template-check.outputs.template_errors }}\n\`\`\`\n\n"
+        if [ -s /tmp/template_errors.txt ] && [ "$(head -1 /tmp/template_errors.txt)" != "" ]; then
+          ISSUES_DETAILED="${ISSUES_DETAILED}> **🔧 Template & Control Flow Issues**\n> Problems with \`{{}}\` formatting or loop/function structure.\n\`\`\`\nTemplate/Control flow errors found - see workflow logs for details\n\`\`\`\n\n"
         fi
         
-        # Linting errors
-        if [ -n "${{ steps.python-lint.outputs.lint_errors }}" ]; then
-          ISSUES_DETAILED="${ISSUES_DETAILED}> **❌ Code Quality Errors**\n> Structural issues that may cause runtime problems.\n\`\`\`python\n${{ steps.python-lint.outputs.lint_errors }}\n\`\`\`\n\n"
+        if [ -s /tmp/lint_errors.txt ] && [ "$(head -1 /tmp/lint_errors.txt)" != "" ]; then
+          ISSUES_DETAILED="${ISSUES_DETAILED}> **❌ Code Quality Errors**\n> Structural issues that may cause runtime problems.\n\`\`\`\nLinting errors found - see workflow logs for details\n\`\`\`\n\n"
         fi
         
-        # Config errors
-        if [ -n "${{ steps.config-check.outputs.config_errors }}" ]; then
-          ISSUES_DETAILED="${ISSUES_DETAILED}> **⚙️ Configuration Issues**\n> Problems with TOML files or Makefile syntax.\n\`\`\`bash\n${{ steps.config-check.outputs.config_errors }}\n\`\`\`\n\n"
+        if [ -s /tmp/config_errors.txt ] && [ "$(head -1 /tmp/config_errors.txt)" != "" ]; then
+          ISSUES_DETAILED="${ISSUES_DETAILED}> **⚙️ Configuration Issues**\n> Problems with TOML files or Makefile syntax.\n\`\`\`\nConfiguration errors found - see workflow logs for details\n\`\`\`\n\n"
         fi
         
-        # Warnings section
+        # Warnings section (simplified to avoid escaping issues)
         WARNINGS_DETAILED=""
         
-        if [ -n "${{ steps.python-lint.outputs.lint_warnings }}" ]; then
-          WARNINGS_DETAILED="${WARNINGS_DETAILED}> **⚠️ Code Quality Warnings**\n> Non-critical issues worth reviewing.\n\`\`\`\n${{ steps.python-lint.outputs.lint_warnings }}\n\`\`\`\n\n"
+        if [ -s /tmp/lint_warnings.txt ] && [ "$(head -1 /tmp/lint_warnings.txt)" != "" ]; then
+          WARNINGS_DETAILED="${WARNINGS_DETAILED}> **⚠️ Code Quality Warnings**\n> Non-critical issues worth reviewing - see workflow logs for details.\n\n"
         fi
         
-        if [ -n "${{ steps.safety-check.outputs.safety_warnings }}" ]; then
-          WARNINGS_DETAILED="${WARNINGS_DETAILED}> **🛡️ Security Advisories**\n> Potential security vulnerabilities in dependencies.\n\`\`\`\n${{ steps.safety-check.outputs.safety_warnings }}\n\`\`\`\n\n"
+        if [ -s /tmp/safety_warnings.txt ] && [ "$(head -1 /tmp/safety_warnings.txt)" != "" ]; then
+          WARNINGS_DETAILED="${WARNINGS_DETAILED}> **🛡️ Security Advisories**\n> Potential security vulnerabilities in dependencies - see workflow logs for details.\n\n"
         fi
         
         # Success message with modern styling
@@ -673,21 +679,30 @@ jobs:
         fi
         
         # Create modern Discord payload with multiple embeds
-        # Create robust JSON escaping function
+        # Create robust JSON escaping function with error handling
         escape_json() {
           printf '%s' "$1" | python3 -c "
         import sys
         import json
-        content = sys.stdin.read()
-        print(json.dumps(content)[1:-1], end='')  # Remove outer quotes
-        "
+        try:
+            content = sys.stdin.read()
+            print(json.dumps(content)[1:-1], end='')  # Remove outer quotes
+        except Exception as e:
+            print('Error escaping content', end='')
+        " 2>/dev/null || echo "Content unavailable"
         }
         
-        # Escape JSON strings properly
+        # Escape JSON strings properly with fallbacks
         TITLE_ESC=$(escape_json "$TITLE")
         COMMIT_INFO_ESC=$(escape_json "$COMMIT_INFO")
         FILES_LIST_ESC=$(escape_json "$FILES_LIST")
         MAIN_CONTENT_ESC=$(escape_json "$MAIN_CONTENT")
+        
+        # Validate escaped content is not empty
+        if [ -z "$TITLE_ESC" ]; then TITLE_ESC="Code Quality Check"; fi
+        if [ -z "$COMMIT_INFO_ESC" ]; then COMMIT_INFO_ESC="Commit info unavailable"; fi  
+        if [ -z "$FILES_LIST_ESC" ]; then FILES_LIST_ESC="File list unavailable"; fi
+        if [ -z "$MAIN_CONTENT_ESC" ]; then MAIN_CONTENT_ESC="Content unavailable - check workflow logs"; fi
         
         cat > /tmp/discord_payload.json << EOF
         {
