@@ -109,7 +109,28 @@ def info(*args, sep=' ', end='\n', file=sys.stdout, **kvargs):
 		
 		# Process color templates before sending to loading system
 		processed_message = message
-		for template, replacement in replacements.items():
+		color_replacements = {
+			'bgreen':  Fore.GREEN  + Style.BRIGHT,
+			'bred':	Fore.RED	+ Style.BRIGHT,
+			'bblue':   Fore.BLUE   + Style.BRIGHT,
+			'byellow': Fore.YELLOW + Style.BRIGHT,
+			'bmagenta': Fore.MAGENTA + Style.BRIGHT,
+			'green':  Fore.GREEN,
+			'red':	Fore.RED,
+			'blue':   Fore.BLUE,
+			'yellow': Fore.YELLOW,
+			'magenta': Fore.MAGENTA,
+			'bright': Style.BRIGHT,
+			'srst':   Style.NORMAL,
+			'crst':   Fore.RESET,
+			'rst':	Style.NORMAL + Fore.RESET
+		}
+		
+		if config['accessible']:
+			# Disable colors in accessible mode
+			color_replacements = {key: '' for key in color_replacements}
+		
+		for template, replacement in color_replacements.items():
 			processed_message = processed_message.replace('{' + template + '}', replacement)
 		
 		if '[' in processed_message and ']' in processed_message:
