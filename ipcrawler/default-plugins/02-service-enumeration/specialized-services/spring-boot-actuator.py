@@ -12,6 +12,14 @@ class SpringBootActuator(ServiceScan):
 		self.priority = 0
 		self.tags = ['default', 'safe', 'web', 'java']
 
+	def _safe_str_lower(self, obj):
+		"""Safely convert any object to lowercase string, handling CommandStreamReader"""
+		if obj is None:
+			return ''
+		if hasattr(obj, 'lower'):
+			return obj.lower()
+		return str(obj).lower()
+
 	def configure(self):
 		self.add_option('threads', default=10, help='Number of threads for endpoint enumeration. Default: %(default)s')
 		self.add_option('timeout', default=5, help='Request timeout in seconds. Default: %(default)s')
@@ -69,8 +77,8 @@ class SpringBootActuator(ServiceScan):
 				
 				spring_boot_detected = False
 				if process.returncode == 0 and stdout:
-					stdout_str = str(stdout) if hasattr(stdout, 'lower') else str(stdout) if stdout else ''
-					if any(indicator in stdout_str.lower() for indicator in ['200 ok', '401 unauthorized', '403 forbidden']):
+					stdout_lower = self._safe_str_lower(stdout)
+					if any(indicator in stdout_lower for indicator in ['200 ok', '401 unauthorized', '403 forbidden']):
 						spring_boot_detected = True
 						service.info("🌱 Spring Boot Actuator endpoint detected!")
 				
@@ -80,8 +88,8 @@ class SpringBootActuator(ServiceScan):
 						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -10',
 						outfile=None
 					)
-					stdout_str = str(stdout) if stdout else ''
-					if stdout_str and any(indicator in stdout_str.lower() for indicator in ['spring', 'boot', 'whitelabel error']):
+					stdout_lower = self._safe_str_lower(stdout)
+					if stdout_lower and any(indicator in stdout_lower for indicator in ['spring', 'boot', 'whitelabel error']):
 						spring_boot_detected = True
 						service.info("🌱 Spring Boot application detected!")
 				
