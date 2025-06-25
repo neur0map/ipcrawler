@@ -362,10 +362,12 @@ jobs:
       env:
         SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
       run: |
-        echo "🚨 CRITICAL STEP: This MUST run regardless of previous failures!"
+        echo "🚨🚨🚨 CRITICAL STEP: This MUST run regardless of previous failures! 🚨🚨🚨"
+        echo "📍 SENTRY STEP STARTED - Status: ${{ steps.status.outputs.overall_status }}"
         
         if [ -z "$SENTRY_DSN" ]; then
           echo "⚠️ SENTRY_DSN not set, skipping Sentry reporting"
+          echo "🔍 To enable Sentry reporting, set SENTRY_DSN secret in GitHub repo settings"
         else
           echo "📡 PRIORITY: Sending failure data to Sentry BEFORE Discord notification..."
           
@@ -513,8 +515,12 @@ jobs:
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: |
+        echo "📢📢📢 DISCORD STEP STARTED - Running after Sentry 📢📢📢"
+        echo "📍 Status: ${{ steps.status.outputs.overall_status }}"
+        
         if [ -z "$DISCORD_WEBHOOK_URL" ]; then
           echo "⚠️ DISCORD_WEBHOOK_URL not set, skipping notification"
+          echo "🔍 To enable Discord notifications, set DISCORD_WEBHOOK_URL secret in GitHub repo settings"
           exit 0
         fi
         
@@ -582,23 +588,30 @@ jobs:
         ERROR_COUNT=0
         WARNING_COUNT=0
         
-        # Count issues for stats
-        if [ -n "${{ steps.syntax-check.outputs.syntax_errors }}" ]; then
+        # Count issues for stats (using safer approach)
+        echo '${{ steps.syntax-check.outputs.syntax_errors }}' > /tmp/syntax_check.txt
+        echo '${{ steps.template-check.outputs.template_errors }}' > /tmp/template_check.txt  
+        echo '${{ steps.python-lint.outputs.lint_errors }}' > /tmp/lint_check.txt
+        echo '${{ steps.config-check.outputs.config_errors }}' > /tmp/config_check.txt
+        echo '${{ steps.python-lint.outputs.lint_warnings }}' > /tmp/lint_warn_check.txt
+        echo '${{ steps.safety-check.outputs.safety_warnings }}' > /tmp/safety_check.txt
+        
+        if [ -s /tmp/syntax_check.txt ] && [ "$(head -1 /tmp/syntax_check.txt)" != "" ]; then
           ERROR_COUNT=$((ERROR_COUNT + 1))
         fi
-        if [ -n "${{ steps.template-check.outputs.template_errors }}" ]; then
+        if [ -s /tmp/template_check.txt ] && [ "$(head -1 /tmp/template_check.txt)" != "" ]; then
           ERROR_COUNT=$((ERROR_COUNT + 1))
         fi
-        if [ -n "${{ steps.python-lint.outputs.lint_errors }}" ]; then
+        if [ -s /tmp/lint_check.txt ] && [ "$(head -1 /tmp/lint_check.txt)" != "" ]; then
           ERROR_COUNT=$((ERROR_COUNT + 1))
         fi
-        if [ -n "${{ steps.config-check.outputs.config_errors }}" ]; then
+        if [ -s /tmp/config_check.txt ] && [ "$(head -1 /tmp/config_check.txt)" != "" ]; then
           ERROR_COUNT=$((ERROR_COUNT + 1))
         fi
-        if [ -n "${{ steps.python-lint.outputs.lint_warnings }}" ]; then
+        if [ -s /tmp/lint_warn_check.txt ] && [ "$(head -1 /tmp/lint_warn_check.txt)" != "" ]; then
           WARNING_COUNT=$((WARNING_COUNT + 1))
         fi
-        if [ -n "${{ steps.safety-check.outputs.safety_warnings }}" ]; then
+        if [ -s /tmp/safety_check.txt ] && [ "$(head -1 /tmp/safety_check.txt)" != "" ]; then
           WARNING_COUNT=$((WARNING_COUNT + 1))
         fi
         
@@ -678,82 +691,23 @@ jobs:
           MAIN_CONTENT="$STATS_SUMMARY\n\n$ISSUES_DETAILED$WARNINGS_DETAILED"
         fi
         
-        # Create modern Discord payload with multiple embeds
-        # Create robust JSON escaping function with error handling
-        escape_json() {
-          printf '%s' "$1" | python3 -c "
-        import sys
-        import json
-        try:
-            content = sys.stdin.read()
-            print(json.dumps(content)[1:-1], end='')  # Remove outer quotes
-        except Exception as e:
-            print('Error escaping content', end='')
-        " 2>/dev/null || echo "Content unavailable"
-        }
+        # Create super simple Discord notification to avoid all shell escaping issues
+        SIMPLE_MESSAGE="Code Quality Check: ${{ steps.status.outputs.overall_status }} - Branch: ${{ github.ref_name }} - Author: ${{ github.actor }}"
         
-        # Escape JSON strings properly with fallbacks
-        TITLE_ESC=$(escape_json "$TITLE")
-        COMMIT_INFO_ESC=$(escape_json "$COMMIT_INFO")
-        FILES_LIST_ESC=$(escape_json "$FILES_LIST")
-        MAIN_CONTENT_ESC=$(escape_json "$MAIN_CONTENT")
-        
-        # Validate escaped content is not empty
-        if [ -z "$TITLE_ESC" ]; then TITLE_ESC="Code Quality Check"; fi
-        if [ -z "$COMMIT_INFO_ESC" ]; then COMMIT_INFO_ESC="Commit info unavailable"; fi  
-        if [ -z "$FILES_LIST_ESC" ]; then FILES_LIST_ESC="File list unavailable"; fi
-        if [ -z "$MAIN_CONTENT_ESC" ]; then MAIN_CONTENT_ESC="Content unavailable - check workflow logs"; fi
-        
-        cat > /tmp/discord_payload.json << EOF
-        {
-          "username": "GitHub Code Quality Bot",
-          "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
-          "embeds": [
-            {
-              "title": "$TITLE_ESC",
-              "description": "$COMMIT_INFO_ESC",
-              "color": $COLOR,
-              "fields": [
-                {
-                  "name": "📁 Changed Files ($FILES_COUNT)",
-                  "value": "$FILES_LIST_ESC",
-                  "inline": false
-                },
-                {
-                  "name": "🔍 Quality Analysis",
-                  "value": "$MAIN_CONTENT_ESC",
-                  "inline": false
-                }
-              ],
-              "footer": {
-                "text": "IPCrawler Code Quality System",
-                "icon_url": "https://raw.githubusercontent.com/github/explore/main/topics/code-quality/code-quality.png"
-              },
-              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-              "thumbnail": {
-                "url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-              }
-            }
-          ]
-        }
-        EOF
-        
-        # Send to Discord with error handling
-        echo "🚀 Sending modern Discord notification..."
-        HTTP_STATUS=$(curl -w "%{http_code}" -s -o /tmp/discord_response.txt \
+        echo "🚀 Sending simple Discord notification..."
+        curl -X POST "$DISCORD_WEBHOOK_URL" \
              -H "Content-Type: application/json" \
-             -d @/tmp/discord_payload.json \
-             "$DISCORD_WEBHOOK_URL")
+             -d "{\"content\": \"$SIMPLE_MESSAGE\"}" \
+             || echo "❌ Discord notification failed (this is non-critical)"
         
-        if [ "$HTTP_STATUS" = "204" ]; then
-          echo "✅ Discord notification sent successfully!"
-        else
-          echo "❌ Discord notification failed with HTTP $HTTP_STATUS"
-          echo "Response: $(cat /tmp/discord_response.txt)"
-        fi
+        echo "✅ Discord notification completed"
 
     - name: Fail job if critical errors found
       if: steps.status.outputs.overall_status == 'failure'
       run: |
+        echo "📋 FINAL STEP: Failing job after Sentry and Discord reporting completed"
+        echo "   Status: ${{ steps.status.outputs.overall_status }}"
+        echo "   Sentry should have received error data"
+        echo "   Discord should have received notification"
         echo "❌ Job failed due to critical code quality issues"
         exit 1
