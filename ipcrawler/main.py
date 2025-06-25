@@ -378,7 +378,29 @@ async def port_scan(plugin, target):
 						errors.append(line + '\n')
 					else:
 						break
-				error(f'❌ Port scan {plugin.name} ({plugin.slug}) → {target.address} exited with code {process_dict["process"].returncode}. Check {target.scandir}/_errors.log', verbosity=2)
+				error_msg = f'❌ Port scan {plugin.name} ({plugin.slug}) → {target.address} exited with code {process_dict["process"].returncode}. Check {target.scandir}/_errors.log'
+				error(error_msg, verbosity=2)
+				
+				# Send exit code error to Sentry if available
+				if SENTRY_AVAILABLE:
+					try:
+						import sentry_sdk
+						sentry_sdk.capture_message(
+							f'Port scan tool exited with non-zero code',
+							level='error',
+							extra={
+								'plugin_name': plugin.name,
+								'plugin_slug': plugin.slug,
+								'target_address': target.address,
+								'exit_code': process_dict['process'].returncode,
+								'command': process_dict['cmd'],
+								'stderr_output': ''.join(errors) if errors else 'No stderr output',
+								'scan_type': 'port_scan'
+							}
+						)
+					except Exception:
+						pass  # Don't let Sentry errors break the scan
+				
 				async with target.lock:
 					with open(os.path.join(target.scandir, '_errors.log'), 'a') as file:
 						file.writelines(f'❌ Port scan {plugin.name} ({plugin.slug}) exited with code {process_dict["process"].returncode}\n')
@@ -505,7 +527,32 @@ async def service_scan(plugin, service):
 							errors.append(line + '\n')
 						else:
 							break
-					error(f'❌ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} exited with code {process_dict["process"].returncode}. Check {service.target.scandir}/_errors.log', verbosity=2)
+					error_msg = f'❌ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} exited with code {process_dict["process"].returncode}. Check {service.target.scandir}/_errors.log'
+					error(error_msg, verbosity=2)
+					
+					# Send exit code error to Sentry if available
+					if SENTRY_AVAILABLE:
+						try:
+							import sentry_sdk
+							sentry_sdk.capture_message(
+								f'Service scan tool exited with non-zero code',
+								level='error',
+								extra={
+									'plugin_name': plugin.name,
+									'plugin_slug': plugin.slug,
+									'target_address': service.target.address,
+									'target_port': service.port,
+									'exit_code': process_dict['process'].returncode,
+									'command': process_dict['cmd'],
+									'stderr_output': ''.join(errors) if errors else 'No stderr output',
+									'scan_type': 'service_scan',
+									'service_name': service.name,
+									'protocol': service.protocol
+								}
+							)
+						except Exception:
+							pass  # Don't let Sentry errors break the scan
+					
 					async with service.target.lock:
 						with open(os.path.join(service.target.scandir, '_errors.log'), 'a') as file:
 							file.writelines(f'❌ Service scan {plugin.name} ({tag}) exited with code {process_dict["process"].returncode}\n')
