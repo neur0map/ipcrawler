@@ -210,10 +210,13 @@ class CommandStreamReader(object):
 					# Record activity for loading interface
 					if is_loading_active():
 						record_tool_activity("output")
-						scan_status.show_command_output(self.target.address, self.tag, line.strip(), config['verbose'])
+						# Only show command output for tools that don't have pattern matching
+						# or for debugging when explicitly requested
+						if not self.patterns or config.get('show_all_output', False):
+							scan_status.show_command_output(self.target.address, self.tag, line.strip(), config['verbose'])
 					else:
-						# Use Rich console for consistency (only at highest verbosity)
-						if config['verbose'] >= 3:
+						# Use Rich console for consistency (only when explicitly requested)
+						if config['verbose'] >= 3 and config.get('show_all_output', False):
 							from rich.console import Console
 							Console().print(f"📝 [{self.target.address}/{self.tag}] {line.strip()}", style="dim white")
 

@@ -136,6 +136,14 @@ class VirtualHost(ServiceScan):
 					
 					ffuf_cmd += (' -o "{scandir}/{protocol}_{port}_{http_scheme}_' + hostname + '_vhosts_' + name + '.txt" -of csv')
 					
+					# Add pattern matching to capture successful vhost discoveries
+					service.add_pattern('Virtual Host Found', r'(\w+\.' + hostname.replace('.', r'\.') + r')', 'Found virtual host: {match}')
+					
+					# Show progress info
+					with open(wordlist, 'r') as f:
+						total_lines = sum(1 for _ in f)
+					service.info(f"🔍 Enumerating {total_lines} virtual hosts on {hostname}...")
+					
 					await service.execute(ffuf_cmd)
 		else:
 			service.info('The target was not a hostname, nor was a hostname provided as an option. Skipping virtual host enumeration.')
