@@ -43,19 +43,22 @@ def copy_tree_ignore_broken_symlinks(src, dst):
 	
 	shutil.copytree(src, dst, ignore=ignore_broken_symlinks)
 
-if not os.path.exists(config['config_dir']):
-	shutil.rmtree(config['config_dir'], ignore_errors=True, onerror=None)
-	os.makedirs(config['config_dir'], exist_ok=True)
-	open(os.path.join(config['config_dir'], 'VERSION-' + VERSION), 'a').close()
-	shutil.copy(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.toml'), os.path.join(config['config_dir'], 'config.toml'))
-	shutil.copy(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'global.toml'), os.path.join(config['config_dir'], 'global.toml'))
-else:
-	if not os.path.exists(os.path.join(config['config_dir'], 'config.toml')):
-		shutil.copy(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.toml'), os.path.join(config['config_dir'], 'config.toml'))
-	if not os.path.exists(os.path.join(config['config_dir'], 'global.toml')):
-		shutil.copy(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'global.toml'), os.path.join(config['config_dir'], 'global.toml'))
-	if not os.path.exists(os.path.join(config['config_dir'], 'VERSION-' + VERSION)):
-		warn('It looks like the config in ' + config['config_dir'] + ' is outdated. Please remove the ' + config['config_dir'] + ' directory and re-run ipcrawler to rebuild it.')
+# IPCrawler should only work from git repository directory - no system config caching
+# This ensures git pull updates are immediately effective
+
+# if not os.path.exists(config['config_dir']):
+# 	shutil.rmtree(config['config_dir'], ignore_errors=True, onerror=None)
+# 	os.makedirs(config['config_dir'], exist_ok=True)
+# 	open(os.path.join(config['config_dir'], 'VERSION-' + VERSION), 'a').close()
+# 	shutil.copy(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.toml'), os.path.join(config['config_dir'], 'config.toml'))
+# 	shutil.copy(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'global.toml'), os.path.join(config['config_dir'], 'global.toml'))
+# else:
+# 	if not os.path.exists(os.path.join(config['config_dir'], 'config.toml')):
+# 		shutil.copy(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.toml'), os.path.join(config['config_dir'], 'config.toml'))
+# 	if not os.path.exists(os.path.join(config['config_dir'], 'global.toml')):
+# 		shutil.copy(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'global.toml'), os.path.join(config['config_dir'], 'global.toml'))
+# 	if not os.path.exists(os.path.join(config['config_dir'], 'VERSION-' + VERSION)):
+# 		warn('It looks like the config in ' + config['config_dir'] + ' is outdated. Please remove the ' + config['config_dir'] + ' directory and re-run ipcrawler to rebuild it.')
 
 
 # Create minimal data directory only for wordlists.toml if needed
@@ -909,15 +912,17 @@ async def scan_target(target):
 		ipcrawler.scanning_targets.remove(target)
 
 async def run():
-	# Find config file.
-	if os.path.isfile(os.path.join(config['config_dir'], 'config.toml')):
-		config_file = os.path.join(config['config_dir'], 'config.toml')
+	# Find config file - use from git repository directly, no system caching
+	git_config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.toml')
+	if os.path.isfile(git_config_file):
+		config_file = git_config_file
 	else:
 		config_file = None
 
-	# Find global file.
-	if os.path.isfile(os.path.join(config['config_dir'], 'global.toml')):
-		config['global_file'] = os.path.join(config['config_dir'], 'global.toml')
+	# Find global file - use from git repository directly, no system caching
+	git_global_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'global.toml')
+	if os.path.isfile(git_global_file):
+		config['global_file'] = git_global_file
 	else:
 		config['global_file'] = None
 
@@ -1011,7 +1016,7 @@ async def run():
 	# Parse config file and args for global.toml first.
 	if not args.config_file:
 		unknown_help()
-		fail('Error: Could not find config.toml in the current directory or ~/.config/IPCrawler.')
+		fail('Error: Could not find config.toml in the git repository directory.')
 
 	if not os.path.isfile(args.config_file):
 		unknown_help()
@@ -1044,7 +1049,7 @@ async def run():
 
 	if not config['plugins_dir']:
 		unknown_help()
-		fail('Error: Could not find plugins directory in the current directory or ~/.config/IPCrawler.')
+		fail('Error: Could not find plugins directory in the git repository.')
 
 	if not os.path.isdir(config['plugins_dir']):
 		unknown_help()
@@ -1125,7 +1130,7 @@ async def run():
 
 	if not config['global_file']:
 		unknown_help()
-		fail('Error: Could not find global.toml in the current directory or ~/.config/IPCrawler.')
+		fail('Error: Could not find global.toml in the git repository directory.')
 
 	if not os.path.isfile(config['global_file']):
 		unknown_help()
