@@ -78,10 +78,15 @@ class SpringBootActuator(ServiceScan):
 				
 				spring_boot_detected = False
 				if process.returncode == 0 and stdout:
-					stdout_lower = self._safe_str_lower(stdout)
-					if any(indicator in stdout_lower for indicator in ['200 ok', '401 unauthorized', '403 forbidden']):
-						spring_boot_detected = True
-						service.info("🌱 Spring Boot Actuator endpoint detected!")
+					try:
+						output_lines = await stdout.readlines()
+						output_content = '\n'.join(output_lines) if output_lines else ''
+						stdout_lower = output_content.lower()
+						if any(indicator in stdout_lower for indicator in ['200 ok', '401 unauthorized', '403 forbidden']):
+							spring_boot_detected = True
+							service.info("🌱 Spring Boot Actuator endpoint detected!")
+					except Exception as e:
+						service.info(f"⚠️ Error reading actuator response: {e}")
 				
 				if not spring_boot_detected:
 					# Quick check of main page for Spring Boot indicators
@@ -89,20 +94,30 @@ class SpringBootActuator(ServiceScan):
 						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -10',
 						outfile=None
 					)
-					stdout_lower = self._safe_str_lower(stdout)
 					
-					# Enhanced detection for various Spring-based applications
-					spring_indicators = ['spring', 'boot', 'whitelabel error', 'eureka', 'netflix', 'service registry', 'zuul', 'hystrix']
-					if stdout_lower and any(indicator in stdout_lower for indicator in spring_indicators):
-						spring_boot_detected = True
-						if any(keyword in stdout_lower for keyword in ['eureka', 'netflix']):
-							service.info("🎯 Netflix Eureka server detected!")
-						else:
-							service.info("🌱 Spring Boot application detected!")
+					# Properly read the CommandStreamReader output
+					if process.returncode == 0 and stdout:
+						try:
+							output_lines = await stdout.readlines()
+							output_content = '\n'.join(output_lines) if output_lines else ''
+							stdout_lower = output_content.lower()
+							
+							# Enhanced detection for various Spring-based applications
+							spring_indicators = ['spring', 'boot', 'whitelabel error', 'eureka', 'netflix', 'service registry', 'zuul', 'hystrix']
+							if stdout_lower and any(indicator in stdout_lower for indicator in spring_indicators):
+								spring_boot_detected = True
+								if any(keyword in stdout_lower for keyword in ['eureka', 'netflix']):
+									service.info("🎯 Netflix Eureka server detected!")
+								else:
+									service.info("🌱 Spring Boot application detected!")
+							else:
+								# Debug: Show what we actually found
+								response_preview = output_content[:200] if output_content else 'No response'
+								service.info(f"🔍 Response preview: {response_preview}...")
+						except Exception as e:
+							service.info(f"⚠️ Error reading response: {e}")
 					else:
-						# Debug: Show what we actually found
-						response_preview = str(stdout)[:200] if stdout else 'No response'
-						service.info(f"🔍 Response preview: {response_preview}...")
+						service.info(f"🔍 Command failed or no output (exit code: {process.returncode})")
 				
 				if not spring_boot_detected:
 					service.info("❌ No Spring Boot indicators found - skipping detailed enumeration")
