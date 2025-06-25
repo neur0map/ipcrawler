@@ -114,10 +114,28 @@ class VirtualHost(ServiceScan):
 						service.error(f"Wildcard request failed for {hostname}: {e}", verbosity=1)
 						continue
 
-					await service.execute(
-						'ffuf -u {http_scheme}://' + hostname + ':{port}/ -t ' + str(self.get_option('threads')) +
+					# Build ffuf command with verbosity options
+					verbose_level = self.get_global('verbose', 0)
+					ffuf_cmd = ('ffuf -u {http_scheme}://' + hostname + ':{port}/ -t ' + str(self.get_option('threads')) +
 						' -w ' + wordlist + ' -H "Host: FUZZ.' + hostname + '" -mc all -fs ' + size +
-						' -r -noninteractive -s -o "{scandir}/{protocol}_{port}_{http_scheme}_' + hostname + '_vhosts_' + name + '.txt" -of csv -se'
-					)
+						' -r -noninteractive')
+					
+					# Add verbosity flags based on -vvv level
+					if verbose_level >= 3:
+						# -vvv: Show detailed scan info but still keep results clean (no per-word spam)
+						service.info(f"🔍 Running virtual host enumeration with detailed output")
+						service.info(f"🎯 Wordlist: {os.path.basename(wordlist)} ({self.get_option('threads')} threads)")
+						ffuf_cmd += ' -s'  # Keep silent to avoid clutter, we'll show our own messages
+					elif verbose_level >= 2:
+						# -vv: Show scan progress but keep clean
+						service.info(f"🔍 Scanning virtual hosts on {hostname}")
+						ffuf_cmd += ' -s'
+					else:
+						# Default: Silent mode
+						ffuf_cmd += ' -s'
+					
+					ffuf_cmd += (' -o "{scandir}/{protocol}_{port}_{http_scheme}_' + hostname + '_vhosts_' + name + '.txt" -of csv -se')
+					
+					await service.execute(ffuf_cmd)
 		else:
 			service.info('The target was not a hostname, nor was a hostname provided as an option. Skipping virtual host enumeration.')
