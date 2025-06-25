@@ -331,24 +331,85 @@ class ResultParser:
         return directories, files
     
     def parse_vhost_scan(self, file_path: str) -> List[str]:
-        """Parse virtual host enumeration results"""
+        """Parse virtual host enumeration results from ffuf CSV output"""
         vhosts = []
         
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
-            # Look for successful vhost discoveries
-            for line in content.split('\n'):
-                line = line.strip()
-                # Look for status codes indicating successful vhost discovery
-                if re.search(r'\b(200|301|302|403)\b', line) and not re.search(r'\b404\b', line):
-                    # Extract hostname from the line
-                    host_match = re.search(r'([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', line)
-                    if host_match:
-                        vhost = host_match.group(1)
-                        if vhost not in vhosts:
-                            vhosts.append(vhost)
+            # Check if this is CSV format (ffuf output)
+            if 'url,redirectlocation,position,status_code,content_length,content_words,content_lines,content_type,duration' in content:
+                # Parse CSV format
+                lines = content.strip().split('\n')
+                for line_num, line in enumerate(lines):
+                    line = line.strip()
+                    if not line or line.startswith('url,'):  # Skip header and empty lines
+                        continue
+                    
+                    # CSV format: url,redirectlocation,position,status_code,content_length,content_words,content_lines,content_type,duration
+                    try:
+                        parts = line.split(',')
+                        if len(parts) >= 4:
+                            url = parts[0]
+                            status_code = parts[3]
+                            
+                            # Only include successful responses (not 404, 500, etc.)
+                            if status_code in ['200', '301', '302', '303', '403', '401']:
+                                # Extract hostname from URL
+                                import urllib.parse
+                                parsed_url = urllib.parse.urlparse(url if url.startswith('http') else f'http://{url}')
+                                hostname = parsed_url.hostname
+                                
+                                if hostname and hostname not in vhosts:
+                                    # Extract just the subdomain part (before the main domain)
+                                    if '.' in hostname:
+                                        # For test.example.com, we want "test"
+                                        # For admin.dev.example.com, we want "admin.dev"
+                                        parts_hostname = hostname.split('.')
+                                        if len(parts_hostname) > 2:
+                                            # Keep everything except the last 2 parts (domain.tld)
+                                            subdomain = '.'.join(parts_hostname[:-2])
+                                            if subdomain and subdomain not in vhosts:
+                                                vhosts.append(subdomain)
+                                        else:
+                                            # It's just domain.tld, still add it
+                                            if hostname not in vhosts:
+                                                vhosts.append(hostname)
+                    except (IndexError, ValueError) as e:
+                        continue  # Skip malformed lines
+            # Check if this file just contains a wordlist (old problematic files)
+            elif content.count('\n') > 100 and not any(char in content[:1000] for char in [',', 'http', '://', 'Status:']):
+                # This looks like a raw wordlist file (all failed attempts), skip it entirely
+                if RICH_AVAILABLE:
+                    console.print(f"[yellow]Skipping wordlist file (no discoveries): {os.path.basename(file_path)}[/yellow]")
+                else:
+                    print(f"Skipping wordlist file (no discoveries): {os.path.basename(file_path)}")
+                return []
+            else:
+                # Fallback: parse as regular text output or simple subdomain lists
+                for line in content.split('\n'):
+                    line = line.strip()
+                    
+                    # Skip commented lines (starting with #)
+                    if line.startswith('#') or not line:
+                        continue
+                    
+                    # Check if this line contains status codes (typical ffuf/tool output)
+                    if re.search(r'\b(200|301|302|403)\b', line) and not re.search(r'\b(404|500|502|503)\b', line):
+                        # Extract hostname from the line
+                        host_match = re.search(r'([a-zA-Z0-9.-]+(?:\.[a-zA-Z0-9.-]+)*)', line)
+                        if host_match:
+                            hostname = host_match.group(1)
+                            # Only add if it looks like a valid hostname/subdomain
+                            if '.' in hostname and len(hostname) > 2 and hostname not in vhosts:
+                                vhosts.append(hostname)
+                    # Check if this line looks like a direct subdomain (e.g., "test.example.com")
+                    elif re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+$', line) and len(line.split('.')) >= 2:
+                        # This looks like a discovered virtual host/subdomain
+                        hostname = line
+                        if hostname not in vhosts and len(hostname) > 2:
+                            vhosts.append(hostname)
                             
         except Exception as e:
             if RICH_AVAILABLE:

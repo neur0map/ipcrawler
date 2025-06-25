@@ -45,7 +45,7 @@ class WhatWeb(ServiceScan):
 				# Use safer command by default - remove --no-errors to allow more lenient scanning
 				# Level 1 is passive and much more reliable
 				process, stdout, stderr = await service.execute(
-					f'whatweb --color=never -a {aggression} -v {{http_scheme}}://' + hostname + ':{{port}} 2>&1', 
+					f'whatweb --color=never -a {aggression} -v {{http_scheme}}://' + hostname + ':{port} 2>&1', 
 					outfile='{protocol}_{port}_{http_scheme}_whatweb_' + hostname_label + '.txt'
 				)
 				

@@ -134,7 +134,7 @@ class VirtualHost(ServiceScan):
 						# Default: Silent mode
 						ffuf_cmd += ' -s'
 					
-					ffuf_cmd += (' -o "{scandir}/{protocol}_{port}_{http_scheme}_' + hostname + '_vhosts_' + name + '.txt" -of csv -se')
+					ffuf_cmd += (' -o "{scandir}/{protocol}_{port}_{http_scheme}_' + hostname + '_vhosts_' + name + '.txt" -of csv')
 					
 					await service.execute(ffuf_cmd)
 		else:

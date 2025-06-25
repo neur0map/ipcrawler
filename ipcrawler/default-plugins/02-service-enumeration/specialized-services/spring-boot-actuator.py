@@ -63,7 +63,7 @@ class SpringBootActuator(ServiceScan):
 				
 				# First check if /actuator endpoint exists (most reliable Spring Boot indicator)
 				process, stdout, stderr = await service.execute(
-					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/actuator 2>&1',
+					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{port}/actuator 2>&1',
 					outfile=None
 				)
 				
@@ -76,7 +76,7 @@ class SpringBootActuator(ServiceScan):
 				if not spring_boot_detected:
 					# Quick check of main page for Spring Boot indicators
 					process, stdout, stderr = await service.execute(
-						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -10',
+						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{port}/ 2>&1 | head -10',
 						outfile=None
 					)
 					if stdout and any(indicator in stdout.lower() for indicator in ['spring', 'boot', 'whitelabel error']):
@@ -91,10 +91,10 @@ class SpringBootActuator(ServiceScan):
 				service.info(f"📋 Getting detailed Spring Boot information...")
 				process, stdout, stderr = await service.execute(
 					f'echo "=== Basic HTTP Headers ===" && '
-					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{port}/ 2>&1 && '
 					f'echo "=== Response Body Sample ===" && '
-					f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -20',
-					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
+					f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{port}/ 2>&1 | head -20',
+					outfile=f'{protocol}_{port}_{http_scheme}_spring_boot_headers_{hostname_label}.txt'
 				)
 				
 				# Check for Spring Boot actuator endpoints
@@ -104,8 +104,8 @@ class SpringBootActuator(ServiceScan):
 					common_paths = ['/actuator', '/health', '/info']
 				
 				# Create a list of URLs to check
-				url_file = f'{{scandir}}/{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_urls_{hostname_label}.txt'
-				urls = [f'{{http_scheme}}://{hostname}:{{port}}{path}' for path in common_paths]
+				url_file = f'{scandir}/{protocol}_{port}_{http_scheme}_spring_boot_urls_{hostname_label}.txt'
+				urls = [f'{{http_scheme}}://{hostname}:{port}{path}' for path in common_paths]
 				
 				# Write URLs to file for reference
 				url_list = ' '.join([f'"{url}"' for url in urls])
@@ -125,7 +125,7 @@ class SpringBootActuator(ServiceScan):
 					f'echo "=== Checking: {{}} ==="; '
 					f'curl -s -m {timeout} "{{}}" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed to {{}}"; '
 					f'echo ""\'',
-					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
+					outfile=f'{protocol}_{port}_{http_scheme}_spring_boot_endpoints_{hostname_label}.txt'
 				)
 				
 				# Check endpoint responses for additional service identification
@@ -139,28 +139,28 @@ class SpringBootActuator(ServiceScan):
 				timeout = self.get_option("timeout")
 				await service.execute(
 					f'echo "=== Testing /error endpoint ===" && '
-					f'curl -v -m {timeout} {{http_scheme}}://{hostname}:{{port}}/error '
+					f'curl -v -m {timeout} {{http_scheme}}://{hostname}:{port}/error '
 					f'-H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1',
-					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_error_{hostname_label}.txt'
+					outfile=f'{protocol}_{port}_{http_scheme}_spring_boot_error_{hostname_label}.txt'
 				)
 				
 				# Try common authentication bypass techniques
 				service.info(f"🔐 Testing authentication bypass techniques...")
 				await service.execute(
 					f'echo "=== Testing admin:admin ===" && '
-					f'curl -v -s -m {timeout} -u admin:admin {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'curl -v -s -m {timeout} -u admin:admin {{http_scheme}}://{hostname}:{port}/ 2>&1 && '
 					f'printf "\\n=== Testing default:default ===\\n" && '
-					f'curl -v -s -m {timeout} -u default:default {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'curl -v -s -m {timeout} -u default:default {{http_scheme}}://{hostname}:{port}/ 2>&1 && '
 					f'printf "\\n=== Testing empty credentials ===\\n" && '
-					f'curl -v -s -m {timeout} -u : {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
-					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_auth_test_{hostname_label}.txt'
+					f'curl -v -s -m {timeout} -u : {{http_scheme}}://{hostname}:{port}/ 2>&1',
+					outfile=f'{protocol}_{port}_{http_scheme}_spring_boot_auth_test_{hostname_label}.txt'
 				)
 				
 				service.info(f"✅ Spring Boot enumeration completed for {hostname}")
 				
 				# Try to read output files to identify service type for reporting
 				try:
-					header_file = f'{{scandir}}/{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
+					header_file = f'{scandir}/{protocol}_{port}_{http_scheme}_spring_boot_headers_{hostname_label}.txt'
 					header_file_expanded = header_file.format(
 						scandir=service.target.basedir + '/scans',
 						protocol=service.protocol,
@@ -193,20 +193,20 @@ class SpringBootActuator(ServiceScan):
 			
 			service.add_manual_command(f'Spring Boot Actuator enumeration{hostname_desc}:', [
 				f'# Basic connectivity test',
-				f'curl -s -I {{http_scheme}}://{hostname}:{{port}}/',
+				f'curl -s -I {{http_scheme}}://{hostname}:{port}/',
 				f'',
 				f'# Check actuator endpoints',
 				f'for endpoint in /actuator /actuator/health /actuator/info /actuator/env /actuator/beans; do',
 				f'  echo "=== $endpoint ===";',
-				f'  curl -s {{http_scheme}}://{hostname}:{{port}}$endpoint;',
+				f'  curl -s {{http_scheme}}://{hostname}:{port}$endpoint;',
 				f'  echo "";',
 				f'done',
 				f'',
 				f'# Test common credentials',
-				f'curl -s -u admin:admin {{http_scheme}}://{hostname}:{{port}}/',
-				f'curl -s -u admin:password {{http_scheme}}://{hostname}:{{port}}/',
+				f'curl -s -u admin:admin {{http_scheme}}://{hostname}:{port}/',
+				f'curl -s -u admin:password {{http_scheme}}://{hostname}:{port}/',
 				f'',
 				f'# Check for management interfaces',
-				f'curl -s {{http_scheme}}://{hostname}:{{port}}/manage',
-				f'curl -s {{http_scheme}}://{hostname}:{{port}}/admin'
+				f'curl -s {{http_scheme}}://{hostname}:{port}/manage',
+				f'curl -s {{http_scheme}}://{hostname}:{port}/admin'
 			])
