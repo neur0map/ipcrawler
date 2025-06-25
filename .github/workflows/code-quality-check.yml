@@ -64,6 +64,7 @@ jobs:
         
         # Check plugins first (priority)
         echo "Checking plugins for critical syntax errors..."
+        shopt -s globstar
         for file in ipcrawler/default-plugins/**/*.py; do
           if [ -f "$file" ]; then
             echo "Checking: $file"
@@ -354,94 +355,94 @@ jobs:
           
           # Create Sentry report script
           cat > /tmp/sentry_report.py << 'EOF'
-import sentry_sdk
-import os
-import sys
-from datetime import datetime
+          import sentry_sdk
+          import os
+          import sys
+          from datetime import datetime
 
-# Initialize Sentry
-sentry_dsn = os.environ.get('SENTRY_DSN')
-if not sentry_dsn:
-    print("No Sentry DSN provided")
-    sys.exit(0)
+          # Initialize Sentry
+          sentry_dsn = os.environ.get('SENTRY_DSN')
+          if not sentry_dsn:
+              print("No Sentry DSN provided")
+              sys.exit(0)
 
-sentry_sdk.init(
-    dsn=sentry_dsn,
-    traces_sample_rate=1.0,
-)
+          sentry_sdk.init(
+              dsn=sentry_dsn,
+              traces_sample_rate=1.0,
+          )
 
-# Set context
-sentry_sdk.set_tag("workflow", "code-quality-check")
-sentry_sdk.set_tag("repository", os.environ.get('REPO', 'unknown'))
-sentry_sdk.set_tag("branch", os.environ.get('BRANCH', 'unknown'))
-sentry_sdk.set_tag("commit", os.environ.get('COMMIT_SHA', 'unknown')[:8])
-sentry_sdk.set_tag("author", os.environ.get('AUTHOR', 'unknown'))
-sentry_sdk.set_tag("status", os.environ.get('OVERALL_STATUS', 'unknown'))
+          # Set context
+          sentry_sdk.set_tag("workflow", "code-quality-check")
+          sentry_sdk.set_tag("repository", os.environ.get('REPO', 'unknown'))
+          sentry_sdk.set_tag("branch", os.environ.get('BRANCH', 'unknown'))
+          sentry_sdk.set_tag("commit", os.environ.get('COMMIT_SHA', 'unknown')[:8])
+          sentry_sdk.set_tag("author", os.environ.get('AUTHOR', 'unknown'))
+          sentry_sdk.set_tag("status", os.environ.get('OVERALL_STATUS', 'unknown'))
 
-# Add user context
-sentry_sdk.set_user({
-    "username": os.environ.get('AUTHOR', 'unknown'),
-    "id": os.environ.get('AUTHOR', 'unknown')
-})
+          # Add user context
+          sentry_sdk.set_user({
+              "username": os.environ.get('AUTHOR', 'unknown'),
+              "id": os.environ.get('AUTHOR', 'unknown')
+          })
 
-# Report based on status
-status = os.environ.get('OVERALL_STATUS', 'unknown')
-if status == 'failure':
-    # Collect error details
-    syntax_errors = os.environ.get('SYNTAX_ERRORS', '')
-    template_errors = os.environ.get('TEMPLATE_ERRORS', '')
-    lint_errors = os.environ.get('LINT_ERRORS', '')
-    config_errors = os.environ.get('CONFIG_ERRORS', '')
-    
-    error_details = []
-    if syntax_errors: error_details.append(f"Syntax: {syntax_errors[:200]}")
-    if template_errors: error_details.append(f"Template: {template_errors[:200]}")
-    if lint_errors: error_details.append(f"Lint: {lint_errors[:200]}")
-    if config_errors: error_details.append(f"Config: {config_errors[:200]}")
-    
-    # Send error to Sentry
-    sentry_sdk.set_context("errors", {
-        "syntax_errors": syntax_errors[:500] if syntax_errors else None,
-        "template_errors": template_errors[:500] if template_errors else None,
-        "lint_errors": lint_errors[:500] if lint_errors else None,
-        "config_errors": config_errors[:500] if config_errors else None,
-        "total_error_types": len([e for e in [syntax_errors, template_errors, lint_errors, config_errors] if e])
-    })
-    
-    error_message = f"Code quality check failed: {'; '.join(error_details[:3])}"
-    sentry_sdk.capture_message(error_message, level="error")
-    print(f"📡 Sent error to Sentry: {error_message}")
-    
-elif status == 'warning':
-    # Report warnings
-    lint_warnings = os.environ.get('LINT_WARNINGS', '')
-    safety_warnings = os.environ.get('SAFETY_WARNINGS', '')
-    
-    warning_details = []
-    if lint_warnings: warning_details.append(f"Lint: {lint_warnings[:200]}")
-    if safety_warnings: warning_details.append(f"Security: {safety_warnings[:200]}")
-    
-    sentry_sdk.set_context("warnings", {
-        "lint_warnings": lint_warnings[:500] if lint_warnings else None,
-        "safety_warnings": safety_warnings[:500] if safety_warnings else None,
-        "total_warning_types": len([w for w in [lint_warnings, safety_warnings] if w])
-    })
-    
-    warning_message = f"Code quality warnings: {'; '.join(warning_details[:2])}"
-    sentry_sdk.capture_message(warning_message, level="warning")
-    print(f"📡 Sent warning to Sentry: {warning_message}")
-    
-else:
-    # Success - just track the event
-    sentry_sdk.set_context("success", {
-        "message": "All code quality checks passed",
-        "timestamp": datetime.now().isoformat()
-    })
-    sentry_sdk.capture_message("Code quality check passed", level="info")
-    print("📡 Sent success event to Sentry")
+          # Report based on status
+          status = os.environ.get('OVERALL_STATUS', 'unknown')
+          if status == 'failure':
+              # Collect error details
+              syntax_errors = os.environ.get('SYNTAX_ERRORS', '')
+              template_errors = os.environ.get('TEMPLATE_ERRORS', '')
+              lint_errors = os.environ.get('LINT_ERRORS', '')
+              config_errors = os.environ.get('CONFIG_ERRORS', '')
+              
+              error_details = []
+              if syntax_errors: error_details.append(f"Syntax: {syntax_errors[:200]}")
+              if template_errors: error_details.append(f"Template: {template_errors[:200]}")
+              if lint_errors: error_details.append(f"Lint: {lint_errors[:200]}")
+              if config_errors: error_details.append(f"Config: {config_errors[:200]}")
+              
+              # Send error to Sentry
+              sentry_sdk.set_context("errors", {
+                  "syntax_errors": syntax_errors[:500] if syntax_errors else None,
+                  "template_errors": template_errors[:500] if template_errors else None,
+                  "lint_errors": lint_errors[:500] if lint_errors else None,
+                  "config_errors": config_errors[:500] if config_errors else None,
+                  "total_error_types": len([e for e in [syntax_errors, template_errors, lint_errors, config_errors] if e])
+              })
+              
+              error_message = f"Code quality check failed: {'; '.join(error_details[:3])}"
+              sentry_sdk.capture_message(error_message, level="error")
+              print(f"📡 Sent error to Sentry: {error_message}")
+              
+          elif status == 'warning':
+              # Report warnings
+              lint_warnings = os.environ.get('LINT_WARNINGS', '')
+              safety_warnings = os.environ.get('SAFETY_WARNINGS', '')
+              
+              warning_details = []
+              if lint_warnings: warning_details.append(f"Lint: {lint_warnings[:200]}")
+              if safety_warnings: warning_details.append(f"Security: {safety_warnings[:200]}")
+              
+              sentry_sdk.set_context("warnings", {
+                  "lint_warnings": lint_warnings[:500] if lint_warnings else None,
+                  "safety_warnings": safety_warnings[:500] if safety_warnings else None,
+                  "total_warning_types": len([w for w in [lint_warnings, safety_warnings] if w])
+              })
+              
+              warning_message = f"Code quality warnings: {'; '.join(warning_details[:2])}"
+              sentry_sdk.capture_message(warning_message, level="warning")
+              print(f"📡 Sent warning to Sentry: {warning_message}")
+              
+          else:
+              # Success - just track the event
+              sentry_sdk.set_context("success", {
+                  "message": "All code quality checks passed",
+                  "timestamp": datetime.now().isoformat()
+              })
+              sentry_sdk.capture_message("Code quality check passed", level="info")
+              print("📡 Sent success event to Sentry")
 
-print("✅ Sentry reporting complete")
-EOF
+          print("✅ Sentry reporting complete")
+          EOF
 
           # Execute Sentry report with error data
           SYNTAX_ERRORS="${{ steps.syntax-check.outputs.syntax_errors }}" \
@@ -614,24 +615,30 @@ EOF
         fi
         
         # Create modern Discord payload with multiple embeds
+        # Escape JSON strings properly
+        TITLE_ESC=$(printf '%s' "$TITLE" | sed 's/"/\\"/g')
+        COMMIT_INFO_ESC=$(printf '%s' "$COMMIT_INFO" | sed 's/"/\\"/g')
+        FILES_LIST_ESC=$(printf '%s' "$FILES_LIST" | sed 's/"/\\"/g')
+        MAIN_CONTENT_ESC=$(printf '%s' "$MAIN_CONTENT" | sed 's/"/\\"/g')
+        
         cat > /tmp/discord_payload.json << EOF
         {
           "username": "GitHub Code Quality Bot",
           "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
           "embeds": [
             {
-              "title": "$TITLE",
-              "description": "$COMMIT_INFO",
+              "title": "$TITLE_ESC",
+              "description": "$COMMIT_INFO_ESC",
               "color": $COLOR,
               "fields": [
                 {
                   "name": "📁 Changed Files ($FILES_COUNT)",
-                  "value": "$FILES_LIST",
+                  "value": "$FILES_LIST_ESC",
                   "inline": false
                 },
                 {
                   "name": "🔍 Quality Analysis",
-                  "value": "$MAIN_CONTENT",
+                  "value": "$MAIN_CONTENT_ESC",
                   "inline": false
                 }
               ],
