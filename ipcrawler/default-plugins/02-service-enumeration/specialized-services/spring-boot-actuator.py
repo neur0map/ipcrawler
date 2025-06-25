@@ -37,11 +37,11 @@ class SpringBootActuator(ServiceScan):
 		self.match_service_name('^nacn_http$', negative_match=True)
 		
 		# Add patterns to help identify Spring Boot applications
-		self.add_pattern('spring-boot-detected', r'(?i)(spring.boot|whitelabel.error|org\.springframework)')
-		self.add_pattern('eureka-detected', r'(?i)(eureka|netflix|service.registry)')
-		self.add_pattern('actuator-detected', r'(?i)(/actuator|management.endpoints)')
-		self.add_pattern('spring-auth', r'(?i)(spring.security|JSESSIONID)')
-		self.add_pattern('java-app', r'(?i)(tomcat|jetty|undertow|java\.version)')
+		self.add_pattern(r'(?i)(spring\.boot|whitelabel\.error|org\.springframework)', description='Spring Boot detected: {match1}')
+		self.add_pattern(r'(?i)(eureka|netflix|service\.registry)', description='Netflix Eureka detected: {match1}')
+		self.add_pattern(r'(?i)(/actuator|management\.endpoints)', description='Spring Actuator detected: {match1}')
+		self.add_pattern(r'(?i)(spring\.security|JSESSIONID)', description='Spring Security detected: {match1}')
+		self.add_pattern(r'(?i)(tomcat|jetty|undertow|java\.version)', description='Java application detected: {match1}')
 
 	def check(self):
 		if which('curl') is None:
@@ -156,15 +156,18 @@ class SpringBootActuator(ServiceScan):
 				threads = self.get_option("threads")
 				service.info(f"🚀 Checking {len(common_paths)} endpoints with {threads} threads, {timeout}s timeout...")
 				
-				# Use xargs for parallel execution - much faster than sequential
+				# Use simpler approach - check each endpoint sequentially but with timeout
 				endpoints_outfile = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
-				process, stdout, _ = await service.execute(
-					f'cat {url_file} | xargs -I {{URL}} -P {threads} sh -c \''
-					f'echo "=== Checking: {{URL}} ==="; '
-					f'curl -s -m {timeout} "{{URL}}" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed to {{URL}}"; '
-					f'echo ""\'',
-					outfile=endpoints_outfile
-				)
+				
+				# Build a simple script to check all endpoints
+				commands = []
+				for url in urls:
+					commands.append(f'echo "=== Checking: {url} ==="')
+					commands.append(f'curl -s -m {timeout} "{url}" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed to {url}"')
+					commands.append('echo ""')
+				
+				check_script = ' && '.join(commands)
+				process, stdout, _ = await service.execute(check_script, outfile=endpoints_outfile)
 				
 				# Check endpoint responses for additional service identification
 				if process.returncode == 0:
@@ -228,7 +231,6 @@ class SpringBootActuator(ServiceScan):
 			hostnames = [service.target.ip if service.target.ip else service.target.address]
 		
 		for hostname in hostnames:
-			hostname_label = hostname.replace('.', '_').replace(':', '_')
 			hostname_desc = f" ({hostname})" if hostname != service.target.ip else " (IP fallback)"
 			
 			service.add_manual_command(f'Spring Boot Actuator enumeration{hostname_desc}:', [
