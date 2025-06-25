@@ -34,8 +34,8 @@ class WordlistManager:
             },
             'web_directories': {
                 'fast': 'Discovery/Web-Content/common.txt',
-                'default': 'Discovery/Web-Content/directory-list-2.3-medium.txt',
-                'comprehensive': 'Discovery/Web-Content/directory-list-2.3-big.txt'
+                'default': 'Discovery/Web-Content/common.txt',
+                'comprehensive': 'Discovery/Web-Content/directory-list-2.3-small.txt'
             },
             'web_files': {
                 'fast': 'Discovery/Web-Content/common.txt',
