@@ -1399,9 +1399,19 @@ async def run():
 
 		for member_name, _ in inspect.getmembers(plugin, predicate=inspect.ismethod):
 			if member_name == 'check':
-				if plugin.check() == False:
-					failed_check_plugin_slugs.append(slug)
-					continue
+				try:
+					if plugin.check() == False:
+						failed_check_plugin_slugs.append(slug)
+						continue
+				except Exception as e:
+					if config['ignore_plugin_checks']:
+						failed_check_plugin_slugs.append(slug)
+						warn(f'Plugin {slug} check failed ({e}), but --ignore-plugin-checks is enabled. Plugin will be disabled.', verbosity=1)
+						continue
+					else:
+						error(f'Plugin {slug} check failed: {e}')
+						failed_check_plugin_slugs.append(slug)
+						continue
 				continue
 	
 	# Check for any failed plugin checks.
