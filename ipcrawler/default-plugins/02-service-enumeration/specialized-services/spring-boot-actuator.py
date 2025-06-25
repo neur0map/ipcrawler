@@ -125,12 +125,12 @@ class SpringBootActuator(ServiceScan):
 				
 				# Get detailed server info only if Spring Boot detected
 				service.info(f"📋 Getting detailed Spring Boot information...")
-				outfile_name = f'{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_headers_{hostname_label}.txt'
+				outfile_name = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
 				process, stdout, _ = await service.execute(
 					f'echo "=== Basic HTTP Headers ===" && '
-					f'curl -s -I -m {timeout} {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1 && '
+					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
 					f'echo "=== Response Body Sample ===" && '
-					f'curl -s -m {timeout} {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1 | head -20',
+					f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -20',
 					outfile=outfile_name
 				)
 				
@@ -141,8 +141,8 @@ class SpringBootActuator(ServiceScan):
 					common_paths = ['/actuator', '/health', '/info']
 				
 				# Create a list of URLs to check
-				url_file = f'{{{{scandir}}}}/{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_urls_{hostname_label}.txt'
-				urls = [f'{{{{http_scheme}}}}://{hostname}:{{{{port}}}}{path}' for path in common_paths]
+				url_file = f'{{scandir}}/{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_urls_{hostname_label}.txt'
+				urls = [f'{{http_scheme}}://{hostname}:{{port}}{path}' for path in common_paths]
 				
 				# Write URLs to file for reference
 				url_list = ' '.join([f'"{url}"' for url in urls])
@@ -157,11 +157,11 @@ class SpringBootActuator(ServiceScan):
 				service.info(f"🚀 Checking {len(common_paths)} endpoints with {threads} threads, {timeout}s timeout...")
 				
 				# Use xargs for parallel execution - much faster than sequential
-				endpoints_outfile = f'{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_endpoints_{hostname_label}.txt'
+				endpoints_outfile = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
 				process, stdout, _ = await service.execute(
-					f'cat {url_file} | xargs -I {{{{URL}}}} -P {threads} sh -c \''
-					f'echo "=== Checking: {{{{URL}}}} ==="; '
-					f'curl -s -m {timeout} "{{{{URL}}}}" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed to {{{{URL}}}}"; '
+					f'cat {url_file} | xargs -I {{URL}} -P {threads} sh -c \''
+					f'echo "=== Checking: {{URL}} ==="; '
+					f'curl -s -m {timeout} "{{URL}}" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed to {{URL}}"; '
 					f'echo ""\'',
 					outfile=endpoints_outfile
 				)
@@ -175,24 +175,24 @@ class SpringBootActuator(ServiceScan):
 				# Check for common Spring Boot error pages and info disclosure
 				service.info(f"🚨 Checking for information disclosure...")
 				timeout = self.get_option("timeout")
-				error_outfile = f'{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_error_{hostname_label}.txt'
+				error_outfile = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_error_{hostname_label}.txt'
 				await service.execute(
 					f'echo "=== Testing /error endpoint ===" && '
-					f'curl -v -m {timeout} {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/error '
+					f'curl -v -m {timeout} {{http_scheme}}://{hostname}:{{port}}/error '
 					f'-H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1',
 					outfile=error_outfile
 				)
 				
 				# Try common authentication bypass techniques
 				service.info(f"🔐 Testing authentication bypass techniques...")
-				auth_outfile = f'{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_auth_test_{hostname_label}.txt'
+				auth_outfile = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_auth_test_{hostname_label}.txt'
 				await service.execute(
 					f'echo "=== Testing admin:admin ===" && '
-					f'curl -v -s -m {timeout} -u admin:admin {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1 && '
+					f'curl -v -s -m {timeout} -u admin:admin {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
 					f'printf "\\n=== Testing default:default ===\\n" && '
-					f'curl -v -s -m {timeout} -u default:default {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1 && '
+					f'curl -v -s -m {timeout} -u default:default {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
 					f'printf "\\n=== Testing empty credentials ===\\n" && '
-					f'curl -v -s -m {timeout} -u : {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1',
+					f'curl -v -s -m {timeout} -u : {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
 					outfile=auth_outfile
 				)
 				
