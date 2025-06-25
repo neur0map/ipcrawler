@@ -26,8 +26,9 @@ class SpringBootActuator(ServiceScan):
 		self.add_list_option('common-paths', default=[
 			'/', '/actuator', '/actuator/health', '/actuator/info', '/actuator/env',
 			'/actuator/beans', '/actuator/configprops', '/actuator/mappings', '/actuator/metrics',
-			'/manage', '/management', '/admin', '/health', '/info', '/status'
-		], help='Common Spring Boot and management endpoints to check. Default: %(default)s')
+			'/manage', '/management', '/admin', '/health', '/info', '/status',
+			'/eureka', '/eureka/apps', '/eureka/status', '/v2/apps'
+		], help='Common Spring Boot and Eureka management endpoints to check. Default: %(default)s')
 		
 		# Match unknown services on common Spring Boot ports
 		self.match_service_name('^unknown$')
@@ -89,9 +90,18 @@ class SpringBootActuator(ServiceScan):
 						outfile=None
 					)
 					stdout_lower = self._safe_str_lower(stdout)
-					if stdout_lower and any(indicator in stdout_lower for indicator in ['spring', 'boot', 'whitelabel error']):
+					
+					# Enhanced detection for various Spring-based applications
+					spring_indicators = ['spring', 'boot', 'whitelabel error', 'eureka', 'netflix', 'service registry', 'zuul', 'hystrix']
+					if stdout_lower and any(indicator in stdout_lower for indicator in spring_indicators):
 						spring_boot_detected = True
-						service.info("🌱 Spring Boot application detected!")
+						if any(keyword in stdout_lower for keyword in ['eureka', 'netflix']):
+							service.info("🎯 Netflix Eureka server detected!")
+						else:
+							service.info("🌱 Spring Boot application detected!")
+					else:
+						# Debug: Show what we actually found
+						service.info(f"🔍 Response preview: {stdout[:200] if stdout else 'No response'}...")
 				
 				if not spring_boot_detected:
 					service.info("❌ No Spring Boot indicators found - skipping detailed enumeration")
