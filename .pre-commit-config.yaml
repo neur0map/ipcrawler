@@ -1,0 +1,59 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        language_version: python3
+        exclude: ^(results/|media/)
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        args: ['--select=E9,F63,F7,F82', '--exclude=__pycache__,results,media']
+        additional_dependencies: [flake8-docstrings]
+
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: ['-ll', '-x', 'results/,media/']
+
+  - repo: local
+    hooks:
+      - id: check-template-variables
+        name: Check Template Variables
+        entry: bash -c 'grep -rn "f\".*{[a-zA-Z_][a-zA-Z0-9_]*}.*\"" ipcrawler/default-plugins/ && echo "❌ Found potential template variable issues" && exit 1 || echo "✅ Template variables look good"'
+        language: system
+        files: '\.py$'
+        pass_filenames: false
+
+      - id: python-syntax-check
+        name: Python Syntax Check
+        entry: python -m py_compile
+        language: system
+        files: '\.py$'
+
+      - id: control-flow-check
+        name: Control Flow Check
+        entry: python3
+        args: ['-c', 'import ast; import sys; [ast.parse(open(f).read()) for f in sys.argv[1:]]']
+        language: system
+        files: '\.py$'
+
+      - id: pyflakes-check
+        name: Pyflakes Structural Check
+        entry: pyflakes
+        language: system
+        files: '\.py$'

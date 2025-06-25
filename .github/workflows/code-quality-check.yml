@@ -1,0 +1,625 @@
+name: Code Quality Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pylint black isort bandit safety pyflakes
+        pip install toml-sort yamllint
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Get changed files
+      id: changed-files
+      run: |
+        if [ "${{ github.event_name }}" = "push" ]; then
+          if [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..HEAD)
+          else
+            CHANGED_FILES=$(git ls-files)
+          fi
+        else
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
+        fi
+        
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Check Python syntax errors (Critical)
+      id: syntax-check
+      run: |
+        echo "=== CRITICAL SYNTAX CHECK ==="
+        EXIT_CODE=0
+        SYNTAX_ERRORS=""
+        
+        # Check plugins first (priority)
+        echo "Checking plugins for critical syntax errors..."
+        for file in ipcrawler/default-plugins/**/*.py; do
+          if [ -f "$file" ]; then
+            echo "Checking: $file"
+            if ! python -m py_compile "$file" 2>/tmp/syntax_error; then
+              EXIT_CODE=1
+              ERROR_MSG=$(cat /tmp/syntax_error)
+              SYNTAX_ERRORS="${SYNTAX_ERRORS}❌ $file: $ERROR_MSG\n"
+              echo "SYNTAX ERROR in $file: $ERROR_MSG"
+            fi
+          fi
+        done
+        
+        # Check main codebase
+        echo "Checking main codebase for critical syntax errors..."
+        for file in ipcrawler/*.py *.py; do
+          if [ -f "$file" ]; then
+            echo "Checking: $file"
+            if ! python -m py_compile "$file" 2>/tmp/syntax_error; then
+              EXIT_CODE=1
+              ERROR_MSG=$(cat /tmp/syntax_error)
+              SYNTAX_ERRORS="${SYNTAX_ERRORS}❌ $file: $ERROR_MSG\n"
+              echo "SYNTAX ERROR in $file: $ERROR_MSG"
+            fi
+          fi
+        done
+        
+        echo "syntax_errors<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$SYNTAX_ERRORS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        echo "syntax_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "❌ CRITICAL: Syntax errors found!"
+          exit $EXIT_CODE
+        else
+          echo "✅ No syntax errors found"
+        fi
+
+    - name: Check template variable formatting and control flow
+      id: template-check
+      run: |
+        echo "=== TEMPLATE VARIABLE & CONTROL FLOW CHECK ==="
+        EXIT_CODE=0
+        TEMPLATE_ERRORS=""
+        
+        # Check for common template variable issues in plugins
+        echo "Checking for template variable formatting issues..."
+        
+        # Look for potential {variable} instead of {{variable}} issues
+        SINGLE_BRACE_ISSUES=$(grep -rn "f'.*{[a-zA-Z_][a-zA-Z0-9_]*}.*'" ipcrawler/default-plugins/ || true)
+        if [ -n "$SINGLE_BRACE_ISSUES" ]; then
+          echo "Potential single brace template issues found:"
+          echo "$SINGLE_BRACE_ISSUES"
+          TEMPLATE_ERRORS="${TEMPLATE_ERRORS}⚠️ Potential single brace template issues:\n$SINGLE_BRACE_ISSUES\n\n"
+        fi
+        
+        # Look for undefined variables in f-strings that should be template variables
+        UNDEFINED_VAR_PATTERN="F821 undefined name '[a-zA-Z_][a-zA-Z0-9_]*'"
+        FLAKE8_OUTPUT=$(flake8 ipcrawler/default-plugins/ --select=F821 2>/dev/null || true)
+        if echo "$FLAKE8_OUTPUT" | grep -q "$UNDEFINED_VAR_PATTERN"; then
+          UNDEFINED_VARS=$(echo "$FLAKE8_OUTPUT" | grep "$UNDEFINED_VAR_PATTERN")
+          echo "Undefined variable issues found:"
+          echo "$UNDEFINED_VARS"
+          TEMPLATE_ERRORS="${TEMPLATE_ERRORS}❌ Undefined variables (likely template variable issues):\n$UNDEFINED_VARS\n\n"
+          EXIT_CODE=1
+        fi
+        
+        # Check for control flow and structural issues
+        echo "Checking for control flow and structural issues..."
+        
+        # Check for unclosed loops, blocks, and control structures
+        CONTROL_FLOW_ISSUES=""
+        for file in $(find ipcrawler/ -name "*.py" -type f); do
+          if [ -f "$file" ]; then
+            echo "Checking control flow in: $file"
+            
+            # Use Python AST to check for structural issues
+            PYTHON_CHECK=$(python3 -c "
+import ast
+import sys
+try:
+    with open('$file', 'r', encoding='utf-8', errors='ignore') as f:
+        source = f.read()
+    
+    # Parse the AST to check for structural issues
+    tree = ast.parse(source, filename='$file')
+    
+    # Check for common issues
+    issues = []
+    
+    class ControlFlowChecker(ast.NodeVisitor):
+        def __init__(self):
+            self.in_loop = 0
+            self.in_function = 0
+            self.in_class = 0
+            self.issues = []
+        
+        def visit_For(self, node):
+            self.in_loop += 1
+            self.generic_visit(node)
+            self.in_loop -= 1
+            
+        def visit_While(self, node):
+            self.in_loop += 1
+            self.generic_visit(node)
+            self.in_loop -= 1
+            
+        def visit_FunctionDef(self, node):
+            self.in_function += 1
+            self.generic_visit(node)
+            self.in_function -= 1
+            
+        def visit_AsyncFunctionDef(self, node):
+            self.in_function += 1
+            self.generic_visit(node)
+            self.in_function -= 1
+            
+        def visit_ClassDef(self, node):
+            self.in_class += 1
+            self.generic_visit(node)
+            self.in_class -= 1
+        
+        def visit_Break(self, node):
+            if self.in_loop == 0:
+                self.issues.append(f'Line {node.lineno}: break outside loop')
+            self.generic_visit(node)
+        
+        def visit_Continue(self, node):
+            if self.in_loop == 0:
+                self.issues.append(f'Line {node.lineno}: continue outside loop')
+            self.generic_visit(node)
+        
+        def visit_Return(self, node):
+            if self.in_function == 0:
+                self.issues.append(f'Line {node.lineno}: return outside function')
+            self.generic_visit(node)
+    
+    checker = ControlFlowChecker()
+    checker.visit(tree)
+    
+    if checker.issues:
+        for issue in checker.issues:
+            print(f'$file: {issue}')
+        sys.exit(1)
+    else:
+        print('OK')
+        
+except SyntaxError as e:
+    print(f'$file: Syntax error at line {e.lineno}: {e.msg}')
+    sys.exit(1)
+except Exception as e:
+    print(f'$file: Error checking control flow: {str(e)}')
+    sys.exit(1)
+" 2>&1)
+            
+            if [ $? -ne 0 ]; then
+              if echo "$PYTHON_CHECK" | grep -v "^OK$" >/dev/null 2>&1; then
+                CONTROL_FLOW_ISSUES="${CONTROL_FLOW_ISSUES}$PYTHON_CHECK\n"
+                EXIT_CODE=1
+              fi
+            fi
+          fi
+        done
+        
+        if [ -n "$CONTROL_FLOW_ISSUES" ]; then
+          echo "Control flow issues found:"
+          echo -e "$CONTROL_FLOW_ISSUES"
+          TEMPLATE_ERRORS="${TEMPLATE_ERRORS}❌ Control Flow Issues:\n$CONTROL_FLOW_ISSUES\n\n"
+        fi
+        
+        # Check for indentation inconsistencies (mixed tabs/spaces)
+        echo "Checking for indentation issues..."
+        INDENT_ISSUES=$(python3 -m tabnanny ipcrawler/ 2>&1 | grep -v "^$" || true)
+        if [ -n "$INDENT_ISSUES" ]; then
+          echo "Indentation issues found:"
+          echo "$INDENT_ISSUES"
+          TEMPLATE_ERRORS="${TEMPLATE_ERRORS}⚠️ Indentation Issues:\n$INDENT_ISSUES\n\n"
+        fi
+        
+        echo "template_errors<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$TEMPLATE_ERRORS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        echo "template_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "❌ Template variable or control flow issues found!"
+        else
+          echo "✅ No template variable or control flow issues found"
+        fi
+
+    - name: Advanced Python linting (Plugins First)
+      id: python-lint
+      run: |
+        echo "=== PYTHON LINTING ==="
+        LINT_WARNINGS=""
+        LINT_ERRORS=""
+        
+        # Flake8 check (focus on real errors, ignore style)
+        echo "Running flake8 (plugins first)..."
+        FLAKE8_OUTPUT=""
+        
+        # Check plugins first with comprehensive error codes
+        if flake8 ipcrawler/default-plugins/ --count --statistics --select=E9,F63,F7,F82,E113,E117,E902,F404,F405 --exclude=__pycache__ > /tmp/flake8_plugins.txt 2>&1; then
+          echo "✅ Flake8 plugins: No critical errors"
+        else
+          FLAKE8_PLUGINS=$(cat /tmp/flake8_plugins.txt)
+          LINT_ERRORS="${LINT_ERRORS}❌ Flake8 Plugins Critical Errors:\n$FLAKE8_PLUGINS\n\n"
+          echo "❌ Flake8 plugins found critical errors"
+        fi
+        
+        # Check main codebase with comprehensive error codes
+        if flake8 ipcrawler/ *.py --count --statistics --select=E9,F63,F7,F82,E113,E117,E902,F404,F405 --exclude=__pycache__,default-plugins > /tmp/flake8_main.txt 2>&1; then
+          echo "✅ Flake8 main: No critical errors"
+        else
+          FLAKE8_MAIN=$(cat /tmp/flake8_main.txt)
+          LINT_ERRORS="${LINT_ERRORS}❌ Flake8 Main Critical Errors:\n$FLAKE8_MAIN\n\n"
+          echo "❌ Flake8 main found critical errors"
+        fi
+        
+        # Additional structural checks with pyflakes
+        echo "Running pyflakes for additional structural validation..."
+        PYFLAKES_OUTPUT=$(python3 -m pyflakes ipcrawler/ 2>&1 | grep -E "(undefined|redefined|imported but unused|'break' outside loop|'continue' outside loop)" || true)
+        if [ -n "$PYFLAKES_OUTPUT" ]; then
+          echo "Pyflakes structural issues found:"
+          echo "$PYFLAKES_OUTPUT"
+          LINT_ERRORS="${LINT_ERRORS}❌ Structural Issues (Pyflakes):\n$PYFLAKES_OUTPUT\n\n"
+        else
+          echo "✅ Pyflakes: No structural issues"
+        fi
+        
+        # Check for common anti-patterns in async code
+        echo "Checking for async/await anti-patterns..."
+        ASYNC_ISSUES=""
+        for file in $(find ipcrawler/ -name "*.py" -type f); do
+          # Check for missing await on async calls
+          MISSING_AWAIT=$(grep -n "service\.execute(" "$file" | grep -v "await" || true)
+          if [ -n "$MISSING_AWAIT" ]; then
+            ASYNC_ISSUES="${ASYNC_ISSUES}$file: Missing 'await' before service.execute():\n$MISSING_AWAIT\n\n"
+          fi
+          
+          # Check for blocking calls in async functions
+          BLOCKING_CALLS=$(grep -n -A5 -B5 "async def" "$file" | grep -E "(time\.sleep|requests\.|urllib\.)" || true)
+          if [ -n "$BLOCKING_CALLS" ]; then
+            ASYNC_ISSUES="${ASYNC_ISSUES}$file: Potential blocking calls in async function:\n$BLOCKING_CALLS\n\n"
+          fi
+        done
+        
+        if [ -n "$ASYNC_ISSUES" ]; then
+          echo "Async/await anti-patterns found:"
+          echo -e "$ASYNC_ISSUES"
+          LINT_WARNINGS="${LINT_WARNINGS}⚠️ Async/Await Issues:\n$ASYNC_ISSUES\n\n"
+        fi
+        
+        # Security check with bandit (only report high severity)
+        echo "Running bandit security check..."
+        if bandit -r ipcrawler/ -f txt -o /tmp/bandit.txt -ll >/dev/null 2>&1; then
+          echo "✅ Bandit: No high-severity security issues"
+        else
+          if [ -f /tmp/bandit.txt ] && [ -s /tmp/bandit.txt ]; then
+            BANDIT_OUTPUT=$(cat /tmp/bandit.txt)
+            LINT_WARNINGS="${LINT_WARNINGS}⚠️ Security Issues (Bandit):\n$BANDIT_OUTPUT\n\n"
+            echo "⚠️ Bandit found potential security issues"
+          fi
+        fi
+        
+        echo "lint_errors<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$LINT_ERRORS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        echo "lint_warnings<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$LINT_WARNINGS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: TOML and Makefile validation
+      id: config-check
+      run: |
+        echo "=== CONFIG FILE VALIDATION ==="
+        CONFIG_ERRORS=""
+        
+        # Check TOML files
+        echo "Validating TOML files..."
+        for toml_file in $(find . -name "*.toml" -not -path "./.git/*"); do
+          echo "Checking: $toml_file"
+          if ! python -c "import toml; toml.load('$toml_file')" 2>/tmp/toml_error; then
+            TOML_ERROR=$(cat /tmp/toml_error)
+            CONFIG_ERRORS="${CONFIG_ERRORS}❌ TOML Error in $toml_file: $TOML_ERROR\n"
+            echo "❌ TOML error in $toml_file"
+          else
+            echo "✅ $toml_file is valid"
+          fi
+        done
+        
+        # Check Makefile syntax
+        echo "Validating Makefile..."
+        if [ -f "Makefile" ]; then
+          if ! make -n -f Makefile >/dev/null 2>/tmp/make_error; then
+            MAKE_ERROR=$(cat /tmp/make_error)
+            CONFIG_ERRORS="${CONFIG_ERRORS}⚠️ Makefile Warning: $MAKE_ERROR\n"
+            echo "⚠️ Makefile has potential issues"
+          else
+            echo "✅ Makefile syntax is valid"
+          fi
+        fi
+        
+        echo "config_errors<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$CONFIG_ERRORS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Package vulnerability check
+      id: safety-check
+      run: |
+        echo "=== PACKAGE VULNERABILITY CHECK ==="
+        SAFETY_WARNINGS=""
+        
+        if [ -f "requirements.txt" ]; then
+          echo "Checking for known vulnerabilities in packages..."
+          if ! safety check -r requirements.txt --output text > /tmp/safety.txt 2>&1; then
+            SAFETY_OUTPUT=$(cat /tmp/safety.txt)
+            SAFETY_WARNINGS="${SAFETY_WARNINGS}⚠️ Package Vulnerabilities:\n$SAFETY_OUTPUT\n"
+            echo "⚠️ Vulnerable packages found"
+          else
+            echo "✅ No known vulnerabilities in packages"
+          fi
+        fi
+        
+        echo "safety_warnings<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$SAFETY_WARNINGS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Determine overall status
+      id: status
+      run: |
+        OVERALL_STATUS="success"
+        STATUS_EMOJI="✅"
+        
+        # Check if we have critical errors
+        if [ "${{ steps.syntax-check.outputs.syntax_exit_code }}" != "0" ] || 
+           [ "${{ steps.template-check.outputs.template_exit_code }}" != "0" ] ||
+           [ -n "${{ steps.python-lint.outputs.lint_errors }}" ] ||
+           [ -n "${{ steps.config-check.outputs.config_errors }}" ]; then
+          OVERALL_STATUS="failure"
+          STATUS_EMOJI="❌"
+        elif [ -n "${{ steps.python-lint.outputs.lint_warnings }}" ] ||
+             [ -n "${{ steps.safety-check.outputs.safety_warnings }}" ]; then
+          OVERALL_STATUS="warning"
+          STATUS_EMOJI="⚠️"
+        fi
+        
+        echo "overall_status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
+        echo "status_emoji=$STATUS_EMOJI" >> $GITHUB_OUTPUT
+
+    - name: Send Discord notification
+      if: always()
+      env:
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+          echo "⚠️ DISCORD_WEBHOOK_URL not set, skipping notification"
+          exit 0
+        fi
+        
+        # Prepare changed files list with better formatting
+        CHANGED_FILES="${{ steps.changed-files.outputs.changed_files }}"
+        FILES_COUNT=0
+        FILES_LIST=""
+        
+        if [ -n "$CHANGED_FILES" ]; then
+          while IFS= read -r file; do
+            if [ -n "$file" ]; then
+              FILES_COUNT=$((FILES_COUNT + 1))
+              # Add file type emojis
+              case "$file" in
+                *.py) FILE_EMOJI="🐍" ;;
+                *.toml) FILE_EMOJI="⚙️" ;;
+                *.yml|*.yaml) FILE_EMOJI="📋" ;;
+                *.md) FILE_EMOJI="📖" ;;
+                Makefile) FILE_EMOJI="🔨" ;;
+                *) FILE_EMOJI="📄" ;;
+              esac
+              FILES_LIST="${FILES_LIST}${FILE_EMOJI} \`$file\`\n"
+            fi
+          done <<< "$CHANGED_FILES"
+        fi
+        
+        if [ $FILES_COUNT -eq 0 ]; then
+          FILES_LIST="📭 No files changed"
+        elif [ $FILES_COUNT -gt 10 ]; then
+          FILES_LIST="📁 **$FILES_COUNT files modified** (showing first 10):\n$(echo -e "$FILES_LIST" | head -10)"
+        fi
+        
+        # Build status message with enhanced formatting
+        STATUS_EMOJI="${{ steps.status.outputs.status_emoji }}"
+        OVERALL_STATUS="${{ steps.status.outputs.overall_status }}"
+        
+        # Enhanced color scheme
+        case "$OVERALL_STATUS" in
+          "success") COLOR=5763719 ;; # Modern green #57D13B
+          "warning") COLOR=15844367 ;; # Modern yellow #F1C40F  
+          "failure") COLOR=15158332 ;; # Modern red #E74C3C
+          *) COLOR=9807270 ;; # Modern gray #95A5A6
+        esac
+        
+        # Determine title based on status
+        case "$OVERALL_STATUS" in
+          "success") TITLE="✨ Code Quality: All Checks Passed" ;;
+          "warning") TITLE="⚠️ Code Quality: Issues Found" ;;
+          "failure") TITLE="🚨 Code Quality: Critical Issues" ;;
+          *) TITLE="🔍 Code Quality: Check Complete" ;;
+        esac
+        
+        # Create modern header with stats
+        STATS_SUMMARY=""
+        ERROR_COUNT=0
+        WARNING_COUNT=0
+        
+        # Count issues for stats
+        if [ -n "${{ steps.syntax-check.outputs.syntax_errors }}" ]; then
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        if [ -n "${{ steps.template-check.outputs.template_errors }}" ]; then
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        if [ -n "${{ steps.python-lint.outputs.lint_errors }}" ]; then
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        if [ -n "${{ steps.config-check.outputs.config_errors }}" ]; then
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        if [ -n "${{ steps.python-lint.outputs.lint_warnings }}" ]; then
+          WARNING_COUNT=$((WARNING_COUNT + 1))
+        fi
+        if [ -n "${{ steps.safety-check.outputs.safety_warnings }}" ]; then
+          WARNING_COUNT=$((WARNING_COUNT + 1))
+        fi
+        
+        # Create stats bar
+        if [ $ERROR_COUNT -eq 0 ] && [ $WARNING_COUNT -eq 0 ]; then
+          STATS_SUMMARY="🎉 **Perfect Score!** All quality checks passed"
+        else
+          STATS_SUMMARY="📊 **Quality Report:** "
+          if [ $ERROR_COUNT -gt 0 ]; then
+            STATS_SUMMARY="${STATS_SUMMARY}${ERROR_COUNT} critical error(s) "
+          fi
+          if [ $WARNING_COUNT -gt 0 ]; then
+            STATS_SUMMARY="${STATS_SUMMARY}${WARNING_COUNT} warning(s)"
+          fi
+        fi
+        
+        # Prepare detailed issues with modern formatting
+        ISSUES_DETAILED=""
+        
+        # Syntax errors with enhanced presentation
+        if [ -n "${{ steps.syntax-check.outputs.syntax_errors }}" ]; then
+          ISSUES_DETAILED="${ISSUES_DETAILED}> **🔥 Critical Syntax Errors**\n> These prevent the code from running and must be fixed immediately.\n\`\`\`python\n${{ steps.syntax-check.outputs.syntax_errors }}\n\`\`\`\n\n"
+        fi
+        
+        # Template errors with context
+        if [ -n "${{ steps.template-check.outputs.template_errors }}" ]; then
+          ISSUES_DETAILED="${ISSUES_DETAILED}> **🔧 Template & Control Flow Issues**\n> Problems with \`{{}}\` formatting or loop/function structure.\n\`\`\`python\n${{ steps.template-check.outputs.template_errors }}\n\`\`\`\n\n"
+        fi
+        
+        # Linting errors
+        if [ -n "${{ steps.python-lint.outputs.lint_errors }}" ]; then
+          ISSUES_DETAILED="${ISSUES_DETAILED}> **❌ Code Quality Errors**\n> Structural issues that may cause runtime problems.\n\`\`\`python\n${{ steps.python-lint.outputs.lint_errors }}\n\`\`\`\n\n"
+        fi
+        
+        # Config errors
+        if [ -n "${{ steps.config-check.outputs.config_errors }}" ]; then
+          ISSUES_DETAILED="${ISSUES_DETAILED}> **⚙️ Configuration Issues**\n> Problems with TOML files or Makefile syntax.\n\`\`\`bash\n${{ steps.config-check.outputs.config_errors }}\n\`\`\`\n\n"
+        fi
+        
+        # Warnings section
+        WARNINGS_DETAILED=""
+        
+        if [ -n "${{ steps.python-lint.outputs.lint_warnings }}" ]; then
+          WARNINGS_DETAILED="${WARNINGS_DETAILED}> **⚠️ Code Quality Warnings**\n> Non-critical issues worth reviewing.\n\`\`\`\n${{ steps.python-lint.outputs.lint_warnings }}\n\`\`\`\n\n"
+        fi
+        
+        if [ -n "${{ steps.safety-check.outputs.safety_warnings }}" ]; then
+          WARNINGS_DETAILED="${WARNINGS_DETAILED}> **🛡️ Security Advisories**\n> Potential security vulnerabilities in dependencies.\n\`\`\`\n${{ steps.safety-check.outputs.safety_warnings }}\n\`\`\`\n\n"
+        fi
+        
+        # Success message with modern styling
+        if [ -z "$ISSUES_DETAILED" ] && [ -z "$WARNINGS_DETAILED" ]; then
+          SUCCESS_MESSAGE="## 🎯 Perfect Quality Score!\n\n**All systems green:** Your code passes all quality checks with flying colors.\n\n**✅ Validated:**\n• 🐍 Python syntax & structure\n• 🔧 Template variables (\`{{}}\` formatting)\n• 🔄 Control flow (loops, functions)\n• 🔍 Code quality & style\n• ⚙️ Configuration files\n• 🛡️ Security vulnerabilities\n\n*Ready for production deployment!*"
+        fi
+        
+        # Build commit info with enhanced formatting
+        COMMIT_SHORT="${{ github.sha }}"
+        COMMIT_SHORT="${COMMIT_SHORT:0:7}"
+        BRANCH_EMOJI="🌿"
+        if [ "${{ github.ref_name }}" = "main" ]; then
+          BRANCH_EMOJI="🚀"
+        elif [ "${{ github.ref_name }}" = "develop" ]; then
+          BRANCH_EMOJI="⚡"
+        fi
+        
+        COMMIT_INFO="**${BRANCH_EMOJI} Branch:** \`${{ github.ref_name }}\`\n**👤 Author:** ${{ github.actor }}\n**🔗 Commit:** [\`${COMMIT_SHORT}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n**⚡ Trigger:** ${{ github.event_name }}"
+        
+        # Create main content
+        if [ -n "$SUCCESS_MESSAGE" ]; then
+          MAIN_CONTENT="$SUCCESS_MESSAGE"
+        else
+          MAIN_CONTENT="$STATS_SUMMARY\n\n$ISSUES_DETAILED$WARNINGS_DETAILED"
+        fi
+        
+        # Create modern Discord payload with multiple embeds
+        cat > /tmp/discord_payload.json << EOF
+        {
+          "username": "GitHub Code Quality Bot",
+          "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+          "embeds": [
+            {
+              "title": "$TITLE",
+              "description": "$COMMIT_INFO",
+              "color": $COLOR,
+              "fields": [
+                {
+                  "name": "📁 Changed Files ($FILES_COUNT)",
+                  "value": "$FILES_LIST",
+                  "inline": false
+                },
+                {
+                  "name": "🔍 Quality Analysis",
+                  "value": "$MAIN_CONTENT",
+                  "inline": false
+                }
+              ],
+              "footer": {
+                "text": "IPCrawler Code Quality System",
+                "icon_url": "https://raw.githubusercontent.com/github/explore/main/topics/code-quality/code-quality.png"
+              },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "thumbnail": {
+                "url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+              }
+            }
+          ]
+        }
+        EOF
+        
+        # Send to Discord with error handling
+        echo "🚀 Sending modern Discord notification..."
+        HTTP_STATUS=$(curl -w "%{http_code}" -s -o /tmp/discord_response.txt \
+             -H "Content-Type: application/json" \
+             -d @/tmp/discord_payload.json \
+             "$DISCORD_WEBHOOK_URL")
+        
+        if [ "$HTTP_STATUS" = "204" ]; then
+          echo "✅ Discord notification sent successfully!"
+        else
+          echo "❌ Discord notification failed with HTTP $HTTP_STATUS"
+          echo "Response: $(cat /tmp/discord_response.txt)"
+        fi
+
+    - name: Fail job if critical errors found
+      if: steps.status.outputs.overall_status == 'failure'
+      run: |
+        echo "❌ Job failed due to critical code quality issues"
+        exit 1
