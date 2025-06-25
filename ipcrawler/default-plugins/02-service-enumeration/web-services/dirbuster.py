@@ -28,7 +28,7 @@ class DirBuster(ServiceScan):
 		self.add_list_option('wordlist', default=['auto'], help='The wordlist(s) to use when directory busting. Use "auto" for automatic SecLists detection, or specify custom paths. Default: %(default)s')
 		self.add_option('threads', default=10, help='The number of threads to use when directory busting. Default: %(default)s')
 		self.add_option('ext', default='php,html,txt', help='The extensions you wish to fuzz (no dot, comma separated). Default: %(default)s')
-		self.add_true_option('recursive', default=False, help='Enables recursive searching (where available). Warning: This may cause significant increases to scan times. Default: %(default)s')
+		self.add_true_option('recursive', help='Enables recursive searching (where available). Warning: This may cause significant increases to scan times.')
 		self.add_option('status-codes', default='200,301,302,303,307,308,403,401,405', help='HTTP status codes to include in results (comma-separated). Default: %(default)s')
 		self.add_option('extras', default='', help='Any extra options you wish to pass to the tool when it runs. e.g. --dirbuster.extras=\'--discover-backup\'')
 		self.add_choice_option('vhost-mode', default='smart', choices=['all', 'best', 'smart'], help='How to handle multiple discovered hostnames: all=scan all, best=scan best only, smart=scan best + unique domains. Default: %(default)s')
@@ -216,7 +216,7 @@ class DirBuster(ServiceScan):
 			
 			if self.get_option('tool') == 'feroxbuster':
 				status_codes = self.get_option('status-codes')
-				service.add_manual_command(f'(feroxbuster) Multi-threaded recursive directory/file enumeration{hostname_desc}:', [
+				service.add_manual_command(f'(feroxbuster) Multi-threaded directory/file enumeration{hostname_desc}:', [
 					'feroxbuster -u {http_scheme}://' + scan_hostname + ':{port} -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -x "' + self.get_option('ext') + '" -s ' + status_codes + ' -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-e -r -o {scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + hostname_label + '_manual.txt' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 				])
 			elif self.get_option('tool') == 'gobuster':
@@ -227,15 +227,15 @@ class DirBuster(ServiceScan):
 			elif self.get_option('tool') == 'dirsearch':
 				if not (service.target.ipversion == 'IPv6' and hostname == service.target.ip):
 					status_codes = self.get_option('status-codes')
-					service.add_manual_command(f'(dirsearch) Multi-threaded recursive directory/file enumeration{hostname_desc}:', [
+					service.add_manual_command(f'(dirsearch) Multi-threaded directory/file enumeration{hostname_desc}:', [
 						'dirsearch -u {http_scheme}://' + hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -e "' + self.get_option('ext') + '" --include-status=' + status_codes + ' -f -F ' + ('-r ' if self.get_option('recursive') else '') + '-w ' + web_dirs_path + ' --format=plain --output="{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_' + hostname_label + '_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 					])
 			elif self.get_option('tool') == 'ffuf':
 				status_codes = self.get_option('status-codes')
-				service.add_manual_command(f'(ffuf) Multi-threaded recursive directory/file enumeration{hostname_desc}:', [
+				service.add_manual_command(f'(ffuf) Multi-threaded directory/file enumeration{hostname_desc}:', [
 					'ffuf -u {http_scheme}://' + scan_hostname + ':{port}/FUZZ -t ' + str(self.get_option('threads')) + ' -w ' + web_dirs_path + ' -e "' + dot_extensions + '" -mc ' + status_codes + ' -v -r ' + ('-recursion ' if self.get_option('recursive') else '') + '-noninteractive' + (' ' + self.get_option('extras') if self.get_option('extras') else '') + ' | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_' + hostname_label + '_manual.txt'
 				])
 			elif self.get_option('tool') == 'dirb':
-				service.add_manual_command(f'(dirb) Recursive directory/file enumeration{hostname_desc}:', [
+				service.add_manual_command(f'(dirb) Directory/file enumeration{hostname_desc}:', [
 					'dirb {http_scheme}://' + scan_hostname + ':{port}/ ' + web_dirs_path + ' -l ' + ('' if self.get_option('recursive') else '-r ')  + '-X ",' + dot_extensions + '" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_' + hostname_label + '_manual.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 				])
