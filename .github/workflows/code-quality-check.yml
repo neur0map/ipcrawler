@@ -91,9 +91,12 @@ jobs:
           fi
         done
         
-        echo "syntax_errors<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$SYNTAX_ERRORS" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        {
+          echo "syntax_errors<<EOF"
+          printf '%s' "$SYNTAX_ERRORS"
+          echo
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
         echo "syntax_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
         
         if [ $EXIT_CODE -ne 0 ]; then
@@ -150,7 +153,7 @@ jobs:
         
         if [ -n "$CONTROL_FLOW_ISSUES" ]; then
           echo "Control flow/AST issues found:"
-          echo -e "$CONTROL_FLOW_ISSUES"
+          printf '%s\n' "$CONTROL_FLOW_ISSUES"
           TEMPLATE_ERRORS="${TEMPLATE_ERRORS}❌ Control Flow/AST Issues:\n$CONTROL_FLOW_ISSUES\n\n"
         else
           echo "✅ No control flow issues found"
@@ -165,9 +168,12 @@ jobs:
           TEMPLATE_ERRORS="${TEMPLATE_ERRORS}⚠️ Indentation Issues:\n$INDENT_ISSUES\n\n"
         fi
         
-        echo "template_errors<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$TEMPLATE_ERRORS" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        {
+          echo "template_errors<<EOF"
+          printf '%s' "$TEMPLATE_ERRORS"
+          echo
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
         echo "template_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
         
         if [ $EXIT_CODE -ne 0 ]; then
@@ -235,7 +241,7 @@ jobs:
         
         if [ -n "$ASYNC_ISSUES" ]; then
           echo "Async/await anti-patterns found:"
-          echo -e "$ASYNC_ISSUES"
+          printf '%s\n' "$ASYNC_ISSUES"
           LINT_WARNINGS="${LINT_WARNINGS}⚠️ Async/Await Issues:\n$ASYNC_ISSUES\n\n"
         fi
         
@@ -251,12 +257,18 @@ jobs:
           fi
         fi
         
-        echo "lint_errors<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$LINT_ERRORS" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        echo "lint_warnings<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$LINT_WARNINGS" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        {
+          echo "lint_errors<<EOF"
+          printf '%s' "$LINT_ERRORS"
+          echo
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
+        {
+          echo "lint_warnings<<EOF"
+          printf '%s' "$LINT_WARNINGS" 
+          echo
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
 
     - name: TOML and Makefile validation
       id: config-check
@@ -289,9 +301,12 @@ jobs:
           fi
         fi
         
-        echo "config_errors<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$CONFIG_ERRORS" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        {
+          echo "config_errors<<EOF"
+          printf '%s' "$CONFIG_ERRORS"
+          echo
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
 
     - name: Package vulnerability check
       id: safety-check
@@ -310,9 +325,12 @@ jobs:
           fi
         fi
         
-        echo "safety_warnings<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$SAFETY_WARNINGS" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        {
+          echo "safety_warnings<<EOF"
+          printf '%s' "$SAFETY_WARNINGS"
+          echo
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
 
     - name: Determine overall status
       id: status
@@ -472,12 +490,14 @@ jobs:
         # Prepare changed files list with better formatting
         CHANGED_FILES="${{ steps.changed-files.outputs.changed_files }}"
         FILES_COUNT=0
-        FILES_LIST=""
+        
+        # Use array for safer string building
+        FILES_ARRAY=()
         
         if [ -n "$CHANGED_FILES" ]; then
           while IFS= read -r file; do
             if [ -n "$file" ]; then
-              FILES_COUNT=$(expr $FILES_COUNT + 1)
+              FILES_COUNT=$((FILES_COUNT + 1))
               # Add file type emojis
               case "$file" in
                 *.py) FILE_EMOJI="🐍" ;;
@@ -487,15 +507,23 @@ jobs:
                 Makefile) FILE_EMOJI="🔨" ;;
                 *) FILE_EMOJI="📄" ;;
               esac
-              FILES_LIST="${FILES_LIST}${FILE_EMOJI} \`$file\`\n"
+              FILES_ARRAY+=("${FILE_EMOJI} \`${file}\`")
+              # Limit to first 10 files for display
+              if [ $FILES_COUNT -ge 10 ]; then
+                break
+              fi
             fi
           done <<< "$CHANGED_FILES"
         fi
         
+        # Build FILES_LIST safely
         if [ $FILES_COUNT -eq 0 ]; then
           FILES_LIST="📭 No files changed"
-        elif [ $FILES_COUNT -gt 10 ]; then
-          FILES_LIST="📁 **$FILES_COUNT files modified** (showing first 10):\n$FILES_LIST"
+        else
+          FILES_LIST=$(printf '%s\n' "${FILES_ARRAY[@]}")
+          if [ $FILES_COUNT -gt 10 ]; then
+            FILES_LIST="📁 **$FILES_COUNT files modified** (showing first 10):\n$FILES_LIST"
+          fi
         fi
         
         # Build status message with enhanced formatting
@@ -525,22 +553,22 @@ jobs:
         
         # Count issues for stats
         if [ -n "${{ steps.syntax-check.outputs.syntax_errors }}" ]; then
-          ERROR_COUNT=$(expr $ERROR_COUNT + 1)
+          ERROR_COUNT=$((ERROR_COUNT + 1))
         fi
         if [ -n "${{ steps.template-check.outputs.template_errors }}" ]; then
-          ERROR_COUNT=$(expr $ERROR_COUNT + 1)
+          ERROR_COUNT=$((ERROR_COUNT + 1))
         fi
         if [ -n "${{ steps.python-lint.outputs.lint_errors }}" ]; then
-          ERROR_COUNT=$(expr $ERROR_COUNT + 1)
+          ERROR_COUNT=$((ERROR_COUNT + 1))
         fi
         if [ -n "${{ steps.config-check.outputs.config_errors }}" ]; then
-          ERROR_COUNT=$(expr $ERROR_COUNT + 1)
+          ERROR_COUNT=$((ERROR_COUNT + 1))
         fi
         if [ -n "${{ steps.python-lint.outputs.lint_warnings }}" ]; then
-          WARNING_COUNT=$(expr $WARNING_COUNT + 1)
+          WARNING_COUNT=$((WARNING_COUNT + 1))
         fi
         if [ -n "${{ steps.safety-check.outputs.safety_warnings }}" ]; then
-          WARNING_COUNT=$(expr $WARNING_COUNT + 1)
+          WARNING_COUNT=$((WARNING_COUNT + 1))
         fi
         
         # Create stats bar
@@ -615,11 +643,21 @@ jobs:
         fi
         
         # Create modern Discord payload with multiple embeds
+        # Create robust JSON escaping function
+        escape_json() {
+          printf '%s' "$1" | python3 -c "
+        import sys
+        import json
+        content = sys.stdin.read()
+        print(json.dumps(content)[1:-1], end='')  # Remove outer quotes
+        "
+        }
+        
         # Escape JSON strings properly
-        TITLE_ESC=$(printf '%s' "$TITLE" | sed 's/"/\\"/g')
-        COMMIT_INFO_ESC=$(printf '%s' "$COMMIT_INFO" | sed 's/"/\\"/g')
-        FILES_LIST_ESC=$(printf '%s' "$FILES_LIST" | sed 's/"/\\"/g')
-        MAIN_CONTENT_ESC=$(printf '%s' "$MAIN_CONTENT" | sed 's/"/\\"/g')
+        TITLE_ESC=$(escape_json "$TITLE")
+        COMMIT_INFO_ESC=$(escape_json "$COMMIT_INFO")
+        FILES_LIST_ESC=$(escape_json "$FILES_LIST")
+        MAIN_CONTENT_ESC=$(escape_json "$MAIN_CONTENT")
         
         cat > /tmp/discord_payload.json << EOF
         {
