@@ -121,12 +121,12 @@ class VirtualHost(ServiceScan):
 						' -r -noninteractive')
 					
 					# Add verbosity flags based on -vvv level
-					if verbose_level >= 3:
+					if verbose_level is not None and verbose_level >= 3:
 						# -vvv: Show detailed scan info but still keep results clean (no per-word spam)
 						service.info(f"🔍 Running virtual host enumeration with detailed output")
 						service.info(f"🎯 Wordlist: {os.path.basename(wordlist)} ({self.get_option('threads')} threads)")
 						ffuf_cmd += ' -s'  # Keep silent to avoid clutter, we'll show our own messages
-					elif verbose_level >= 2:
+					elif verbose_level is not None and verbose_level >= 2:
 						# -vv: Show scan progress but keep clean
 						service.info(f"🔍 Scanning virtual hosts on {hostname}")
 						ffuf_cmd += ' -s'

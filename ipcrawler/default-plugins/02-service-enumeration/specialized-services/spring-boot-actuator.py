@@ -69,7 +69,8 @@ class SpringBootActuator(ServiceScan):
 				
 				spring_boot_detected = False
 				if process.returncode == 0 and stdout:
-					if any(indicator in stdout.lower() for indicator in ['200 ok', '401 unauthorized', '403 forbidden']):
+					stdout_str = str(stdout) if hasattr(stdout, 'lower') else str(stdout) if stdout else ''
+					if any(indicator in stdout_str.lower() for indicator in ['200 ok', '401 unauthorized', '403 forbidden']):
 						spring_boot_detected = True
 						service.info("🌱 Spring Boot Actuator endpoint detected!")
 				
@@ -79,7 +80,8 @@ class SpringBootActuator(ServiceScan):
 						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -10',
 						outfile=None
 					)
-					if stdout and any(indicator in stdout.lower() for indicator in ['spring', 'boot', 'whitelabel error']):
+					stdout_str = str(stdout) if stdout else ''
+					if stdout_str and any(indicator in stdout_str.lower() for indicator in ['spring', 'boot', 'whitelabel error']):
 						spring_boot_detected = True
 						service.info("🌱 Spring Boot application detected!")
 				
