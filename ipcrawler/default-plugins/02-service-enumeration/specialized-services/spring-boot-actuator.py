@@ -101,7 +101,8 @@ class SpringBootActuator(ServiceScan):
 							service.info("🌱 Spring Boot application detected!")
 					else:
 						# Debug: Show what we actually found
-						service.info(f"🔍 Response preview: {stdout[:200] if stdout else 'No response'}...")
+						response_preview = str(stdout)[:200] if stdout else 'No response'
+						service.info(f"🔍 Response preview: {response_preview}...")
 				
 				if not spring_boot_detected:
 					service.info("❌ No Spring Boot indicators found - skipping detailed enumeration")
