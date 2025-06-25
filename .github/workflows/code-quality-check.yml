@@ -354,7 +354,9 @@ jobs:
         echo "overall_status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
         echo "status_emoji=$STATUS_EMOJI" >> $GITHUB_OUTPUT
 
-    - name: Send Sentry report
+    # CRITICAL: Send error reports to Sentry FIRST, before any other notifications
+    # This ensures failure data is captured in Sentry before Discord notification
+    - name: Send Sentry report (Priority - Send failure data FIRST)
       if: always()
       env:
         SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
@@ -362,7 +364,7 @@ jobs:
         if [ -z "$SENTRY_DSN" ]; then
           echo "⚠️ SENTRY_DSN not set, skipping Sentry reporting"
         else
-          echo "📡 Sending errors to Sentry..."
+          echo "📡 PRIORITY: Sending failure data to Sentry BEFORE Discord notification..."
           
           # Collect all errors and metadata
           OVERALL_STATUS="${{ steps.status.outputs.overall_status }}"
@@ -462,6 +464,7 @@ jobs:
           print("✅ Sentry reporting complete")
           EOF
 
+          echo "🔄 Executing Sentry report with all error/warning data..."
           # Execute Sentry report with error data
           SYNTAX_ERRORS="${{ steps.syntax-check.outputs.syntax_errors }}" \
           TEMPLATE_ERRORS="${{ steps.template-check.outputs.template_errors }}" \
@@ -475,9 +478,12 @@ jobs:
           AUTHOR="$AUTHOR" \
           REPO="$REPO" \
           python3 /tmp/sentry_report.py
+          
+          echo "✅ Sentry failure data successfully sent - proceeding to Discord notification"
         fi
 
-    - name: Send Discord notification
+    # Send Discord notification AFTER Sentry has received the failure data
+    - name: Send Discord notification (After Sentry reporting)
       if: always()
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
