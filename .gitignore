@@ -7,3 +7,8 @@ venv/
 .vscode/
 claude.md
 ipcrawler/wordlists/wordlists.toml
+
+# Environment files (never commit these)
+.env
+.env.local
+.env.*.local

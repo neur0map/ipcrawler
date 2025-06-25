@@ -10,6 +10,18 @@ except ModuleNotFoundError:
 	print('One or more required modules was not installed. Please run or re-run: ' + ('sudo ' if os.getuid() == 0 else '') + 'python3 -m pip install -r requirements.txt')
 	sys.exit(1)
 
+# Optional Sentry SDK import for development/debugging
+# To enable Sentry error tracking and performance monitoring:
+# 1. Install sentry-sdk: pip install sentry-sdk
+# 2. Set environment variable: export SENTRY_DSN="your_sentry_dsn_here"
+# 3. Run ipcrawler normally - Sentry will automatically capture errors and performance data
+# Note: This is intended for developers only - end users should not have this enabled
+try:
+	import sentry_sdk
+	SENTRY_AVAILABLE = True
+except ModuleNotFoundError:
+	SENTRY_AVAILABLE = False
+
 colorama.init()
 
 from ipcrawler.config import config, configurable_keys, configurable_boolean_keys
@@ -995,7 +1007,7 @@ async def run():
 	parser.add_argument('--report-output', action='store', metavar='FILE', help='Custom output file for HTML report')
 	
 	parser.add_argument('-v', '--verbose', action='count', help='Enable verbose output. Repeat for more verbosity.')
-	parser.add_argument('--debug', action='store_true', help='Enable debug mode with detailed plugin output. Default: %(default)s')
+	parser.add_argument('--debug', action='store_true', help='Enable debug mode with detailed plugin output. Automatically loads .env file for Sentry monitoring if available. Default: %(default)s')
 	parser.add_argument('--version', action='store_true', help='Prints the ipcrawler version and exits.')
 	parser.error = lambda s: fail(s[0].upper() + s[1:])
 	args, unknown = parser.parse_known_args()
@@ -1868,6 +1880,44 @@ async def run():
 			termios.tcsetattr(sys.stdin, termios.TCSADRAIN, terminal_settings)
 
 def main():
+	# Initialize Sentry for error tracking and performance monitoring (developer only)
+	# Check if --debug flag is used, and if so, automatically load .env file for Sentry
+	sentry_dsn = os.environ.get('SENTRY_DSN')
+	
+	# Quick check for --debug flag before full arg parsing
+	debug_mode = '--debug' in sys.argv
+	
+	if debug_mode and SENTRY_AVAILABLE and not sentry_dsn:
+		# Try to load .env file automatically when --debug is used
+		env_file = '.env'
+		if os.path.exists(env_file):
+			try:
+				with open(env_file, 'r') as f:
+					for line in f:
+						line = line.strip()
+						if line.startswith('SENTRY_DSN=') and not line.startswith('#'):
+							sentry_dsn = line.split('=', 1)[1].strip().strip('"\'')
+							break
+				if sentry_dsn:
+					info('🔧 Debug mode: Automatically loaded Sentry DSN from .env file', verbosity=0)
+			except Exception as e:
+				warn(f'⚠️ Debug mode: Could not load .env file: {e}', verbosity=0)
+	
+	# Initialize Sentry if DSN is available (from environment or .env file)
+	if SENTRY_AVAILABLE and sentry_dsn:
+		sentry_sdk.init(
+			dsn=sentry_dsn,
+			# Set traces_sample_rate to 1.0 to capture 100%
+			# of transactions for tracing.
+			traces_sample_rate=1.0,
+			# Set profiles_sample_rate to 1.0 to profile 100%
+			# of sampled transactions.
+			# We recommend adjusting this value in production.
+			profiles_sample_rate=1.0,
+		)
+		if debug_mode:
+			info('🚀 Debug mode: Sentry monitoring enabled - capturing ALL errors and performance data', verbosity=0)
+	
 	# Capture Ctrl+C and cancel everything.
 	signal.signal(signal.SIGINT, cancel_all_tasks)
 	try:
