@@ -14,13 +14,11 @@ class SpringBootActuator(ServiceScan):
 
 	def configure(self):
 		self.add_option('threads', default=10, help='Number of threads for endpoint enumeration. Default: %(default)s')
-		self.add_option('timeout', default=10, help='Request timeout in seconds. Default: %(default)s')
+		self.add_option('timeout', default=5, help='Request timeout in seconds. Default: %(default)s')
 		self.add_list_option('common-paths', default=[
 			'/', '/actuator', '/actuator/health', '/actuator/info', '/actuator/env',
-			'/actuator/beans', '/actuator/configprops', '/actuator/dump', '/actuator/trace',
-			'/actuator/mappings', '/actuator/metrics', '/actuator/shutdown', '/actuator/jolokia',
-			'/manage', '/management', '/monitoring', '/admin', '/api', '/api/v1', '/api/v2',
-			'/health', '/info', '/status', '/version', '/env', '/beans', '/metrics'
+			'/actuator/beans', '/actuator/configprops', '/actuator/mappings', '/actuator/metrics',
+			'/manage', '/management', '/admin', '/health', '/info', '/status'
 		], help='Common Spring Boot and management endpoints to check. Default: %(default)s')
 		
 		# Match unknown services on common Spring Boot ports
@@ -59,23 +57,45 @@ class SpringBootActuator(ServiceScan):
 				hostname_label = hostname.replace('.', '_').replace(':', '_')
 				service.info(f"🔧 Checking Spring Boot endpoints on: {hostname}")
 				
-				# Test basic connectivity and get server info
-				service.info(f"📋 Getting basic server information...")
+				# Quick Spring Boot detection first - skip if not Spring Boot
+				service.info(f"🔍 Quick Spring Boot detection...")
 				timeout = self.get_option("timeout")
+				
+				# First check if /actuator endpoint exists (most reliable Spring Boot indicator)
 				process, stdout, stderr = await service.execute(
-					f'echo "=== Basic HTTP Headers ===" && '
-					f'curl -v -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
-					f'echo "=== Response Body Sample ===" && '
-					f'curl -v -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -20',
-					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
+					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/actuator 2>&1',
+					outfile=None
 				)
 				
-				# Analyze response to identify the service (read from output file instead)
-				# The output is already written to file, so we can analyze patterns there
-				if process.returncode == 0:
-					service.info("✅ HTTP connection successful")
-				else:
-					service.info("⚠️ HTTP connection had issues")
+				spring_boot_detected = False
+				if process.returncode == 0 and stdout:
+					if any(indicator in stdout.lower() for indicator in ['200 ok', '401 unauthorized', '403 forbidden']):
+						spring_boot_detected = True
+						service.info("🌱 Spring Boot Actuator endpoint detected!")
+				
+				if not spring_boot_detected:
+					# Quick check of main page for Spring Boot indicators
+					process, stdout, stderr = await service.execute(
+						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -10',
+						outfile=None
+					)
+					if stdout and any(indicator in stdout.lower() for indicator in ['spring', 'boot', 'whitelabel error']):
+						spring_boot_detected = True
+						service.info("🌱 Spring Boot application detected!")
+				
+				if not spring_boot_detected:
+					service.info("❌ No Spring Boot indicators found - skipping detailed enumeration")
+					continue  # Skip to next hostname
+				
+				# Get detailed server info only if Spring Boot detected
+				service.info(f"📋 Getting detailed Spring Boot information...")
+				process, stdout, stderr = await service.execute(
+					f'echo "=== Basic HTTP Headers ===" && '
+					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'echo "=== Response Body Sample ===" && '
+					f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -20',
+					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
+				)
 				
 				# Check for Spring Boot actuator endpoints
 				service.info(f"🔍 Enumerating Spring Boot actuator endpoints...")
@@ -94,14 +114,17 @@ class SpringBootActuator(ServiceScan):
 					outfile=None
 				)
 				
-				# Use curl to check each endpoint efficiently
+				# Use parallel curl to check endpoints much faster
 				timeout = self.get_option("timeout")
+				threads = self.get_option("threads")
+				service.info(f"🚀 Checking {len(common_paths)} endpoints with {threads} threads, {timeout}s timeout...")
+				
+				# Use xargs for parallel execution - much faster than sequential
 				process, stdout, stderr = await service.execute(
-					f'while read -r url; do '
-					f'echo "=== Checking: $url ==="; '
-					f'curl -v -m {timeout} "$url" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed"; '
-					f'echo ""; '
-					f'done < {url_file}',
+					f'cat {url_file} | xargs -I {{}} -P {threads} sh -c \''
+					f'echo "=== Checking: {{}} ==="; '
+					f'curl -s -m {timeout} "{{}}" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed to {{}}"; '
+					f'echo ""\'',
 					outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
 				)
 				
