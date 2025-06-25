@@ -106,9 +106,15 @@ def info(*args, sep=' ', end='\n', file=sys.stdout, **kvargs):
 	if is_loading_active() and len(args) >= 1:
 		# Try to parse target/plugin from the formatted message
 		message = ' '.join(str(arg) for arg in args)
-		if '[' in message and ']' in message:
+		
+		# Process color templates before sending to loading system
+		processed_message = message
+		for template, replacement in replacements.items():
+			processed_message = processed_message.replace('{' + template + '}', replacement)
+		
+		if '[' in processed_message and ']' in processed_message:
 			# Extract target and message parts
-			parts = message.split(']', 1)
+			parts = processed_message.split(']', 1)
 			if len(parts) == 2:
 				target_part = parts[0].replace('[', '').strip()
 				msg_part = parts[1].strip()

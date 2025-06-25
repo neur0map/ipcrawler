@@ -71,7 +71,7 @@ class SpringBootActuator(ServiceScan):
 				timeout = self.get_option("timeout")
 				
 				# First check if /actuator endpoint exists (most reliable Spring Boot indicator)
-				process, stdout, stderr = await service.execute(
+				process, stdout, _ = await service.execute(
 					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/actuator 2>&1',
 					outfile=None
 				)
@@ -90,7 +90,7 @@ class SpringBootActuator(ServiceScan):
 				
 				if not spring_boot_detected:
 					# Quick check of main page for Spring Boot indicators
-					process, stdout, stderr = await service.execute(
+					process, stdout, _ = await service.execute(
 						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -10',
 						outfile=None
 					)
@@ -125,12 +125,13 @@ class SpringBootActuator(ServiceScan):
 				
 				# Get detailed server info only if Spring Boot detected
 				service.info(f"📋 Getting detailed Spring Boot information...")
-				process, stdout, stderr = await service.execute(
+				outfile_name = f'{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_headers_{hostname_label}.txt'
+				process, stdout, _ = await service.execute(
 					f'echo "=== Basic HTTP Headers ===" && '
-					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'curl -s -I -m {timeout} {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1 && '
 					f'echo "=== Response Body Sample ===" && '
-					f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/ 2>&1 | head -20',
-					outfile='{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_headers_{hostname_label}.txt'
+					f'curl -s -m {timeout} {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1 | head -20',
+					outfile=outfile_name
 				)
 				
 				# Check for Spring Boot actuator endpoints
@@ -140,8 +141,8 @@ class SpringBootActuator(ServiceScan):
 					common_paths = ['/actuator', '/health', '/info']
 				
 				# Create a list of URLs to check
-				url_file = f'{{scandir}}/{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_urls_{hostname_label}.txt'
-				urls = [f'{{http_scheme}}://{hostname}:{{port}}{path}' for path in common_paths]
+				url_file = f'{{{{scandir}}}}/{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_urls_{hostname_label}.txt'
+				urls = [f'{{{{http_scheme}}}}://{hostname}:{{{{port}}}}{path}' for path in common_paths]
 				
 				# Write URLs to file for reference
 				url_list = ' '.join([f'"{url}"' for url in urls])
@@ -156,12 +157,13 @@ class SpringBootActuator(ServiceScan):
 				service.info(f"🚀 Checking {len(common_paths)} endpoints with {threads} threads, {timeout}s timeout...")
 				
 				# Use xargs for parallel execution - much faster than sequential
-				process, stdout, stderr = await service.execute(
-					f'cat {url_file} | xargs -I {{}} -P {threads} sh -c \''
-					f'echo "=== Checking: {{}} ==="; '
-					f'curl -s -m {timeout} "{{}}" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed to {{}}"; '
+				endpoints_outfile = f'{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_endpoints_{hostname_label}.txt'
+				process, stdout, _ = await service.execute(
+					f'cat {url_file} | xargs -I {{{{URL}}}} -P {threads} sh -c \''
+					f'echo "=== Checking: {{{{URL}}}} ==="; '
+					f'curl -s -m {timeout} "{{{{URL}}}}" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed to {{{{URL}}}}"; '
 					f'echo ""\'',
-					outfile='{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_endpoints_{hostname_label}.txt'
+					outfile=endpoints_outfile
 				)
 				
 				# Check endpoint responses for additional service identification
@@ -173,23 +175,25 @@ class SpringBootActuator(ServiceScan):
 				# Check for common Spring Boot error pages and info disclosure
 				service.info(f"🚨 Checking for information disclosure...")
 				timeout = self.get_option("timeout")
+				error_outfile = f'{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_error_{hostname_label}.txt'
 				await service.execute(
 					f'echo "=== Testing /error endpoint ===" && '
-					f'curl -v -m {timeout} {{http_scheme}}://{hostname}:{{port}}/error '
+					f'curl -v -m {timeout} {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/error '
 					f'-H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1',
-					outfile='{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_error_{hostname_label}.txt'
+					outfile=error_outfile
 				)
 				
 				# Try common authentication bypass techniques
 				service.info(f"🔐 Testing authentication bypass techniques...")
+				auth_outfile = f'{{{{protocol}}}}_{{{{port}}}}_{{{{http_scheme}}}}_spring_boot_auth_test_{hostname_label}.txt'
 				await service.execute(
 					f'echo "=== Testing admin:admin ===" && '
-					f'curl -v -s -m {timeout} -u admin:admin {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'curl -v -s -m {timeout} -u admin:admin {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1 && '
 					f'printf "\\n=== Testing default:default ===\\n" && '
-					f'curl -v -s -m {timeout} -u default:default {{http_scheme}}://{hostname}:{{port}}/ 2>&1 && '
+					f'curl -v -s -m {timeout} -u default:default {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1 && '
 					f'printf "\\n=== Testing empty credentials ===\\n" && '
-					f'curl -v -s -m {timeout} -u : {{http_scheme}}://{hostname}:{{port}}/ 2>&1',
-					outfile='{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_auth_test_{hostname_label}.txt'
+					f'curl -v -s -m {timeout} -u : {{{{http_scheme}}}}://{hostname}:{{{{port}}}}/ 2>&1',
+					outfile=auth_outfile
 				)
 				
 				service.info(f"✅ Spring Boot enumeration completed for {hostname}")
@@ -217,7 +221,7 @@ class SpringBootActuator(ServiceScan):
 				except Exception as e:
 					service.info(f"📝 Service analysis completed (could not read output files for identification)")
 
-	def manual(self, service, plugin_was_run):
+	def manual(self, service, _):
 		# Get all hostnames to scan
 		hostnames = service.target.get_all_hostnames()
 		if not hostnames:
