@@ -1869,8 +1869,12 @@ def main():
 		asyncio.run(run())
 	except asyncio.exceptions.CancelledError:
 		pass
-	except RuntimeError:
-		pass
+	except RuntimeError as e:
+		# Handle "Event loop is closed" errors gracefully
+		if "Event loop is closed" in str(e):
+			pass  # This is expected during shutdown
+		else:
+			raise  # Re-raise other RuntimeErrors
 
 if __name__ == '__main__':
 	main()

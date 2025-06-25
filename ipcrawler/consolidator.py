@@ -87,9 +87,29 @@ class ResultParser:
     def parse_nmap_xml(self, xml_path: str) -> List[ServiceInfo]:
         """Parse nmap XML output to extract service information"""
         services = []
+        
+        # Check if file exists and is readable
+        if not os.path.exists(xml_path):
+            if RICH_AVAILABLE:
+                console.print(f"[yellow]Warning: XML file {xml_path} does not exist[/yellow]")
+            return services
+        
+        # Check if file is empty
+        if os.path.getsize(xml_path) == 0:
+            if RICH_AVAILABLE:
+                console.print(f"[yellow]Warning: XML file {xml_path} is empty, skipping...[/yellow]")
+            return services
+        
         try:
+            # Try to parse the XML file
             tree = ET.parse(xml_path)
             root = tree.getroot()
+            
+            # Validate that this is an nmap XML file
+            if root.tag != 'nmaprun':
+                if RICH_AVAILABLE:
+                    console.print(f"[yellow]Warning: {xml_path} does not appear to be a valid nmap XML file[/yellow]")
+                return services
             
             for host in root.findall('host'):
                 for port in host.findall('.//port'):
@@ -99,7 +119,10 @@ class ResultParser:
                     if port_id is None or protocol is None:
                         continue
                     
-                    port_num = int(port_id)
+                    try:
+                        port_num = int(port_id)
+                    except ValueError:
+                        continue
                     
                     state_elem = port.find('state')
                     state = state_elem.get('state') if state_elem is not None else 'unknown'
@@ -135,11 +158,53 @@ class ResultParser:
                             banner=banner
                         ))
                         
+        except ET.ParseError as e:
+            # Handle XML parsing errors more gracefully
+            if RICH_AVAILABLE:
+                console.print(f"[yellow]Warning: XML file {xml_path} appears to be corrupted or incomplete (Parse error: {e}). Trying text fallback...[/yellow]")
+            else:
+                print(f"Warning: XML file {xml_path} appears to be corrupted or incomplete (Parse error: {e}). Trying text fallback...")
+            
+            # Try to read as text and extract basic port information
+            try:
+                with open(xml_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                
+                # Look for port entries in the XML text even if it's malformed
+                port_matches = re.findall(r'<port protocol="(tcp|udp)" portid="(\d+)".*?<state state="(open|closed|filtered)".*?(?:<service name="([^"]*)".*?/>)?', content, re.DOTALL)
+                for protocol, port_id, state, service_name in port_matches:
+                    if state == 'open':
+                        services.append(ServiceInfo(
+                            port=int(port_id),
+                            protocol=protocol,
+                            service=service_name or 'unknown',
+                            state=state,
+                            version='',
+                            banner=''
+                        ))
+            except Exception as text_e:
+                if RICH_AVAILABLE:
+                    console.print(f"[red]Error: Could not parse XML file {xml_path} as text either: {text_e}[/red]")
+                else:
+                    print(f"Error: Could not parse XML file {xml_path} as text either: {text_e}")
+                    
+        except FileNotFoundError:
+            if RICH_AVAILABLE:
+                console.print(f"[yellow]Warning: XML file {xml_path} not found[/yellow]")
+            else:
+                print(f"Warning: XML file {xml_path} not found")
+                
+        except PermissionError:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error: Permission denied reading XML file {xml_path}[/red]")
+            else:
+                print(f"Error: Permission denied reading XML file {xml_path}")
+                
         except Exception as e:
             if RICH_AVAILABLE:
-                console.print(f"[red]Error parsing XML {xml_path}: {e}[/red]")
+                console.print(f"[red]Unexpected error parsing XML {xml_path}: {e}[/red]")
             else:
-                print(f"Error parsing XML {xml_path}: {e}")
+                print(f"Unexpected error parsing XML {xml_path}: {e}")
         
         return services
     
@@ -747,16 +812,27 @@ class IPCrawlerConsolidator:
         
         # Parse port scans first (XML preferred, then text)
         xml_dir = scan_dir / "xml"
+        xml_parsed_successfully = False
+        
         if xml_dir.exists():
             for xml_file in xml_dir.glob("*nmap*.xml"):
                 services = self.parser.parse_nmap_xml(str(xml_file))
-                results.open_ports.extend(services)
+                if services:  # Only extend if we got actual services
+                    results.open_ports.extend(services)
+                    xml_parsed_successfully = True
         
-        # If no XML results, parse text files
+        # If no XML results or XML parsing failed, parse text files
         if not results.open_ports:
             for nmap_file in scan_dir.glob("*nmap*.txt"):
                 services = self.parser.parse_nmap_text(str(nmap_file))
                 results.open_ports.extend(services)
+                
+            # If text files also don't exist, try to find any scan results
+            if not results.open_ports and xml_dir.exists():
+                if RICH_AVAILABLE:
+                    console.print(f"[yellow]📡 No port data found for {target}. Scan may be incomplete or failed.[/yellow]")
+                else:
+                    print(f"No port data found for {target}. Scan may be incomplete or failed.")
         
         # Remove duplicates and sort by port
         unique_ports = {}
