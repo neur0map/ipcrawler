@@ -7,7 +7,7 @@ import platform
 import subprocess
 import re
 
-urllib3.disable_warnings()
+# Note: SSL warnings are managed per-request for security awareness
 
 class RedirectHostnameDiscovery(PortScan):
 
@@ -92,7 +92,15 @@ class RedirectHostnameDiscovery(PortScan):
 					url = f"{scheme}://{target.address}:{port}/"
 					
 					# Try to connect and check for redirects
-					resp = requests.get(url, verify=False, allow_redirects=False, timeout=5)
+					# Attempt secure connection first, fallback to insecure if needed
+					try:
+						resp = requests.get(url, verify=True, allow_redirects=False, timeout=5)
+					except requests.exceptions.SSLError:
+						# Fallback to unverified connection with warning
+						print(f"⚠️ [{target.address}/hostname-discovery] SSL verification failed for {url}, retrying without verification (vulnerable to MITM)")
+						with urllib3.warnings.catch_warnings():
+							urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+							resp = requests.get(url, verify=False, allow_redirects=False, timeout=5)
 					
 					if 'Location' in resp.headers:
 						location = resp.headers['Location']
@@ -126,7 +134,15 @@ class RedirectHostnameDiscovery(PortScan):
 							
 						try:
 							path_url = f"{scheme}://{target.address}:{port}{path}"
-							path_resp = requests.get(path_url, verify=False, allow_redirects=False, timeout=3)
+							# Attempt secure connection first, fallback to insecure if needed
+							try:
+								path_resp = requests.get(path_url, verify=True, allow_redirects=False, timeout=3)
+							except requests.exceptions.SSLError:
+								# Fallback to unverified connection with warning
+								print(f"⚠️ [{target.address}/hostname-discovery] SSL verification failed for {path_url}, retrying without verification (vulnerable to MITM)")
+								with urllib3.warnings.catch_warnings():
+									urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+									path_resp = requests.get(path_url, verify=False, allow_redirects=False, timeout=3)
 							
 							if 'Location' in path_resp.headers:
 								location = path_resp.headers['Location']

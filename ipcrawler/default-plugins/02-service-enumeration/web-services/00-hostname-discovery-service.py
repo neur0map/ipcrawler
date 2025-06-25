@@ -6,7 +6,7 @@ import os
 import platform
 import subprocess
 
-urllib3.disable_warnings()
+# Note: SSL warnings are managed per-request for security awareness
 
 class RedirectHostnameDiscoveryService(ServiceScan):
 
@@ -105,7 +105,15 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 				url = f"{scheme}://{service.target.address}:{service.port}/"
 				service.info(f"🌐 Testing: {url}")
 				
-				resp = requests.get(url, verify=False, allow_redirects=False, timeout=10)
+				# Attempt secure connection first, fallback to insecure if needed
+				try:
+					resp = requests.get(url, verify=True, allow_redirects=False, timeout=10)
+				except requests.exceptions.SSLError:
+					# Fallback to unverified connection with warning
+					service.warn(f"SSL verification failed for {url}, retrying without verification (vulnerable to MITM)", verbosity=1)
+					with urllib3.warnings.catch_warnings():
+						urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+						resp = requests.get(url, verify=False, allow_redirects=False, timeout=10)
 				service.info(f"📊 Response: {resp.status_code} for {url}")
 				
 				# Check for redirects in Location header
@@ -160,7 +168,15 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 				for path in redirect_paths[:2]:  # Limit to avoid too many requests
 					try:
 						path_url = f"{scheme}://{service.target.address}:{service.port}{path}"
-						path_resp = requests.get(path_url, verify=False, allow_redirects=False, timeout=3)
+						# Attempt secure connection first, fallback to insecure if needed
+						try:
+							path_resp = requests.get(path_url, verify=True, allow_redirects=False, timeout=3)
+						except requests.exceptions.SSLError:
+							# Fallback to unverified connection with warning
+							service.warn(f"SSL verification failed for {path_url}, retrying without verification (vulnerable to MITM)", verbosity=1)
+							with urllib3.warnings.catch_warnings():
+								urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+								path_resp = requests.get(path_url, verify=False, allow_redirects=False, timeout=3)
 						
 						if 'Location' in path_resp.headers:
 							location = path_resp.headers['Location']
