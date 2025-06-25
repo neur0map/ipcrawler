@@ -55,6 +55,12 @@ class ServiceInfo:
     version: str = ""
     banner: str = ""
     ssl_info: Dict[str, Any] = field(default_factory=dict)
+    
+    # Enhanced fields for comprehensive service data
+    enumeration_data: Dict[str, Any] = field(default_factory=dict)  # Plugin-specific findings
+    vulnerabilities: List[str] = field(default_factory=list)  # Service-specific vulns
+    access_info: Dict[str, Any] = field(default_factory=dict)  # Auth/access details
+    config_info: Dict[str, Any] = field(default_factory=dict)  # Configuration details
 
 @dataclass
 class WebInfo:
@@ -616,6 +622,320 @@ class ResultParser:
                 return True
                 
         return False
+    
+    # === NEW PARSING METHODS FOR ALL SERVICE TYPES ===
+    
+    def parse_ssh_scan(self, file_path: str) -> Dict[str, Any]:
+        """Parse SSH enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                # Extract SSH version and algorithms
+                if 'SSH-' in content:
+                    ssh_match = re.search(r'SSH-(\d+\.\d+)-(.+)', content)
+                    if ssh_match:
+                        data['version'] = ssh_match.group(0)
+                        data['protocol_version'] = ssh_match.group(1)
+                        data['software'] = ssh_match.group(2)
+                
+                # Extract host keys
+                host_keys = re.findall(r'(\w+)\s+(\w+)\s+([a-fA-F0-9:]+)', content)
+                if host_keys:
+                    data['host_keys'] = [{'type': hk[0], 'bits': hk[1], 'fingerprint': hk[2]} for hk in host_keys]
+                
+                # Extract supported algorithms
+                if 'kex algorithms' in content.lower():
+                    data['kex_algorithms'] = re.findall(r'kex algorithms:\s*(.+)', content, re.IGNORECASE)
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing SSH scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_smb_scan(self, file_path: str, filename: str) -> Dict[str, Any]:
+        """Parse SMB/NetBIOS enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                if 'smbmap' in filename:
+                    # Parse smbmap share enumeration
+                    shares = re.findall(r'(\w+)\s+(\w+)\s+(.+)', content)
+                    if shares:
+                        data['shares'] = [{'name': s[0], 'permissions': s[1], 'comment': s[2]} for s in shares]
+                
+                elif 'enum4linux' in filename:
+                    # Parse enum4linux output
+                    if 'Domain Name:' in content:
+                        domain_match = re.search(r'Domain Name:\s*(.+)', content)
+                        if domain_match:
+                            data['domain_name'] = domain_match.group(1).strip()
+                    
+                    # Extract users
+                    users = re.findall(r'user:\[(.+?)\]', content, re.IGNORECASE)
+                    if users:
+                        data['users'] = list(set(users))  # Deduplicate
+                
+                elif 'smbclient' in filename:
+                    # Parse smbclient listings
+                    files = re.findall(r'(\S+)\s+[DAH]?\s+\d+', content)
+                    if files:
+                        data['files'] = files[:20]  # Limit to first 20
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing SMB scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_snmp_scan(self, file_path: str, filename: str) -> Dict[str, Any]:
+        """Parse SNMP enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                # System information
+                if 'system_info' in filename or 'system' in filename:
+                    sys_info = {}
+                    if 'sysName' in content:
+                        sys_match = re.search(r'sysName\.0\s*=\s*(.+)', content)
+                        if sys_match:
+                            sys_info['hostname'] = sys_match.group(1).strip()
+                    
+                    if 'sysDescr' in content:
+                        desc_match = re.search(r'sysDescr\.0\s*=\s*(.+)', content)
+                        if desc_match:
+                            sys_info['description'] = desc_match.group(1).strip()
+                    
+                    data['system_info'] = sys_info
+                
+                # User accounts
+                elif 'user' in filename:
+                    users = re.findall(r'hrSWRunName\.(\d+)\s*=\s*(.+)', content)
+                    if users:
+                        data['running_processes'] = [{'pid': u[0], 'name': u[1]} for u in users[:10]]
+                
+                # Network interfaces
+                elif 'interface' in filename:
+                    interfaces = re.findall(r'ifDescr\.(\d+)\s*=\s*(.+)', content)
+                    if interfaces:
+                        data['interfaces'] = [{'index': i[0], 'description': i[1]} for i in interfaces]
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing SNMP scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_database_scan(self, file_path: str, filename: str) -> Dict[str, Any]:
+        """Parse database enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                if 'redis' in filename:
+                    # Parse Redis INFO output
+                    if 'redis_version' in content:
+                        version_match = re.search(r'redis_version:(.+)', content)
+                        if version_match:
+                            data['version'] = version_match.group(1).strip()
+                    
+                    # Redis configuration
+                    config_items = re.findall(r'(\w+):(.+)', content)
+                    if config_items:
+                        data['config'] = {item[0]: item[1].strip() for item in config_items[:20]}
+                
+                elif 'mysql' in filename:
+                    # Parse MySQL version and info
+                    if 'Server version:' in content:
+                        version_match = re.search(r'Server version:\s*(.+)', content)
+                        if version_match:
+                            data['version'] = version_match.group(1).strip()
+                    
+                    # Extract databases
+                    databases = re.findall(r'Database:\s*(.+)', content)
+                    if databases:
+                        data['databases'] = databases
+                
+                # Add more database types as needed
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing database scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_ftp_scan(self, file_path: str) -> Dict[str, Any]:
+        """Parse FTP enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                # Check for anonymous access
+                if 'anonymous' in content.lower():
+                    data['anonymous_access'] = 'allowed' in content.lower()
+                
+                # Extract banner
+                banner_match = re.search(r'220[\s-](.+)', content)
+                if banner_match:
+                    data['banner'] = banner_match.group(1).strip()
+                
+                # File listings
+                files = re.findall(r'-rw.+\s+(.+)', content)
+                if files:
+                    data['files'] = files[:10]  # Limit to first 10
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing FTP scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_dns_scan(self, file_path: str, filename: str) -> Dict[str, Any]:
+        """Parse DNS enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                # Extract DNS records
+                if 'A record' in content or 'AAAA record' in content:
+                    a_records = re.findall(r'(\S+)\s+IN\s+A\s+(\S+)', content)
+                    if a_records:
+                        data['a_records'] = [{'hostname': r[0], 'ip': r[1]} for r in a_records]
+                
+                # Extract subdomains
+                subdomains = re.findall(r'(\S+\.\S+)', content)
+                if subdomains:
+                    # Filter valid subdomains and limit
+                    valid_subs = [s for s in subdomains if '.' in s and len(s) < 100][:20]
+                    data['subdomains'] = list(set(valid_subs))
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing DNS scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_ldap_scan(self, file_path: str) -> Dict[str, Any]:
+        """Parse LDAP enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                # Extract base DN
+                base_dn_match = re.search(r'baseDN:\s*(.+)', content)
+                if base_dn_match:
+                    data['base_dn'] = base_dn_match.group(1).strip()
+                
+                # Extract domain components
+                dc_matches = re.findall(r'dc=([^,\s]+)', content)
+                if dc_matches:
+                    data['domain_components'] = list(set(dc_matches))
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing LDAP scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_mail_scan(self, file_path: str, filename: str) -> Dict[str, Any]:
+        """Parse mail service enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                # Extract service banner
+                if '220' in content:
+                    banner_match = re.search(r'220\s+(.+)', content)
+                    if banner_match:
+                        data['banner'] = banner_match.group(1).strip()
+                
+                # SMTP capabilities
+                if 'smtp' in filename and 'EHLO' in content:
+                    capabilities = re.findall(r'250[\s-](\w+)', content)
+                    if capabilities:
+                        data['capabilities'] = list(set(capabilities))
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing mail scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_spring_scan(self, file_path: str, filename: str) -> Dict[str, Any]:
+        """Parse Spring Boot application enumeration results"""
+        data = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                # Spring Boot actuator endpoints
+                if 'actuator' in filename:
+                    endpoints = re.findall(r'/actuator/(\w+)', content)
+                    if endpoints:
+                        data['endpoints'] = list(set(endpoints))
+                
+                # Application information
+                if 'Eureka' in content:
+                    data['type'] = 'Netflix Eureka Server'
+                elif 'Spring Boot' in content:
+                    data['type'] = 'Spring Boot Application'
+                
+                # Extract configuration
+                if 'application.properties' in content or 'application.yml' in content:
+                    data['config_found'] = True
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing Spring scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_nmap_script_output(self, file_path: str) -> Dict[str, Any]:
+        """Parse generic nmap script output for any service"""
+        data = {}
+        vulnerabilities = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                # Extract vulnerabilities
+                vuln_patterns = [
+                    r'VULNERABLE',
+                    r'CVE-\d{4}-\d+',
+                    r'POTENTIAL SECURITY RISK',
+                    r'weak cipher',
+                    r'anonymous login'
+                ]
+                
+                for pattern in vuln_patterns:
+                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    vulnerabilities.extend(matches)
+                
+                if vulnerabilities:
+                    data['vulnerabilities'] = list(set(vulnerabilities))
+                
+                # Extract script results
+                script_results = re.findall(r'\|\s+(.+)', content)
+                if script_results:
+                    data['script_output'] = script_results[:10]  # Limit output
+                
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing nmap script output {file_path}: {e}[/red]")
+        
+        return data
 
 class IPCrawlerConsolidator:
     """Main consolidator class for ipcrawler results"""
@@ -928,16 +1248,25 @@ class IPCrawlerConsolidator:
     def _parse_service_dir(self, port_dir: Path, port_num: int, results: TargetResults):
         """Parse results for a specific service/port"""
         
-        # Find corresponding web service info
+        # Find corresponding service info
+        target_service = None
         web_service = None
+        
         for service in results.open_ports:
             if service.port == port_num:
+                target_service = service
+                # Create web service if applicable
                 if service.service in ['http', 'https', 'http-alt', 'http-proxy']:
                     scheme = 'https' if service.service == 'https' or 'ssl' in service.service.lower() else 'http'
                     url = f"{scheme}://{results.target}:{port_num}"
                     web_service = WebInfo(url=url)
                     results.web_services.append(web_service)
                 break
+        
+        # If no service found in open_ports, create a basic one
+        if not target_service:
+            target_service = ServiceInfo(port=port_num, protocol='tcp', service='unknown')
+            results.open_ports.append(target_service)
         
         # Parse all files in the service directory
         for file_path in port_dir.glob("*"):
@@ -985,6 +1314,85 @@ class IPCrawlerConsolidator:
                         for vhost in vhosts:
                             if vhost not in web_service.vhosts:
                                 web_service.vhosts.append(vhost)
+                
+                # === NON-WEB SERVICE PARSING (NEW) ===
+                
+                # SSH enumeration
+                elif 'ssh' in filename:
+                    ssh_data = self.parser.parse_ssh_scan(str(file_path))
+                    if target_service and ssh_data:
+                        target_service.enumeration_data.update(ssh_data)
+                        if 'host_keys' in ssh_data:
+                            target_service.config_info['host_keys'] = ssh_data['host_keys']
+                
+                # SMB/NetBIOS enumeration  
+                elif any(tool in filename for tool in ['smbmap', 'smbclient', 'enum4linux', 'nbtscan']):
+                    smb_data = self.parser.parse_smb_scan(str(file_path), filename)
+                    if target_service and smb_data:
+                        target_service.enumeration_data.update(smb_data)
+                        if 'shares' in smb_data:
+                            target_service.access_info['shares'] = smb_data['shares']
+                
+                # SNMP enumeration
+                elif 'snmp' in filename:
+                    snmp_data = self.parser.parse_snmp_scan(str(file_path), filename)
+                    if target_service and snmp_data:
+                        target_service.enumeration_data.update(snmp_data)
+                        if 'system_info' in snmp_data:
+                            target_service.config_info.update(snmp_data['system_info'])
+                
+                # Database services (Redis, MySQL, etc.)
+                elif any(db in filename for db in ['redis', 'mysql', 'mssql', 'oracle', 'mongo', 'cassandra']):
+                    db_data = self.parser.parse_database_scan(str(file_path), filename)
+                    if target_service and db_data:
+                        target_service.enumeration_data.update(db_data)
+                        if 'config' in db_data:
+                            target_service.config_info.update(db_data['config'])
+                
+                # FTP enumeration
+                elif 'ftp' in filename:
+                    ftp_data = self.parser.parse_ftp_scan(str(file_path))
+                    if target_service and ftp_data:
+                        target_service.enumeration_data.update(ftp_data)
+                        if 'anonymous_access' in ftp_data:
+                            target_service.access_info['anonymous'] = ftp_data['anonymous_access']
+                
+                # DNS enumeration
+                elif 'dns' in filename or 'dig' in filename or 'nslookup' in filename:
+                    dns_data = self.parser.parse_dns_scan(str(file_path), filename)
+                    if target_service and dns_data:
+                        target_service.enumeration_data.update(dns_data)
+                
+                # LDAP enumeration
+                elif 'ldap' in filename:
+                    ldap_data = self.parser.parse_ldap_scan(str(file_path))
+                    if target_service and ldap_data:
+                        target_service.enumeration_data.update(ldap_data)
+                        if 'base_dn' in ldap_data:
+                            target_service.config_info['base_dn'] = ldap_data['base_dn']
+                
+                # Mail services (SMTP, IMAP, POP3)
+                elif any(mail in filename for mail in ['smtp', 'imap', 'pop3']):
+                    mail_data = self.parser.parse_mail_scan(str(file_path), filename)
+                    if target_service and mail_data:
+                        target_service.enumeration_data.update(mail_data)
+                
+                # Spring Boot / Java applications
+                elif 'spring' in filename or 'actuator' in filename:
+                    spring_data = self.parser.parse_spring_scan(str(file_path), filename)
+                    if target_service and spring_data:
+                        target_service.enumeration_data.update(spring_data)
+                        if 'endpoints' in spring_data:
+                            target_service.access_info['endpoints'] = spring_data['endpoints']
+                
+                # Generic nmap script results for any service
+                elif 'nmap' in filename and filename.endswith('.txt'):
+                    nmap_data = self.parser.parse_nmap_script_output(str(file_path))
+                    if target_service and nmap_data:
+                        target_service.enumeration_data.update(nmap_data)
+                        # Extract vulnerabilities
+                        if 'vulnerabilities' in nmap_data:
+                            target_service.vulnerabilities.extend(nmap_data['vulnerabilities'])
                 
                 # Vulnerability scans
                 elif any(tool in filename for tool in ['nikto', 'nmap']):
@@ -1869,6 +2277,51 @@ class IPCrawlerConsolidator:
         ::-webkit-scrollbar-thumb:hover {
             background: #f7931e;
         }
+        
+        /* Service Detail Sections (NEW) */
+        .service-detail {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .service-detail h4 {
+            color: #ff6b35;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        .enum-section, .access-section, .config-section, .vuln-section {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+        
+        .enum-section strong, .access-section strong, .config-section strong, .vuln-section strong {
+            color: #f7931e;
+        }
+        
+        .service-detail .styled-list {
+            margin-left: 15px;
+        }
+        
+        .service-detail .styled-list li {
+            margin-bottom: 3px;
+            font-size: 0.9em;
+        }
+        
+        /* Enhanced table for enumeration column */
+        .table th:last-child {
+            width: 30%;
+        }
+        
+        .table td:last-child {
+            font-size: 0.85em;
+            line-height: 1.4;
+        }
         """
     
     def _get_javascript(self) -> str:
@@ -2018,6 +2471,80 @@ class IPCrawlerConsolidator:
         
         return html
     
+    def _generate_service_enumeration_summary(self, service: ServiceInfo) -> str:
+        """Generate a summary of enumeration findings for a service"""
+        summary_items = []
+        
+        # Service-specific vulnerabilities
+        if service.vulnerabilities:
+            vuln_count = len(service.vulnerabilities)
+            summary_items.append(f'<span style="color: #ff6b35;">⚠️ {vuln_count} vulnerabilities</span>')
+        
+        # Enumeration data highlights
+        if service.enumeration_data:
+            enum_data = service.enumeration_data
+            
+            # SSH-specific
+            if 'version' in enum_data and service.service == 'ssh':
+                summary_items.append(f'🔑 {enum_data["version"]}')
+            
+            # SMB-specific
+            if 'shares' in enum_data:
+                share_count = len(enum_data['shares'])
+                summary_items.append(f'📁 {share_count} shares')
+            if 'users' in enum_data:
+                user_count = len(enum_data['users'])
+                summary_items.append(f'👥 {user_count} users')
+            
+            # Database-specific
+            if 'config' in enum_data:
+                summary_items.append('⚙️ Config exposed')
+            if 'databases' in enum_data:
+                db_count = len(enum_data['databases'])
+                summary_items.append(f'🗄️ {db_count} databases')
+            
+            # Spring Boot specific
+            if 'type' in enum_data:
+                if 'Eureka' in enum_data['type']:
+                    summary_items.append('🎯 Netflix Eureka')
+                elif 'Spring Boot' in enum_data['type']:
+                    summary_items.append('🌱 Spring Boot')
+        
+        # Access information highlights
+        if service.access_info:
+            access_data = service.access_info
+            
+            if 'anonymous' in access_data and access_data['anonymous']:
+                summary_items.append('<span style="color: #ff6b35;">🔓 Anonymous access</span>')
+            
+            if 'shares' in access_data:
+                readable_shares = [s for s in access_data['shares'] if 'READ' in s.get('permissions', '')]
+                if readable_shares:
+                    summary_items.append(f'📖 {len(readable_shares)} readable shares')
+            
+            if 'endpoints' in access_data:
+                endpoint_count = len(access_data['endpoints'])
+                summary_items.append(f'🔌 {endpoint_count} endpoints')
+        
+        # Configuration highlights
+        if service.config_info:
+            config_items = []
+            if 'hostname' in service.config_info:
+                config_items.append('hostname')
+            if 'base_dn' in service.config_info:
+                config_items.append('LDAP')
+            if 'host_keys' in service.config_info:
+                config_items.append('SSH keys')
+            
+            if config_items:
+                summary_items.append(f'ℹ️ {", ".join(config_items)}')
+        
+        # Return formatted summary
+        if summary_items:
+            return " • ".join(summary_items)
+        else:
+            return '<span style="color: #888;">No enumeration data</span>'
+
     def _generate_target_sections(self) -> str:
         """Generate HTML for all target sections"""
         html = ""
@@ -2054,12 +2581,16 @@ class IPCrawlerConsolidator:
                             <th>Service</th>
                             <th>Version</th>
                             <th>State</th>
+                            <th>Enumeration</th>
                         </tr>
                     </thead>
                     <tbody>
             """
             
             for service in target_data.open_ports:
+                # Generate enumeration summary
+                enum_summary = self._generate_service_enumeration_summary(service)
+                
                 html += f"""
                         <tr>
                             <td><strong>{service.port}</strong></td>
@@ -2067,6 +2598,7 @@ class IPCrawlerConsolidator:
                             <td>{service.service}</td>
                             <td>{service.version[:50]}{"..." if len(service.version) > 50 else ""}</td>
                             <td><span style="color: #228b22;">{service.state}</span></td>
+                            <td>{enum_summary}</td>
                         </tr>
                 """
             
@@ -2134,6 +2666,80 @@ class IPCrawlerConsolidator:
                 html += "</div>"
             
             html += "</div>"
+        
+        # Service Enumeration Details Section (NEW)
+        services_with_data = [s for s in target_data.open_ports if s.enumeration_data or s.access_info or s.config_info or s.vulnerabilities]
+        if services_with_data:
+            html += f"""
+            <button class="collapsible" data-critical="true">🔍 Service Enumeration Details ({len(services_with_data)})</button>
+            <div class="content">
+            """
+            
+            for service in services_with_data:
+                service_title = f"{service.service.upper()} ({service.port}/{service.protocol})"
+                html += f"""
+                <div class="service-detail">
+                    <h4>🔧 {service_title}</h4>
+                """
+                
+                # Service vulnerabilities
+                if service.vulnerabilities:
+                    html += f"""
+                    <div class="vuln-section">
+                        <strong>⚠️ Vulnerabilities:</strong>
+                        <ul class="styled-list">
+                    """
+                    for vuln in service.vulnerabilities:
+                        html += f"<li style='color: #ff6b35;'>{vuln}</li>"
+                    html += "</ul></div>"
+                
+                # Enumeration data
+                if service.enumeration_data:
+                    html += "<div class='enum-section'><strong>📊 Enumeration Results:</strong><ul class='styled-list'>"
+                    for key, value in service.enumeration_data.items():
+                        if isinstance(value, list):
+                            if value:  # Only show non-empty lists
+                                html += f"<li><strong>{key.replace('_', ' ').title()}:</strong> {', '.join(str(v) for v in value[:5])}"
+                                if len(value) > 5:
+                                    html += f" (+{len(value)-5} more)"
+                                html += "</li>"
+                        elif isinstance(value, dict):
+                            if value:  # Only show non-empty dicts
+                                html += f"<li><strong>{key.replace('_', ' ').title()}:</strong><ul>"
+                                for subkey, subvalue in list(value.items())[:3]:  # Limit to 3 items
+                                    html += f"<li>{subkey}: {str(subvalue)[:100]}</li>"
+                                if len(value) > 3:
+                                    html += f"<li>... and {len(value)-3} more items</li>"
+                                html += "</ul></li>"
+                        else:
+                            html += f"<li><strong>{key.replace('_', ' ').title()}:</strong> {str(value)[:200]}</li>"
+                    html += "</ul></div>"
+                
+                # Access information
+                if service.access_info:
+                    html += "<div class='access-section'><strong>🔓 Access Information:</strong><ul class='styled-list'>"
+                    for key, value in service.access_info.items():
+                        if isinstance(value, list) and value:
+                            html += f"<li><strong>{key.replace('_', ' ').title()}:</strong> {len(value)} items found</li>"
+                        elif isinstance(value, dict) and value:
+                            html += f"<li><strong>{key.replace('_', ' ').title()}:</strong> {len(value)} entries</li>"
+                        else:
+                            html += f"<li><strong>{key.replace('_', ' ').title()}:</strong> {str(value)}</li>"
+                    html += "</ul></div>"
+                
+                # Configuration information
+                if service.config_info:
+                    html += "<div class='config-section'><strong>⚙️ Configuration:</strong><ul class='styled-list'>"
+                    for key, value in service.config_info.items():
+                        if isinstance(value, (dict, list)):
+                            html += f"<li><strong>{key.replace('_', ' ').title()}:</strong> Available</li>"
+                        else:
+                            html += f"<li><strong>{key.replace('_', ' ').title()}:</strong> {str(value)[:100]}</li>"
+                    html += "</ul></div>"
+                
+                html += "</div>"  # Close service-detail div
+            
+            html += "</div>"  # Close content div
         
         # Vulnerabilities Section
         if target_data.vulnerabilities:
