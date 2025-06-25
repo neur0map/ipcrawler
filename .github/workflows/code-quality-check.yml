@@ -353,7 +353,7 @@ jobs:
         if [ -n "$CHANGED_FILES" ]; then
           while IFS= read -r file; do
             if [ -n "$file" ]; then
-              FILES_COUNT=$((FILES_COUNT + 1))
+              FILES_COUNT=$(expr $FILES_COUNT + 1)
               # Add file type emojis
               case "$file" in
                 *.py) FILE_EMOJI="🐍" ;;
@@ -371,7 +371,7 @@ jobs:
         if [ $FILES_COUNT -eq 0 ]; then
           FILES_LIST="📭 No files changed"
         elif [ $FILES_COUNT -gt 10 ]; then
-          FILES_LIST="📁 **$FILES_COUNT files modified** (showing first 10):\n$(echo -e "$FILES_LIST" | head -10)"
+          FILES_LIST="📁 **$FILES_COUNT files modified** (showing first 10):\n$FILES_LIST"
         fi
         
         # Build status message with enhanced formatting
@@ -401,22 +401,22 @@ jobs:
         
         # Count issues for stats
         if [ -n "${{ steps.syntax-check.outputs.syntax_errors }}" ]; then
-          ERROR_COUNT=$((ERROR_COUNT + 1))
+          ERROR_COUNT=$(expr $ERROR_COUNT + 1)
         fi
         if [ -n "${{ steps.template-check.outputs.template_errors }}" ]; then
-          ERROR_COUNT=$((ERROR_COUNT + 1))
+          ERROR_COUNT=$(expr $ERROR_COUNT + 1)
         fi
         if [ -n "${{ steps.python-lint.outputs.lint_errors }}" ]; then
-          ERROR_COUNT=$((ERROR_COUNT + 1))
+          ERROR_COUNT=$(expr $ERROR_COUNT + 1)
         fi
         if [ -n "${{ steps.config-check.outputs.config_errors }}" ]; then
-          ERROR_COUNT=$((ERROR_COUNT + 1))
+          ERROR_COUNT=$(expr $ERROR_COUNT + 1)
         fi
         if [ -n "${{ steps.python-lint.outputs.lint_warnings }}" ]; then
-          WARNING_COUNT=$((WARNING_COUNT + 1))
+          WARNING_COUNT=$(expr $WARNING_COUNT + 1)
         fi
         if [ -n "${{ steps.safety-check.outputs.safety_warnings }}" ]; then
-          WARNING_COUNT=$((WARNING_COUNT + 1))
+          WARNING_COUNT=$(expr $WARNING_COUNT + 1)
         fi
         
         # Create stats bar
