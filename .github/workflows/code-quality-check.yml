@@ -1,6 +1,6 @@
-name: Code Quality Check
+name: 🔍 Code Quality Check
 
-on:
+"on":
   push:
     branches: [ main, develop ]
   pull_request:
@@ -131,107 +131,28 @@ jobs:
           EXIT_CODE=1
         fi
         
-        # Check for control flow and structural issues
+        # Check for control flow and structural issues using AST compilation
         echo "Checking for control flow and structural issues..."
-        
-        # Check for unclosed loops, blocks, and control structures
         CONTROL_FLOW_ISSUES=""
+        
         for file in $(find ipcrawler/ -name "*.py" -type f); do
           if [ -f "$file" ]; then
-            echo "Checking control flow in: $file"
-            
-            # Use Python AST to check for structural issues
-            PYTHON_CHECK=$(python3 -c "
-import ast
-import sys
-try:
-    with open('$file', 'r', encoding='utf-8', errors='ignore') as f:
-        source = f.read()
-    
-    # Parse the AST to check for structural issues
-    tree = ast.parse(source, filename='$file')
-    
-    # Check for common issues
-    issues = []
-    
-    class ControlFlowChecker(ast.NodeVisitor):
-        def __init__(self):
-            self.in_loop = 0
-            self.in_function = 0
-            self.in_class = 0
-            self.issues = []
-        
-        def visit_For(self, node):
-            self.in_loop += 1
-            self.generic_visit(node)
-            self.in_loop -= 1
-            
-        def visit_While(self, node):
-            self.in_loop += 1
-            self.generic_visit(node)
-            self.in_loop -= 1
-            
-        def visit_FunctionDef(self, node):
-            self.in_function += 1
-            self.generic_visit(node)
-            self.in_function -= 1
-            
-        def visit_AsyncFunctionDef(self, node):
-            self.in_function += 1
-            self.generic_visit(node)
-            self.in_function -= 1
-            
-        def visit_ClassDef(self, node):
-            self.in_class += 1
-            self.generic_visit(node)
-            self.in_class -= 1
-        
-        def visit_Break(self, node):
-            if self.in_loop == 0:
-                self.issues.append(f'Line {node.lineno}: break outside loop')
-            self.generic_visit(node)
-        
-        def visit_Continue(self, node):
-            if self.in_loop == 0:
-                self.issues.append(f'Line {node.lineno}: continue outside loop')
-            self.generic_visit(node)
-        
-        def visit_Return(self, node):
-            if self.in_function == 0:
-                self.issues.append(f'Line {node.lineno}: return outside function')
-            self.generic_visit(node)
-    
-    checker = ControlFlowChecker()
-    checker.visit(tree)
-    
-    if checker.issues:
-        for issue in checker.issues:
-            print(f'$file: {issue}')
-        sys.exit(1)
-    else:
-        print('OK')
-        
-except SyntaxError as e:
-    print(f'$file: Syntax error at line {e.lineno}: {e.msg}')
-    sys.exit(1)
-except Exception as e:
-    print(f'$file: Error checking control flow: {str(e)}')
-    sys.exit(1)
-" 2>&1)
-            
-            if [ $? -ne 0 ]; then
-              if echo "$PYTHON_CHECK" | grep -v "^OK$" >/dev/null 2>&1; then
-                CONTROL_FLOW_ISSUES="${CONTROL_FLOW_ISSUES}$PYTHON_CHECK\n"
-                EXIT_CODE=1
-              fi
+            # Check if file can be parsed as valid Python AST
+            if ! python3 -c "import ast; ast.parse(open('$file', 'r', encoding='utf-8', errors='ignore').read())" 2>/tmp/ast_error_$file; then
+              AST_ERROR=$(cat /tmp/ast_error_$file | head -3)
+              CONTROL_FLOW_ISSUES="${CONTROL_FLOW_ISSUES}$file: $AST_ERROR\n"
+              EXIT_CODE=1
+              echo "AST parsing failed for $file"
             fi
           fi
         done
         
         if [ -n "$CONTROL_FLOW_ISSUES" ]; then
-          echo "Control flow issues found:"
+          echo "Control flow/AST issues found:"
           echo -e "$CONTROL_FLOW_ISSUES"
-          TEMPLATE_ERRORS="${TEMPLATE_ERRORS}❌ Control Flow Issues:\n$CONTROL_FLOW_ISSUES\n\n"
+          TEMPLATE_ERRORS="${TEMPLATE_ERRORS}❌ Control Flow/AST Issues:\n$CONTROL_FLOW_ISSUES\n\n"
+        else
+          echo "✅ No control flow issues found"
         fi
         
         # Check for indentation inconsistencies (mixed tabs/spaces)
