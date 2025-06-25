@@ -100,8 +100,7 @@ jobs:
         echo "syntax_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
         
         if [ $EXIT_CODE -ne 0 ]; then
-          echo "❌ CRITICAL: Syntax errors found!"
-          exit $EXIT_CODE
+          echo "❌ CRITICAL: Syntax errors found! (Will fail job after reporting to Sentry)"
         else
           echo "✅ No syntax errors found"
         fi
@@ -356,11 +355,15 @@ jobs:
 
     # CRITICAL: Send error reports to Sentry FIRST, before any other notifications
     # This ensures failure data is captured in Sentry before Discord notification
+    # Uses 'if: always()' to GUARANTEE this runs even if previous steps failed
     - name: Send Sentry report (Priority - Send failure data FIRST)
       if: always()
+      continue-on-error: true
       env:
         SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
       run: |
+        echo "🚨 CRITICAL STEP: This MUST run regardless of previous failures!"
+        
         if [ -z "$SENTRY_DSN" ]; then
           echo "⚠️ SENTRY_DSN not set, skipping Sentry reporting"
         else
@@ -405,8 +408,20 @@ jobs:
               "id": os.environ.get('AUTHOR', 'unknown')
           })
 
-          # Report based on status
+          # Report based on status (with fallback for missing data)
           status = os.environ.get('OVERALL_STATUS', 'unknown')
+          
+          # If status is unknown, check if we have any error data anyway
+          if status == 'unknown':
+              syntax_errors = os.environ.get('SYNTAX_ERRORS', '')
+              template_errors = os.environ.get('TEMPLATE_ERRORS', '')
+              lint_errors = os.environ.get('LINT_ERRORS', '')
+              config_errors = os.environ.get('CONFIG_ERRORS', '')
+              
+              if any([syntax_errors, template_errors, lint_errors, config_errors]):
+                  status = 'failure'
+                  print("⚠️ Status was unknown but found errors, treating as failure")
+          
           if status == 'failure':
               # Collect error details
               syntax_errors = os.environ.get('SYNTAX_ERRORS', '')
@@ -452,6 +467,15 @@ jobs:
               sentry_sdk.capture_message(warning_message, level="warning")
               print(f"📡 Sent warning to Sentry: {warning_message}")
               
+          elif status == 'unknown':
+              # Fallback: workflow may have failed before status determination
+              sentry_sdk.set_context("workflow_failure", {
+                  "message": "Workflow failed before status could be determined",
+                  "timestamp": datetime.now().isoformat(),
+                  "likely_cause": "Early step failure (syntax errors, etc.)"
+              })
+              sentry_sdk.capture_message("Code quality workflow failed catastrophically", level="error")
+              print("📡 Sent catastrophic failure event to Sentry")
           else:
               # Success - just track the event
               sentry_sdk.set_context("success", {
