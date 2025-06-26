@@ -56,7 +56,7 @@ class CloudNativeDetection(ServiceScan):
 		self.add_pattern(r'(?i)rancher|rancher\.com', description='Rancher detected - Kubernetes management platform')
 		self.add_pattern(r'(?i)eks|elastic.*kubernetes|aws.*eks', description='Amazon EKS detected - managed Kubernetes service')
 		self.add_pattern(r'(?i)gke|google.*kubernetes|gcp.*gke', description='Google GKE detected - managed Kubernetes service')
-		self.add_pattern(r'(?i)aks|azure.*kubernetes', description='Azure AKS detected - managed Kubernetes service')
+		self.add_pattern(r'(?i)azure.*kubernetes|microsoft.*aks', description='Azure AKS detected - managed Kubernetes service')
 		self.add_pattern(r'(?i)k3s|k3s\.io', description='K3s detected - lightweight Kubernetes distribution')
 		self.add_pattern(r'(?i)microk8s|canonical.*kubernetes', description='MicroK8s detected - single-node Kubernetes')
 		self.add_pattern(r'(?i)kind|kubernetes.*in.*docker', description='KIND detected - Kubernetes in Docker for testing')
