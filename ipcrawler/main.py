@@ -1866,7 +1866,13 @@ async def run():
 		info('🕷️  HTML report will be generated on scan completion or Ctrl+C', verbosity=1)
 
 	if not config['disable_keyboard_control']:
-		terminal_settings = termios.tcgetattr(sys.stdin.fileno())
+		try:
+			terminal_settings = termios.tcgetattr(sys.stdin.fileno())
+		except (OSError, IOError) as e:
+			# Handle cases where stdin is not connected to a terminal (Docker, redirected input, etc.)
+			warn(f'Terminal keyboard control disabled: {e}', verbosity=2)
+			config['disable_keyboard_control'] = True
+			terminal_settings = None
 
 	pending = []
 	i = 0
@@ -1995,7 +2001,11 @@ async def run():
 	if not config['disable_keyboard_control']:
 		# Restore original terminal settings.
 		if terminal_settings is not None:
-			termios.tcsetattr(sys.stdin, termios.TCSADRAIN, terminal_settings)
+			try:
+				termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, terminal_settings)
+			except (OSError, IOError) as e:
+				# Handle cases where stdin is not connected to a terminal
+				debug(f'Could not restore terminal settings: {e}', verbosity=2)
 
 def main():
 	# Initialize Sentry for error tracking and performance monitoring (developer only)
