@@ -1,0 +1,90 @@
+<!-- Target Section -->
+<div class="target-section" id="target-{{ target_name|replace('.', '_')|replace(':', '_') }}">
+    <div class="target-header">
+        <div class="target-title">🎯 {{ target_name }}</div>
+        <div class="target-ip">{{ target_data.ip_address or target_name }}</div>
+    </div>
+    
+    {% if target_data.open_ports %}
+    <!-- Port Scan Results -->
+    <button class="collapsible" {% if target_data.critical_findings %}data-critical="true"{% endif %}>
+        📡 Port Scan Results ({{ target_data.open_ports|length }} open ports)
+    </button>
+    <div class="content">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Port</th>
+                        <th>Protocol</th>
+                        <th>Service</th>
+                        <th>Version</th>
+                        <th>State</th>
+                        <th>Enumeration Summary</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for service in target_data.open_ports %}
+                    <tr>
+                        <td><strong>{{ service.port }}</strong></td>
+                        <td>{{ service.protocol.upper() }}</td>
+                        <td>{{ service.service }}</td>
+                        <td>{{ service.version[:50] }}{% if service.version|length > 50 %}...{% endif %}</td>
+                        <td><span style="color: #228b22;">{{ service.state }}</span></td>
+                        <td>{% include 'components/service_enumeration_summary.html.j2' %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if target_data.web_services %}
+    <!-- Web Services -->
+    <button class="collapsible">
+        🌐 Web Services ({{ target_data.web_services|length }} discovered)
+    </button>
+    <div class="content">
+        {% for web_service in target_data.web_services %}
+        {% include 'components/web_service.html.j2' %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if target_data.pattern_matches %}
+    <!-- Pattern Matches -->
+    <button class="collapsible">
+        🔍 Pattern Matches & Findings ({{ target_data.pattern_matches|length }} matches)
+    </button>
+    <div class="content">
+        {% for match in target_data.pattern_matches %}
+        <div class="service-detail">
+            <h4>{{ match.plugin_name }} - {{ match.target }}:{{ match.port }}</h4>
+            <div class="code-block">{{ match.match_text }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if target_data.manual_commands %}
+    <!-- Manual Commands -->
+    <button class="collapsible">
+        ⚡ Manual Commands ({{ target_data.manual_commands|length }} commands)
+    </button>
+    <div class="content">
+        <p style="color: #ff6b35; margin-bottom: 15px;">
+            💡 The following commands were suggested during the scan for manual execution:
+        </p>
+        {% for command in target_data.manual_commands %}
+        <div class="service-detail">
+            <h4>{{ command.service }} ({{ command.target }}:{{ command.port }})</h4>
+            <div class="code-block">{{ command.command }}</div>
+            {% if command.description %}
+            <p style="color: #ccc; font-style: italic; margin-top: 5px;">{{ command.description }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>

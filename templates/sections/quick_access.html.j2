@@ -1,0 +1,49 @@
+<!-- Quick Access Section -->
+<div class="section">
+    <h2>🚀 Quick Access</h2>
+    <div class="quick-access-grid">
+        {% if quick_access.web_services %}
+        <div class="quick-access-item">
+            <h4>🌐 Web Services</h4>
+            <ul class="quick-access-list">
+                {% for service in quick_access.web_services %}
+                <li><a href="{{ service.url }}" class="url" target="_blank">{{ service.url }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if quick_access.common_services %}
+        <div class="quick-access-item">
+            <h4>🔧 Common Services</h4>
+            <ul class="quick-access-list">
+                {% for service in quick_access.common_services %}
+                <li>{{ service.target }}:{{ service.port }} ({{ service.service }})</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if quick_access.vulnerabilities %}
+        <div class="quick-access-item">
+            <h4>🚨 Potential Vulnerabilities</h4>
+            <ul class="quick-access-list">
+                {% for vuln in quick_access.vulnerabilities %}
+                <li class="vulnerability">{{ vuln.description }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if quick_access.credentials %}
+        <div class="quick-access-item">
+            <h4>🔑 Credentials Found</h4>
+            <ul class="quick-access-list">
+                {% for cred in quick_access.credentials %}
+                <li>{{ cred.service }}: {{ cred.username }}:{{ cred.password }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>

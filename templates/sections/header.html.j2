@@ -1,0 +1,34 @@
+<!-- Header -->
+<div class="header">
+    <div class="header-content">
+        <div class="logo">
+            <span class="spider">🕷️</span>
+            <h1>ipcrawler</h1>
+            <span class="web">🕸️</span>
+        </div>
+        <div class="subtitle">
+            Network Reconnaissance Report
+            {% if is_live %}
+            <span style="color: #dc143c; font-weight: bold;">🔴 LIVE SCAN</span>
+            {% else %}
+            <span style="color: #228b22; font-weight: bold;">✅ SCAN COMPLETE</span>
+            {% endif %}
+        </div>
+        
+        <div class="developer-info">
+            <p>Created by <a href="https://github.com/neur0map" class="dev-link" target="_blank">neur0map</a></p>
+            <p>Repository: <a href="https://github.com/neur0map/ipcrawler" class="repo-link" target="_blank">github.com/neur0map/ipcrawler</a></p>
+            <p class="star-request">⭐ If this tool helped you, please <a href="https://github.com/neur0map/ipcrawler" class="star-link" target="_blank">star the repository</a>!</p>
+        </div>
+        
+        <div class="metadata">
+            Generated: {{ metadata.generated_time }}<br>
+            Targets: {{ metadata.target_count }} | 
+            Open Ports: {{ metadata.total_open_ports }} | 
+            Services: {{ metadata.total_services }}
+            {% if metadata.scan_duration %}
+            <br>Scan Duration: {{ metadata.scan_duration }}
+            {% endif %}
+        </div>
+    </div>
+</div>

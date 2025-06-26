@@ -141,8 +141,8 @@ class VirtualHost(ServiceScan):
 						total_lines = sum(1 for _ in f)
 					service.info(f"🔍 Enumerating {total_lines} virtual hosts on {hostname}...")
 					
-					# Add basic pattern matching for ffuf discoveries
-					self.add_pattern(r'(\S+\.' + hostname.replace('.', r'\.') + r')', description='Found virtual host: {match1}')
+					# Enhanced pattern matching for virtual host discoveries
+					self.add_pattern(r'(\S+\.' + hostname.replace('.', r'\.') + r')', description='Virtual Host discovered: {match1} - additional subdomain/service available')
 					
 					await service.execute(ffuf_cmd)
 		else:

@@ -1,0 +1,32 @@
+<!-- Executive Summary -->
+<div class="section">
+    <h2>📊 Executive Summary</h2>
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="card-header">Total Targets</div>
+            <div class="card-value">{{ summary.total_targets }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-header">Open Ports</div>
+            <div class="card-value">{{ summary.total_open_ports }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-header">Identified Services</div>
+            <div class="card-value">{{ summary.total_services }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-header">Web Services</div>
+            <div class="card-value">{{ summary.total_web_services }}</div>
+        </div>
+        {% if summary.critical_findings > 0 %}
+        <div class="summary-card critical">
+            <div class="card-header">Critical Findings</div>
+            <div class="card-value">{{ summary.critical_findings }}</div>
+        </div>
+        {% endif %}
+        <div class="summary-card">
+            <div class="card-header">Manual Commands</div>
+            <div class="card-value">{{ summary.total_manual_commands }}</div>
+        </div>
+    </div>
+</div>

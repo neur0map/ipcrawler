@@ -36,12 +36,57 @@ class SpringBootActuator(ServiceScan):
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
 		
-		# Add patterns to help identify Spring Boot applications
-		self.add_pattern(r'(?i)(spring\.boot|whitelabel\.error|org\.springframework)', description='Spring Boot detected: {match1}')
-		self.add_pattern(r'(?i)(eureka|netflix|service\.registry)', description='Netflix Eureka detected: {match1}')
-		self.add_pattern(r'(?i)(/actuator|management\.endpoints)', description='Spring Actuator detected: {match1}')
-		self.add_pattern(r'(?i)(spring\.security|JSESSIONID)', description='Spring Security detected: {match1}')
-		self.add_pattern(r'(?i)(tomcat|jetty|undertow|java\.version)', description='Java application detected: {match1}')
+		# Add comprehensive patterns for Spring Boot application identification
+		# Spring Boot Framework Detection
+		self.add_pattern(r'(?i)spring-boot[/-]?v?(\d+\.\d+\.\d+)', description='Spring Boot Framework v{match1} detected - modern Java microservice platform')
+		self.add_pattern(r'(?i)whitelabel.error.page|default.error.view', description='Spring Boot Default Error Page exposed - potential information disclosure')
+		self.add_pattern(r'(?i)org\.springframework\.boot', description='Spring Boot Framework classes detected - Java enterprise application')
+		
+		# Netflix Eureka Service Discovery
+		self.add_pattern(r'(?i)eureka.instance.hostname[:\s]*([^\s,\n]+)', description='Netflix Eureka Service Discovery - hostname: {match1}')
+		self.add_pattern(r'(?i)eureka.client.service-url.defaultZone[:\s]*([^\s,\n]+)', description='Eureka Default Zone URL: {match1} - service registry endpoint')
+		self.add_pattern(r'(?i)"name"\s*:\s*"([^"]*eureka[^"]*)"', description='Eureka Service Instance: {match1} - microservice registration')
+		self.add_pattern(r'(?i)netflix.eureka|service.registry', description='Netflix Eureka Service Registry detected - microservices architecture')
+		
+		# Spring Boot Actuator Endpoints (Critical Security Findings)
+		self.add_pattern(r'(?i)"/actuator/env"', description='CRITICAL: Spring Actuator /env endpoint exposed - environment variables disclosure')
+		self.add_pattern(r'(?i)"/actuator/configprops"', description='CRITICAL: Spring Actuator /configprops endpoint exposed - configuration properties disclosure')
+		self.add_pattern(r'(?i)"/actuator/beans"', description='WARNING: Spring Actuator /beans endpoint exposed - application context disclosure')
+		self.add_pattern(r'(?i)"/actuator/mappings"', description='INFO: Spring Actuator /mappings endpoint exposed - URL mappings disclosure')
+		self.add_pattern(r'(?i)"/actuator/health"', description='INFO: Spring Actuator /health endpoint exposed - application health status')
+		self.add_pattern(r'(?i)"/actuator/info"', description='INFO: Spring Actuator /info endpoint exposed - application information')
+		self.add_pattern(r'(?i)"/actuator/metrics"', description='INFO: Spring Actuator /metrics endpoint exposed - application metrics')
+		self.add_pattern(r'(?i)"/actuator/trace"', description='CRITICAL: Spring Actuator /trace endpoint exposed - HTTP request traces')
+		self.add_pattern(r'(?i)"/actuator/dump"', description='CRITICAL: Spring Actuator /dump endpoint exposed - thread dump disclosure')
+		self.add_pattern(r'(?i)"/actuator/heapdump"', description='CRITICAL: Spring Actuator /heapdump endpoint exposed - memory dump disclosure')
+		self.add_pattern(r'(?i)management\.endpoints\.web\.exposure\.include[:\s=]*([^\s,\n]+)', description='Spring Actuator Endpoints Enabled: {match1}')
+		
+		# Spring Security Detection
+		self.add_pattern(r'(?i)spring.security.oauth2|spring-security-oauth', description='Spring Security OAuth2 detected - authentication/authorization framework')
+		self.add_pattern(r'(?i)JSESSIONID=([A-F0-9]+)', description='Java Session ID detected: {match1} - session management active')
+		self.add_pattern(r'(?i)X-Frame-Options:\s*([^\n]+)', description='X-Frame-Options security header: {match1}')
+		
+		# Java Application Server Detection
+		self.add_pattern(r'(?i)server:\s*apache-coyote.*tomcat[/-]?(\d+\.\d+)', description='Apache Tomcat v{match1} detected - Java servlet container')
+		self.add_pattern(r'(?i)server:\s*jetty[/-]?(\d+\.\d+)', description='Eclipse Jetty v{match1} detected - Java HTTP server')
+		self.add_pattern(r'(?i)server:\s*undertow[/-]?(\d+\.\d+)', description='Undertow v{match1} detected - Java web server (WildFly)')
+		self.add_pattern(r'(?i)java.version[:\s=]*([^\s,\n]+)', description='Java Runtime Version: {match1}')
+		self.add_pattern(r'(?i)java.vendor[:\s=]*([^\s,\n]+)', description='Java Vendor: {match1}')
+		
+		# Configuration and Database Exposure
+		self.add_pattern(r'(?i)spring.datasource.url[:\s=]*([^\s,\n]+)', description='CRITICAL: Database Connection String exposed: {match1}')
+		self.add_pattern(r'(?i)spring.datasource.username[:\s=]*([^\s,\n]+)', description='WARNING: Database Username exposed: {match1}')
+		self.add_pattern(r'(?i)spring.profiles.active[:\s=]*([^\s,\n]+)', description='Spring Active Profiles: {match1} - environment configuration')
+		
+		# Cloud and Microservice Patterns
+		self.add_pattern(r'(?i)spring.cloud.config.server', description='Spring Cloud Config Server detected - centralized configuration management')
+		self.add_pattern(r'(?i)spring.cloud.gateway', description='Spring Cloud Gateway detected - API gateway service')
+		self.add_pattern(r'(?i)spring.cloud.consul|spring.cloud.zookeeper', description='Spring Cloud Service Discovery detected - distributed systems')
+		
+		# Vulnerability Patterns
+		self.add_pattern(r'(?i)spring.h2.console.enabled[:\s=]*true', description='CRITICAL: H2 Database Console enabled - potential RCE vulnerability')
+		self.add_pattern(r'(?i)management.security.enabled[:\s=]*false', description='CRITICAL: Spring Actuator security disabled - unrestricted access')
+		self.add_pattern(r'(?i)endpoints.env.enabled[:\s=]*true', description='WARNING: Environment endpoint enabled - potential information disclosure')
 
 	def check(self):
 		if which('curl') is None:

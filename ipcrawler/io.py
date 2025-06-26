@@ -247,7 +247,7 @@ class CommandStreamReader(object):
 							from rich.console import Console
 							Console().print(f"📝 [{self.target.address}/{self.tag}] {line.strip()}", style="dim white")
 
-			# Check lines for pattern matches.
+			# Check lines for pattern matches with deduplication
 			for p in self.patterns:
 				description = ''
 
@@ -268,26 +268,61 @@ class CommandStreamReader(object):
 								description = description.replace('{match' + str(match_count) + '}', match)
 							match_count += 1
 
-						async with self.target.lock:
-							with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
-								# Record pattern match activity and use modern status display
-								if is_loading_active():
-									record_tool_activity("pattern_match")
-									scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
-								else:
-									scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
-								file.writelines(description + '\n\n')
+						# Pattern deduplication: Check if we've already seen this exact description
+						if not hasattr(self.target, '_seen_patterns'):
+							self.target._seen_patterns = set()
+						
+						pattern_key = f"{self.tag}:{description}"
+						if pattern_key not in self.target._seen_patterns:
+							self.target._seen_patterns.add(pattern_key)
+							
+							async with self.target.lock:
+								with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
+									# Record pattern match activity and use modern status display
+									if is_loading_active():
+										record_tool_activity("pattern_match")
+										scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
+									else:
+										scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
+									file.writelines(description + '\n\n')
+						else:
+							# Pattern already seen - increment counter if needed
+							if not hasattr(self.target, '_pattern_counts'):
+								self.target._pattern_counts = {}
+							
+							if pattern_key not in self.target._pattern_counts:
+								self.target._pattern_counts[pattern_key] = 2  # First duplicate
+							else:
+								self.target._pattern_counts[pattern_key] += 1
+							
+							# Only log the first few duplicates to avoid spam
+							if self.target._pattern_counts[pattern_key] <= 3:
+								async with self.target.lock:
+									with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
+										if self.target._pattern_counts[pattern_key] == 2:
+											file.writelines(f"[DUPLICATE] {description} (seen {self.target._pattern_counts[pattern_key]}x total)\n\n")
+										elif self.target._pattern_counts[pattern_key] == 3:
+											file.writelines(f"[DUPLICATE] {description} (seen {self.target._pattern_counts[pattern_key]}x total - suppressing further duplicates)\n\n")
 					else:
 						# Use modern status display for pattern matches (no description)
 						match_text = line[match.start():match.end()]
-						if is_loading_active():
-							record_tool_activity("pattern_match")
-							scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
-						else:
-							scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
-						async with self.target.lock:
-							with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
-								file.writelines('Matched Pattern: ' + match_text + '\n\n')
+						
+						# Pattern deduplication for non-description patterns
+						if not hasattr(self.target, '_seen_patterns'):
+							self.target._seen_patterns = set()
+						
+						pattern_key = f"{self.tag}:Matched Pattern: {match_text}"
+						if pattern_key not in self.target._seen_patterns:
+							self.target._seen_patterns.add(pattern_key)
+							
+							if is_loading_active():
+								record_tool_activity("pattern_match")
+								scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
+							else:
+								scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
+							async with self.target.lock:
+								with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
+									file.writelines('Matched Pattern: ' + match_text + '\n\n')
 
 			if self.outfile is not None:
 				with open(self.outfile, 'a') as writer:

@@ -10,7 +10,7 @@ class GetArch(ServiceScan):
 	def configure(self):
 		self.match_service_name(['^msrpc'])
 		self.match_port('tcp', 135)
-		self.add_pattern(' is ((32|64)-bit)', description='Identified Architecture: {match1}')
+		self.add_pattern(r' is ((32|64)-bit)', description='Windows Architecture: {match1} - system processor architecture detected via RPC')
 
 	async def run(self, service):
 		await service.execute('impacket-getArch -target {address}', outfile='{protocol}_{port}_rpc_architecture.txt')

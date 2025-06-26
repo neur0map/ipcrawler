@@ -45,6 +45,14 @@ except ImportError:
     RICH_AVAILABLE = False
     print("Warning: Rich library not available. Install with: pip install rich")
 
+# Jinja2 HTML Reporter
+try:
+    from .jinja_html_reporter import Jinja2HTMLReporter
+    JINJA2_AVAILABLE = True
+except ImportError:
+    JINJA2_AVAILABLE = False
+    print("Warning: Jinja2 not available. Falling back to legacy HTML generation.")
+
 @dataclass
 class ServiceInfo:
     """Information about a discovered service"""
@@ -953,6 +961,18 @@ class IPCrawlerConsolidator:
         self.update_interval = 5  # Seconds between updates in daemon mode
         self.known_targets = set()  # Track targets we're already monitoring
         
+        # Initialize Jinja2 reporter if available
+        self.jinja_reporter = None
+        if JINJA2_AVAILABLE:
+            try:
+                self.jinja_reporter = Jinja2HTMLReporter()
+            except Exception as e:
+                if RICH_AVAILABLE:
+                    console.print(f"[yellow]Warning: Failed to initialize Jinja2 reporter: {e}[/yellow]")
+                else:
+                    print(f"Warning: Failed to initialize Jinja2 reporter: {e}")
+                self.jinja_reporter = None
+        
     def discover_targets(self) -> List[str]:
         """Discover all target directories in the results folder"""
         targets = []
@@ -1664,6 +1684,29 @@ class IPCrawlerConsolidator:
     
     def _generate_html_template(self, partial: bool = False, static_mode: bool = False) -> str:
         """Generate the full HTML report template"""
+        
+        # Use Jinja2 reporter if available
+        if self.jinja_reporter:
+            try:
+                return self.jinja_reporter.generate_report(
+                    targets=self.targets,
+                    partial=partial,
+                    static_mode=static_mode,
+                    daemon_mode=self.daemon_mode,
+                    watch_mode=self.watch_mode,
+                    update_interval=self.update_interval
+                )
+            except Exception as e:
+                if RICH_AVAILABLE:
+                    console.print(f"[yellow]Warning: Jinja2 report generation failed, falling back to legacy: {e}[/yellow]")
+                else:
+                    print(f"Warning: Jinja2 report generation failed, falling back to legacy: {e}")
+        
+        # Fallback to legacy HTML generation
+        return self._generate_legacy_html_template(partial, static_mode)
+    
+    def _generate_legacy_html_template(self, partial: bool = False, static_mode: bool = False) -> str:
+        """Generate the full HTML report template using legacy method"""
         
         # Calculate summary statistics
         total_ports = sum(len(target.open_ports) for target in self.targets.values())
