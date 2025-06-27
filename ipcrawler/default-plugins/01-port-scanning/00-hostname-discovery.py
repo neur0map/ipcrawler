@@ -6,6 +6,7 @@ import os
 import platform
 import subprocess
 import re
+from datetime import datetime
 
 # Note: SSL warnings are managed per-request for security awareness
 
@@ -61,7 +62,8 @@ class RedirectHostnameDiscovery(PortScan):
 		"""Add hostname to /etc/hosts file (runs with sudo privileges)"""
 		try:
 			hosts_file = '/etc/hosts'
-			entry = f"{ip_address} {hostname}"
+			timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+			entry = f"{ip_address} {hostname}  # added by ipcrawler {timestamp}"
 			
 			# Check if entry already exists
 			with open(hosts_file, 'r') as f:

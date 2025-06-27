@@ -5,6 +5,8 @@ import urllib3
 import os
 import platform
 import subprocess
+import re
+from datetime import datetime
 
 # Note: SSL warnings are managed per-request for security awareness
 
@@ -64,7 +66,8 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 		"""Add hostname to /etc/hosts file (runs with sudo privileges)"""
 		try:
 			hosts_file = '/etc/hosts'
-			entry = f"{ip_address} {hostname}"
+			timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+			entry = f"{ip_address} {hostname}  # added by ipcrawler {timestamp}"
 			
 			# Check if entry already exists
 			with open(hosts_file, 'r') as f:
@@ -155,7 +158,6 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 					content = resp.text[:1000]  # First 1KB only
 					if service.target.address not in content:
 						# Look for potential hostnames in content
-						import re
 						hostname_pattern = r'(?:https?://)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
 						matches = re.findall(hostname_pattern, content)
 						if matches:
