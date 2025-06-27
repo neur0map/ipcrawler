@@ -156,24 +156,32 @@ def cancel_all_tasks(sig, frame):
 		error('The following process IDs could not be killed: ' + ', '.join([str(x.pid) for x in sorted(alive, key=lambda x: x.pid)]))
 	
 	# Generate consolidator HTML report on interruption
-	if consolidator_args_global is not None:
-		try:
-			consolidator = IPCrawlerConsolidator(config['output'])
-			
-			# Set target filter if specified
+	try:
+		# Always try to generate a report, even with minimal data
+		consolidator = IPCrawlerConsolidator(config['output'])
+		
+		# Set target filter if specified
+		if consolidator_args_global is not None:
 			if hasattr(consolidator_args_global, 'report_target') and consolidator_args_global.report_target:
 				consolidator.specific_target = consolidator_args_global.report_target
 			
 			# Generate report from existing files
 			output_file = getattr(consolidator_args_global, 'report_output', None)
 			if hasattr(consolidator_args_global, 'partial') and consolidator_args_global.partial:
+				info('🕷️  Generating partial HTML report after interruption...', verbosity=1)
 				consolidator.generate_partial_report(output_file)
 			else:
+				info('🕷️  Generating HTML report after interruption...', verbosity=1)
 				consolidator.generate_html_report(output_file)
-			
-			info('🕷️  HTML report generated after interruption', verbosity=1)
-		except Exception as e:
-			warn(f'Failed to generate HTML report after interruption: {e}')
+		else:
+			# Fallback: generate partial report with whatever data exists
+			info('🕷️  Generating partial HTML report from available scan data...', verbosity=1)
+			consolidator.generate_partial_report()
+		
+		info('📄 HTML report generated after interruption', verbosity=1)
+	except Exception as e:
+		warn(f'⚠️  Failed to generate HTML report after interruption: {e}', verbosity=1)
+		debug(f'Consolidator interruption error details: {str(e)}', verbosity=2)
 
 	if not config['disable_keyboard_control']:
 		# Restore original terminal settings.
@@ -1888,10 +1896,6 @@ async def run():
 
 	start_time = time.time()
 	
-	# Store args globally for Ctrl+C report generation
-	global consolidator_args_global
-	consolidator_args_global = args
-	
 	# Show message about HTML report generation
 	flags = []
 	if hasattr(args, 'watch') and args.watch:
@@ -2019,6 +2023,24 @@ async def run():
 
 		elapsed_time = calculate_elapsed_time(start_time)
 		warn(f'⏰ Timeout reached ({config["timeout"]} min). Cancelling all scans and exiting.', verbosity=0)
+		
+		# Generate consolidator HTML report on timeout (same as normal completion)
+		try:
+			consolidator = IPCrawlerConsolidator(config['output'])
+			
+			# Set target filter if specified
+			if hasattr(args, 'report_target') and args.report_target:
+				consolidator.specific_target = args.report_target
+			
+			# Generate report from existing files (partial report for timeout)
+			output_file = getattr(args, 'report_output', None)
+			info('🕷️  Generating partial HTML report from scan results before timeout exit...', verbosity=1)
+			consolidator.generate_partial_report(output_file)
+			
+			info('📄 HTML report generated after timeout', verbosity=1)
+		except Exception as e:
+			warn(f'⚠️ Failed to generate HTML report after timeout: {e}', verbosity=1)
+			debug(f'Timeout consolidator error details: {str(e)}', verbosity=2)
 	else:
 		while len(asyncio.all_tasks()) > 1: # this code runs in the main() task so it will be the only task left running
 			await asyncio.sleep(1)
@@ -2048,6 +2070,15 @@ async def run():
 		except Exception as e:
 			warn(f'⚠️ Failed to generate HTML report: {e}', verbosity=1)
 			debug(f'Consolidator error details: {str(e)}', verbosity=2)
+			
+			# Try to generate at least a partial report with available data
+			try:
+				info('🕷️  Attempting to generate partial report with available data...', verbosity=1)
+				consolidator.generate_partial_report(output_file)
+				info('📄 Partial HTML report generated as fallback', verbosity=1)
+			except Exception as e2:
+				warn(f'⚠️ Failed to generate fallback partial report: {e2}', verbosity=1)
+				debug(f'Fallback consolidator error: {str(e2)}', verbosity=2)
 
 
 	if ipcrawler.missing_services:
@@ -2100,6 +2131,10 @@ def main():
 		)
 		if debug_mode:
 			info('🚀 Debug mode: Sentry monitoring enabled - capturing ALL errors and performance data', verbosity=0)
+	
+	# Store args globally for Ctrl+C report generation (needs to happen before signal registration)
+	global consolidator_args_global
+	consolidator_args_global = args
 	
 	# Capture Ctrl+C and cancel everything.
 	signal.signal(signal.SIGINT, cancel_all_tasks)

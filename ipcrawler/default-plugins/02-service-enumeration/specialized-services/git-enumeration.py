@@ -615,8 +615,9 @@ class GitEnumeration(ServiceScan):
         
         # Save report as JSON for Jinja2 template consumption
         report_file = f'{service.protocol}_{service.port}_git-security-report_{hostname_label}.json'
-        await service.execute(f'echo \'{json.dumps(git_report, indent=2)}\' > {{scandir}}/{report_file}',
-                             outfile=report_file)
+        json_content = json.dumps(git_report, indent=2)
+        command = f"echo '{json_content}' > {{scandir}}/{report_file}"
+        await service.execute(command, outfile=report_file)
         
         # Create human-readable summary report
         summary_lines = [
@@ -657,8 +658,8 @@ class GitEnumeration(ServiceScan):
         # Save human-readable summary
         summary_file = f'{service.protocol}_{service.port}_git-summary-report_{hostname_label}.txt'
         summary_content = '\n'.join(summary_lines)
-        await service.execute(f'echo "{summary_content}" > {{scandir}}/{summary_file}',
-                             outfile=summary_file)
+        command = f'echo "{summary_content}" > {{scandir}}/{summary_file}'
+        await service.execute(command, outfile=summary_file)
         
         # Add summary to service attributes for Jinja2 template access
         service.git_security_summary = git_report['security_summary']
