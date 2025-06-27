@@ -14,12 +14,12 @@ class AllTCPPortScan(PortScan):
 
 	async def run(self, target):
 		# Optimized settings for full port scanning
-		timing_opts = ' --max-rate=1000 --min-rate=100'
+		timing_opts = ' -T5 --min-rate=5000 --max-rate=10000'
 		
 		if config['proxychains']:
 			# Lighter scan for proxychains (slower connections)
 			service_opts = ' -sV'
-			timing_opts = ' --max-rate=300 --min-rate=50'
+			timing_opts = ' -T4 --min-rate=1000 --max-rate=3000'
 		else:
 			# Balanced service detection (removed --version-all for performance)
 			service_opts = ' -sV -sC'

@@ -40,11 +40,11 @@ class OracleScanner(ServiceScan):
         elif is_macos:
             # macOS-compatible Oracle enumeration using nmap scripts
             await service.execute(
-                'nmap -p {port} --script '
+                'nmap -T5 --min-rate=5000 --max-rate=10000 -p {port} --script '
                 'oracle-enum-users,oracle-sid-brute,oracle-tns-version '
                 '{address} 2>&1',
                 outfile='{protocol}_{port}_oracle_nmap.txt')
             # Additional Oracle checks
             await service.execute(
-                'nmap -p {port} --script oracle-* {address} 2>&1',
+                'nmap -T5 --min-rate=5000 --max-rate=10000 -p {port} --script oracle-* {address} 2>&1',
                 outfile='{protocol}_{port}_oracle_full.txt')

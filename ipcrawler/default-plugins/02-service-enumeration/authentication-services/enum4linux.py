@@ -73,16 +73,16 @@ class Enum4Linux(ServiceScan):
                 elif tool == 'nmap-smb':
                     # macOS-compatible SMB enumeration using nmap scripts
                     await service.execute(
-                        'nmap -sS -O -p {port} --script '
+                        'nmap -T5 --min-rate=5000 --max-rate=10000 -sS -O -p {port} --script '
                         'smb-enum-users,smb-enum-shares,smb-os-discovery,'
                         'smb-security-mode {address} 2>&1',
                         outfile='nmap_smb_enum.txt')
                     # Additional SMB vulnerability checks
                     await service.execute(
-                        'nmap -p {port} --script smb-vuln-* {address} 2>&1',
+                        'nmap -T5 --min-rate=5000 --max-rate=10000 -p {port} --script smb-vuln-* {address} 2>&1',
                         outfile='nmap_smb_vulns.txt')
                     # NetBIOS enumeration if port 137/139
                     if service.port in [137, 139]:
                         await service.execute(
-                            'nmap -sU -p 137 --script nbstat {address} 2>&1',
+                            'nmap -T5 --min-rate=5000 --max-rate=10000 -sU -p 137 --script nbstat {address} 2>&1',
                             outfile='nmap_netbios.txt')

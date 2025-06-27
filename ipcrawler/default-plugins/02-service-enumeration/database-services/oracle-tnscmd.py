@@ -44,10 +44,10 @@ class OracleTNScmd(ServiceScan):
             elif is_macos:
                 # macOS-compatible Oracle TNS enumeration using nmap scripts
                 await service.execute(
-                    'nmap -p {port} --script '
+                    'nmap -T5 --min-rate=5000 --max-rate=10000 -p {port} --script '
                     'oracle-tns-version,oracle-sid-brute {address} 2>&1',
                     outfile='{protocol}_{port}_oracle_tns_nmap.txt')
                 # Basic connectivity test
                 await service.execute(
-                    'nmap -p {port} -sV {address} 2>&1',
+                    'nmap -T5 --min-rate=5000 --max-rate=10000 -p {port} -sV {address} 2>&1',
                     outfile='{protocol}_{port}_oracle_version.txt')
