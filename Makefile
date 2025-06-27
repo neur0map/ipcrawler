@@ -1,17 +1,18 @@
 # IPCrawler Makefile - Simple installation and management
 
-.PHONY: install clean clean-all update debug help dev-install
+.PHONY: install clean clean-all update debug help dev-install fix-permissions
 
 # Default target
 help:
 	@echo "IPCrawler Management"
 	@echo "==================="
-	@echo "  make install     - Install ipcrawler and all tools"
-	@echo "  make dev-install - Install for development (live code updates)"
-	@echo "  make update      - Update to latest version"
-	@echo "  make clean       - Remove ipcrawler only (keeps tools & results)"
-	@echo "  make clean-all   - Remove everything including tools (keeps results)"
-	@echo "  make debug       - Show system diagnostics"
+	@echo "  make install         - Install ipcrawler and all tools"
+	@echo "  make dev-install     - Install for development (live code updates)"
+	@echo "  make update          - Update to latest version"
+	@echo "  make clean           - Remove ipcrawler only (keeps tools & results)"
+	@echo "  make clean-all       - Remove everything including tools (keeps results)"
+	@echo "  make fix-permissions - Fix ownership of results directory files"
+	@echo "  make debug           - Show system diagnostics"
 	@echo ""
 
 # Complete installation with tool detection
@@ -315,6 +316,19 @@ clean:
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
 	@rm -rf "/root/.local/share/IPCrawler" 2>/dev/null || true
+	@echo "🔧 Fixing results directory permissions..."
+	@if [ -f "scripts/fix-permissions.sh" ]; then \
+		bash scripts/fix-permissions.sh; \
+	else \
+		echo "⚠️  Permission fixing script not found, checking manually..."; \
+		if [ -d "results" ]; then \
+			ROOT_FILES=$$(find results -user root 2>/dev/null | wc -l | tr -d ' ' || echo "0"); \
+			if [ "$$ROOT_FILES" -gt 0 ]; then \
+				echo "⚠️  Found $$ROOT_FILES root-owned files in results directory"; \
+				echo "💡 Run manually: sudo chown -R \$$USER:\$$(id -g) results/"; \
+			fi; \
+		fi; \
+	fi
 	@echo "✅ IPCrawler removed! (Tools and results preserved)"
 
 # Clean everything including tools
@@ -365,6 +379,19 @@ clean-all:
 	else \
 		echo "❓ Unknown platform - manual tool removal may be required"; \
 	fi
+	@echo "🔧 Fixing results directory permissions..."
+	@if [ -f "scripts/fix-permissions.sh" ]; then \
+		bash scripts/fix-permissions.sh; \
+	else \
+		echo "⚠️  Permission fixing script not found, checking manually..."; \
+		if [ -d "results" ]; then \
+			ROOT_FILES=$$(find results -user root 2>/dev/null | wc -l | tr -d ' ' || echo "0"); \
+			if [ "$$ROOT_FILES" -gt 0 ]; then \
+				echo "⚠️  Found $$ROOT_FILES root-owned files in results directory"; \
+				echo "💡 Run manually: sudo chown -R \$$USER:\$$(id -g) results/"; \
+			fi; \
+		fi; \
+	fi
 	@echo "📊 Checking results directory..."
 	@if [ -d "results" ]; then \
 		echo "✅ Results directory preserved with $$(find results -type f | wc -l) files"; \
@@ -372,6 +399,19 @@ clean-all:
 		echo "ℹ️  No results directory found"; \
 	fi
 	@echo "🗑️  Complete cleanup finished! All tools removed, results preserved."
+
+# Fix file permissions in results directory
+fix-permissions:
+	@echo "🔧 IPCrawler Permission Fixer"
+	@echo "============================="
+	@if [ -f "scripts/fix-permissions.sh" ]; then \
+		bash scripts/fix-permissions.sh; \
+	else \
+		echo "❌ Permission fixing script not found at scripts/fix-permissions.sh"; \
+		echo "💡 This script fixes ownership of results directory files created by root"; \
+		echo "💡 Manual fix: sudo chown -R \$$USER:\$$(id -g) results/"; \
+		exit 1; \
+	fi
 
 # System diagnostics with comprehensive tool detection
 debug:

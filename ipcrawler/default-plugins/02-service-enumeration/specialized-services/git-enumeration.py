@@ -14,34 +14,37 @@ class GitEnumeration(ServiceScan):
         self.name = "Advanced Git Security Enumeration"
         self.slug = 'git-enumeration'
         self.description = "Comprehensive Git security assessment covering all attack vectors and misconfigurations"
-        self.priority = 1
+        self.priority = 5  # Run after basic enumeration to check for Git indicators
         self.tags = ['default', 'safe', 'git', 'ctf', 'source-disclosure', 'secrets', 'advanced']
+        
+        # Add option to force Git enumeration on all HTTP/SSH services
+        self.add_true_option('force-git-scan', help='Force Git enumeration on all HTTP/SSH services regardless of indicators')
 
     def configure(self):
-        # === SERVICE MATCHING ===
+        # === RESTRICTED SERVICE MATCHING ===
         
-        # Match Git daemon protocol (port 9418)
+        # Only match Git daemon protocol (guaranteed Git service)
         self.match_port('tcp', 9418)
         
-        # Match common Git-related ports
-        self.match_port('tcp', 22)    # SSH (for Git over SSH)
-        self.match_port('tcp', 443)   # HTTPS (for Git over HTTPS)
-        self.match_port('tcp', 80)    # HTTP (for Git web interfaces)
+        # Only match known Git web interface ports
         self.match_port('tcp', 3000)  # Gitea default
         self.match_port('tcp', 8080)  # GitLab/Jenkins common
         self.match_port('tcp', 8443)  # Git web interfaces
         self.match_port('tcp', 9000)  # Gogs default
         
-        # Match HTTP services for .git directory detection
-        self.match_service_name('^http')
-        self.match_service_name('^nacn_http$', negative_match=True)
-        
-        # Match Git-related services
+        # Only match confirmed Git-related services
         self.match_service_name(['git', 'git-daemon', 'gitiles', 'gitlab', 'github', 'gitea', 'gogs'])
         self.match_service_name(['cgit', 'gitweb', 'git-http-backend'])
         
-        # Match SSH for Git operations
+        # Match SSH and HTTP services but filter them through _should_scan_service()
         self.match_service_name('ssh')
+        self.match_service_name('^http')
+        self.match_service_name('^nacn_http$', negative_match=True)
+        
+        # Add common HTTP/SSH ports that might have Git services
+        self.match_port('tcp', 22)    # SSH
+        self.match_port('tcp', 80)    # HTTP
+        self.match_port('tcp', 443)   # HTTPS
         
         # === COMPREHENSIVE GIT SECURITY PATTERNS ===
         
@@ -118,6 +121,11 @@ class GitEnumeration(ServiceScan):
         return which('git') is not None
 
     async def run(self, service):
+        # Check if we should scan this service for Git content
+        if not await self._should_scan_service(service):
+            service.info(f"⏭️ Skipping Git enumeration for {service.target.address}:{service.port} - no Git indicators found")
+            return
+        
         service.info(f"🔍 Starting advanced Git security enumeration for {service.target.address}:{service.port}")
         
         # Initialize git findings tracking for reporting
@@ -156,6 +164,143 @@ class GitEnumeration(ServiceScan):
         
         # Generate comprehensive Git report
         await self._generate_git_report(service)
+
+    async def _should_scan_service(self, service):
+        """Determine if we should scan this service for Git content based on indicators"""
+        
+        # Check if user forced Git scanning
+        if self.get_option('force-git-scan'):
+            service.info(f"✅ Git enumeration triggered: Force scan enabled")
+            return True
+        
+        # Always scan known Git ports and services
+        if (service.port == 9418 or 
+            service.port in [3000, 8080, 8443, 9000] or
+            any(name in str(service.name).lower() for name in ['git', 'gitea', 'gogs', 'gitlab', 'cgit', 'gitweb'])):
+            service.info(f"✅ Git enumeration triggered: Known Git port/service detected")
+            return True
+        
+        # For SSH services, check if Git is mentioned in service banner or version
+        if service.name == 'ssh' or service.port == 22:
+            if await self._check_ssh_git_indicators(service):
+                service.info(f"✅ Git enumeration triggered: SSH Git indicators found")
+                return True
+        
+        # For HTTP services, check for Git indicators in previous scan results
+        if service.name in ['http', 'https'] or service.port in [80, 443]:
+            if await self._check_http_git_indicators(service):
+                service.info(f"✅ Git enumeration triggered: HTTP Git indicators found")
+                return True
+        
+        # If no indicators found, skip Git enumeration
+        service.info(f"🚫 No Git indicators found for {service.target.address}:{service.port}")
+        return False
+    
+    async def _check_ssh_git_indicators(self, service):
+        """Check SSH service for Git-related indicators"""
+        try:
+            # Look for SSH scan results that might indicate Git usage
+            scan_dir = f"{service.target.scandir}/tcp{service.port}"
+            
+            if os.path.exists(scan_dir):
+                # Check nmap SSH results for Git-related information
+                for filename in os.listdir(scan_dir):
+                    if 'ssh' in filename.lower() and filename.endswith('.txt'):
+                        filepath = os.path.join(scan_dir, filename)
+                        try:
+                            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read().lower()
+                                # Look for Git-related keywords in SSH scan results
+                                git_indicators = ['git', 'gitea', 'gitlab', 'gogs', 'repository', 'repo']
+                                if any(indicator in content for indicator in git_indicators):
+                                    return True
+                        except:
+                            continue
+            
+            return False
+        except Exception:
+            return False
+    
+    async def _check_http_git_indicators(self, service):
+        """Check HTTP service for Git-related indicators from previous scans"""
+        try:
+            scan_dir = f"{service.target.scandir}/tcp{service.port}"
+            
+            if not os.path.exists(scan_dir):
+                return False
+            
+            git_indicators_found = False
+            
+            # Check robots.txt for Git-related paths
+            robots_files = [f for f in os.listdir(scan_dir) if 'robots' in f.lower() and f.endswith('.txt')]
+            for robots_file in robots_files:
+                filepath = os.path.join(scan_dir, robots_file)
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read().lower()
+                        # Look for Git-related paths in robots.txt
+                        git_paths = ['.git', 'git/', 'repository', 'repo/', 'gitlab', 'gitea', 'cgit']
+                        if any(path in content for path in git_paths):
+                            service.info(f"🔍 Git indicator found in robots.txt: Git paths detected")
+                            git_indicators_found = True
+                            break
+                except:
+                    continue
+            
+            # Check directory busting results for Git-related findings
+            dirbust_files = [f for f in os.listdir(scan_dir) if any(tool in f.lower() for tool in ['feroxbuster', 'dirb', 'gobuster', 'dirbuster']) and f.endswith('.txt')]
+            for dirbust_file in dirbust_files:
+                filepath = os.path.join(scan_dir, dirbust_file)
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read().lower()
+                        # Look for Git-related directories/files found by directory busting
+                        git_findings = ['.git/', '/.git', 'git/', '/git', 'gitea', 'gitlab', 'cgit', 'repository', '/repo']
+                        found_indicators = [indicator for indicator in git_findings if indicator in content]
+                        if found_indicators:
+                            service.info(f"🔍 Git indicator found in directory busting: {', '.join(found_indicators)}")
+                            git_indicators_found = True
+                            break
+                except:
+                    continue
+            
+            # Check curl/HTTP responses for Git-related headers or content
+            http_files = [f for f in os.listdir(scan_dir) if 'curl' in f.lower() and (f.endswith('.html') or f.endswith('.txt'))]
+            for http_file in http_files:
+                filepath = os.path.join(scan_dir, http_file)
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read().lower()
+                        # Look for Git-related content in HTTP responses
+                        git_content = ['x-git', 'git-', 'gitea', 'gitlab', 'cgit', 'gitweb', '.git', 'repository']
+                        found_content = [indicator for indicator in git_content if indicator in content]
+                        if found_content:
+                            service.info(f"🔍 Git indicator found in HTTP response: {', '.join(found_content)}")
+                            git_indicators_found = True
+                            break
+                except:
+                    continue
+            
+            # Check service enumeration results for Git-related services
+            enum_files = [f for f in os.listdir(scan_dir) if 'nmap' in f.lower() and f.endswith('.txt')]
+            for enum_file in enum_files:
+                filepath = os.path.join(scan_dir, enum_file)
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read().lower()
+                        # Look for Git-related services or technologies
+                        git_services = ['git', 'gitea', 'gitlab', 'gogs', 'cgit', 'gitweb', 'git-http-backend']
+                        if any(service_name in content for service_name in git_services):
+                            service.info(f"🔍 Git indicator found in service enumeration: Git service detected")
+                            git_indicators_found = True
+                            break
+                except:
+                    continue
+            
+            return git_indicators_found
+            
+        except Exception:
+            return False
 
     async def _enumerate_git_daemon(self, service):
         """Enumerate Git daemon protocol (port 9418)"""
