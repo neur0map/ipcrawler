@@ -75,6 +75,18 @@
     </div>
     {% endif %}
     
+    {% if target_data.git_services %}
+    <!-- Git Security Services -->
+    <button class="collapsible">
+        🔐 Git Security Assessment ({{ target_data.git_services|length }} services)
+    </button>
+    <div class="content">
+        {% for service in target_data.git_services %}
+        {% include 'components/git_service.html.j2' %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    
     {% if target_data.pattern_matches %}
     <!-- Pattern Matches -->
     <button class="collapsible">

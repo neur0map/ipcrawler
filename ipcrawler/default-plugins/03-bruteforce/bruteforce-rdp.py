@@ -12,6 +12,15 @@ class BruteforceRDP(ServiceScan):
 
 	def configure(self):
 		self.match_service_name([r'^rdp', r'^ms\-wbt\-server', r'^ms\-term\-serv'])
+		
+		# Add patterns for RDP bruteforce result detection
+		self.add_pattern(r'(?i)login:\s*(\S+)\s+password:\s*(\S+)', description='CRITICAL: RDP credentials found - User: {match1}, Password: {match2}')
+		self.add_pattern(r'(?i)valid password for\s+(\S+)', description='CRITICAL: Valid RDP password found for user: {match1}')
+		self.add_pattern(r'(?i)successful login.*user[:\s]+(\S+)', description='CRITICAL: Successful RDP login for user: {match1}')
+		self.add_pattern(r'(?i)account.*lockout.*(\S+)', description='WARNING: RDP account lockout for user: {match1}')
+		self.add_pattern(r'(?i)authentication.*failed|access.*denied', description='INFO: RDP authentication failed')
+		self.add_pattern(r'(?i)connection.*refused|timeout', description='WARNING: RDP service connectivity issues')
+		self.add_pattern(r'(?i)network.*level.*authentication.*required', description='INFO: RDP Network Level Authentication enabled')
 
 	def manual(self, service, plugin_was_run):
 		# Get wordlist paths from WordlistManager

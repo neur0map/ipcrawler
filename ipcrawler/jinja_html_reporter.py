@@ -143,6 +143,29 @@ class Jinja2HTMLReporter:
             
             return "".join(formatted_shares)
         
+        def format_git_security_summary(service) -> str:
+            """Format Git security summary for display"""
+            if not hasattr(service, 'git_security_summary'):
+                return "<em>No Git security scan performed</em>"
+            
+            summary = service.git_security_summary
+            total_issues = summary.get('critical_issues', 0) + summary.get('warnings', 0)
+            
+            if total_issues == 0:
+                return "<span style='color: #28a745;'>✅ No security issues found</span>"
+            
+            parts = []
+            if summary.get('critical_issues', 0) > 0:
+                parts.append(f"<span style='color: #dc3545; font-weight: bold;'>{summary['critical_issues']} Critical</span>")
+            if summary.get('warnings', 0) > 0:
+                parts.append(f"<span style='color: #ffc107;'>{summary['warnings']} Warnings</span>")
+            if summary.get('total_repositories', 0) > 0:
+                parts.append(f"<span style='color: #17a2b8;'>{summary['total_repositories']} Repos</span>")
+            if summary.get('exposed_secrets', 0) > 0:
+                parts.append(f"<span style='color: #e83e8c;'>{summary['exposed_secrets']} Secrets</span>")
+                
+            return " | ".join(parts)
+        
         def format_user_list(users) -> str:
             """Format user lists for display"""
             if not users or not isinstance(users, list):
@@ -212,6 +235,7 @@ class Jinja2HTMLReporter:
         self.jinja_env.filters['format_complex_value'] = format_complex_value
         self.jinja_env.filters['format_ssh_keys'] = format_ssh_keys
         self.jinja_env.filters['format_smb_shares'] = format_smb_shares
+        self.jinja_env.filters['format_git_security_summary'] = format_git_security_summary
         self.jinja_env.filters['format_user_list'] = format_user_list
         self.jinja_env.filters['format_config_dict'] = format_config_dict
         self.jinja_env.filters['format_file_list'] = format_file_list
@@ -278,7 +302,7 @@ class Jinja2HTMLReporter:
         # Prepare quick access data
         quick_access = self._prepare_quick_access_data(targets)
         
-        # Prepare pattern matches for each target
+        # Prepare pattern matches and Git services for each target
         for target_name, target_data in targets.items():
             if hasattr(target_data, 'patterns') and target_data.patterns:
                 # Convert patterns to structured format if needed
@@ -293,6 +317,18 @@ class Jinja2HTMLReporter:
                 target_data.pattern_matches = pattern_matches
             else:
                 target_data.pattern_matches = []
+            
+            # Prepare Git services data for specialized reporting
+            git_services = []
+            if hasattr(target_data, 'open_ports'):
+                for service in target_data.open_ports:
+                    # Check if service has Git-related data
+                    if (hasattr(service, 'git_findings') or 
+                        hasattr(service, 'git_security_summary') or 
+                        service.port == 9418 or 
+                        'git' in str(service.service).lower()):
+                        git_services.append(service)
+            target_data.git_services = git_services
         
         return {
             'targets': targets,

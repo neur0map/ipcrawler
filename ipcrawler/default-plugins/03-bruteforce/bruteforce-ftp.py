@@ -12,6 +12,15 @@ class BruteforceFTP(ServiceScan):
 
 	def configure(self):
 		self.match_service_name([r'^ftp', r'^ftp\-data'])
+		
+		# Add patterns for FTP bruteforce result detection
+		self.add_pattern(r'(?i)login:\s*(\S+)\s+password:\s*(\S+)', description='CRITICAL: FTP credentials found - User: {match1}, Password: {match2}')
+		self.add_pattern(r'(?i)valid password for\s+(\S+)', description='CRITICAL: Valid FTP password found for user: {match1}')
+		self.add_pattern(r'(?i)successful login.*user[:\s]+(\S+)', description='CRITICAL: Successful FTP login for user: {match1}')
+		self.add_pattern(r'(?i)230.*login successful', description='CRITICAL: FTP login successful')
+		self.add_pattern(r'(?i)331.*password required for\s+(\S+)', description='INFO: FTP user exists, password required: {match1}')
+		self.add_pattern(r'(?i)530.*login incorrect|authentication failed', description='INFO: FTP authentication failed')
+		self.add_pattern(r'(?i)anonymous.*ftp.*allowed', description='WARNING: Anonymous FTP access allowed')
 
 	def manual(self, service, plugin_was_run):
 		# Get wordlist paths from WordlistManager

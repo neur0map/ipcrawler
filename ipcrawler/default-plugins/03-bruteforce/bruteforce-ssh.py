@@ -11,6 +11,14 @@ class BruteforceSSH(ServiceScan):
 
 	def configure(self):
 		self.match_service_name('ssh')
+		
+		# Add patterns for SSH bruteforce result detection
+		self.add_pattern(r'(?i)login:\s*(\S+)\s+password:\s*(\S+)', description='CRITICAL: SSH credentials found - User: {match1}, Password: {match2}')
+		self.add_pattern(r'(?i)valid password for\s+(\S+)', description='CRITICAL: Valid SSH password found for user: {match1}')
+		self.add_pattern(r'(?i)successful login.*user[:\s]+(\S+)', description='CRITICAL: Successful SSH login for user: {match1}')
+		self.add_pattern(r'(?i)host:\s*\S+\s+login:\s*(\S+)', description='WARNING: SSH user enumerated: {match1}')
+		self.add_pattern(r'(?i)password authentication failed.*user[:\s]+(\S+)', description='INFO: SSH password failed for user: {match1}')
+		self.add_pattern(r'(?i)connection refused|network unreachable|timeout', description='WARNING: SSH service connectivity issues detected')
 
 	def manual(self, service, plugin_was_run):
 		# Get wordlist paths using WordlistManager

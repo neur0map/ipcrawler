@@ -17,6 +17,10 @@ class SubdomainEnumeration(ServiceScan):
 		self.add_list_option('wordlist', default=['auto'], help='The wordlist(s) to use when enumerating subdomains. Use "auto" for automatic SecLists detection, or specify custom paths. Default: %(default)s')
 		self.add_option('threads', default=10, help='The number of threads to use when enumerating subdomains. Default: %(default)s')
 		self.match_service_name('^domain')
+		# Pattern matching for subdomain findings
+		self.add_pattern(r'(?i)found.*subdomain[s]?[:\s]*([^\n\r]+)', description='Subdomains Found: {match1}')
+		self.add_pattern(r'(?i)[a-z0-9\-]+\.[a-z0-9\-\.]+\.[a-z]{2,}', description='Subdomain Discovered: {match0}')
+		self.add_pattern(r'(?i)gobuster.*found[:\s]*([^\n\r]+)', description='Gobuster Subdomain: {match1}')
 
 	async def run(self, service):
 		domains = []
@@ -91,6 +95,6 @@ class SubdomainEnumeration(ServiceScan):
 			for wordlist in resolved_wordlists:
 				name = os.path.splitext(os.path.basename(wordlist))[0]
 				for domain in domains:
-					await service.execute('gobuster dns -d ' + domain + ' -r {addressv6} -w ' + wordlist + ' -o "{scandir}/{protocol}_{port}_' + domain + '_subdomains_' + name + '.txt"')
+					await service.execute('gobuster dns -d ' + domain + ' -r {addressv6} -w ' + wordlist + ' -o "{scandir}/{protocol}_{port}_' + domain + '_subdomains_' + name + '.txt"', outfile='{protocol}_{port}_' + domain + '_subdomains_' + name + '.txt')
 		else:
 			service.info('The target was not a domain, nor was a domain provided as an option. Skipping subdomain enumeration.')

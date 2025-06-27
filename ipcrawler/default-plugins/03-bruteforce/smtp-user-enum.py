@@ -12,6 +12,15 @@ class SMTPUserEnum(ServiceScan):
 
 	def configure(self):
 		self.match_service_name('^smtp')
+		
+		# Add patterns for SMTP user enumeration results
+		self.add_pattern(r'(?i)250.*(\S+@\S+)', description='CRITICAL: Valid SMTP email address found: {match1}')
+		self.add_pattern(r'(?i)250.*user[:\s]+(\S+)', description='CRITICAL: Valid SMTP user found: {match1}')
+		self.add_pattern(r'(?i)252.*(\S+)', description='WARNING: SMTP user exists but cannot verify: {match1}')
+		self.add_pattern(r'(?i)550.*(\S+)', description='INFO: SMTP user does not exist: {match1}')
+		self.add_pattern(r'(?i)vrfy.*250.*(\S+)', description='CRITICAL: VRFY command successful for user: {match1}')
+		self.add_pattern(r'(?i)expn.*250.*(\S+)', description='CRITICAL: EXPN command successful for list: {match1}')
+		self.add_pattern(r'(?i)rcpt to.*250.*(\S+)', description='CRITICAL: RCPT TO command successful for user: {match1}')
 
 	async def run(self, service):
 		# Get wordlist paths from WordlistManager

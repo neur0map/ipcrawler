@@ -35,6 +35,11 @@ class DirBuster(ServiceScan):
 		self.add_choice_option('vhost-mode', default='smart', choices=['all', 'best', 'smart'], help='How to handle multiple discovered hostnames: all=scan all, best=scan best only, smart=scan best + unique domains. Default: %(default)s')
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
+		# Pattern matching for directory busting findings
+		self.add_pattern(r'(?i)200\s+\d+\w?\s+([^\s]+)', description='Directory/File Found (200): {match1}')
+		self.add_pattern(r'(?i)30[1-8]\s+\d+\w?\s+([^\s]+)', description='Redirect Found (30x): {match1}')
+		self.add_pattern(r'(?i)403\s+\d+\w?\s+([^\s]+)', description='Forbidden Access (403): {match1} - potential restricted resource')
+		self.add_pattern(r'(?i)401\s+\d+\w?\s+([^\s]+)', description='Authentication Required (401): {match1}')
 
 	def check(self):
 		tool = self.get_option('tool')
@@ -288,7 +293,7 @@ class DirBuster(ServiceScan):
 					service.info(f"🔧 Executing: {ferox_cmd.replace('{http_scheme}', 'http').replace('{port}', str(service.port))}")
 					
 					start_time = time.time()
-					process, stdout, stderr = await service.execute(ferox_cmd)
+					process, stdout, stderr = await service.execute(ferox_cmd, outfile='{protocol}_{port}_{http_scheme}_feroxbuster_' + hostname_label + '_' + name + '.txt')
 					end_time = time.time()
 					duration = end_time - start_time
 					

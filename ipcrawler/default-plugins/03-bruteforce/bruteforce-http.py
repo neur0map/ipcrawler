@@ -13,6 +13,15 @@ class BruteforceHTTP(ServiceScan):
 	def configure(self):
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
+		
+		# Add patterns for HTTP bruteforce result detection
+		self.add_pattern(r'(?i)login:\s*(\S+)\s+password:\s*(\S+)', description='CRITICAL: HTTP credentials found - User: {match1}, Password: {match2}')
+		self.add_pattern(r'(?i)valid password for\s+(\S+)', description='CRITICAL: Valid HTTP password found for user: {match1}')
+		self.add_pattern(r'(?i)successful.*login.*(\S+)', description='CRITICAL: Successful HTTP authentication for user: {match1}')
+		self.add_pattern(r'(?i)401.*unauthorized', description='INFO: HTTP 401 Unauthorized - authentication required')
+		self.add_pattern(r'(?i)403.*forbidden', description='INFO: HTTP 403 Forbidden - access denied')
+		self.add_pattern(r'(?i)200.*ok.*login|dashboard|admin', description='WARNING: HTTP 200 OK - possible successful authentication')
+		self.add_pattern(r'(?i)302.*found.*dashboard|admin|home', description='WARNING: HTTP 302 redirect - possible successful authentication')
 
 	def manual(self, service, plugin_was_run):
 		# Get wordlist paths from WordlistManager

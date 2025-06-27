@@ -154,6 +154,6 @@ class VirtualHost(ServiceScan):
 					# Enhanced pattern matching for virtual host discoveries
 					self.add_pattern(r'(\S+\.' + hostname.replace('.', r'\.') + r')', description='Virtual Host discovered: {match1} - additional subdomain/service available')
 					
-					await service.execute(ffuf_cmd)
+					await service.execute(ffuf_cmd, outfile='{protocol}_{port}_{http_scheme}_' + hostname + '_vhosts_' + name + '.txt')
 		else:
 			service.info('The target was not a hostname, nor was a hostname provided as an option. Skipping virtual host enumeration.')

@@ -1,0 +1,218 @@
+<!-- Git Service Security Assessment Details -->
+<div class="service-detail git-service">
+    
+    {% if service.git_security_summary %}
+    <div class="git-summary-stats">
+        <h4>🔍 Git Security Assessment Summary</h4>
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">
+            
+            <div class="stat-card critical" style="background: #2c1810; border-left: 4px solid #dc3545; padding: 15px; border-radius: 8px;">
+                <div class="stat-number" style="font-size: 24px; font-weight: bold; color: #dc3545;">
+                    {{ service.git_security_summary.critical_issues }}
+                </div>
+                <div class="stat-label" style="color: #ccc; font-size: 12px;">CRITICAL ISSUES</div>
+            </div>
+            
+            <div class="stat-card warning" style="background: #2c2410; border-left: 4px solid #ffc107; padding: 15px; border-radius: 8px;">
+                <div class="stat-number" style="font-size: 24px; font-weight: bold; color: #ffc107;">
+                    {{ service.git_security_summary.warnings }}
+                </div>
+                <div class="stat-label" style="color: #ccc; font-size: 12px;">WARNINGS</div>
+            </div>
+            
+            <div class="stat-card info" style="background: #102c2c; border-left: 4px solid #17a2b8; padding: 15px; border-radius: 8px;">
+                <div class="stat-number" style="font-size: 24px; font-weight: bold; color: #17a2b8;">
+                    {{ service.git_security_summary.total_repositories }}
+                </div>
+                <div class="stat-label" style="color: #ccc; font-size: 12px;">REPOSITORIES FOUND</div>
+            </div>
+            
+            <div class="stat-card secrets" style="background: #2c1024; border-left: 4px solid #e83e8c; padding: 15px; border-radius: 8px;">
+                <div class="stat-number" style="font-size: 24px; font-weight: bold; color: #e83e8c;">
+                    {{ service.git_security_summary.exposed_secrets }}
+                </div>
+                <div class="stat-label" style="color: #ccc; font-size: 12px;">EXPOSED SECRETS</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if service.git_findings %}
+    <div class="git-findings-details">
+        
+        {% if service.git_findings.repositories_found %}
+        <div class="enum-section">
+            <strong>🗂️ Discovered Repositories:</strong>
+            <ul class="styled-list">
+                {% for repo in service.git_findings.repositories_found %}
+                <li>
+                    <code style="color: #4CAF50;">{{ repo.name if repo.name else repo }}</code>
+                    {% if repo.url %}
+                    <br><span style="color: #888; font-size: 12px;">{{ repo.url }}</span>
+                    {% endif %}
+                    {% if repo.branches %}
+                    <br><span style="color: #17a2b8; font-size: 11px;">Branches: {{ repo.branches | join(', ') }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if service.git_findings.exposed_files %}
+        <div class="enum-section">
+            <strong>📁 Exposed Git Files:</strong>
+            <ul class="styled-list">
+                {% for file in service.git_findings.exposed_files %}
+                <li>
+                    <code style="color: #ffc107;">{{ file.path if file.path else file }}</code>
+                    {% if file.status_code %}
+                    <span style="color: {% if file.status_code < 400 %}#28a745{% else %}#dc3545{% endif %};">
+                        ({{ file.status_code }})
+                    </span>
+                    {% endif %}
+                    {% if file.size %}
+                    <br><span style="color: #888; font-size: 11px;">Size: {{ file.size }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if service.git_findings.secrets_detected %}
+        <div class="vuln-section">
+            <strong>🔐 Detected Secrets & Credentials:</strong>
+            <ul class="styled-list">
+                {% for secret in service.git_findings.secrets_detected %}
+                <li class="vulnerability" style="color: #e83e8c;">
+                    {% if secret.type %}
+                    <strong>{{ secret.type }}:</strong>
+                    {% endif %}
+                    {{ secret.description if secret.description else secret }}
+                    {% if secret.location %}
+                    <br><span style="color: #888; font-size: 11px;">Location: {{ secret.location }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if service.git_findings.web_interfaces %}
+        <div class="enum-section">
+            <strong>🌐 Git Web Interfaces:</strong>
+            <ul class="styled-list">
+                {% for interface in service.git_findings.web_interfaces %}
+                <li>
+                    {% if interface.url %}
+                    <a href="{{ interface.url }}" class="url" target="_blank">{{ interface.name if interface.name else interface.url }}</a>
+                    {% else %}
+                    <code>{{ interface.name if interface.name else interface }}</code>
+                    {% endif %}
+                    {% if interface.version %}
+                    <br><span style="color: #17a2b8; font-size: 11px;">Version: {{ interface.version }}</span>
+                    {% endif %}
+                    {% if interface.type %}
+                    <br><span style="color: #888; font-size: 11px;">Type: {{ interface.type }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if service.git_findings.ssh_access %}
+        <div class="enum-section">
+            <strong>🔐 SSH Git Access:</strong>
+            <ul class="styled-list">
+                {% for ssh in service.git_findings.ssh_access %}
+                <li>
+                    <code style="color: #fd7e14;">{{ ssh.user if ssh.user else ssh }}@{{ service.target.address }}</code>
+                    {% if ssh.status %}
+                    <span style="color: {% if ssh.status == 'accessible' %}#28a745{% else %}#6c757d{% endif %};">
+                        ({{ ssh.status }})
+                    </span>
+                    {% endif %}
+                    {% if ssh.repositories %}
+                    <br><span style="color: #17a2b8; font-size: 11px;">Repositories: {{ ssh.repositories | join(', ') }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if service.git_findings.vulnerabilities %}
+        <div class="vuln-section">
+            <strong>⚠️ Security Vulnerabilities:</strong>
+            <ul class="styled-list">
+                {% for vuln in service.git_findings.vulnerabilities %}
+                <li class="vulnerability">
+                    {% if 'CRITICAL' in vuln %}
+                    <span style="color: #dc3545; font-weight: bold;">🚨 CRITICAL:</span>
+                    {% elif 'WARNING' in vuln %}
+                    <span style="color: #ffc107; font-weight: bold;">⚠️ WARNING:</span>
+                    {% elif 'INFO' in vuln %}
+                    <span style="color: #17a2b8;">ℹ️ INFO:</span>
+                    {% endif %}
+                    {{ vuln | replace('CRITICAL:', '') | replace('WARNING:', '') | replace('INFO:', '') | trim }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    {% if service.git_scan_timestamp %}
+    <div class="git-scan-info" style="margin-top: 20px; padding: 10px; background: #1a1a1a; border-radius: 5px; border-left: 4px solid #6f42c1;">
+        <small style="color: #888;">
+            🕒 Git security scan completed: {{ service.git_scan_timestamp | truncate_version(19) }}
+            {% if service.git_security_summary %}
+            <br>📊 Summary: {{ service.git_security_summary.critical_issues + service.git_security_summary.warnings + service.git_security_summary.info_items }} total findings
+            {% endif %}
+        </small>
+    </div>
+    {% endif %}
+    
+    <!-- Manual Commands Section for Git -->
+    {% if service.manual_commands %}
+    <div class="enum-section" style="margin-top: 20px;">
+        <strong>🛠️ Git Exploitation Commands:</strong>
+        <div class="manual-commands" style="background: #1a1a1a; padding: 15px; border-radius: 5px; margin-top: 10px;">
+            {% for cmd in service.manual_commands %}
+                {% if 'git' in cmd.lower() or 'clone' in cmd.lower() or 'dumper' in cmd.lower() %}
+                <div class="command-item" style="margin: 8px 0; padding: 8px; background: #2d2d30; border-radius: 4px; border-left: 3px solid #6f42c1;">
+                    <code style="color: #d4d4d4; font-size: 13px; word-break: break-all;">{{ cmd }}</code>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.git-service .stat-card {
+    transition: transform 0.2s ease;
+}
+
+.git-service .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.git-service .vulnerability {
+    padding: 8px 12px;
+    background: rgba(220, 53, 69, 0.1);
+    border-left: 3px solid #dc3545;
+    margin: 5px 0;
+    border-radius: 4px;
+}
+
+.git-service .manual-commands .command-item:hover {
+    background: #3c3c3f !important;
+    cursor: pointer;
+}
+</style>

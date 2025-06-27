@@ -12,6 +12,14 @@ class Nikto(ServiceScan):
 	def configure(self):
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
+		# Pattern matching for Nikto findings
+		self.add_pattern(r'(?i)osvdb-[0-9]+', description='OSVDB vulnerability identified: {match0}')
+		self.add_pattern(r'(?i)server.*banner[:\s]*([^\n\r]+)', description='Server Banner: {match1}')
+		self.add_pattern(r'(?i)vulnerable.*to[:\s]*([^\n\r]+)', description='CRITICAL: Vulnerability detected: {match1}')
+		self.add_pattern(r'(?i)default.*file.*found[:\s]*([^\n\r]+)', description='Default file found: {match1}')
+		self.add_pattern(r'(?i)directory.*indexing.*enabled', description='CRITICAL: Directory indexing enabled - information disclosure')
+		self.add_pattern(r'(?i)backup.*file.*found[:\s]*([^\n\r]+)', description='Backup file found: {match1}')
+		self.add_pattern(r'(?i)cgi.*script.*found[:\s]*([^\n\r]+)', description='CGI script found: {match1}')
 
 	async def run(self, service):
 		if service.target.ipversion == 'IPv4':
@@ -41,7 +49,7 @@ class Nikto(ServiceScan):
 				hostname_label = hostname.replace('.', '_').replace(':', '_')
 				service.info(f"🔧 Running nikto against: {hostname}")
 				# Use more reliable nikto options - remove aggressive tuning options that might cause issues
-				await service.execute('nikto -ask=no -nointeractive -host {http_scheme}://' + hostname + ':{port} 2>&1 | tee "{scandir}/{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt"')
+				await service.execute('nikto -ask=no -nointeractive -host {http_scheme}://' + hostname + ':{port}', outfile='{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt')
 
 	def manual(self, service, plugin_was_run):
 		if service.target.ipversion == 'IPv4' and not plugin_was_run:

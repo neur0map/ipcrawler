@@ -13,6 +13,15 @@ class BruteforceSMB(ServiceScan):
 	def configure(self):
 		self.match_service('tcp', 445, r'^microsoft\-ds')
 		self.match_service('tcp', 139, r'^netbios')
+		
+		# Add patterns for SMB bruteforce result detection
+		self.add_pattern(r'(?i)login:\s*(\S+)\s+password:\s*(\S+)', description='CRITICAL: SMB credentials found - User: {match1}, Password: {match2}')
+		self.add_pattern(r'(?i)(\S+):\S+\s+\[.*\+.*\]', description='CRITICAL: SMB authentication successful for user: {match1}')
+		self.add_pattern(r'(?i)pwned!.*(\S+)', description='CRITICAL: SMB admin access gained for user: {match1}')
+		self.add_pattern(r'(?i)STATUS_LOGON_FAILURE', description='INFO: SMB authentication failed')
+		self.add_pattern(r'(?i)STATUS_PASSWORD_EXPIRED.*(\S+)', description='WARNING: SMB password expired for user: {match1}')
+		self.add_pattern(r'(?i)STATUS_ACCOUNT_LOCKED_OUT.*(\S+)', description='WARNING: SMB account locked for user: {match1}')
+		self.add_pattern(r'(?i)guest.*allowed|anonymous.*login', description='WARNING: SMB guest or anonymous access allowed')
 
 	def manual(self, service, plugin_was_run):
 		# Get wordlist paths from WordlistManager
