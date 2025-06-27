@@ -15,7 +15,8 @@ class Top100UDPPortScan(PortScan):
 	async def run(self, target):
 		# Check if UDP scanning is enabled in config
 		if not config.get('enable_udp_scan', False):
-			target.info('UDP scanning is disabled in config. Set enable-udp-scan = true to enable.', verbosity=1)
+			target.info('⚠️  UDP scanning is disabled in config. Enable with: --enable-udp-scan', verbosity=1)
+			target.info('💡 Note: UDP scans require root privileges (sudo) and can be slow', verbosity=1)
 			return []
 		
 		# Only run UDP scan if user is root.
@@ -42,4 +43,6 @@ class Top100UDPPortScan(PortScan):
 			await process.wait()
 			return services
 		else:
-			target.error('UDP scan requires ipcrawler be run with root privileges.')
+			target.error('⚠️  UDP scan requires root privileges! Run with: sudo ipcrawler [target]')
+			target.info('💡 UDP scans need raw socket access for proper port scanning', verbosity=1)
+			return []
