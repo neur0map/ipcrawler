@@ -74,12 +74,12 @@ class GitEnumeration(ServiceScan):
         
         # Sensitive information in Git commits/content
         self.add_pattern(r'(?i)password["\s]*[:=]["\s]*[^\s"]{3,}', description='CRITICAL: Password detected in Git content')
-        self.add_pattern(r'(?i)api[_\s]*key["\s]*[:=]["\s]*[^\s"]{10,}', description='CRITICAL: API key detected in Git content')
-        self.add_pattern(r'(?i)secret[_\s]*key["\s]*[:=]["\s]*[^\s"]{10,}', description='CRITICAL: Secret key detected in Git content')
-        self.add_pattern(r'(?i)access[_\s]*token["\s]*[:=]["\s]*[^\s"]{10,}', description='CRITICAL: Access token detected in Git content')
-        self.add_pattern(r'(?i)private[_\s]*key|-----BEGIN.*PRIVATE.*KEY-----', description='CRITICAL: Private key detected in Git content')
-        self.add_pattern(r'(?i)aws[_\s]*access[_\s]*key|AKIA[0-9A-Z]{16}', description='CRITICAL: AWS access key detected in Git content')
-        self.add_pattern(r'(?i)database[_\s]*url|db[_\s]*connection', description='WARNING: Database connection string detected in Git content')
+        self.add_pattern(r'(?i)api[ _\s]*key["\s]*[:=]["\s]*[^\s"]{10,}', description='CRITICAL: API key detected in Git content')
+        self.add_pattern(r'(?i)secret[ _\s]*key["\s]*[:=]["\s]*[^\s"]{10,}', description='CRITICAL: Secret key detected in Git content')
+        self.add_pattern(r'(?i)access[ _\s]*token["\s]*[:=]["\s]*[^\s"]{10,}', description='CRITICAL: Access token detected in Git content')
+        self.add_pattern(r'(?i)private[ _\s]*key|-----BEGIN.*PRIVATE.*KEY-----', description='CRITICAL: Private key detected in Git content')
+        self.add_pattern(r'(?i)aws[ _\s]*access[ _\s]*key|AKIA[0-9A-Z]{16}', description='CRITICAL: AWS access key detected in Git content')
+        self.add_pattern(r'(?i)database[ _\s]*url|db[ _\s]*connection', description='WARNING: Database connection string detected in Git content')
         
         # Git web interfaces and tools
         self.add_pattern(r'(?i)gitweb|cgit|gitiles|gitlab|gitea|gogs', description='INFO: Git web interface detected')
@@ -335,10 +335,10 @@ class GitEnumeration(ServiceScan):
                              future_outfile=f'{service.protocol}_{service.port}_git-discovery.txt')
         
         # Manual commands for repository cloning and analysis
-        service.add_manual_command(f'git clone {git_url} git-repo-{service.target.address}')
-        service.add_manual_command(f'git clone {git_url}repo git-repo-main-{service.target.address}')
-        service.add_manual_command(f'git clone {git_url}infrastructure git-infrastructure-{service.target.address}')
-        service.add_manual_command(f'git clone {git_url}dev git-dev-{service.target.address}')
+        service.add_manual_command('(git-daemon) Clone default repository', f'git clone {git_url} git-repo-{service.target.address}')
+        service.add_manual_command('(git-daemon) Clone "repo" repository', f'git clone {git_url}repo git-repo-main-{service.target.address}')
+        service.add_manual_command('(git-daemon) Clone "infrastructure" repository', f'git clone {git_url}infrastructure git-infrastructure-{service.target.address}')
+        service.add_manual_command('(git-daemon) Clone "dev" repository', f'git clone {git_url}dev git-dev-{service.target.address}')
         
         # Add comprehensive user-based repository patterns
         common_users = ['admin', 'user', 'dev', 'developer', 'root', 'git', 'web', 'app', 'jenkins', 'gitlab-runner', 'github-actions']
@@ -346,11 +346,11 @@ class GitEnumeration(ServiceScan):
         
         for user in common_users:
             for repo in common_repos:
-                service.add_manual_command(f'git clone {git_url}{user}/{repo} git-{user}-{repo}-{service.target.address}')
+                service.add_manual_command(f'(git-daemon) Clone {user}/{repo} repository', f'git clone {git_url}{user}/{repo} git-{user}-{repo}-{service.target.address}')
         
         # Advanced Git daemon enumeration
-        service.add_manual_command(f'git ls-remote {git_url}* | grep -E "(infrastructure|config|secret|private|internal|backup)"')
-        service.add_manual_command(f'timeout 60 bash -c "for repo in {{repo,main,dev,prod,test,staging,backup,config,src,app,web,api,admin,private,internal,secrets}}; do echo \\"Testing $repo:\\"; git ls-remote {git_url}$repo 2>/dev/null && echo \\"Found: $repo\\"; done"')
+        service.add_manual_command('(git-daemon) Discover sensitive repositories', f'git ls-remote {git_url}* | grep -E "(infrastructure|config|secret|private|internal|backup)"')
+        service.add_manual_command('(git-daemon) Brute-force common repository names', f'timeout 60 bash -c "for repo in {{repo,main,dev,prod,test,staging,backup,config,src,app,web,api,admin,private,internal,secrets}}; do echo \"Testing $repo:\"; git ls-remote {git_url}$repo 2>/dev/null && echo \"Found: $repo\"; done"')
 
     async def _enumerate_http_git(self, service):
         """Enumerate Git repositories over HTTP/HTTPS"""
@@ -410,29 +410,29 @@ class GitEnumeration(ServiceScan):
                                  future_outfile=f'{service.protocol}_{service.port}_{service.target.scheme}_git-subdir-{subdir}-{hostname_label}.txt')
         
         # Comprehensive .git exploitation toolkit
-        service.add_manual_command(f'git-dumper {base_url}/.git/ git-dump-{hostname_label}/')
-        service.add_manual_command(f'GitTools/Dumper/gitdumper.sh {base_url}/.git/ git-dump-{hostname_label}/')
-        service.add_manual_command(f'python3 -m pip install git-dumper && git-dumper {base_url}/.git/ git-dump-{hostname_label}/')
-        service.add_manual_command(f'wget -r -np -nH --cut-dirs=1 -R "index.html*" {base_url}/.git/')
-        service.add_manual_command(f'curl -s {base_url}/.git/HEAD && echo "Git HEAD found - repository accessible!"')
+        service.add_manual_command('(http-git) Dump repository with git-dumper', f'git-dumper {base_url}/.git/ git-dump-{hostname_label}/')
+        service.add_manual_command('(http-git) Dump repository with GitTools', f'GitTools/Dumper/gitdumper.sh {base_url}/.git/ git-dump-{hostname_label}/')
+        service.add_manual_command('(http-git) Install and run git-dumper', f'python3 -m pip install git-dumper && git-dumper {base_url}/.git/ git-dump-{hostname_label}/')
+        service.add_manual_command('(http-git) Mirror repository with wget', f'wget -r -np -nH --cut-dirs=1 -R "index.html*" {base_url}/.git/')
+        service.add_manual_command('(http-git) Check for exposed HEAD file', f'curl -s {base_url}/.git/HEAD && echo "Git HEAD found - repository accessible!"')
         
         # Advanced Git content analysis
-        service.add_manual_command(f'curl -s {base_url}/.git/logs/HEAD | head -20  # Check recent commit history')
-        service.add_manual_command(f'curl -s {base_url}/.git/config | grep -E "(url|remote|user|email)"  # Extract configuration')
-        service.add_manual_command(f'curl -s {base_url}/.git/refs/heads/master 2>/dev/null || curl -s {base_url}/.git/refs/heads/main  # Get latest commit')
-        service.add_manual_command(f'curl -s {base_url}/.git/index | strings | head -50  # Extract file names from index')
+        service.add_manual_command('(http-git) Check recent commit history', f'curl -s {base_url}/.git/logs/HEAD | head -20')
+        service.add_manual_command('(http-git) Extract remote configuration', f'curl -s {base_url}/.git/config | grep -E "(url|remote|user|email)"')
+        service.add_manual_command('(http-git) Get latest commit hash', f'curl -s {base_url}/.git/refs/heads/master 2>/dev/null || curl -s {base_url}/.git/refs/heads/main')
+        service.add_manual_command('(http-git) Extract file names from index', f'curl -s {base_url}/.git/index | strings | head -50')
         
         # Git repository reconstruction and analysis
-        service.add_manual_command(f'cd git-dump-{hostname_label}/ && git log --oneline --all  # View commit history')
-        service.add_manual_command(f'cd git-dump-{hostname_label}/ && git branch -a  # List all branches')
-        service.add_manual_command(f'cd git-dump-{hostname_label}/ && git show --name-only  # Show latest commit files')
-        service.add_manual_command(f'cd git-dump-{hostname_label}/ && git log --grep="password\\|secret\\|key\\|credential" --all  # Search for sensitive commits')
-        service.add_manual_command(f'cd git-dump-{hostname_label}/ && git log --all --full-history -- "*.env" "*.config" "*secret*" "*key*"  # Track sensitive files')
+        service.add_manual_command('(http-git) View commit history', f'cd git-dump-{hostname_label}/ && git log --oneline --all')
+        service.add_manual_command('(http-git) List all branches', f'cd git-dump-{hostname_label}/ && git branch -a')
+        service.add_manual_command('(http-git) Show latest commit files', f'cd git-dump-{hostname_label}/ && git show --name-only')
+        service.add_manual_command('(http-git) Search for sensitive commits', f'cd git-dump-{hostname_label}/ && git log --grep="password\|secret\|key\|credential" --all')
+        service.add_manual_command('(http-git) Track sensitive files history', f'cd git-dump-{hostname_label}/ && git log --all --full-history -- "*.env" "*.config" "*secret*" "*key*"')
         
         # Secret scanning in Git content
-        service.add_manual_command(f'cd git-dump-{hostname_label}/ && grep -r -i "password\\|secret\\|api_key\\|private_key" . || true  # Basic secret scan')
-        service.add_manual_command(f'cd git-dump-{hostname_label}/ && git log --all -p | grep -E "(password|secret|key|token|credential)" || true  # Scan commit diffs')
-        service.add_manual_command(f'cd git-dump-{hostname_label}/ && truffleHog --regex --entropy=False . || true  # Advanced secret scanning')
+        service.add_manual_command('(http-git) Basic secret scan', f'cd git-dump-{hostname_label}/ && grep -r -i "password\|secret\|api_key\|private_key" . || true')
+        service.add_manual_command('(http-git) Scan commit diffs for secrets', f'cd git-dump-{hostname_label}/ && git log --all -p | grep -E "(password|secret|key|token|credential)" || true')
+        service.add_manual_command('(http-git) Advanced secret scanning with truffleHog', f'cd git-dump-{hostname_label}/ && truffleHog --regex --entropy=False . || true')
 
     async def _enumerate_ssh_git(self, service):
         """Enumerate Git over SSH"""
@@ -453,10 +453,10 @@ class GitEnumeration(ServiceScan):
         
         # Manual commands for SSH Git enumeration
         for user in git_users:
-            service.add_manual_command(f'ssh -o StrictHostKeyChecking=no {user}@{best_hostname} "git --version" # Test Git SSH access')
-            service.add_manual_command(f'ssh -o StrictHostKeyChecking=no {user}@{best_hostname} "find / -name \"*.git\" 2>/dev/null" # Find Git repos')
-            service.add_manual_command(f'git clone ssh://{user}@{best_hostname}/repo.git ssh-git-repo-{best_hostname}')
-            service.add_manual_command(f'git clone {user}@{best_hostname}:repo.git ssh-git-repo-{best_hostname}')
+            service.add_manual_command(f'(ssh-git) Test Git access for user {user}', f'ssh -o StrictHostKeyChecking=no {user}@{best_hostname} "git --version" # Test Git SSH access')
+            service.add_manual_command(f'(ssh-git) Find Git repositories for user {user}', f'ssh -o StrictHostKeyChecking=no {user}@{best_hostname} "find / -name \"*.git\" 2>/dev/null" # Find Git repos')
+            service.add_manual_command(f'(ssh-git) Clone repository with full SSH URL for user {user}', f'git clone ssh://{user}@{best_hostname}/repo.git ssh-git-repo-{best_hostname}')
+            service.add_manual_command(f'(ssh-git) Clone repository with short SSH URL for user {user}', f'git clone {user}@{best_hostname}:repo.git ssh-git-repo-{best_hostname}')
 
     async def _enumerate_git_web_interface(self, service):
         """Enumerate Git web interfaces (GitLab, Gitea, Gogs, etc.)"""
@@ -497,10 +497,10 @@ class GitEnumeration(ServiceScan):
                              future_outfile=f'{service.protocol}_{service.port}_git-web-https-{hostname_label}.txt')
         
         # Advanced Git interface enumeration
-        service.add_manual_command(f'curl -s {base_url}/api/v1/version | jq .  # Gitea/Gogs version info')
-        service.add_manual_command(f'curl -s {base_url}/api/v4/version | jq .  # GitLab version info')
-        service.add_manual_command(f'curl -s {base_url}/explore/repos | grep -o "href=\\"[^\\"]*/[^\\"]*.git\\"" | head -20  # Discover public repos')
-        service.add_manual_command(f'ffuf -u {base_url}/FUZZ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -fc 404  # Directory fuzzing')
+        service.add_manual_command('(git-web) Get Gitea/Gogs version info', f'curl -s {base_url}/api/v1/version | jq .')
+        service.add_manual_command('(git-web) Get GitLab version info', f'curl -s {base_url}/api/v4/version | jq .')
+        service.add_manual_command('(git-web) Discover public repositories', f'curl -s {base_url}/explore/repos | grep -o "href=\"[^\"]*/[^\"]*.git\"" | head -20')
+        service.add_manual_command('(git-web) Directory fuzzing', f'ffuf -u {base_url}/FUZZ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -fc 404')
 
     async def _enumerate_generic_git(self, service):
         """Generic Git service enumeration"""
@@ -529,10 +529,10 @@ class GitEnumeration(ServiceScan):
         hostname_label = best_hostname.replace('.', '_').replace(':', '_')
         
         # Manual commands for comprehensive secret scanning
-        service.add_manual_command(f'find results/ -name "*git*" -type f -exec grep -l "password\\|secret\\|key\\|token" {{}} \\; | head -10  # Find files with secrets')
-        service.add_manual_command(f'grep -r -E "(password|secret|api_key|private_key|token)\\s*[=:]\\s*[\\w.-]+" results/*git* | head -20 || true  # Extract potential secrets')
-        service.add_manual_command(f'git secrets --scan results/ || echo "git-secrets not installed"  # Advanced secret detection')
-        service.add_manual_command(f'gitleaks detect --source results/ || echo "gitleaks not installed"  # Gitleaks secret scanner')
+        service.add_manual_command('(secrets) Find files with potential secrets', f'find results/ -name "*git*" -type f -exec grep -l "password\|secret\|key\|token" {{}} \; | head -10')
+        service.add_manual_command('(secrets) Extract potential secrets', f'grep -r -E "(password|secret|api_key|private_key|token)\s*[=:]\s*[\w.-]+" results/*git* | head -20 || true')
+        service.add_manual_command('(secrets) Advanced secret detection with git-secrets', f'git secrets --scan results/ || echo "git-secrets not installed"')
+        service.add_manual_command('(secrets) Gitleaks secret scanner', f'gitleaks detect --source results/ || echo "gitleaks not installed"')
 
     def check_git_tools(self):
         """Check for Git exploitation tools availability"""
