@@ -120,13 +120,24 @@ class DirBuster(ServiceScan):
 		
 		for wordlist in wordlists:
 			if wordlist == 'auto':
-				# Auto-detect best available wordlist using configured size preference
+				# Auto-detect best available wordlist using configured size preference + technology detection
 				try:
 					wordlist_manager = get_wordlist_manager()
 					current_size = wordlist_manager.get_wordlist_size()
 					service.info(f"🔍 WordlistManager size: {current_size}")
 					
-					web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir'), current_size)
+					# Detect technologies from scan results
+					from ipcrawler.technology_detector import TechnologyDetector
+					detector = TechnologyDetector(service.target.scandir)
+					detected_technologies = detector.detect_from_scan_results()
+					
+					if detected_technologies:
+						service.info(f"🤖 Detected technologies: {', '.join(detected_technologies)}")
+					else:
+						service.info("🤖 No specific technologies detected, using general wordlists")
+					
+					# Use smart wordlist selection with technology detection
+					web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir', ''), current_size, detected_technologies)
 					service.info(f"🔍 Resolved wordlist path: {web_dirs_path}")
 					
 					if web_dirs_path and os.path.exists(web_dirs_path):

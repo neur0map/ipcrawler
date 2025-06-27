@@ -182,8 +182,10 @@ class ResultParser:
             # Handle XML parsing errors more gracefully
             if RICH_AVAILABLE:
                 console.print(f"[yellow]Warning: XML file {xml_path} appears to be corrupted or incomplete (Parse error: {e}). Trying text fallback...[/yellow]")
+                console.print(f"[dim]   ↳ This usually happens when scans are interrupted. Report generation will continue with available data.[/dim]")
             else:
                 print(f"Warning: XML file {xml_path} appears to be corrupted or incomplete (Parse error: {e}). Trying text fallback...")
+                print(f"   ↳ This usually happens when scans are interrupted. Report generation will continue with available data.")
             
             # Try to read as text and extract basic port information
             try:

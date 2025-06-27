@@ -48,9 +48,20 @@ class SmartWordlistSelector:
                 except Exception as e:
                     print(f"Warning: Could not load catalog from {catalog_path}: {e}")
         
-        # No catalog found - use empty catalog and provide helpful guidance
+        # No catalog found - try to auto-generate it
         print("⚠️  No SecLists catalog found for smart wordlist selection.")
-        print("   Run: python3 scripts/generate_seclists_catalog.py /path/to/seclists")
+        if self.seclists_base_path and os.path.exists(self.seclists_base_path):
+            print(f"🤖 Auto-generating catalog for {self.seclists_base_path}...")
+            try:
+                catalog = self._generate_catalog_on_demand()
+                if catalog:
+                    _catalog_cache = catalog
+                    self.catalog = _catalog_cache
+                    print("✅ Catalog generated successfully!")
+                    return
+            except Exception as e:
+                print(f"❌ Auto-generation failed: {e}")
+        
         print("   Falling back to standard wordlist selection.")
         _catalog_cache = {'wordlists': {}}
         self.catalog = _catalog_cache
@@ -119,7 +130,8 @@ class SmartWordlistSelector:
         try:
             from rapidfuzz import process, fuzz
         except ImportError:
-            print("Warning: RapidFuzz not available, using simple string matching")
+            print("🔧 RapidFuzz not available - install with: pip install rapidfuzz")
+            print("   ↳ Falling back to simple string matching (still functional)")
             return self._simple_technology_match(detected_technologies)
         
         tech_aliases = self.aliases.get('technology_aliases', {})
@@ -270,6 +282,124 @@ class SmartWordlistSelector:
         size_kb = wordlist_info.get('size_kb', 'unknown')
         
         return f"Using {technology} wordlist: {filename} ({lines} lines, {size_kb}KB)"
+    
+    def _generate_catalog_on_demand(self) -> Optional[Dict]:
+        """Generate catalog on-demand when not found"""
+        from datetime import datetime
+        
+        catalog = {
+            'metadata': {
+                'generator_version': '1.0',
+                'seclists_path': self.seclists_base_path,
+                'generated_at': datetime.now().isoformat(),
+                'total_wordlists': 0
+            },
+            'wordlists': {}
+        }
+        
+        print(f"🔍 Scanning SecLists directory: {self.seclists_base_path}")
+        
+        # Walk through all .txt files in SecLists
+        wordlist_count = 0
+        for root, dirs, files in os.walk(self.seclists_base_path):
+            for file in files:
+                if file.endswith('.txt') or file.endswith('.fuzz.txt'):
+                    full_path = os.path.join(root, file)
+                    relative_path = os.path.relpath(full_path, self.seclists_base_path)
+                    
+                    # Get file statistics
+                    try:
+                        stat = os.stat(full_path)
+                        size_kb = stat.st_size // 1024
+                        
+                        # Count lines efficiently (limit to avoid hanging on huge files)
+                        line_count = 0
+                        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            for i, _ in enumerate(f):
+                                if i > 500000:  # Cap at 500k lines for performance
+                                    line_count = f">{i}"
+                                    break
+                                line_count = i + 1
+                        
+                        # Categorize wordlist based on path
+                        category = self._categorize_wordlist(relative_path)
+                        
+                        # Extract tags from path/filename
+                        tags = self._extract_tags(relative_path.lower())
+                        
+                        catalog['wordlists'][relative_path] = {
+                            'size_kb': size_kb,
+                            'lines': line_count,
+                            'category': category,
+                            'tags': tags
+                        }
+                        
+                        wordlist_count += 1
+                        if wordlist_count % 100 == 0:
+                            print(f"  📊 Processed {wordlist_count} wordlists...")
+                            
+                    except Exception as e:
+                        print(f"  ⚠️  Skipping {relative_path}: {e}")
+                        continue
+        
+        catalog['metadata']['total_wordlists'] = wordlist_count
+        print(f"✅ Cataloged {wordlist_count} wordlists")
+        
+        # Save catalog to first available location
+        catalog_paths = [
+            os.path.join(os.path.dirname(__file__), 'data', 'seclists_catalog.yaml'),
+            os.path.join(os.path.dirname(__file__), '..', 'data', 'seclists_catalog.yaml'),
+            'seclists_catalog.yaml'  # Current directory
+        ]
+        
+        for catalog_path in catalog_paths:
+            try:
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(catalog_path), exist_ok=True)
+                
+                with open(catalog_path, 'w') as f:
+                    yaml.dump(catalog, f, default_flow_style=False, allow_unicode=True)
+                print(f"💾 Catalog saved to: {catalog_path}")
+                break
+            except Exception as e:
+                print(f"  ⚠️  Could not save to {catalog_path}: {e}")
+                continue
+        
+        return catalog
+    
+    def _categorize_wordlist(self, path: str) -> str:
+        """Categorize wordlist based on its path"""
+        path_lower = path.lower()
+        
+        if 'web' in path_lower or 'http' in path_lower or 'directory' in path_lower or 'file' in path_lower:
+            return 'web'
+        elif 'username' in path_lower or 'user' in path_lower:
+            return 'usernames'
+        elif 'password' in path_lower or 'pass' in path_lower:
+            return 'passwords'
+        elif 'subdomain' in path_lower or 'dns' in path_lower:
+            return 'dns'
+        elif 'snmp' in path_lower:
+            return 'snmp'
+        else:
+            return 'other'
+    
+    def _extract_tags(self, path: str) -> List[str]:
+        """Extract technology tags from wordlist path"""
+        tags = []
+        
+        # Common technologies to look for
+        tech_keywords = [
+            'wordpress', 'wp', 'drupal', 'joomla', 'php', 'asp', 'aspx', 
+            'jsp', 'coldfusion', 'perl', 'python', 'rails', 'django',
+            'apache', 'nginx', 'iis', 'tomcat', 'jenkins', 'sharepoint'
+        ]
+        
+        for keyword in tech_keywords:
+            if keyword in path:
+                tags.append(keyword)
+        
+        return tags
 
 
 # Convenience function for easy integration

@@ -51,7 +51,17 @@ class SubdomainEnumeration(ServiceScan):
 					try:
 						wordlist_manager = get_wordlist_manager()
 						current_size = wordlist_manager.get_wordlist_size()
-						subdomain_path = wordlist_manager.get_wordlist_path('subdomains', config.get('data_dir'), current_size)
+						
+						# Detect technologies from scan results
+						from ipcrawler.technology_detector import TechnologyDetector
+						detector = TechnologyDetector(service.target.scandir)
+						detected_technologies = detector.detect_from_scan_results()
+						
+						if detected_technologies:
+							service.info(f"🤖 Detected technologies: {', '.join(detected_technologies)}")
+						
+						# Use smart wordlist selection with technology detection
+						subdomain_path = wordlist_manager.get_wordlist_path('subdomains', config.get('data_dir'), current_size, detected_technologies)
 						if subdomain_path and os.path.exists(subdomain_path):
 							resolved_wordlists.append(subdomain_path)
 						else:

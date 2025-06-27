@@ -72,7 +72,17 @@ class VirtualHost(ServiceScan):
 					try:
 						wordlist_manager = get_wordlist_manager()
 						current_size = wordlist_manager.get_wordlist_size()
-						vhost_path = wordlist_manager.get_wordlist_path('vhosts', config.get('data_dir'), current_size)
+						
+						# Detect technologies from scan results
+						from ipcrawler.technology_detector import TechnologyDetector
+						detector = TechnologyDetector(service.target.scandir)
+						detected_technologies = detector.detect_from_scan_results()
+						
+						if detected_technologies:
+							service.info(f"🤖 Detected technologies: {', '.join(detected_technologies)}")
+						
+						# Use smart wordlist selection with technology detection
+						vhost_path = wordlist_manager.get_wordlist_path('vhosts', config.get('data_dir'), current_size, detected_technologies)
 						if vhost_path and os.path.exists(vhost_path):
 							resolved_wordlists.append(vhost_path)
 						else:

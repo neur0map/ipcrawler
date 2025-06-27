@@ -263,6 +263,9 @@ install:
 	 { echo "⚠️  Creating virtual environment for dependencies..."; \
 	   python3 -m venv .venv; \
 	   .venv/bin/pip install -r requirements.txt; }
+	@echo "🔧 Verifying Smart Wordlist Selector dependencies..."
+	@python3 -c "import rapidfuzz; print('  ✅ RapidFuzz available - Enhanced technology matching enabled')" 2>/dev/null || \
+	 echo "  ⚠️  RapidFuzz not installed - Smart Wordlist Selector will use simple matching"
 	@echo "🔧 Creating executable wrapper with sudo privileges..."
 	@mkdir -p ~/.local/bin
 	@echo '#!/bin/bash' > ~/.local/bin/ipcrawler

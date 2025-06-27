@@ -116,6 +116,10 @@ class WordlistManager:
                 'last_detection': None,
                 'size': 'default'  # 'fast', 'default', or 'comprehensive'
             },
+            'smart_wordlists': {
+                'enabled': True,  # Enable Smart Wordlist Selector by default
+                'comment': 'Smart Wordlist Selector uses technology detection to choose optimal wordlists'
+            },
             'detected_paths': {
                 'seclists_base': None,
                 'comment': 'Auto-generated paths - do not edit manually'
@@ -280,7 +284,7 @@ class WordlistManager:
             return False
     
     def get_wordlist_path(self, category: str, data_dir: str = None, size: str = None, detected_technologies: set = None) -> Optional[str]:
-        """Get wordlist path for a category with fallback hierarchy"""
+        """Get wordlist path for a category with fallback hierarchy - Smart Wordlist Selector prioritized"""
         config = self.load_config()
         
         # Determine the wordlist size to use
@@ -293,6 +297,7 @@ class WordlistManager:
         if category in self._cli_overrides:
             path = self._cli_overrides[category]
             if os.path.exists(path):
+                print(f"🎯 Using CLI override wordlist for {category}: {os.path.basename(path)}")
                 return path
             else:
                 print(f"Warning: CLI override path for {category} does not exist: {path}")
@@ -302,17 +307,27 @@ class WordlistManager:
         if category in custom_paths and custom_paths[category]:
             path = custom_paths[category]
             if os.path.exists(path):
+                print(f"🎯 Using custom wordlist for {category}: {os.path.basename(path)}")
                 return path
             else:
                 print(f"Warning: Custom path for {category} does not exist: {path}")
         
-        # 3. Smart wordlist selection (if enabled and technologies detected)
+        # 3. PRIORITY: Smart wordlist selection (if enabled and technologies detected)
         smart_path = self._get_smart_wordlist_path(category, detected_technologies)
         if smart_path:
+            print(f"🤖 Smart Wordlist Selector: Technology-based selection active")
             return smart_path
         
-        # 4. Auto-detected SecLists paths (new nested structure)
+        # Smart wordlist selector enabled but no technologies detected
+        if self._is_smart_wordlists_enabled() and detected_technologies is not None:
+            if not detected_technologies:
+                print(f"🤖 Smart Wordlist Selector: No technologies detected, falling back to standard wordlists")
+            else:
+                print(f"🤖 Smart Wordlist Selector: No technology-specific wordlists found, falling back to standard wordlists")
+        
+        # 4. FALLBACK: Auto-detected SecLists paths (standard wordlist selection)
         if config.get('mode', {}).get('type') == 'auto':
+            print(f"📁 Fallback: Using standard wordlist selection from SecLists")
             detected_paths = config.get('detected_paths', {})
             if category in detected_paths:
                 # Try the requested size first
@@ -341,15 +356,15 @@ class WordlistManager:
                     if os.path.exists(path):
                         return path
         
-        # 4. Built-in fallbacks - REMOVED: No more fallback wordlists
-        # WordlistManager should return None if no proper wordlists are found
-        
-        # 5. Legacy hardcoded paths (for backward compatibility)
+        # 5. FINAL FALLBACK: Legacy hardcoded paths (for backward compatibility)
         if category in self.categories_legacy:
+            print(f"⚠️  Final fallback: Using legacy hardcoded wordlist paths")
             legacy_path = '/usr/share/seclists/' + self.categories_legacy[category]
             if os.path.exists(legacy_path):
                 return legacy_path
         
+        # No wordlists found
+        print(f"❌ No wordlist found for category '{category}' - ensure SecLists is installed and configured")
         return None
     
     def set_cli_override(self, category: str, path: str):
@@ -450,6 +465,7 @@ class WordlistManager:
         config = self.load_config()
         seclists_base = config.get('detected_paths', {}).get('seclists_base')
         if not seclists_base:
+            print(f"🤖 Smart Wordlist Selector: SecLists base path not configured")
             return None
         
         try:
@@ -465,19 +481,23 @@ class WordlistManager:
                 selection_info = selector.get_selection_info(smart_path, list(detected_technologies)[0])
                 print(f"🎯 {selection_info}")
                 return smart_path
+            else:
+                print(f"🤖 Smart Wordlist Selector: No technology-specific wordlist found for {category} with technologies: {', '.join(detected_technologies)}")
                 
         except ImportError:
             # Smart wordlist selector not available
-            pass
+            print(f"🤖 Smart Wordlist Selector: Module not available (missing rapidfuzz dependency)")
         except Exception as e:
             # Don't let smart wordlist errors break normal operation
+            print(f"🤖 Smart Wordlist Selector: Error occurred - {e}")
             if os.environ.get('IPCRAWLER_DEBUG'):
-                print(f"Warning: Smart wordlist selection failed: {e}")
+                import traceback
+                traceback.print_exc()
         
         return None
     
     def _is_smart_wordlists_enabled(self) -> bool:
-        """Check if smart wordlists are enabled via environment variable or config"""
+        """Check if smart wordlists are enabled via environment variable or config (defaults to enabled)"""
         # Environment variable takes precedence for backwards compatibility
         env_enabled = os.environ.get('IPCRAWLER_SMART_WORDLISTS', '').lower()
         if env_enabled in ['1', 'true', 'yes', 'on']:
@@ -488,11 +508,13 @@ class WordlistManager:
         # Check global config system (integrated with main ipcrawler config)
         try:
             from .config import config as global_config
-            return global_config.get('smart_wordlists', False)
+            # Default to True - Smart wordlist selector should be enabled by default
+            return global_config.get('smart_wordlists', True)
         except ImportError:
             # Fallback to legacy config file method
             config = self.load_config()
-            return config.get('smart_wordlists', {}).get('enabled', False)
+            # Default to True - Smart wordlist selector should be enabled by default
+            return config.get('smart_wordlists', {}).get('enabled', True)
     
     def get_smart_wordlist_path(self, category: str, detected_technologies: set = None, size: str = None) -> Optional[str]:
         """Public method for smart wordlist selection with fallback"""

@@ -629,38 +629,57 @@ async def generate_report(plugin, targets):
 			error(f'❌ Report plugin {plugin.name} ({plugin.slug}) failed with exception', verbosity=1)
 			raise Exception(f'Report plugin {plugin.name} ({plugin.slug}) exception:\n\n{error_text}')
 
+def safe_makedirs(path, mode=0o755):
+	"""Create directories with proper permissions, avoiding root ownership issues"""
+	try:
+		os.makedirs(path, mode=mode, exist_ok=True)
+		# Ensure current user owns the directory (prevents root ownership issues)
+		if os.getuid() != 0:  # Only if not running as root
+			try:
+				import pwd
+				current_user = pwd.getpwuid(os.getuid())
+				if current_user:
+					os.chown(path, current_user.pw_uid, current_user.pw_gid)
+			except:
+				pass  # If chown fails, that's okay
+	except PermissionError as e:
+		warn(f"Permission denied creating directory {path}: {e}")
+		warn("This may cause issues with report generation. Consider running without sudo.")
+	except Exception as e:
+		warn(f"Error creating directory {path}: {e}")
+
 async def scan_target(target):
-	os.makedirs(os.path.abspath(config['output']), exist_ok=True)
+	safe_makedirs(os.path.abspath(config['output']))
 
 	if config['single_target']:
 		basedir = os.path.abspath(config['output'])
 	else:
 		basedir = os.path.abspath(os.path.join(config['output'], target.address))
-		os.makedirs(basedir, exist_ok=True)
+		safe_makedirs(basedir)
 
 	target.basedir = basedir
 
 	scandir = os.path.join(basedir, 'scans')
 	target.scandir = scandir
-	os.makedirs(scandir, exist_ok=True)
+	safe_makedirs(scandir)
 
-	os.makedirs(os.path.join(scandir, 'xml'), exist_ok=True)
+	safe_makedirs(os.path.join(scandir, 'xml'))
 
 	if not config['only_scans_dir']:
 		exploitdir = os.path.join(basedir, 'exploit')
-		os.makedirs(exploitdir, exist_ok=True)
+		safe_makedirs(exploitdir)
 
 		lootdir = os.path.join(basedir, 'loot')
-		os.makedirs(lootdir, exist_ok=True)
+		safe_makedirs(lootdir)
 
 		reportdir = os.path.join(basedir, 'report')
-		os.makedirs(reportdir, exist_ok=True)
+		safe_makedirs(reportdir)
 
 		open(os.path.join(reportdir, 'local.txt'), 'a').close()
 		open(os.path.join(reportdir, 'proof.txt'), 'a').close()
 
 		screenshotdir = os.path.join(reportdir, 'screenshots')
-		os.makedirs(screenshotdir, exist_ok=True)
+		safe_makedirs(screenshotdir)
 	else:
 		reportdir = scandir
 
@@ -1371,6 +1390,14 @@ async def run():
 			info('📚 SecLists detected - wordlists configured automatically', verbosity=1)
 		else:
 			debug('📚 No SecLists installation detected. Install SecLists for wordlist functionality.')
+	
+	# Show Smart Wordlist Selector status
+	if wordlist_manager._is_smart_wordlists_enabled():
+		info('🤖 Smart Wordlist Selector: ENABLED - Technology-based wordlist selection active', verbosity=1)
+		info('   ↳ Wordlists will be chosen based on detected technologies (WordPress, PHP, etc.)', verbosity=2)
+		info('   ↳ Standard wordlists used as fallback when no technologies detected', verbosity=2)
+	else:
+		debug('🤖 Smart Wordlist Selector: DISABLED - Using standard wordlist selection only')
 	
 	# Process wordlist CLI overrides
 	wordlist_overrides = {
