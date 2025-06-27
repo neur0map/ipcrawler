@@ -1,0 +1,592 @@
+# Technology Alias Mapping for Intelligent Wordlist Selection
+# Maps detected technology strings to standardized technology keys
+# Used with RapidFuzz for flexible matching
+
+technology_aliases:
+  # Content Management Systems
+  wordpress:
+    aliases: ["wordpress", "wp", "wp-content", "wp-admin", "wp-json", "wp-includes", "wp-login"]
+    priority: high
+    description: "WordPress CMS"
+    
+  drupal:
+    aliases: ["drupal", "drupal7", "drupal8", "drupal9", "drupal10", "sites/default", "user/login"]
+    priority: high
+    description: "Drupal CMS"
+    
+  joomla:
+    aliases: ["joomla", "joomla!", "index.php?option=com_", "administrator"]
+    priority: high
+    description: "Joomla CMS"
+    
+  magento:
+    aliases: ["magento", "mage", "downloader", "skin/frontend", "admin"]
+    priority: high
+    description: "Magento e-commerce"
+    
+  prestashop:
+    aliases: ["prestashop", "ps_", "classes/", "tools/", "adminps"]
+    priority: medium
+    description: "PrestaShop e-commerce"
+    
+  opencart:
+    aliases: ["opencart", "catalog/view", "admin/view", "index.php?route"]
+    priority: medium
+    description: "OpenCart e-commerce"
+    
+  concrete5:
+    aliases: ["concrete5", "concrete/", "ccm/", "dashboard/"]
+    priority: medium
+    description: "Concrete5 CMS"
+    
+  typo3:
+    aliases: ["typo3", "typo3/", "typo3conf/", "fileadmin/"]
+    priority: medium
+    description: "TYPO3 CMS"
+    
+  ghost:
+    aliases: ["ghost", "ghost/", "content/themes", "admin/"]
+    priority: medium
+    description: "Ghost blogging platform"
+    
+  umbraco:
+    aliases: ["umbraco", "umbraco/", "umbraco_client/"]
+    priority: medium
+    description: "Umbraco CMS"
+    
+  dotnetnuke:
+    aliases: ["dotnetnuke", "dnn", "portals/", "desktopmodules/"]
+    priority: medium
+    description: "DotNetNuke CMS"
+    
+  liferay:
+    aliases: ["liferay", "group/guest", "web/guest", "c/portal"]
+    priority: medium
+    description: "Liferay portal"
+    
+  plone:
+    aliases: ["plone", "portal_skins", "manage_main"]
+    priority: medium
+    description: "Plone CMS"
+    
+  # Wiki Systems
+  mediawiki:
+    aliases: ["mediawiki", "wiki/", "index.php/Main_Page", "Special:"]
+    priority: medium
+    description: "MediaWiki"
+    
+  dokuwiki:
+    aliases: ["dokuwiki", "doku.php", "lib/tpl/"]
+    priority: medium
+    description: "DokuWiki"
+    
+  tiddlywiki:
+    aliases: ["tiddlywiki", "tiddlers/", "#tiddler"]
+    priority: low
+    description: "TiddlyWiki"
+    
+  # Programming Languages & Frameworks
+  php:
+    aliases: ["php", "X-Powered-By: PHP", "PHPSESSID", ".php", "index.php"]
+    priority: medium
+    description: "PHP applications"
+    
+  asp:
+    aliases: ["asp.net", "aspnet", "X-AspNet-Version", "ASPSESSIONID", ".aspx", ".asp"]
+    priority: medium
+    description: "ASP.NET applications"
+    
+  java:
+    aliases: ["java", "tomcat", "jetty", "spring", "struts", "jsessionid", ".jsp"]
+    priority: medium
+    description: "Java applications"
+    
+  python:
+    aliases: ["python", "django", "flask", "wsgi", "gunicorn", "uvicorn", "fastapi"]
+    priority: medium
+    description: "Python applications"
+    
+  ruby:
+    aliases: ["ruby", "rails", "rack", "passenger", "gem"]
+    priority: medium
+    description: "Ruby applications"
+    
+  nodejs:
+    aliases: ["node.js", "nodejs", "express", "koa", "X-Powered-By: Express", "npm"]
+    priority: medium
+    description: "Node.js applications"
+    
+  # Web Servers
+  apache:
+    aliases: ["apache", "httpd", "Server: Apache", ".htaccess"]
+    priority: low
+    description: "Apache HTTP Server"
+    
+  nginx:
+    aliases: ["nginx", "Server: nginx", "nginx.conf"]
+    priority: low
+    description: "Nginx web server"
+    
+  iis:
+    aliases: ["iis", "microsoft-iis", "Server: Microsoft-IIS", "web.config"]
+    priority: low
+    description: "Microsoft IIS"
+    
+  tomcat:
+    aliases: ["tomcat", "apache-tomcat", "manager/html", "host-manager"]
+    priority: high
+    description: "Apache Tomcat"
+    
+  weblogic:
+    aliases: ["weblogic", "oracle-weblogic", "console/", "wls-cat"]
+    priority: high
+    description: "Oracle WebLogic"
+    
+  websphere:
+    aliases: ["websphere", "ibm-websphere", "ibm_security_logout"]
+    priority: medium
+    description: "IBM WebSphere"
+    
+  jboss:
+    aliases: ["jboss", "wildfly", "jboss-web", "management/"]
+    priority: medium
+    description: "JBoss/WildFly"
+    
+  glassfish:
+    aliases: ["glassfish", "sun-glassfish", "common/"]
+    priority: medium
+    description: "GlassFish"
+    
+  # Cloud Platforms
+  aws:
+    aliases: ["amazon", "aws", "s3", "X-Amz-", "amazonaws", "ec2"]
+    priority: high
+    description: "Amazon Web Services"
+    
+  azure:
+    aliases: ["azure", "microsoft-azure", "X-Azure-", "azurewebsites"]
+    priority: high
+    description: "Microsoft Azure"
+    
+  gcp:
+    aliases: ["google", "gcp", "X-Goog-", "appengine", "googleapis"]
+    priority: high
+    description: "Google Cloud Platform"
+    
+  # Enterprise Applications
+  sharepoint:
+    aliases: ["sharepoint", "microsoft-sharepoint", "_layouts", "sites/"]
+    priority: high
+    description: "Microsoft SharePoint"
+    
+  exchange:
+    aliases: ["exchange", "microsoft-exchange", "owa", "outlook", "exchweb"]
+    priority: high
+    description: "Microsoft Exchange"
+    
+  confluence:
+    aliases: ["confluence", "atlassian-confluence", "pages/", "wiki/"]
+    priority: medium
+    description: "Atlassian Confluence"
+    
+  jira:
+    aliases: ["jira", "atlassian-jira", "browse/", "issues/"]
+    priority: medium
+    description: "Atlassian JIRA"
+    
+  jenkins:
+    aliases: ["jenkins", "hudson", "job/", "build/", "manage"]
+    priority: high
+    description: "Jenkins CI/CD"
+    
+  gitlab:
+    aliases: ["gitlab", "gitlab-ce", "gitlab-ee", "users/sign_in"]
+    priority: high
+    description: "GitLab"
+    
+  # Monitoring & Analytics
+  grafana:
+    aliases: ["grafana", "dashboard/", "login", "api/datasources", "d/"]
+    priority: high
+    description: "Grafana monitoring"
+    
+  kibana:
+    aliases: ["kibana", "app/kibana", "elasticsearch", "logstash"]
+    priority: high
+    description: "Kibana analytics"
+    
+  splunk:
+    aliases: ["splunk", "en-US/", "services/", "search/"]
+    priority: high
+    description: "Splunk analytics"
+    
+  zabbix:
+    aliases: ["zabbix", "zabbix.php", "frontends/"]
+    priority: medium
+    description: "Zabbix monitoring"
+    
+  nagios:
+    aliases: ["nagios", "nagios/", "cgi-bin/nagios"]
+    priority: medium
+    description: "Nagios monitoring"
+    
+  cacti:
+    aliases: ["cacti", "graph.php", "rra/"]
+    priority: medium
+    description: "Cacti monitoring"
+    
+  prtg:
+    aliases: ["prtg", "public/login.htm", "controls/"]
+    priority: medium
+    description: "PRTG monitoring"
+    
+  prometheus:
+    aliases: ["prometheus", "metrics", "graph", "targets"]
+    priority: medium
+    description: "Prometheus monitoring"
+    
+  # Database Management
+  phpmyadmin:
+    aliases: ["phpmyadmin", "pma", "db_structure.php", "tbl_structure.php"]
+    priority: high
+    description: "phpMyAdmin"
+    
+  adminer:
+    aliases: ["adminer", "adminer.php", "adminer-"]
+    priority: medium
+    description: "Adminer database tool"
+    
+  # Email & Communication
+  roundcube:
+    aliases: ["roundcube", "webmail", "mail/", "skins/"]
+    priority: medium
+    description: "Roundcube webmail"
+    
+  squirrelmail:
+    aliases: ["squirrelmail", "src/", "mail.php"]
+    priority: medium
+    description: "SquirrelMail"
+    
+  zimbra:
+    aliases: ["zimbra", "zimbra/", "public/login.jsp"]
+    priority: medium
+    description: "Zimbra email"
+    
+  # File Sharing & Cloud Storage
+  nextcloud:
+    aliases: ["nextcloud", "owncloud", "apps/", "remote.php"]
+    priority: high
+    description: "Nextcloud/ownCloud"
+    
+  seafile:
+    aliases: ["seafile", "seahub/", "accounts/login"]
+    priority: medium
+    description: "Seafile"
+    
+  # Learning Management
+  moodle:
+    aliases: ["moodle", "course/view.php", "login/index.php", "theme/"]
+    priority: medium
+    description: "Moodle LMS"
+    
+  # Security & Network Tools
+  pfsense:
+    aliases: ["pfsense", "pfSense", "system.php", "firewall_"]
+    priority: high
+    description: "pfSense firewall"
+    
+  openvpn:
+    aliases: ["openvpn", "openvpn-as", "admin/", "connect/"]
+    priority: medium
+    description: "OpenVPN"
+    
+  # Virtualization & Containers
+  vmware:
+    aliases: ["vmware", "vsphere", "vcenter", "esx"]
+    priority: high
+    description: "VMware"
+    
+  citrix:
+    aliases: ["citrix", "xenapp", "xendesktop", "netscaler"]
+    priority: medium
+    description: "Citrix"
+    
+  proxmox:
+    aliases: ["proxmox", "pve", "nodes/"]
+    priority: medium
+    description: "Proxmox VE"
+    
+  docker:
+    aliases: ["docker", "portainer", "registry", "containers/"]
+    priority: medium
+    description: "Docker"
+    
+  kubernetes:
+    aliases: ["kubernetes", "k8s", "dashboard", "api/v1"]
+    priority: medium
+    description: "Kubernetes"
+    
+  # Storage & NAS
+  synology:
+    aliases: ["synology", "dsm", "webman/", "syno"]
+    priority: medium
+    description: "Synology NAS"
+    
+  qnap:
+    aliases: ["qnap", "qts", "cgi-bin/"]
+    priority: medium
+    description: "QNAP NAS"
+    
+  freenas:
+    aliases: ["freenas", "truenas", "ui/", "legacy/"]
+    priority: medium
+    description: "FreeNAS/TrueNAS"
+    
+  # Development Tools
+  sonarqube:
+    aliases: ["sonarqube", "sonar", "dashboard", "projects"]
+    priority: medium
+    description: "SonarQube"
+    
+  artifactory:
+    aliases: ["artifactory", "jfrog", "webapp/", "repo/"]
+    priority: medium
+    description: "JFrog Artifactory"
+    
+  nexus:
+    aliases: ["nexus", "repository", "service/", "content/"]
+    priority: medium
+    description: "Sonatype Nexus"
+    
+  # API Gateways
+  kong:
+    aliases: ["kong", "kong-admin", "services/", "routes/"]
+    priority: medium
+    description: "Kong API Gateway"
+    
+  # Home Automation
+  homeassistant:
+    aliases: ["home-assistant", "hass", "lovelace/", "hassio/"]
+    priority: low
+    description: "Home Assistant"
+    
+  openhab:
+    aliases: ["openhab", "basicui/", "paperui/"]
+    priority: low
+    description: "OpenHAB"
+    
+  # IoT & MQTT
+  mqtt:
+    aliases: ["mqtt", "mosquitto", "broker/", "hivemq"]
+    priority: low
+    description: "MQTT brokers"
+    
+  # Time Series Databases
+  influxdb:
+    aliases: ["influxdb", "chronograf", "query", "write"]
+    priority: medium
+    description: "InfluxDB"
+    
+  # Message Queues
+  rabbitmq:
+    aliases: ["rabbitmq", "rabbit", "management/", "api/"]
+    priority: medium
+    description: "RabbitMQ"
+    
+  kafka:
+    aliases: ["kafka", "confluent", "topics/", "brokers/"]
+    priority: medium
+    description: "Apache Kafka"
+    
+  # Search Engines
+  elasticsearch:
+    aliases: ["elasticsearch", "elastic", "_cluster/", "_search"]
+    priority: medium
+    description: "Elasticsearch"
+    
+  solr:
+    aliases: ["solr", "apache-solr", "admin/", "select"]
+    priority: medium
+    description: "Apache Solr"
+    
+  # Cache Systems
+  redis:
+    aliases: ["redis", "redis-commander", "redisinsight"]
+    priority: medium
+    description: "Redis"
+    
+  memcached:
+    aliases: ["memcached", "memcache"]
+    priority: low
+    description: "Memcached"
+    
+  # Load Balancers
+  haproxy:
+    aliases: ["haproxy", "stats/", "balance"]
+    priority: medium
+    description: "HAProxy"
+    
+  traefik:
+    aliases: ["traefik", "dashboard/", "api/"]
+    priority: medium
+    description: "Traefik"
+    
+  # CDN & Edge
+  cloudflare:
+    aliases: ["cloudflare", "cf-ray", "cf-cache"]
+    priority: low
+    description: "Cloudflare"
+    
+  # Backup Solutions
+  veeam:
+    aliases: ["veeam", "backup", "restore/"]
+    priority: medium
+    description: "Veeam Backup"
+    
+  # Network Management
+  unifi:
+    aliases: ["unifi", "ubiquiti", "manage/", "inform"]
+    priority: medium
+    description: "Ubiquiti UniFi"
+    
+  # Password Managers
+  bitwarden:
+    aliases: ["bitwarden", "vault/", "identity/"]
+    priority: medium
+    description: "Bitwarden"
+    
+  # VPN Solutions
+  pritunl:
+    aliases: ["pritunl", "server/", "user/"]
+    priority: medium
+    description: "Pritunl VPN"
+    
+  # CRM Systems
+  sugarcrm:
+    aliases: ["sugarcrm", "sugar", "crm/", "modules/"]
+    priority: medium
+    description: "SugarCRM"
+    
+  # ERP Systems
+  odoo:
+    aliases: ["odoo", "openerp", "web/login", "modules/"]
+    priority: medium
+    description: "Odoo ERP"
+    
+  # Help Desk
+  osticket:
+    aliases: ["osticket", "osTicket", "scp/", "tickets.php"]
+    priority: medium
+    description: "osTicket"
+    
+  # Digital Signage
+  xibo:
+    aliases: ["xibo", "login.php", "display/"]
+    priority: low
+    description: "Xibo digital signage"
+
+# Wordlist category mapping
+# Maps technology keys to specific wordlist categories and preferences
+wordlist_mapping:
+  wordpress:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "comprehensive"  # WordPress needs thorough scanning
+    
+  drupal:
+    preferred_categories: ["web_directories", "web_files"] 
+    size_preference: "default"
+    
+  joomla:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  magento:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "comprehensive"
+    
+  php:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  asp:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  java:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  tomcat:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "comprehensive"
+    
+  jenkins:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "comprehensive"
+    
+  gitlab:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  grafana:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  splunk:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "comprehensive"
+    
+  kibana:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  phpmyadmin:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "comprehensive"
+    
+  nextcloud:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  moodle:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  sharepoint:
+    preferred_categories: ["web_directories"]
+    size_preference: "comprehensive"
+    
+  aws:
+    preferred_categories: ["web_directories", "subdomains"]
+    size_preference: "default"
+    
+  pfsense:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+    
+  vmware:
+    preferred_categories: ["web_directories", "web_files"]
+    size_preference: "default"
+
+  # Add usernames/passwords for high-value targets
+  jenkins:
+    preferred_categories: ["web_directories", "web_files", "usernames", "passwords"]
+    size_preference: "comprehensive"
+    
+  gitlab:
+    preferred_categories: ["web_directories", "web_files", "usernames", "passwords"]
+    size_preference: "default"
+    
+  grafana:
+    preferred_categories: ["web_directories", "web_files", "usernames", "passwords"]
+    size_preference: "default"
+
+# Scoring weights for wordlist selection
+scoring:
+  alias_match_weight: 0.7      # How much alias match score matters
+  size_penalty_weight: 0.3     # How much file size matters (smaller = better)
+  max_lines_threshold: 100000  # Files larger than this get heavy penalty
+  priority_bonus:
+    high: 0.2
+    medium: 0.1
+    low: 0.0

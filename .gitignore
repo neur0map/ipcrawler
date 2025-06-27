@@ -8,6 +8,10 @@ venv/
 claude.md
 ipcrawler/wordlists/wordlists.toml
 
+# Smart wordlist catalogs (user-generated, never commit)
+ipcrawler/data/seclists_catalog.yaml
+seclists_catalog.yaml
+
 # Environment files (never commit these)
 .env
 .env.local

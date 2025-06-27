@@ -33,6 +33,11 @@ enable-udp-scan = false           # Enable/disable UDP port scanning (can be slo
 # vhost-enumeration-for-ips = true # Enable vhost enumeration for IP targets with discovered hostnames
 # resilient-mode = true            # Use more reliable/safer default settings for better compatibility
 
+# Smart Wordlist Selection
+# ------------------------
+smart-wordlists = true             # Enable intelligent technology-based wordlist selection
+smart-wordlists-confidence = 0.7   # Technology detection confidence threshold (0.0-1.0)
+
 # Network Settings  
 # ----------------
 # proxychains = true             # Run scans through proxychains

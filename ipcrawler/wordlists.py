@@ -279,7 +279,7 @@ class WordlistManager:
             self._save_config()
             return False
     
-    def get_wordlist_path(self, category: str, data_dir: str = None, size: str = None) -> Optional[str]:
+    def get_wordlist_path(self, category: str, data_dir: str = None, size: str = None, detected_technologies: set = None) -> Optional[str]:
         """Get wordlist path for a category with fallback hierarchy"""
         config = self.load_config()
         
@@ -306,7 +306,12 @@ class WordlistManager:
             else:
                 print(f"Warning: Custom path for {category} does not exist: {path}")
         
-        # 3. Auto-detected SecLists paths (new nested structure)
+        # 3. Smart wordlist selection (if enabled and technologies detected)
+        smart_path = self._get_smart_wordlist_path(category, detected_technologies)
+        if smart_path:
+            return smart_path
+        
+        # 4. Auto-detected SecLists paths (new nested structure)
         if config.get('mode', {}).get('type') == 'auto':
             detected_paths = config.get('detected_paths', {})
             if category in detected_paths:
@@ -430,6 +435,74 @@ class WordlistManager:
             return 'builtin'
         
         return 'legacy'
+    
+    def _get_smart_wordlist_path(self, category: str, detected_technologies: set = None) -> Optional[str]:
+        """Get smart wordlist path based on detected technologies"""
+        # Check if smart wordlists are enabled
+        if not self._is_smart_wordlists_enabled():
+            return None
+        
+        # Need detected technologies to proceed
+        if not detected_technologies:
+            return None
+        
+        # Get SecLists base path
+        config = self.load_config()
+        seclists_base = config.get('detected_paths', {}).get('seclists_base')
+        if not seclists_base:
+            return None
+        
+        try:
+            # Import here to avoid dependency issues if rapidfuzz not installed
+            from .smart_wordlist_selector import SmartWordlistSelector
+            
+            # Create selector and get smart wordlist
+            selector = SmartWordlistSelector(seclists_base)
+            smart_path = selector.select_wordlist(category, detected_technologies)
+            
+            if smart_path and os.path.exists(smart_path):
+                # Log the selection for user visibility
+                selection_info = selector.get_selection_info(smart_path, list(detected_technologies)[0])
+                print(f"🎯 {selection_info}")
+                return smart_path
+                
+        except ImportError:
+            # Smart wordlist selector not available
+            pass
+        except Exception as e:
+            # Don't let smart wordlist errors break normal operation
+            if os.environ.get('IPCRAWLER_DEBUG'):
+                print(f"Warning: Smart wordlist selection failed: {e}")
+        
+        return None
+    
+    def _is_smart_wordlists_enabled(self) -> bool:
+        """Check if smart wordlists are enabled via environment variable or config"""
+        # Environment variable takes precedence for backwards compatibility
+        env_enabled = os.environ.get('IPCRAWLER_SMART_WORDLISTS', '').lower()
+        if env_enabled in ['1', 'true', 'yes', 'on']:
+            return True
+        elif env_enabled in ['0', 'false', 'no', 'off']:
+            return False
+        
+        # Check global config system (integrated with main ipcrawler config)
+        try:
+            from .config import config as global_config
+            return global_config.get('smart_wordlists', False)
+        except ImportError:
+            # Fallback to legacy config file method
+            config = self.load_config()
+            return config.get('smart_wordlists', {}).get('enabled', False)
+    
+    def get_smart_wordlist_path(self, category: str, detected_technologies: set = None, size: str = None) -> Optional[str]:
+        """Public method for smart wordlist selection with fallback"""
+        # Try smart selection first
+        smart_path = self._get_smart_wordlist_path(category, detected_technologies)
+        if smart_path:
+            return smart_path
+        
+        # Fallback to standard selection
+        return self.get_wordlist_path(category, size=size)
 
 # Global instance - will be initialized by main.py
 wordlist_manager: Optional[WordlistManager] = None

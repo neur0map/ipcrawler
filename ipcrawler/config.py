@@ -32,7 +32,9 @@ configurable_keys = [
 	'max_plugin_global_instances',
 	'accessible',
 	'verbose',
-	'debug'
+	'debug',
+	'smart_wordlists',
+	'smart_wordlists_confidence'
 ]
 
 configurable_boolean_keys = [
@@ -43,7 +45,8 @@ configurable_boolean_keys = [
 	'disable_sanity_checks',
 	'ignore_plugin_checks',
 	'accessible',
-	'debug'
+	'debug',
+	'smart_wordlists'
 ]
 
 config = {
@@ -80,5 +83,7 @@ config = {
 	'max_plugin_global_instances': None,
 	'accessible': False,
 	'verbose': 0,
-	'debug': False
+	'debug': False,
+	'smart_wordlists': False,
+	'smart_wordlists_confidence': 0.7
 }
