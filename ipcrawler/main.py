@@ -1389,13 +1389,22 @@ async def run():
 		if wordlist_manager.update_detected_paths():
 			info('📚 SecLists detected - wordlists configured automatically', verbosity=1)
 		else:
-			debug('📚 No SecLists installation detected. Install SecLists for wordlist functionality.')
+			import platform
+			error('❌ SecLists not found - directory busting may complete abnormally fast!')
+			if platform.system() == "Darwin":  # macOS
+				info('💡 Install with: brew install seclists', verbosity=1)
+				info('💡 Or: git clone https://github.com/danielmiessler/SecLists.git /usr/local/share/seclists', verbosity=1)
+			else:  # Linux
+				info('💡 Install with: sudo apt install seclists', verbosity=1)
+			info('💡 Alternative: Use --dirbuster.wordlist /path/to/custom/wordlist.txt', verbosity=1)
 	
 	# Show Smart Wordlist Selector status
 	if wordlist_manager._is_smart_wordlists_enabled():
-		info('🤖 Smart Wordlist Selector: ENABLED - Technology-based wordlist selection active', verbosity=1)
-		info('   ↳ Wordlists will be chosen based on detected technologies (WordPress, PHP, etc.)', verbosity=2)
-		info('   ↳ Standard wordlists used as fallback when no technologies detected', verbosity=2)
+		info('🤖 Smart Wordlist Selector: ENABLED - Technology-based wordlist selection PRIORITY', verbosity=1)
+		info('   ↳ PRIORITY 1: Smart Wordlist Selector (technology-specific wordlists)', verbosity=2)
+		info('   ↳ PRIORITY 2: WordlistManager (wordlists.toml configuration)', verbosity=2)
+		info('   ↳ PRIORITY 3: Hard-coded fallback wordlists', verbosity=2)
+		info('   ↳ Technologies detected: WordPress, PHP, Joomla, etc. → specific wordlists', verbosity=2)
 	else:
 		debug('🤖 Smart Wordlist Selector: DISABLED - Using standard wordlist selection only')
 	

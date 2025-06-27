@@ -3,6 +3,7 @@ from ipcrawler.config import config
 from ipcrawler.wordlists import get_wordlist_manager
 from shutil import which
 import os
+import time
 
 class DirBuster(ServiceScan):
 
@@ -120,12 +121,8 @@ class DirBuster(ServiceScan):
 		
 		for wordlist in wordlists:
 			if wordlist == 'auto':
-				# Auto-detect best available wordlist using configured size preference + technology detection
+				# Auto-detect best available wordlist using Smart Wordlist Selector FIRST
 				try:
-					wordlist_manager = get_wordlist_manager()
-					current_size = wordlist_manager.get_wordlist_size()
-					service.info(f"🔍 WordlistManager size: {current_size}")
-					
 					# Detect technologies from scan results
 					from ipcrawler.technology_detector import TechnologyDetector
 					detector = TechnologyDetector(service.target.scandir)
@@ -134,19 +131,63 @@ class DirBuster(ServiceScan):
 					if detected_technologies:
 						service.info(f"🤖 Detected technologies: {', '.join(detected_technologies)}")
 					else:
-						service.info("🤖 No specific technologies detected, using general wordlists")
+						service.info("🤖 No specific technologies detected")
 					
-					# Use smart wordlist selection with technology detection
-					web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir', ''), current_size, detected_technologies)
-					service.info(f"🔍 Resolved wordlist path: {web_dirs_path}")
+					# PRIORITY 1: Try Smart Wordlist Selector first
+					smart_wordlist_path = None
+					if detected_technologies:
+						try:
+							from ipcrawler.smart_wordlist_selector import SmartWordlistSelector
+							
+							# Get SecLists path from WordlistManager
+							wordlist_manager = get_wordlist_manager()
+							config_data = wordlist_manager.load_config()
+							seclists_path = config_data.get('detected_paths', {}).get('seclists_base')
+							
+							if seclists_path and os.path.exists(seclists_path):
+								service.info(f"🤖 Using Smart Wordlist Selector with SecLists at: {seclists_path}")
+								selector = SmartWordlistSelector(seclists_path)
+								smart_wordlist_path = selector.select_wordlist('web_directories', detected_technologies)
+								
+								if smart_wordlist_path and os.path.exists(smart_wordlist_path):
+									resolved_wordlists.append(smart_wordlist_path)
+									selection_info = selector.get_selection_info(smart_wordlist_path, list(detected_technologies)[0])
+									service.info(f"✅ Smart selection: {selection_info}")
+									service.info(f"✅ Using technology-specific wordlist: {smart_wordlist_path}")
+								else:
+									service.info("🤖 Smart Wordlist Selector found no technology-specific wordlists")
+							else:
+								service.info("🤖 Smart Wordlist Selector: SecLists path not available")
+						except Exception as e:
+							service.info(f"🤖 Smart Wordlist Selector unavailable: {e}")
 					
-					if web_dirs_path and os.path.exists(web_dirs_path):
-						resolved_wordlists.append(web_dirs_path)
-						service.info(f"✅ Using wordlist: {web_dirs_path}")
-					else:
-						service.error(f'❌ No wordlist found for size "{current_size}". Path attempted: {web_dirs_path}')
-						service.info(f"💡 Try: --dirbuster.wordlist /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt")
-						# Continue with fallback instead of terminating
+					# PRIORITY 2: Fallback to WordlistManager if Smart Selector didn't find anything
+					if not smart_wordlist_path:
+						service.info("📚 Falling back to WordlistManager (wordlists.toml)")
+						wordlist_manager = get_wordlist_manager()
+						current_size = wordlist_manager.get_wordlist_size()
+						service.info(f"🔍 WordlistManager size: {current_size}")
+						
+						web_dirs_path = wordlist_manager.get_wordlist_path('web_directories', config.get('data_dir', ''), current_size, detected_technologies)
+						service.info(f"🔍 WordlistManager resolved path: {web_dirs_path}")
+						
+						if web_dirs_path and os.path.exists(web_dirs_path):
+							resolved_wordlists.append(web_dirs_path)
+							service.info(f"✅ Using WordlistManager wordlist: {web_dirs_path}")
+						else:
+							service.error(f'❌ WordlistManager found no wordlist for size "{current_size}". Path attempted: {web_dirs_path}')
+							service.error("⚠️  This could cause abnormally fast scan completion!")
+							
+					# PRIORITY 3: Hard-coded fallbacks if both Smart Selector and WordlistManager failed
+					if not resolved_wordlists:
+						service.info("📦 Trying hard-coded fallback wordlists")
+						import platform
+						if platform.system() == "Darwin":  # macOS
+							service.info(f"💡 Install SecLists: brew install seclists")
+						else:
+							service.info(f"💡 Install SecLists: sudo apt install seclists")
+						service.info(f"💡 Or specify custom: --dirbuster.wordlist /path/to/wordlist.txt")
+						
 						fallback_paths = [
 							'/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt',
 							'/usr/share/wordlists/dirb/common.txt',
@@ -164,7 +205,13 @@ class DirBuster(ServiceScan):
 							continue  # Skip this hostname, but continue with others
 				except Exception as e:
 					service.error(f'❌ WordlistManager error: {e}')
-					service.info(f"💡 Try: --dirbuster.wordlist /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt")
+					service.error("⚠️  This could cause abnormally fast scan completion!")
+					import platform
+					if platform.system() == "Darwin":  # macOS
+						service.info(f"💡 Install SecLists: brew install seclists")
+					else:
+						service.info(f"💡 Install SecLists: sudo apt install seclists")
+					service.info(f"💡 Or specify custom: --dirbuster.wordlist /path/to/wordlist.txt")
 					# Continue with fallback instead of terminating
 					fallback_paths = [
 						'/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt',
@@ -189,15 +236,44 @@ class DirBuster(ServiceScan):
 		# Check if we have any wordlists available
 		if not resolved_wordlists:
 			service.error("❌ No wordlists available for directory busting")
-			service.info("💡 Install SecLists: sudo apt install seclists")
-			service.info("💡 Or specify custom wordlist: --dirbuster.wordlist /path/to/wordlist.txt")
+			service.error("🚨 This explains why the scan completed in only 4 seconds!")
+			service.info("💡 Install SecLists:")
+			import platform
+			if platform.system() == "Darwin":  # macOS
+				service.info("   • macOS: brew install seclists")
+				service.info("   • Or: git clone https://github.com/danielmiessler/SecLists.git /usr/local/share/seclists")
+			else:  # Linux
+				service.info("   • Linux: sudo apt install seclists")
+				service.info("   • Or: sudo yum install seclists")
+			service.info("💡 Alternative: --dirbuster.wordlist /path/to/custom/wordlist.txt")
+			service.info("💡 Check installation: ls /usr/share/seclists/Discovery/Web-Content/")
 			return  # Exit gracefully, don't crash the scan
 		
 		# Scan each hostname with each wordlist
 		for hostname in hostnames:
 			hostname_label = hostname.replace('.', '_').replace(':', '_')
 			for wordlist in resolved_wordlists:
+				# CRITICAL: Validate wordlist exists before attempting to use it
+				if not os.path.exists(wordlist):
+					service.error(f"❌ Wordlist file does not exist: {wordlist}")
+					service.error("🚨 This WILL cause feroxbuster to exit in ~4 seconds!")
+					service.info(f"💡 Available wordlists: ls {os.path.dirname(wordlist)}")
+					continue  # Skip this wordlist, try next one
+				
+				# Check if wordlist is empty
+				try:
+					with open(wordlist, 'r') as f:
+						first_line = f.readline().strip()
+						if not first_line:
+							service.error(f"❌ Wordlist is empty: {wordlist}")
+							service.error("🚨 This WILL cause feroxbuster to exit in ~4 seconds!")
+							continue
+				except Exception as e:
+					service.error(f"❌ Cannot read wordlist {wordlist}: {e}")
+					continue
+				
 				name = os.path.splitext(os.path.basename(wordlist))[0]
+				service.info(f"✅ Using validated wordlist: {wordlist}")
 				
 				# Use IPv6 brackets if needed for IP addresses
 				scan_hostname = hostname
@@ -206,7 +282,27 @@ class DirBuster(ServiceScan):
 				
 				if self.get_option('tool') == 'feroxbuster':
 					status_codes = self.get_option('status-codes')
-					await service.execute('feroxbuster -u {http_scheme}://' + scan_hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -x "' + self.get_option('ext') + '" -s ' + status_codes + ' -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + hostname_label + '_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else ''))
+					
+					# Log the exact command being executed for debugging
+					ferox_cmd = 'feroxbuster -u {http_scheme}://' + scan_hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -x "' + self.get_option('ext') + '" -s ' + status_codes + ' -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + hostname_label + '_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+					service.info(f"🔧 Executing: {ferox_cmd.replace('{http_scheme}', 'http').replace('{port}', str(service.port))}")
+					
+					start_time = time.time()
+					process, stdout, stderr = await service.execute(ferox_cmd)
+					end_time = time.time()
+					duration = end_time - start_time
+					
+					# Check if scan completed abnormally fast
+					if duration < 10:  # Less than 10 seconds is suspicious
+						service.error(f"🚨 SUSPICIOUS: feroxbuster completed in {duration:.1f}s - this is abnormally fast!")
+						service.info("💡 Possible causes:")
+						service.info("   • Target not responding to HTTP requests")
+						service.info("   • Wordlist file missing or empty")
+						service.info("   • Network connectivity issues")
+						service.info("   • Target returning identical responses (rate limiting)")
+						service.info(f"💡 Test manually: curl -I http://{scan_hostname}:{service.port}/")
+					else:
+						service.info(f"✅ feroxbuster completed in {duration:.1f}s")
 
 				elif self.get_option('tool') == 'gobuster':
 					status_codes = self.get_option('status-codes')
