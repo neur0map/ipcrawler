@@ -229,12 +229,12 @@ class SmartWordlistSelector:
             # Alias match score (how well the filename matches the technology)
             alias_score = self._calculate_alias_score(wordlist_path, technology)
             
-            # Size penalty (prefer smaller, more targeted lists)
+            # Smart size handling - avoid tiny wordlists for directory enumeration
             lines = wordlist_info.get('lines', 0)
-            size_penalty = min(lines / max_lines, 1.0) if lines > 0 else 0
+            size_score = self._calculate_size_score(wordlist_path, lines)
             
             # Final score
-            final_score = (alias_score * alias_weight) - (size_penalty * size_weight)
+            final_score = (alias_score * alias_weight) + (size_score * size_weight)
             
             scored_candidates.append((final_score, wordlist_path, wordlist_info))
         
@@ -246,15 +246,54 @@ class SmartWordlistSelector:
         
         return None
     
+    def _calculate_size_score(self, wordlist_path: str, lines: int) -> float:
+        """Calculate size score - prefer comprehensive wordlists for directory enumeration"""
+        path_lower = wordlist_path.lower()
+        
+        # For directory/web enumeration, we want comprehensive wordlists
+        if any(term in path_lower for term in ['web-content', 'discovery', 'directory', 'file']):
+            # Penalize tiny wordlists heavily for directory enumeration
+            if lines < 100:
+                return -0.5  # Heavy penalty for tiny lists like joomla-themes.fuzz.txt (30 lines)
+            elif lines < 1000:
+                return 0.0   # Neutral for small lists
+            elif lines < 10000:
+                return 0.3   # Good for medium lists  
+            else:
+                return 0.5   # Best for comprehensive lists
+        
+        # For other categories (usernames, passwords), prefer smaller targeted lists
+        else:
+            if lines > 50000:
+                return -0.2  # Penalty for huge lists
+            elif lines > 10000:
+                return 0.0   # Neutral for large lists
+            elif lines > 1000:
+                return 0.3   # Good for medium lists
+            else:
+                return 0.5   # Best for small targeted lists
+    
     def _calculate_alias_score(self, wordlist_path: str, technology: str) -> float:
         """Calculate how well wordlist path matches technology"""
         path_lower = wordlist_path.lower()
         tech_lower = technology.lower()
+        filename = os.path.basename(path_lower)
+        
+        # Penalize overly specific wordlists for general directory enumeration
+        if any(term in filename for term in ['themes', 'plugins', 'extensions', 'modules']):
+            # These are too specific for general directory busting
+            if any(term in path_lower for term in ['web-content', 'discovery']):
+                return 0.2  # Low score for overly specific lists
         
         # Exact match in filename
-        filename = os.path.basename(path_lower)
         if tech_lower in filename:
-            return 1.0
+            # Prefer general wordlists over specific ones
+            if any(term in filename for term in ['all-levels', 'comprehensive', 'full']):
+                return 1.0  # Best for comprehensive lists
+            elif not any(term in filename for term in ['theme', 'plugin', 'extension']):
+                return 0.9  # Good for general technology lists
+            else:
+                return 0.3  # Lower for specific component lists
         
         # Match in directory path
         if tech_lower in path_lower:
