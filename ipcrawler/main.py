@@ -1868,9 +1868,14 @@ async def run():
 	if not config['disable_keyboard_control']:
 		try:
 			terminal_settings = termios.tcgetattr(sys.stdin.fileno())
-		except (OSError, IOError) as e:
+		except (OSError, IOError, termios.error) as e:
 			# Handle cases where stdin is not connected to a terminal (Docker, redirected input, etc.)
 			warn(f'Terminal keyboard control disabled: {e}', verbosity=2)
+			config['disable_keyboard_control'] = True
+			terminal_settings = None
+		except Exception as e:
+			# Catch any other unexpected exceptions related to terminal control
+			warn(f'Terminal keyboard control disabled due to unexpected error: {e}', verbosity=2)
 			config['disable_keyboard_control'] = True
 			terminal_settings = None
 
@@ -1883,8 +1888,17 @@ async def run():
 			break
 
 	if not config['disable_keyboard_control']:
-		tty.setcbreak(sys.stdin.fileno())
-		keyboard_monitor = asyncio.create_task(keyboard())
+		try:
+			tty.setcbreak(sys.stdin.fileno())
+			keyboard_monitor = asyncio.create_task(keyboard())
+		except (OSError, IOError, termios.error) as e:
+			# Handle cases where stdin is not connected to a terminal (Docker, redirected input, etc.)
+			warn(f'Terminal keyboard control disabled during setup: {e}', verbosity=2)
+			config['disable_keyboard_control'] = True
+		except Exception as e:
+			# Catch any other unexpected exceptions related to terminal control
+			warn(f'Terminal keyboard control disabled due to unexpected setup error: {e}', verbosity=2)
+			config['disable_keyboard_control'] = True
 
 	timed_out = False
 	while pending:
@@ -1929,7 +1943,7 @@ async def run():
 				if i >= num_new_targets:
 					break
 
-	if not config['disable_keyboard_control']:
+	if not config['disable_keyboard_control'] and 'keyboard_monitor' in locals():
 		keyboard_monitor.cancel()
 
 	# If there's only one target we don't need a combined report
