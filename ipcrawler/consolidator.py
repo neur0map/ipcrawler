@@ -93,6 +93,7 @@ class TargetResults:
     patterns: List[str] = field(default_factory=list)
     vulnerabilities: List[str] = field(default_factory=list)
     manual_commands: List[str] = field(default_factory=list)
+    hostnames: List[str] = field(default_factory=list)
     scan_timestamp: str = ""
     scan_duration: str = ""
 
@@ -1465,6 +1466,28 @@ class IPCrawlerConsolidator:
             except Exception as e:
                 if RICH_AVAILABLE:
                     console.print(f"[red]Error parsing manual commands: {e}[/red]")
+        
+        # Parse hostname discovery
+        hostname_file = scan_dir / "_hostname_discovery.txt"
+        if hostname_file.exists():
+            try:
+                with open(hostname_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    
+                for line in content.split('\n'):
+                    line = line.strip()
+                    # Skip header line and empty lines
+                    if line and not line.startswith('Discovered hostnames:') and not line.startswith('#'):
+                        # Remove leading whitespace/bullets
+                        hostname = line.lstrip(' -•*').strip()
+                        if hostname and hostname not in results.hostnames:
+                            results.hostnames.append(hostname)
+                            if RICH_AVAILABLE:
+                                console.print(f"[green]🌐 Found hostname: {hostname}[/green]")
+                            
+            except Exception as e:
+                if RICH_AVAILABLE:
+                    console.print(f"[red]Error parsing hostname discovery: {e}[/red]")
     
     def consolidate_all_targets(self, specific_target: Optional[str] = None) -> Dict[str, TargetResults]:
         """Parse results for all discovered targets or a specific target"""

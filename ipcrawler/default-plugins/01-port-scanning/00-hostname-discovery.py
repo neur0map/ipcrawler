@@ -177,5 +177,18 @@ class RedirectHostnameDiscovery(PortScan):
 			print(f"🎯 [{target.address}/hostname-discovery] Total hostnames discovered: {len(discovered_hostnames)}")
 			for hostname in discovered_hostnames:
 				print(f"🎯 [{target.address}/hostname-discovery]    - {hostname}")
+			
+			# Write discovered hostnames to file for consolidator to read
+			try:
+				await target.execute(
+					'echo "Discovered hostnames:" > "{scandir}/_hostname_discovery.txt"'
+				)
+				for hostname in discovered_hostnames:
+					await target.execute(
+						f'echo "  {hostname}" >> "{{scandir}}/_hostname_discovery.txt"'
+					)
+				print(f"🎯 [{target.address}/hostname-discovery] ✅ Wrote {len(discovered_hostnames)} hostnames to _hostname_discovery.txt")
+			except Exception as e:
+				print(f"🎯 [{target.address}/hostname-discovery] ⚠️ Failed to write hostname file: {e}")
 		
 		return []  # PortScan plugins return services, but we're doing discovery

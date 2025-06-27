@@ -1,9 +1,9 @@
 {% if service.enumeration_data %}
 <div class="enum-section">
-    <strong>Enumeration:</strong>
+    <strong>📊 Enumeration:</strong>
     <ul class="styled-list">
         {% for key, value in service.enumeration_data.items() %}
-        <li>{{ key }}: {{ value }}</li>
+        <li><strong>{{ key.replace('_', ' ').title() }}:</strong> {{ value | format_complex_value | safe }}</li>
         {% endfor %}
     </ul>
 </div>
@@ -11,10 +11,10 @@
 
 {% if service.access_info %}
 <div class="access-section">
-    <strong>Access Info:</strong>
+    <strong>🔐 Access Info:</strong>
     <ul class="styled-list">
         {% for key, value in service.access_info.items() %}
-        <li>{{ key }}: {{ value }}</li>
+        <li><strong>{{ key.replace('_', ' ').title() }}:</strong> {{ value | format_complex_value | safe }}</li>
         {% endfor %}
     </ul>
 </div>
@@ -22,10 +22,24 @@
 
 {% if service.config_info %}
 <div class="config-section">
-    <strong>Configuration:</strong>
+    <strong>⚙️ Configuration:</strong>
     <ul class="styled-list">
         {% for key, value in service.config_info.items() %}
-        <li>{{ key }}: {{ value }}</li>
+        {% if key == 'host_keys' %}
+        <li><strong>SSH Host Keys:</strong> {{ value | format_ssh_keys | safe }}</li>
+        {% elif key == 'shares' %}
+        <li><strong>SMB Shares:</strong> {{ value | format_smb_shares | safe }}</li>
+        {% elif key == 'users' %}
+        <li><strong>Users:</strong> {{ value | format_user_list | safe }}</li>
+        {% elif key == 'config' %}
+        <li><strong>Configuration:</strong> {{ value | format_config_dict | safe }}</li>
+        {% elif key == 'files' %}
+        <li><strong>Files:</strong> {{ value | format_file_list | safe }}</li>
+        {% elif key == 'databases' %}
+        <li><strong>Databases:</strong> {{ value | format_user_list | safe }}</li>
+        {% else %}
+        <li><strong>{{ key.replace('_', ' ').title() }}:</strong> {{ value | format_complex_value | safe }}</li>
+        {% endif %}
         {% endfor %}
     </ul>
 </div>

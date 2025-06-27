@@ -146,15 +146,52 @@ class DirBuster(ServiceScan):
 					else:
 						service.error(f'❌ No wordlist found for size "{current_size}". Path attempted: {web_dirs_path}')
 						service.info(f"💡 Try: --dirbuster.wordlist /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt")
-						return
+						# Continue with fallback instead of terminating
+						fallback_paths = [
+							'/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt',
+							'/usr/share/wordlists/dirb/common.txt',
+							'/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt'
+						]
+						found_fallback = False
+						for fallback_path in fallback_paths:
+							if os.path.exists(fallback_path):
+								service.info(f"🔄 Using fallback wordlist: {fallback_path}")
+								resolved_wordlists.append(fallback_path)
+								found_fallback = True
+								break
+						if not found_fallback:
+							service.error("❌ No fallback wordlists available - skipping directory busting for this hostname")
+							continue  # Skip this hostname, but continue with others
 				except Exception as e:
 					service.error(f'❌ WordlistManager error: {e}')
 					service.info(f"💡 Try: --dirbuster.wordlist /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt")
-					return
+					# Continue with fallback instead of terminating
+					fallback_paths = [
+						'/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt',
+						'/usr/share/wordlists/dirb/common.txt',
+						'/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt'
+					]
+					found_fallback = False
+					for fallback_path in fallback_paths:
+						if os.path.exists(fallback_path):
+							service.info(f"🔄 Using fallback wordlist: {fallback_path}")
+							resolved_wordlists.append(fallback_path)
+							found_fallback = True
+							break
+					if not found_fallback:
+						service.error("❌ No fallback wordlists available - skipping directory busting for this hostname")
+						continue  # Skip this hostname, but continue with others
 			else:
 				# User specified a custom wordlist path
 				service.info(f"✅ Using custom wordlist: {wordlist}")
 				resolved_wordlists.append(wordlist)
+		
+		# Check if we have any wordlists available
+		if not resolved_wordlists:
+			service.error("❌ No wordlists available for directory busting")
+			service.info("💡 Install SecLists: sudo apt install seclists")
+			service.info("💡 Or specify custom wordlist: --dirbuster.wordlist /path/to/wordlist.txt")
+			return  # Exit gracefully, don't crash the scan
 		
 		# Scan each hostname with each wordlist
 		for hostname in hostnames:

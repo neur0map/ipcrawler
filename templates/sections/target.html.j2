@@ -5,6 +5,29 @@
         <div class="target-ip">{{ target_data.ip_address or target_name }}</div>
     </div>
     
+    {% if target_data.hostnames %}
+    <!-- Discovered Hostnames -->
+    <button class="collapsible" data-priority="high">
+        🌐 Discovered Hostnames ({{ target_data.hostnames|length }} found)
+    </button>
+    <div class="content">
+        <div style="background: rgba(40, 40, 40, 0.8); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <p style="color: #ff6b35; margin-bottom: 10px;">
+                <strong>🎯 Hostname Discovery Results:</strong>
+            </p>
+            {% for hostname in target_data.hostnames %}
+            <div style="margin: 8px 0; padding: 8px; background: rgba(0, 0, 0, 0.3); border-radius: 4px;">
+                <span style="color: #4CAF50; font-family: monospace; font-size: 14px;">{{ hostname }}</span>
+                <span style="color: #888; margin-left: 10px;">→ {{ target_data.ip_address or target_name }}</span>
+            </div>
+            {% endfor %}
+            <p style="color: #aaa; font-size: 12px; margin-top: 10px; font-style: italic;">
+                💡 These hostnames were discovered through HTTP redirects and should be added to /etc/hosts for complete enumeration
+            </p>
+        </div>
+    </div>
+    {% endif %}
+    
     {% if target_data.open_ports %}
     <!-- Port Scan Results -->
     <button class="collapsible" {% if target_data.critical_findings %}data-critical="true"{% endif %}>

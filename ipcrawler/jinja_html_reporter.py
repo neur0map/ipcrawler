@@ -53,8 +53,168 @@ class Jinja2HTMLReporter:
             """Format port state with appropriate styling"""
             return state.lower()
         
+        def format_complex_value(value) -> str:
+            """Format complex data types (lists, dicts) for HTML display"""
+            if isinstance(value, list):
+                if not value:
+                    return "<em>None</em>"
+                
+                # Handle lists of dictionaries (like SSH host keys)
+                if all(isinstance(item, dict) for item in value):
+                    formatted_items = []
+                    for item in value:
+                        if 'type' in item and 'fingerprint' in item:
+                            # SSH host key formatting
+                            key_type = item.get('type', 'unknown')
+                            bits = item.get('bits', '')
+                            fingerprint = item.get('fingerprint', '')[:16] + '...' if len(item.get('fingerprint', '')) > 16 else item.get('fingerprint', '')
+                            formatted_items.append(f"<code>{key_type}</code> ({bits} bits) <span style='color: #888;'>{fingerprint}</span>")
+                        elif 'name' in item:
+                            # SMB shares, file listings, etc.
+                            name = item.get('name', '')
+                            if 'permissions' in item:
+                                perms = item.get('permissions', '')
+                                comment = item.get('comment', '')
+                                formatted_items.append(f"<code>{name}</code> <span style='color: #4CAF50;'>{perms}</span> <em>{comment}</em>")
+                            else:
+                                formatted_items.append(f"<code>{name}</code>")
+                        else:
+                            # Generic dict formatting
+                            formatted_items.append(" ".join([f"{k}: {v}" for k, v in item.items() if v]))
+                    return "<br>".join(formatted_items)
+                else:
+                    # Simple list formatting
+                    return ", ".join([str(item) for item in value[:10]]) + ("..." if len(value) > 10 else "")
+            
+            elif isinstance(value, dict):
+                if not value:
+                    return "<em>None</em>"
+                formatted_items = []
+                for k, v in value.items():
+                    if isinstance(v, (list, dict)):
+                        formatted_items.append(f"<strong>{k}:</strong> {format_complex_value(v)}")
+                    else:
+                        formatted_items.append(f"<strong>{k}:</strong> {v}")
+                return "<br>".join(formatted_items)
+            
+            elif isinstance(value, bool):
+                return "✅ Yes" if value else "❌ No"
+            
+            elif value is None:
+                return "<em>None</em>"
+            
+            else:
+                # Simple string/number values
+                str_value = str(value)
+                if len(str_value) > 100:
+                    return str_value[:100] + "..."
+                return str_value
+        
+        def format_ssh_keys(keys) -> str:
+            """Format SSH host keys for display"""
+            if not keys or not isinstance(keys, list):
+                return "<em>No host keys found</em>"
+            
+            formatted_keys = []
+            for key in keys:
+                if isinstance(key, dict) and 'type' in key:
+                    key_type = key.get('type', 'unknown')
+                    bits = key.get('bits', '')
+                    fingerprint = key.get('fingerprint', '')
+                    # Truncate long fingerprints
+                    if len(fingerprint) > 24:
+                        fingerprint = fingerprint[:24] + "..."
+                    formatted_keys.append(f"<div style='margin: 4px 0;'><code style='color: #4CAF50;'>{key_type}</code> <span style='color: #888;'>({bits} bits)</span><br><span style='font-family: monospace; font-size: 11px; color: #ccc;'>{fingerprint}</span></div>")
+            
+            return "".join(formatted_keys)
+        
+        def format_smb_shares(shares) -> str:
+            """Format SMB shares for display"""
+            if not shares or not isinstance(shares, list):
+                return "<em>No shares found</em>"
+            
+            formatted_shares = []
+            for share in shares:
+                if isinstance(share, dict):
+                    name = share.get('name', 'Unknown')
+                    perms = share.get('permissions', '')
+                    comment = share.get('comment', '')
+                    formatted_shares.append(f"<div style='margin: 4px 0;'><code style='color: #4CAF50;'>{name}</code> <span style='color: #ff6b35;'>{perms}</span> <span style='color: #888; font-style: italic;'>{comment}</span></div>")
+            
+            return "".join(formatted_shares)
+        
+        def format_user_list(users) -> str:
+            """Format user lists for display"""
+            if not users or not isinstance(users, list):
+                return "<em>No users found</em>"
+            
+            # Limit to reasonable number for display
+            display_users = users[:15]
+            remaining = len(users) - len(display_users)
+            
+            formatted_users = []
+            for user in display_users:
+                formatted_users.append(f"<code style='color: #4CAF50;'>{user}</code>")
+            
+            result = ", ".join(formatted_users)
+            if remaining > 0:
+                result += f" <span style='color: #888;'>...and {remaining} more</span>"
+            
+            return result
+        
+        def format_config_dict(config) -> str:
+            """Format configuration dictionaries for display"""
+            if not config or not isinstance(config, dict):
+                return "<em>No configuration data</em>"
+            
+            formatted_items = []
+            for key, value in list(config.items())[:10]:  # Limit to 10 items
+                # Truncate long values
+                if isinstance(value, str) and len(value) > 50:
+                    value = value[:50] + "..."
+                formatted_items.append(f"<div style='margin: 2px 0;'><code style='color: #ff6b35;'>{key}:</code> <span style='color: #ccc;'>{value}</span></div>")
+            
+            remaining = len(config) - len(formatted_items)
+            if remaining > 0:
+                formatted_items.append(f"<div style='color: #888; font-style: italic; margin-top: 4px;'>...and {remaining} more items</div>")
+            
+            return "".join(formatted_items)
+        
+        def format_file_list(files) -> str:
+            """Format file lists for display"""
+            if not files or not isinstance(files, list):
+                return "<em>No files found</em>"
+            
+            display_files = files[:10]  # Show first 10 files
+            remaining = len(files) - len(display_files)
+            
+            formatted_files = []
+            for file in display_files:
+                # Distinguish between directories and files
+                if isinstance(file, dict):
+                    name = file.get('name', str(file))
+                    file_type = file.get('type', '')
+                    if file_type == 'directory':
+                        formatted_files.append(f"<code style='color: #4CAF50;'>📁 {name}/</code>")
+                    else:
+                        formatted_files.append(f"<code style='color: #ccc;'>📄 {name}</code>")
+                else:
+                    formatted_files.append(f"<code style='color: #ccc;'>📄 {file}</code>")
+            
+            result = "<br>".join(formatted_files)
+            if remaining > 0:
+                result += f"<div style='color: #888; font-style: italic; margin-top: 4px;'>...and {remaining} more files</div>"
+            
+            return result
+        
         self.jinja_env.filters['truncate_version'] = truncate_version
         self.jinja_env.filters['format_port_state'] = format_port_state
+        self.jinja_env.filters['format_complex_value'] = format_complex_value
+        self.jinja_env.filters['format_ssh_keys'] = format_ssh_keys
+        self.jinja_env.filters['format_smb_shares'] = format_smb_shares
+        self.jinja_env.filters['format_user_list'] = format_user_list
+        self.jinja_env.filters['format_config_dict'] = format_config_dict
+        self.jinja_env.filters['format_file_list'] = format_file_list
     
     def generate_report(self, targets: Dict[str, Any], partial: bool = False, 
                        static_mode: bool = False, daemon_mode: bool = False,
