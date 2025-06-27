@@ -16,11 +16,11 @@ class GitEnumeration(ServiceScan):
         self.description = "Comprehensive Git security assessment covering all attack vectors and misconfigurations"
         self.priority = 5  # Run after basic enumeration to check for Git indicators
         self.tags = ['default', 'safe', 'git', 'ctf', 'source-disclosure', 'secrets', 'advanced']
-        
-        # Add option to force Git enumeration on all HTTP/SSH services
-        self.add_true_option('force-git-scan', help='Force Git enumeration on all HTTP/SSH services regardless of indicators')
 
     def configure(self):
+        # Add option to force Git enumeration on all HTTP/SSH services
+        self.add_true_option('force-git-scan', help='Force Git enumeration on all HTTP/SSH services regardless of indicators')
+        
         # === RESTRICTED SERVICE MATCHING ===
         
         # Only match Git daemon protocol (guaranteed Git service)
@@ -327,12 +327,12 @@ class GitEnumeration(ServiceScan):
         for repo_name in common_repos:
             test_url = f"{git_url}{repo_name}"
             await service.execute(f'git ls-remote {test_url}', 
-                                 future_outfile=f'{protocol}_{port}_git-ls-remote-{repo_name}.txt')
+                                 future_outfile=f'{service.protocol}_{service.port}_git-ls-remote-{repo_name}.txt')
         
         # Try to discover repositories by testing different paths
         service.info("🕵️ Attempting repository discovery...")
         await service.execute(f'timeout 30 git ls-remote {git_url}* 2>/dev/null || true',
-                             future_outfile='{protocol}_{port}_git-discovery.txt')
+                             future_outfile=f'{service.protocol}_{service.port}_git-discovery.txt')
         
         # Manual commands for repository cloning and analysis
         service.add_manual_command(f'git clone {git_url} git-repo-{service.target.address}')
@@ -388,7 +388,7 @@ class GitEnumeration(ServiceScan):
         
         for git_file in git_files:
             await service.execute(f'curl -sSikf {base_url}/{git_file}',
-                                 future_outfile=f'{protocol}_{port}_{service.target.scheme}_git-{git_file.replace("/", "_").replace(".", "dot")}-{hostname_label}.txt')
+                                 future_outfile=f'{service.protocol}_{service.port}_{service.target.scheme}_git-{git_file.replace("/", "_").replace(".", "dot")}-{hostname_label}.txt')
         
         # Test common Git subdirectories
         git_subdirs = [
@@ -407,7 +407,7 @@ class GitEnumeration(ServiceScan):
         service.info("📁 Testing common Git subdirectories...")
         for subdir in git_subdirs:
             await service.execute(f'curl -sSikf {base_url}/{subdir}/.git/HEAD',
-                                 future_outfile=f'{protocol}_{port}_{service.target.scheme}_git-subdir-{subdir}-{hostname_label}.txt')
+                                 future_outfile=f'{service.protocol}_{service.port}_{service.target.scheme}_git-subdir-{subdir}-{hostname_label}.txt')
         
         # Comprehensive .git exploitation toolkit
         service.add_manual_command(f'git-dumper {base_url}/.git/ git-dump-{hostname_label}/')
@@ -449,7 +449,7 @@ class GitEnumeration(ServiceScan):
         for user in git_users:
             # Test Git SSH connectivity (without authentication)
             await service.execute(f'timeout 10 ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {user}@{best_hostname} "echo SSH Git test" 2>&1 || true',
-                                 future_outfile=f'{protocol}_{port}_ssh-git-{user}.txt')
+                                 future_outfile=f'{service.protocol}_{service.port}_ssh-git-{user}.txt')
         
         # Manual commands for SSH Git enumeration
         for user in git_users:
@@ -490,11 +490,11 @@ class GitEnumeration(ServiceScan):
         service.info("🔍 Testing Git web interface endpoints...")
         for endpoint in git_endpoints:
             await service.execute(f'curl -sSikL {base_url}{endpoint}',
-                                 future_outfile=f'{protocol}_{port}_git-web-{endpoint.replace("/", "_").replace(".", "dot")}-{hostname_label}.txt')
+                                 future_outfile=f'{service.protocol}_{service.port}_git-web-{endpoint.replace("/", "_").replace(".", "dot")}-{hostname_label}.txt')
         
         # Test HTTPS if HTTP fails
         await service.execute(f'curl -sSikL {https_url}/',
-                             future_outfile=f'{protocol}_{port}_git-web-https-{hostname_label}.txt')
+                             future_outfile=f'{service.protocol}_{service.port}_git-web-https-{hostname_label}.txt')
         
         # Advanced Git interface enumeration
         service.add_manual_command(f'curl -s {base_url}/api/v1/version | jq .  # Gitea/Gogs version info')
@@ -507,16 +507,16 @@ class GitEnumeration(ServiceScan):
         service.info("⚙️ Generic Git service enumeration")
         
         # Try to identify Git service version
-        await service.execute('git --version', future_outfile='{protocol}_{port}_git-version.txt')
+        await service.execute('git --version', future_outfile=f'{service.protocol}_{service.port}_git-version.txt')
         
         # Check if service responds to Git protocol
         best_hostname = service.target.get_best_hostname()
         await service.execute(f'timeout 10 git ls-remote git://{best_hostname}:{service.port}/ 2>&1 || true',
-                             future_outfile='{protocol}_{port}_git-protocol-test.txt')
+                             future_outfile=f'{service.protocol}_{service.port}_git-protocol-test.txt')
         
         # Banner grabbing for unknown Git services
         await service.execute(f'timeout 10 nc -nv {best_hostname} {service.port} </dev/null 2>&1 || true',
-                             future_outfile='{protocol}_{port}_git-banner.txt')
+                             future_outfile=f'{service.protocol}_{service.port}_git-banner.txt')
 
     async def _perform_secret_analysis(self, service):
         """Perform secret and credential analysis on discovered Git content"""
@@ -614,7 +614,7 @@ class GitEnumeration(ServiceScan):
             })
         
         # Save report as JSON for Jinja2 template consumption
-        report_file = f'{protocol}_{service.port}_git-security-report_{hostname_label}.json'
+        report_file = f'{service.protocol}_{service.port}_git-security-report_{hostname_label}.json'
         await service.execute(f'echo \'{json.dumps(git_report, indent=2)}\' > {{scandir}}/{report_file}',
                              outfile=report_file)
         
@@ -655,7 +655,7 @@ class GitEnumeration(ServiceScan):
         ])
         
         # Save human-readable summary
-        summary_file = f'{protocol}_{service.port}_git-summary-report_{hostname_label}.txt'
+        summary_file = f'{service.protocol}_{service.port}_git-summary-report_{hostname_label}.txt'
         summary_content = '\n'.join(summary_lines)
         await service.execute(f'echo "{summary_content}" > {{scandir}}/{summary_file}',
                              outfile=summary_file)

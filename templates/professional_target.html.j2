@@ -1,0 +1,378 @@
+<!-- Target Section Template for Professional Theme -->
+<div class="target-section">
+    <div class="card-header">
+        <h2 class="card-title">
+            🎯 {{ target_name }}
+            {% if target_data.hostname and target_data.hostname != target_name %}
+                <span class="text-muted">({{ target_data.hostname }})</span>
+            {% endif %}
+        </h2>
+        <div class="controls">
+            <span class="status status-{{ 'success' if target_data.status == 'complete' else 'info' }}">
+                {{ target_data.status|title }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Target Summary -->
+    {% if target_data.ports or target_data.services %}
+    <div class="stats-grid mb-xl">
+        <div class="stat-card">
+            <div class="stat-number">{{ target_data.ports|length if target_data.ports else 0 }}</div>
+            <div class="stat-label">Open Ports</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ target_data.services|length if target_data.services else 0 }}</div>
+            <div class="stat-label">Services</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ target_data.web_services|length if target_data.web_services else 0 }}</div>
+            <div class="stat-label">Web Services</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ target_data.vulnerabilities|length if target_data.vulnerabilities else 0 }}</div>
+            <div class="stat-label">Findings</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Port Scan Results -->
+    {% if target_data.ports %}
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h3 class="mb-0">🔍 Port Scan Results ({{ target_data.ports|length }} ports)</h3>
+            <span class="collapse-icon">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Port</th>
+                            <th>Protocol</th>
+                            <th>State</th>
+                            <th>Service</th>
+                            <th>Version</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for port in target_data.ports %}
+                        <tr>
+                            <td><code>{{ port.port }}</code></td>
+                            <td><code>{{ port.protocol|upper }}</code></td>
+                            <td>
+                                <span class="status status-{{ 'success' if port.state == 'open' else 'warning' }}">
+                                    {{ port.state|title }}
+                                </span>
+                            </td>
+                            <td>{{ port.service or 'Unknown' }}</td>
+                            <td class="text-muted">{{ port.version or 'Not detected' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Service Enumeration Results -->
+    {% if target_data.services and target_data.services|length > 0 %}
+    {% set valid_services = target_data.services|selectattr('name')|list %}
+    {% if valid_services|length > 0 %}
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h3 class="mb-0">🔧 Service Enumeration ({{ valid_services|length }} services)</h3>
+            <span class="collapse-icon">▼</span>
+        </div>
+        <div class="collapsible-content">
+            {% for service in valid_services %}
+            {% if service.name and service.name.strip() %}
+            <div class="card mb-lg">
+                <div class="card-header">
+                    <h4 class="card-title">
+                        {{ service.name }} 
+                        <span class="text-muted">on port {{ service.port }}</span>
+                    </h4>
+                    {% if service.version and service.version.strip() %}
+                    <div class="card-subtitle">{{ service.version }}</div>
+                    {% endif %}
+                </div>
+                
+                {% if service.scan_results and service.scan_results.strip() %}
+                <div class="code-block">
+                    <div class="code-block-header">
+                        <span class="code-title">Scan Results</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <pre>{{ service.scan_results }}</pre>
+                </div>
+                {% endif %}
+                
+                {% if service.vulnerabilities and service.vulnerabilities|length > 0 %}
+                {% set valid_vulns = service.vulnerabilities|selectattr('title')|list %}
+                {% if valid_vulns|length > 0 %}
+                <div class="mt-md">
+                    <h5>🚨 Vulnerabilities Found</h5>
+                    <ul class="list-clean">
+                        {% for vuln in valid_vulns %}
+                        {% if vuln.title and vuln.title.strip() %}
+                        <li>
+                            <span class="status status-danger">{{ vuln.severity|upper if vuln.severity else 'UNKNOWN' }}</span>
+                            <strong>{{ vuln.title }}</strong>
+                            {% if vuln.description and vuln.description.strip() %}
+                            <p class="text-muted mb-0">{{ vuln.description }}</p>
+                            {% endif %}
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Web Services -->
+    {% if target_data.web_services %}
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h3 class="mb-0">🌐 Web Services ({{ target_data.web_services|length }} services)</h3>
+            <span class="collapse-icon">▼</span>
+        </div>
+        <div class="collapsible-content">
+            {% for web_service in target_data.web_services %}
+            <div class="card mb-lg">
+                <div class="card-header">
+                    <h4 class="card-title">
+                        <a href="{{ web_service.url }}" target="_blank" class="text-primary">
+                            {{ web_service.url }}
+                        </a>
+                    </h4>
+                    <div class="card-subtitle">
+                        Status: <span class="status status-{{ 'success' if web_service.status_code == 200 else 'warning' }}">
+                            {{ web_service.status_code }}
+                        </span>
+                        {% if web_service.title %}
+                        | Title: {{ web_service.title }}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if web_service.technologies %}
+                <div class="mb-md">
+                    <h5>🔧 Technologies Detected</h5>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                        {% for tech in web_service.technologies %}
+                        <code class="text-primary">{{ tech }}</code>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if web_service.directories and web_service.directories|length > 0 %}
+                {% set valid_dirs = web_service.directories|selectattr('path')|list %}
+                {% if valid_dirs|length > 0 %}
+                <div class="mb-md">
+                    <h5>📁 Directories Found</h5>
+                    <div class="code-block">
+                        <div class="code-block-header">
+                            <span class="code-title">Directory Listing</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <pre>{% for dir in valid_dirs %}{{ dir.path }} ({{ dir.status_code }}){% if dir.size %} - {{ dir.size }}{% endif %}
+{% endfor %}</pre>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+                
+                {% if web_service.files and web_service.files|length > 0 %}
+                {% set valid_files = web_service.files|selectattr('path')|list %}
+                {% if valid_files|length > 0 %}
+                <div class="mb-md">
+                    <h5>📄 Files Found</h5>
+                    <div class="code-block">
+                        <div class="code-block-header">
+                            <span class="code-title">File Listing</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <pre>{% for file in valid_files %}{{ file.path }} ({{ file.status_code }}){% if file.size %} - {{ file.size }}{% endif %}
+{% endfor %}</pre>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pattern Matches (Security Findings) -->
+    {% if target_data.pattern_matches and target_data.pattern_matches|length > 0 %}
+    {% set valid_matches = target_data.pattern_matches|selectattr('description')|list %}
+    {% if valid_matches|length > 0 %}
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h3 class="mb-0">🔍 Security Findings ({{ valid_matches|length }} matches)</h3>
+            <span class="collapse-icon">▼</span>
+        </div>
+        <div class="collapsible-content">
+            {% for match in valid_matches %}
+            {% if match.description and match.description.strip() %}
+            <div class="card mb-md">
+                <div class="card-header">
+                    <h4 class="card-title">{{ match.plugin_name or 'Unknown Plugin' }}</h4>
+                    <span class="status status-{{ 'danger' if 'CRITICAL' in match.description else 'warning' if 'WARNING' in match.description else 'info' }}">
+                        {% if 'CRITICAL' in match.description %}Critical
+                        {% elif 'WARNING' in match.description %}Warning
+                        {% else %}Info
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <p class="mb-md">{{ match.description }}</p>
+                
+                {% if match.matched_text and match.matched_text.strip() %}
+                <div class="code-block">
+                    <div class="code-block-header">
+                        <span class="code-title">Matched Content</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <pre>{{ match.matched_text }}</pre>
+                </div>
+                {% endif %}
+                
+                {% if match.file_path and match.file_path.strip() %}
+                <p class="text-muted">Found in: <code>{{ match.file_path }}</code></p>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Manual Commands -->
+    {% if target_data.manual_commands and target_data.manual_commands|length > 0 %}
+    {% set valid_commands = target_data.manual_commands|selectattr('command')|list %}
+    {% if valid_commands|length > 0 %}
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h3 class="mb-0">⚡ Manual Commands ({{ valid_commands|length }} commands)</h3>
+            <span class="collapse-icon">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <p class="text-muted mb-lg">
+                The following commands require manual execution for further investigation:
+            </p>
+            
+            {% for command in valid_commands %}
+            {% if command.command and command.command.strip() %}
+            <div class="card mb-md">
+                <div class="card-header">
+                    <h4 class="card-title">{{ command.plugin_name or 'Unknown Plugin' }}</h4>
+                    {% if command.service %}
+                    <div class="card-subtitle">Service: {{ command.service }} (Port {{ command.port }})</div>
+                    {% endif %}
+                </div>
+                
+                {% if command.description and command.description.strip() %}
+                <p class="mb-md">{{ command.description }}</p>
+                {% endif %}
+                
+                <div class="code-block">
+                    <div class="code-block-header">
+                        <span class="code-title">Command</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <pre>{{ command.command }}</pre>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Raw Scan Data -->
+    {% if target_data.raw_files and target_data.raw_files|length > 0 %}
+    {% set valid_files = target_data.raw_files|selectattr('name')|list %}
+    {% if valid_files|length > 0 %}
+    <div class="collapsible collapsed">
+        <div class="collapsible-header">
+            <h3 class="mb-0">📋 Raw Scan Data ({{ valid_files|length }} files)</h3>
+            <span class="collapse-icon">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <p class="text-muted mb-lg">
+                Raw output files generated during the scan. Click on any file to expand its contents.
+            </p>
+            
+            {% for file in valid_files %}
+            {% if file.name and file.name.strip() %}
+            <div class="collapsible mb-md">
+                <div class="collapsible-header" style="background: var(--bg-tertiary);">
+                    <h4 class="card-title mb-0">📄 {{ file.name }}</h4>
+                    <div class="text-muted">{{ file.size or 'Unknown size' }}</div>
+                </div>
+                <div class="collapsible-content">
+                    {% if file.content and file.content.strip() %}
+                    <div class="code-block">
+                        <div class="code-block-header">
+                            <span class="code-title">{{ file.name }}</span>
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <pre>{{ file.content }}</pre>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">File content not available or too large to display.</p>
+                    {% if file.path %}
+                    <p>File path: <code>{{ file.path }}</code></p>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Target-specific Notes -->
+    {% if target_data.notes and target_data.notes|length > 0 %}
+    {% set valid_notes = target_data.notes|selectattr('content')|list %}
+    {% if valid_notes|length > 0 %}
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h3 class="mb-0">📝 Notes & Observations</h3>
+            <span class="collapse-icon">▼</span>
+        </div>
+        <div class="collapsible-content">
+            {% for note in valid_notes %}
+            {% if note.content and note.content.strip() %}
+            <div class="card mb-md">
+                <div class="card-header">
+                    <h4 class="card-title">{{ note.plugin_name or 'General' }}</h4>
+                    {% if note.timestamp %}
+                    <div class="card-subtitle">{{ note.timestamp }}</div>
+                    {% endif %}
+                </div>
+                <p>{{ note.content }}</p>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>

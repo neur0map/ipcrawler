@@ -1211,7 +1211,12 @@ async def run():
 
 				clsmembers = inspect.getmembers(plugin, predicate=inspect.isclass)
 				for (_, c) in clsmembers:
+					# Skip classes from base plugin modules
 					if c.__module__ in ['ipcrawler.plugins', 'ipcrawler.targets']:
+						continue
+					
+					# Only include classes that are actually defined in this plugin file
+					if c.__module__ != plugin.__name__:
 						continue
 
 					if c.__name__.lower() in config['protected_classes']:

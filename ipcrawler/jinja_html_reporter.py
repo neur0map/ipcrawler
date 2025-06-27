@@ -262,8 +262,8 @@ class Jinja2HTMLReporter:
             targets, partial, static_mode, daemon_mode, watch_mode, update_interval
         )
         
-        # Load and render the base template
-        template = self.jinja_env.get_template('base.html.j2')
+        # Load and render the professional template
+        template = self.jinja_env.get_template('professional_base.html.j2')
         return template.render(context)
     
     def _prepare_template_context(self, targets: Dict[str, Any], partial: bool,

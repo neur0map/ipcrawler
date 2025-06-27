@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ipcrawler Network Reconnaissance Report - Professional Security Assessment">
+    <meta name="author" content="ipcrawler">
+    
+    {% if auto_refresh %}
+    <meta http-equiv="refresh" content="600">
+    {% endif %}
+    
+    <title>ipcrawler Security Assessment Report</title>
+    
+    <!-- PDF Export CSS -->
+    <style media="print">
+        @page {
+            margin: 1in;
+            size: A4;
+        }
+        .no-print { display: none !important; }
+        .page-break { page-break-before: always; }
+        .avoid-break { page-break-inside: avoid; }
+        body { font-size: 12pt; line-height: 1.4; }
+        .code-block { font-size: 10pt; }
+    </style>
+    
+    <style>
+        /* CSS Variables for Theme System */
+        :root {
+            --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            
+            /* Spacing */
+            --space-xs: 0.25rem;
+            --space-sm: 0.5rem;
+            --space-md: 1rem;
+            --space-lg: 1.5rem;
+            --space-xl: 2rem;
+            --space-2xl: 3rem;
+            
+            /* Border radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Light Theme (Default) */
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --bg-code: #f4f4f5;
+            --bg-elevated: #ffffff;
+            
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --text-inverse: #ffffff;
+            
+            --border-primary: #e2e8f0;
+            --border-secondary: #cbd5e1;
+            --border-accent: #3b82f6;
+            
+            --accent-primary: #3b82f6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --accent-info: #06b6d4;
+        }
+        
+        /* Dark Theme */
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --bg-code: #1e293b;
+            --bg-elevated: #1e293b;
+            
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --text-inverse: #0f172a;
+            
+            --border-primary: #334155;
+            --border-secondary: #475569;
+            --border-accent: #3b82f6;
+            
+            --accent-primary: #3b82f6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --accent-info: #06b6d4;
+        }
+        
+        /* Reset and Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        body {
+            font-family: var(--font-sans);
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background-color: var(--bg-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        /* Layout Components */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-xl);
+        }
+        
+        .header {
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border-primary);
+            padding: var(--space-xl) 0;
+            margin-bottom: var(--space-2xl);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+        
+        .logo {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+        
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+        
+        .controls {
+            display: flex;
+            gap: var(--space-sm);
+            align-items: center;
+        }
+        
+        /* Typography */
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--space-lg);
+        }
+        
+        h2 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: var(--space-xl) 0 var(--space-lg) 0;
+            padding-bottom: var(--space-sm);
+            border-bottom: 2px solid var(--border-accent);
+        }
+        
+        h3 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: var(--space-lg) 0 var(--space-md) 0;
+        }
+        
+        h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: var(--space-md) 0 var(--space-sm) 0;
+        }
+        
+        p {
+            margin-bottom: var(--space-md);
+            color: var(--text-secondary);
+        }
+        
+        /* Buttons and Controls */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn:hover {
+            background: var(--bg-secondary);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-primary {
+            background: var(--accent-primary);
+            color: var(--text-inverse);
+            border-color: var(--accent-primary);
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
+        
+        /* Theme Toggle */
+        .theme-toggle {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            background: var(--bg-tertiary);
+            border-radius: 15px;
+            border: 1px solid var(--border-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .theme-toggle::before {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 24px;
+            height: 24px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        [data-theme="dark"] .theme-toggle::before {
+            transform: translateX(30px);
+        }
+        
+        /* Cards and Sections */
+        .card {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin-bottom: var(--space-xl);
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow-md);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-lg);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-primary);
+        }
+        
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+        
+        .card-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+        
+        /* Code Blocks */
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+            overflow-x: auto;
+            margin: var(--space-md) 0;
+            position: relative;
+        }
+        
+        .code-block pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .code-block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-sm);
+            padding-bottom: var(--space-sm);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+        
+        .code-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .copy-btn {
+            padding: var(--space-xs) var(--space-sm);
+            font-size: 0.75rem;
+            background: transparent;
+            border: 1px solid var(--border-secondary);
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .copy-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        
+        /* Inline Code */
+        code {
+            background: var(--bg-code);
+            padding: 0.125rem 0.375rem;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+            font-size: 0.875em;
+            color: var(--accent-primary);
+            border: 1px solid var(--border-primary);
+        }
+        
+        /* Lists */
+        ul, ol {
+            margin: var(--space-md) 0;
+            padding-left: var(--space-xl);
+        }
+        
+        li {
+            margin: var(--space-sm) 0;
+            color: var(--text-secondary);
+        }
+        
+        .list-clean {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .list-clean li {
+            padding: var(--space-sm) 0;
+            border-bottom: 1px solid var(--border-primary);
+        }
+        
+        .list-clean li:last-child {
+            border-bottom: none;
+        }
+        
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            margin: var(--space-md) 0;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-primary);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        
+        th {
+            background: var(--bg-tertiary);
+            padding: var(--space-md);
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-primary);
+        }
+        
+        td {
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--border-primary);
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+        
+        tr:hover {
+            background: var(--bg-secondary);
+        }
+        
+        /* Status Indicators */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .status-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .status-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--accent-warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+        
+        .status-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .status-info {
+            background: rgba(6, 182, 212, 0.1);
+            color: var(--accent-info);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+        }
+        
+        /* Summary Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-xl) 0;
+        }
+        
+        .stat-card {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: var(--space-xs);
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        /* Collapsible Sections */
+        .collapsible {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-md);
+            margin: var(--space-md) 0;
+        }
+        
+        .collapsible-header {
+            padding: var(--space-lg);
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s ease;
+        }
+        
+        .collapsible-header:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .collapsible-content {
+            padding: 0 var(--space-lg) var(--space-lg) var(--space-lg);
+            border-top: 1px solid var(--border-primary);
+        }
+        
+        .collapsible.collapsed .collapsible-content {
+            display: none;
+        }
+        
+        .collapse-icon {
+            transition: transform 0.2s ease;
+        }
+        
+        .collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+        
+        /* Footer */
+        .footer {
+            margin-top: var(--space-2xl);
+            padding: var(--space-xl) 0;
+            border-top: 1px solid var(--border-primary);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Utilities */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-muted { color: var(--text-muted); }
+        .text-primary { color: var(--accent-primary); }
+        .text-success { color: var(--accent-success); }
+        .text-warning { color: var(--accent-warning); }
+        .text-danger { color: var(--accent-danger); }
+        
+        .mb-0 { margin-bottom: 0; }
+        .mb-sm { margin-bottom: var(--space-sm); }
+        .mb-md { margin-bottom: var(--space-md); }
+        .mb-lg { margin-bottom: var(--space-lg); }
+        .mb-xl { margin-bottom: var(--space-xl); }
+        
+        .mt-0 { margin-top: 0; }
+        .mt-sm { margin-top: var(--space-sm); }
+        .mt-md { margin-top: var(--space-md); }
+        .mt-lg { margin-top: var(--space-lg); }
+        .mt-xl { margin-top: var(--space-xl); }
+        
+        /* Print Styles */
+        @media print {
+            .no-print { display: none !important; }
+            .header { box-shadow: none; }
+            .card { box-shadow: none; break-inside: avoid; }
+            .collapsible-content { display: block !important; }
+            body { font-size: 12pt; }
+            .code-block { font-size: 10pt; }
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            :root {
+                --border-primary: #000000;
+                --border-secondary: #333333;
+            }
+        }
+        
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <div class="header no-print">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo">ipcrawler</div>
+                    <div>
+                        <div style="font-size: 1.2rem; font-weight: 600; color: var(--text-primary);">Security Assessment Report</div>
+                        <div class="tagline">Thank you for using ipcrawler - Professional Network Reconnaissance</div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn" onclick="exportToPDF()">📄 Export PDF</button>
+                    <button class="btn" onclick="printReport()">🖨️ Print</button>
+                    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Summary Statistics -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title mb-0">Executive Summary</h2>
+                <div class="text-muted">Generated: {{ metadata.generated_time }}</div>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.target_count }}</div>
+                    <div class="stat-label">Targets Scanned</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.total_open_ports }}</div>
+                    <div class="stat-label">Open Ports</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.total_services }}</div>
+                    <div class="stat-label">Services Detected</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.total_web_services }}</div>
+                    <div class="stat-label">Web Services</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.total_vulnerabilities }}</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.total_manual_commands }}</div>
+                    <div class="stat-label">Manual Commands</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        {% for target_name, target_data in targets.items() %}
+        <div class="card page-break">
+            {% include 'professional_target.html.j2' %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="footer no-print">
+        <div class="container">
+            <p>
+                Generated by <a href="https://github.com/neur0map/ipcrawler" target="_blank">ipcrawler</a> 
+                - Professional Network Reconnaissance Tool
+            </p>
+            <p class="text-muted">
+                Report generated on {{ metadata.generated_time }} | 
+                Total scan time: {{ metadata.scan_duration or "Unknown" }}
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Theme management
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Load saved theme
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.setAttribute('data-theme', savedTheme);
+        });
+
+        // Collapsible sections
+        document.addEventListener('DOMContentLoaded', function() {
+            const collapsibles = document.querySelectorAll('.collapsible-header');
+            collapsibles.forEach(header => {
+                header.addEventListener('click', function() {
+                    const collapsible = this.parentElement;
+                    collapsible.classList.toggle('collapsed');
+                });
+            });
+        });
+
+        // Copy code functionality
+        function copyCode(button) {
+            const codeBlock = button.closest('.code-block').querySelector('pre');
+            const text = codeBlock.textContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    button.textContent = 'Copied!';
+                    setTimeout(() => {
+                        button.textContent = 'Copy';
+                    }, 2000);
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 2000);
+            }
+        }
+
+        // Print functionality
+        function printReport() {
+            window.print();
+        }
+
+        // PDF Export functionality
+        function exportToPDF() {
+            // Simple approach - use browser's print to PDF
+            // For advanced PDF generation, we'd need to implement server-side PDF generation
+            alert('Use your browser\'s Print function and select "Save as PDF" for best results.\n\nAlternatively, use the Print button and choose PDF as destination.');
+        }
+
+        // Enhanced PDF export with better formatting
+        function enhancedPDFExport() {
+            // Prepare document for PDF export
+            document.body.classList.add('pdf-export');
+            
+            // Expand all collapsible sections for PDF
+            document.querySelectorAll('.collapsible').forEach(el => {
+                el.classList.remove('collapsed');
+            });
+            
+            // Trigger print dialog
+            window.print();
+            
+            // Clean up after print
+            setTimeout(() => {
+                document.body.classList.remove('pdf-export');
+            }, 1000);
+        }
+
+        // Auto-refresh handling
+        {% if auto_refresh %}
+        let refreshCountdown = 600; // 10 minutes
+        const refreshIndicator = document.createElement('div');
+        refreshIndicator.style.cssText = 'position: fixed; top: 10px; right: 10px; background: var(--accent-info); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; z-index: 1000;';
+        document.body.appendChild(refreshIndicator);
+
+        setInterval(() => {
+            refreshCountdown--;
+            const minutes = Math.floor(refreshCountdown / 60);
+            const seconds = refreshCountdown % 60;
+            refreshIndicator.textContent = `Refresh in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (refreshCountdown <= 0) {
+                location.reload();
+            }
+        }, 1000);
+        {% endif %}
+    </script>
+</body>
+</html>
