@@ -124,28 +124,40 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 					location = resp.headers['Location']
 					parsed = urlparse(location)
 					redirect_host = parsed.hostname
-					
+
 					service.info(f"🔄 Redirect found: {url} → {location}")
 					service.info(f"🎯 Parsed hostname: {redirect_host}")
-					
-					if redirect_host and redirect_host != service.target.address:
-						service.info(f"✅ NEW hostname discovered: {redirect_host}")
-						
-						# Check if we should add to /etc/hosts
-						if self.is_kali_or_htb():
-							if self.add_to_hosts(service.target.address, redirect_host):
-								service.info(f"✅ Added to /etc/hosts: {service.target.address} {redirect_host}")
+
+					# Validate hostname before using it
+					if redirect_host:
+						# Basic hostname validation
+						import re
+						if re.match(r'^[a-zA-Z0-9.-]+$', redirect_host) and '..' not in redirect_host:
+							if not redirect_host.endswith('.html') and not redirect_host.endswith('.php'):
+								if redirect_host != service.target.address:
+									service.info(f"✅ NEW hostname discovered: {redirect_host}")
+
+									# Check if we should add to /etc/hosts
+									if self.is_kali_or_htb():
+										if self.add_to_hosts(service.target.address, redirect_host):
+											service.info(f"✅ Added to /etc/hosts: {service.target.address} {redirect_host}")
+										else:
+											service.info(f"ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
+									else:
+										service.info(f"ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
+
+									if redirect_host not in discovered_hostnames:
+										discovered_hostnames.append(redirect_host)
+										# Store hostname in target for other plugins to use
+										await service.target.add_discovered_hostname(redirect_host)
+								else:
+									service.info(f"🔍 Redirect hostname same as target: {redirect_host}")
 							else:
-								service.info(f"ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
+								service.warn(f"⚠️ Invalid hostname detected (looks like file path): {redirect_host}")
 						else:
-							service.info(f"ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
-						
-						if redirect_host not in discovered_hostnames:
-							discovered_hostnames.append(redirect_host)
-							# Store hostname in target for other plugins to use
-							await service.target.add_discovered_hostname(redirect_host)
+							service.warn(f"⚠️ Invalid hostname format detected: {redirect_host}")
 					else:
-						service.info(f"🔍 Redirect hostname same as target or empty: {redirect_host}")
+						service.info(f"🔍 No valid hostname found in redirect location: {location}")
 				else:
 					service.info(f"🔍 No Location header found in response from {url}")
 					
@@ -184,18 +196,36 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 							location = path_resp.headers['Location']
 							parsed = urlparse(location)
 							redirect_host = parsed.hostname
-							
-							if redirect_host and redirect_host != service.target.address and redirect_host not in discovered_hostnames:
-								service.info(f"🔄 Redirect found at {path}: {path_url} → {location}")
-								service.info(f"🌐 Additional hostname: {redirect_host}")
-								
-								if self.is_kali_or_htb():
-									if self.add_to_hosts(service.target.address, redirect_host):
-										service.info(f"✅ Added to /etc/hosts: {service.target.address} {redirect_host}")
-								
-								discovered_hostnames.append(redirect_host)
-								# Store hostname in target for other plugins to use
-								await service.target.add_discovered_hostname(redirect_host)
+
+							# Debug the parsing process
+							service.info(f"🔧 DEBUG: Location header: {location}")
+							service.info(f"🔧 DEBUG: Parsed hostname: {redirect_host}")
+
+							# Validate hostname before using it
+							if redirect_host:
+								# Basic hostname validation
+								import re
+								if re.match(r'^[a-zA-Z0-9.-]+$', redirect_host) and '..' not in redirect_host:
+									if not redirect_host.endswith('.html') and not redirect_host.endswith('.php'):
+										if redirect_host != service.target.address and redirect_host not in discovered_hostnames:
+											service.info(f"🔄 Redirect found at {path}: {path_url} → {location}")
+											service.info(f"🌐 Additional hostname: {redirect_host}")
+
+											if self.is_kali_or_htb():
+												if self.add_to_hosts(service.target.address, redirect_host):
+													service.info(f"✅ Added to /etc/hosts: {service.target.address} {redirect_host}")
+
+											discovered_hostnames.append(redirect_host)
+											# Store hostname in target for other plugins to use
+											await service.target.add_discovered_hostname(redirect_host)
+										else:
+											service.info(f"🔍 Redirect hostname same as target or already discovered: {redirect_host}")
+									else:
+										service.warn(f"⚠️ Invalid hostname detected (looks like file path): {redirect_host}")
+								else:
+									service.warn(f"⚠️ Invalid hostname format detected: {redirect_host}")
+							else:
+								service.info(f"🔍 No valid hostname found in redirect location: {location}")
 					except:
 						continue  # Skip failed path checks
 						

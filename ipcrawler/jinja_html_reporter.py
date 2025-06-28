@@ -370,6 +370,22 @@ class Jinja2HTMLReporter:
         else:
             transformed.manual_commands = []
 
+        # Add missing attributes that the template/consolidator expects
+        if hasattr(target_data, 'patterns'):
+            transformed.patterns = target_data.patterns
+        else:
+            transformed.patterns = []
+
+        if hasattr(target_data, 'scans'):
+            transformed.scans = target_data.scans
+        else:
+            transformed.scans = {}
+
+        if hasattr(target_data, 'services'):
+            transformed.services = target_data.services
+        else:
+            transformed.services = []
+
         # Transform open_ports to ports (template expects 'ports')
         if hasattr(target_data, 'open_ports'):
             transformed.ports = []
@@ -564,7 +580,9 @@ class Jinja2HTMLReporter:
                     'title': getattr(web_service, 'title', ''),
                     'technologies': getattr(web_service, 'technologies', []),
                     'directories': getattr(web_service, 'directories', []),
-                    'files': getattr(web_service, 'files', [])
+                    'files': getattr(web_service, 'files', []),
+                    'vhosts': getattr(web_service, 'vhosts', []),  # Add missing vhosts attribute
+                    'vulnerabilities': getattr(web_service, 'vulnerabilities', [])  # Add missing vulnerabilities attribute
                 }
                 web_services.append(type('WebService', (), ws_data)())
         
