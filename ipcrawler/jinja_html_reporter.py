@@ -279,6 +279,17 @@ class Jinja2HTMLReporter:
         total_vulnerabilities = sum(len(target.vulnerabilities) for target in targets.values())
         total_manual_commands = sum(len(target.manual_commands) if hasattr(target.manual_commands, '__len__') else 0 for target in targets.values())
         
+        # Calculate directories and files found
+        total_directories = 0
+        total_files = 0
+        for target in targets.values():
+            if hasattr(target, 'web_services'):
+                for web_service in target.web_services:
+                    if hasattr(web_service, 'directories'):
+                        total_directories += len(web_service.directories)
+                    if hasattr(web_service, 'files'):
+                        total_files += len(web_service.files)
+        
         # Count critical findings (pattern matches with vulnerability indicators)
         critical_findings = 0
         for target in targets.values():
@@ -318,6 +329,9 @@ class Jinja2HTMLReporter:
                 'target_count': total_targets,
                 'total_open_ports': total_open_ports,
                 'total_services': total_services,
+                'total_web_services': total_web_services,
+                'total_directories': total_directories,
+                'total_files': total_files,
                 'year': current_year,
                 'scan_duration': None  # Could be calculated if needed
             },
@@ -326,6 +340,8 @@ class Jinja2HTMLReporter:
                 'total_open_ports': total_open_ports,
                 'total_services': total_services,
                 'total_web_services': total_web_services,
+                'total_directories': total_directories,
+                'total_files': total_files,
                 'critical_findings': critical_findings,
                 'total_manual_commands': total_manual_commands
             },

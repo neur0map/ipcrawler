@@ -8,108 +8,13 @@ Hooks into existing WhatWeb, Nmap, and other scan outputs.
 import os
 import re
 import glob
-from typing import Set, Optional
+import yaml
+from typing import Set, Optional, Dict, List
 from pathlib import Path
 
 
 class TechnologyDetector:
     """Extract technology information from scan results"""
-    
-    # Technology detection patterns from common scan outputs
-    TECHNOLOGY_PATTERNS = {
-        # Web Technologies
-        'wordpress': [
-            r'wp-content',
-            r'wp-admin', 
-            r'wp-json',
-            r'wp-includes',
-            r'WordPress',
-            r'wp_',
-            r'/wp/'
-        ],
-        'drupal': [
-            r'drupal',
-            r'sites/default',
-            r'modules/',
-            r'Drupal'
-        ],
-        'joomla': [
-            r'joomla',
-            r'index\.php\?option=com_',
-            r'Joomla'
-        ],
-        
-        # Programming Languages
-        'php': [
-            r'X-Powered-By:.*PHP',
-            r'PHPSESSID',
-            r'\.php',
-            r'PHP/'
-        ],
-        'asp': [
-            r'X-AspNet-Version',
-            r'ASPSESSIONID',
-            r'\.aspx?',
-            r'ASP\.NET'
-        ],
-        'java': [
-            r'tomcat',
-            r'jetty',
-            r'JSESSIONID',
-            r'spring',
-            r'struts'
-        ],
-        'python': [
-            r'django',
-            r'flask',
-            r'wsgi',
-            r'gunicorn',
-            r'Python'
-        ],
-        'nodejs': [
-            r'X-Powered-By:.*Express',
-            r'Server:.*Express',
-            r'\bexpress\b',  # Word boundary to avoid matching "expression"
-            r'node\.js',
-            r'nodejs'
-        ],
-        'nextjs': [
-            r'X-Powered-By:.*Next\.js',
-            r'Next\.js',
-            r'_next/',
-            r'__next'
-        ],
-        
-        # Web Servers
-        'apache': [
-            r'Server:.*Apache',
-            r'Apache/',
-            r'httpd'
-        ],
-        'nginx': [
-            r'Server:.*nginx',
-            r'nginx/'
-        ],
-        'iis': [
-            r'Server:.*Microsoft-IIS',
-            r'Microsoft-IIS'
-        ],
-        
-        # Cloud Platforms
-        'aws': [
-            r'X-Amz-',
-            r'amazonaws',
-            r'AmazonS3'
-        ],
-        'azure': [
-            r'X-Azure-',
-            r'azure'
-        ],
-        'gcp': [
-            r'X-Goog-',
-            r'appengine'
-        ]
-    }
     
     def __init__(self, target_scan_dir: str):
         """
@@ -120,6 +25,52 @@ class TechnologyDetector:
         """
         self.scan_dir = target_scan_dir
         self.detected_technologies = set()
+        self.technology_patterns = self._load_technology_patterns()
+    
+    def _load_technology_patterns(self) -> Dict[str, List[str]]:
+        """
+        Load technology detection patterns from technology_aliases.yaml
+        
+        Returns:
+            Dictionary mapping technology names to their detection patterns
+        """
+        aliases_path = os.path.join(os.path.dirname(__file__), 'data', 'technology_aliases.yaml')
+        
+        try:
+            with open(aliases_path, 'r') as f:
+                aliases_data = yaml.safe_load(f)
+            
+            technology_aliases = aliases_data.get('technology_aliases', {})
+            patterns = {}
+            
+            # Convert aliases to regex patterns for detection
+            for tech, tech_data in technology_aliases.items():
+                if isinstance(tech_data, dict) and 'aliases' in tech_data:
+                    # Convert aliases to regex patterns
+                    tech_patterns = []
+                    for alias in tech_data['aliases']:
+                        # Escape regex special characters but preserve intentional regex patterns
+                        if any(char in alias for char in ['.', '?', '*', '+', '[', ']', '(', ')', '{', '}', '|', '^', '$']):
+                            # This looks like a regex pattern, use as-is
+                            tech_patterns.append(alias)
+                        else:
+                            # This is a plain string, escape it for regex
+                            tech_patterns.append(re.escape(alias))
+                    patterns[tech] = tech_patterns
+            
+            return patterns
+            
+        except Exception as e:
+            if os.environ.get('IPCRAWLER_DEBUG'):
+                print(f"Warning: Could not load technology patterns from {aliases_path}: {e}")
+            
+            # Minimal fallback patterns
+            return {
+                'wordpress': [r'wp-content', r'wp-admin', r'WordPress'],
+                'php': [r'\.php', r'PHP/', r'PHPSESSID'],
+                'apache': [r'Server:.*Apache', r'Apache/'],
+                'nginx': [r'Server:.*nginx', r'nginx/']
+            }
     
     def detect_from_scan_results(self) -> Set[str]:
         """
@@ -171,7 +122,7 @@ class TechnologyDetector:
                 content = f.read(16384)
             
             # Apply technology detection patterns
-            for tech, patterns in sorted(self.TECHNOLOGY_PATTERNS.items()):
+            for tech, patterns in sorted(self.technology_patterns.items()):
                 for pattern in patterns:
                     if re.search(pattern, content, re.IGNORECASE):
                         detected.add(tech)

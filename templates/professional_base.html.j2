@@ -693,15 +693,23 @@
                     <div class="stat-label">Services Detected</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">{{ metadata.total_web_services }}</div>
+                    <div class="stat-number">{{ summary.total_web_services }}</div>
                     <div class="stat-label">Web Services</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">{{ metadata.total_vulnerabilities }}</div>
+                    <div class="stat-number">{{ summary.total_directories }}</div>
+                    <div class="stat-label">Directories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ summary.total_files }}</div>
+                    <div class="stat-label">Files</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ summary.critical_findings }}</div>
                     <div class="stat-label">Findings</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">{{ metadata.total_manual_commands }}</div>
+                    <div class="stat-number">{{ summary.total_manual_commands }}</div>
                     <div class="stat-label">Manual Commands</div>
                 </div>
             </div>
