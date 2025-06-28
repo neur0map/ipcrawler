@@ -182,9 +182,10 @@ class CommandStreamReader(object):
 				break
 			try:
 				line = (await self.stream.readline()).decode('utf8').rstrip()
-			except ValueError as e:
+			except (ValueError, asyncio.LimitOverrunError) as e:
 				# Handle lines longer than 64KB (common with large JSON responses from Spring Boot actuator)
-				if "line is longer than" in str(e) or "too long" in str(e):
+				if ("line is longer than" in str(e) or "too long" in str(e) or 
+				    "Separator is not found, and chunk exceed the limit" in str(e)):
 					try:
 						# Try to read the oversized line in chunks
 						line_chunks = []

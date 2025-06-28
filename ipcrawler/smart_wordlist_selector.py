@@ -14,6 +14,11 @@ from pathlib import Path
 _catalog_cache: Optional[Dict] = None
 _aliases_cache: Optional[Dict] = None
 
+# Constants to avoid string duplication
+CATALOG_FILENAME = 'unified_wordlists_catalog.yaml'
+BIG_WORDLIST = 'big.txt'
+MEDIUM_WORDLIST = 'medium.txt'
+
 
 class SmartWordlistSelector:
     """Intelligent wordlist selection based on technology detection"""
@@ -34,9 +39,9 @@ class SmartWordlistSelector:
         
         # Look for catalog in multiple locations
         catalog_paths = [
-            os.path.join(os.path.dirname(__file__), 'data', 'unified_wordlists_catalog.yaml'),
-            os.path.join(os.path.dirname(__file__), '..', 'data', 'unified_wordlists_catalog.yaml'),
-            'unified_wordlists_catalog.yaml'  # Current directory
+            os.path.join(os.path.dirname(__file__), 'data', CATALOG_FILENAME),
+            os.path.join(os.path.dirname(__file__), '..', 'data', CATALOG_FILENAME),
+            CATALOG_FILENAME  # Current directory
         ]
         
         for catalog_path in catalog_paths:
@@ -416,7 +421,7 @@ class SmartWordlistSelector:
         # Only return if we have reasonable confidence after all validations
         return best_tech if best_info['score'] > 0.6 else None
     
-    def _get_adaptive_score_cutoff(self, detected_string: str, alias: str) -> int:
+    def _get_adaptive_score_cutoff(self, _detected_string: str, alias: str) -> int:
         """Calculate adaptive score cutoff based on string characteristics"""
         # Shorter strings need higher precision to avoid false positives
         if len(alias) <= 3:
@@ -428,7 +433,7 @@ class SmartWordlistSelector:
         else:
             return 75  # Slightly more lenient for very long aliases
     
-    def _validate_technology_context(self, detected_string: str, technology: str, alias: str) -> float:
+    def _validate_technology_context(self, detected_string: str, _technology: str, _alias: str) -> float:
         """Validate that detected technology is contextually appropriate"""
         detected_lower = detected_string.lower()
         
@@ -544,9 +549,9 @@ class SmartWordlistSelector:
             if tier_matches[tier]:
                 # Sort matches within tier by technology name for deterministic selection
                 sorted_tier_matches = sorted(tier_matches[tier], key=lambda x: x[0])  # Sort by tech_key
-                best_tech, detected_string = sorted_tier_matches[0]  # Best match in highest available tier
+                best_tech, _detected_string = sorted_tier_matches[0]  # Best match in highest available tier
                 if len(sum(tier_matches.values(), [])) > 1:  # Multiple matches found
-                    print(f"🔍 Multiple technologies detected (simple matching)")
+                    print("🔍 Multiple technologies detected (simple matching)")
                     print(f"✅ Selected: {best_tech} (tier: {tier}) - highest security priority")
                 return best_tech
         
@@ -583,8 +588,6 @@ class SmartWordlistSelector:
         
         # Priority 2: Technology-specific wordlists
         for wordlist_path, wordlist_info in self.catalog['wordlists'].items():
-            path_lower = wordlist_path.lower()
-            
             # Skip if already added as premium
             if any(wordlist_path == p for p, _ in candidates):
                 continue
@@ -607,7 +610,7 @@ class SmartWordlistSelector:
             # OneListForAll comprehensive lists
             ('onelistforall', ['onelistforallshort.txt', 'onelistforallmicro.txt']),
             # Large SecLists comprehensive wordlists
-            ('seclists_large', ['directory-list-2.3-big.txt', 'directory-list-2.3-medium.txt'])
+            ('seclists_large', [f'directory-list-2.3-{BIG_WORDLIST}', f'directory-list-2.3-{MEDIUM_WORDLIST}'])
         ]
         
         for priority_name, patterns in premium_priorities:
@@ -702,7 +705,6 @@ class SmartWordlistSelector:
         
         # Split path into components for analysis
         path_parts = wordlist_path.lower().replace('\\\\', '/').split('/')
-        filename = os.path.basename(path_lower)
         
         # Technology patterns in path/filename
         tech_patterns = {
@@ -775,7 +777,7 @@ class SmartWordlistSelector:
         # Enhanced generic patterns for web enumeration
         generic_patterns = {
             'web_directories': [
-                'directory', 'web-content', 'common', 'big.txt', 'medium.txt', 'small.txt',
+                'directory', 'web-content', 'common', BIG_WORDLIST, MEDIUM_WORDLIST, 'small.txt',
                 'discovery', 'subdomain', 'vhost', 'dns', 'top1million', 'directory-list'
             ],
             'web_files': [
@@ -816,8 +818,8 @@ class SmartWordlistSelector:
         
         # Extremely broad fallback patterns - accept any web-related wordlist
         fallback_patterns = {
-            'web_directories': ['web', 'dir', 'common', 'big.txt', 'medium.txt'],
-            'web_files': ['web', 'file', 'common', 'big.txt', 'medium.txt']
+            'web_directories': ['web', 'dir', 'common', BIG_WORDLIST, MEDIUM_WORDLIST],
+            'web_files': ['web', 'file', 'common', BIG_WORDLIST, MEDIUM_WORDLIST]
         }
         
         relevant_patterns = fallback_patterns.get(category, [])
@@ -1148,7 +1150,7 @@ class SmartWordlistSelector:
             ratio = (lines_int - optimal_size) / (max_size - optimal_size)
             return 1.0 - (ratio * 0.6)
     
-    def _calculate_quality_score(self, wordlist_path: str, wordlist_info: Dict) -> float:
+    def _calculate_quality_score(self, wordlist_path: str, _wordlist_info: Dict) -> float:
         """Calculate wordlist quality based on various indicators"""
         path_lower = wordlist_path.lower()
         
@@ -1178,7 +1180,6 @@ class SmartWordlistSelector:
         scoring_config = self.aliases.get('scoring', {})
         alias_weight = scoring_config.get('alias_match_weight', 0.7)
         size_weight = scoring_config.get('size_penalty_weight', 0.3)
-        max_lines = scoring_config.get('max_lines_threshold', 100000)
         
         scored_candidates = []
         

