@@ -157,7 +157,9 @@ class DirBuster(ServiceScan):
 								
 								if smart_wordlist_path and os.path.exists(smart_wordlist_path):
 									resolved_wordlists.append(smart_wordlist_path)
-									selection_info = selector.get_selection_info(smart_wordlist_path, list(detected_technologies)[0])
+									# Use the actually selected technology, not the first detected one
+									selected_tech = selector.get_selected_technology() or list(detected_technologies)[0]
+									selection_info = selector.get_selection_info(smart_wordlist_path, selected_tech)
 									service.info(f"✅ Smart selection: {selection_info}")
 									service.info(f"✅ Using technology-specific wordlist: {smart_wordlist_path}")
 								else:

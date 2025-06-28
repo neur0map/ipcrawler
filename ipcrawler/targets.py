@@ -64,6 +64,54 @@ class Target:
 
 		return None
 
+	def _prioritize_hostnames(self, hostnames):
+		"""Prioritize hostnames based on importance and usefulness"""
+		if not hostnames:
+			return []
+
+		# Define priority patterns (higher score = higher priority)
+		priority_patterns = [
+			# High priority - specific services
+			(r'^(lms|cms|admin|api|portal|dashboard)\.', 10),
+			(r'^(mail|email|smtp|imap|pop)\.', 9),
+			(r'^(dev|test|staging|beta|alpha)\.', 8),
+			(r'^(blog|news|forum|wiki)\.', 7),
+			(r'^(shop|store|cart|ecommerce)\.', 7),
+			(r'^(secure|ssl|vpn|remote)\.', 6),
+			(r'^(support|help|docs)\.', 5),
+			(r'^(www|web)\.', 4),
+			(r'^(m|mobile|app)\.', 3),
+			(r'^(static|cdn|assets|media)\.', 2),
+			# Low priority - generic or less useful
+			(r'^(old|backup|archive|legacy)\.', 1),
+		]
+
+		scored_hostnames = []
+		for hostname in hostnames:
+			score = 0
+			hostname_lower = hostname.lower()
+
+			# Apply pattern scoring
+			for pattern, points in priority_patterns:
+				if re.match(pattern, hostname_lower):
+					score += points
+					break  # Only apply first matching pattern
+
+			# Bonus for shorter, cleaner hostnames
+			if len(hostname.split('.')) <= 3:
+				score += 2
+
+			# Penalty for very long hostnames
+			if len(hostname) > 50:
+				score -= 1
+
+			scored_hostnames.append((score, hostname))
+
+		# Sort by score (descending), then alphabetically for deterministic results
+		scored_hostnames.sort(key=lambda x: (-x[0], x[1]))
+
+		return [hostname for score, hostname in scored_hostnames]
+
 	async def add_discovered_hostname(self, hostname):
 		"""Add a discovered hostname from vhost discovery"""
 		async with self.lock:
@@ -78,9 +126,11 @@ class Target:
 				print(f"⚠️ WARNING: Invalid hostname rejected: '{hostname}'")
 
 	def get_best_hostname(self):
-		"""Get the best hostname to use for web scanning (prefers discovered hostnames)"""
+		"""Get the best hostname to use for web scanning (smart prioritization)"""
 		if self.discovered_hostnames and len(self.discovered_hostnames) > 0:
-			return self.discovered_hostnames[0]  # Use first discovered hostname
+			# Smart hostname prioritization
+			prioritized = self._prioritize_hostnames(self.discovered_hostnames)
+			return prioritized[0]  # Use highest priority discovered hostname
 		elif self.type == 'hostname' and self.address:
 			return self.address  # Use original hostname if target was a hostname
 		else:
@@ -91,14 +141,20 @@ class Target:
 		"""Get all available hostnames for comprehensive scanning"""
 		hostnames = []
 
-		# Add discovered hostnames first (highest priority) - with validation
+		# Add discovered hostnames first (highest priority) - with validation and prioritization
 		if self.discovered_hostnames:
+			validated_discovered = []
 			for hostname in self.discovered_hostnames:
 				validated = self._validate_hostname(hostname)
-				if validated and validated not in hostnames:
-					hostnames.append(validated)
+				if validated and validated not in validated_discovered:
+					validated_discovered.append(validated)
 				elif hostname and not validated:
 					print(f"⚠️ WARNING: Invalid discovered hostname skipped: '{hostname}'")
+
+			# Prioritize discovered hostnames
+			if validated_discovered:
+				prioritized_discovered = self._prioritize_hostnames(validated_discovered)
+				hostnames.extend(prioritized_discovered)
 
 		# Add original hostname if it was a hostname target - with validation
 		if self.type == 'hostname' and self.address:

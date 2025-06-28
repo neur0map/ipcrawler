@@ -20,6 +20,7 @@ class SmartWordlistSelector:
     
     def __init__(self, seclists_base_path: str):
         self.seclists_base_path = seclists_base_path
+        self._last_selected_technology = None  # Track the last selected technology
         self._load_catalog()
         self._load_aliases()
     
@@ -33,9 +34,9 @@ class SmartWordlistSelector:
         
         # Look for catalog in multiple locations
         catalog_paths = [
-            os.path.join(os.path.dirname(__file__), 'data', 'seclists_catalog.yaml'),
-            os.path.join(os.path.dirname(__file__), '..', 'data', 'seclists_catalog.yaml'),
-            'seclists_catalog.yaml'  # Current directory
+            os.path.join(os.path.dirname(__file__), 'data', 'unified_wordlists_catalog.yaml'),
+            os.path.join(os.path.dirname(__file__), '..', 'data', 'unified_wordlists_catalog.yaml'),
+            'unified_wordlists_catalog.yaml'  # Current directory
         ]
         
         for catalog_path in catalog_paths:
@@ -49,7 +50,7 @@ class SmartWordlistSelector:
                     print(f"Warning: Could not load catalog from {catalog_path}: {e}")
         
         # No catalog found - try to auto-generate it
-        print("⚠️  No SecLists catalog found for smart wordlist selection.")
+        print("⚠️  No unified wordlists catalog found for smart wordlist selection.")
         if self.seclists_base_path and os.path.exists(self.seclists_base_path):
             print(f"🤖 Auto-generating catalog for {self.seclists_base_path}...")
             try:
@@ -95,46 +96,99 @@ class SmartWordlistSelector:
     def select_wordlist(self, category: str, detected_technologies: Set[str]) -> Optional[str]:
         """
         Select best wordlist for category based on detected technologies
-        
+
         Args:
             category: Wordlist category (e.g., 'web_directories', 'web_files')
             detected_technologies: Set of detected technology strings
-            
+
         Returns:
             Full path to selected wordlist, or None if no good match found
         """
         if not detected_technologies or not self.catalog.get('wordlists'):
             return None
-        
+
         # Find best technology match using alias mapping
         best_tech = self._find_best_technology_match(detected_technologies)
         if not best_tech:
             return None
-        
+
+        # Store the selected technology for later use
+        self._last_selected_technology = best_tech
+        self._last_fallback_level = None
+
         # Get candidate wordlists for this technology
         candidates = self._get_candidate_wordlists(best_tech, category)
-        
+        fallback_level = "technology-specific"
+
         # If no technology-specific wordlists found, try generic ones
         if not candidates:
             candidates = self._get_generic_candidate_wordlists(category)
-        
+            fallback_level = "generic"
+
         # If still no candidates, try the most generic fallback
         if not candidates:
             candidates = self._get_fallback_candidate_wordlists(category)
-        
+            fallback_level = "fallback"
+
         # If STILL no candidates, try an extremely broad search
         if not candidates:
             candidates = self._get_desperate_fallback_wordlists(category)
-        
+            fallback_level = "desperate"
+
+        # Store fallback level for reporting
+        self._last_fallback_level = fallback_level
+
         # Score and select best candidate
         best_wordlist = self._score_and_select_candidates(candidates, best_tech)
         if not best_wordlist:
             return None
-        
-        # Return full path
-        full_path = os.path.join(self.seclists_base_path, best_wordlist)
+
+        # Return full path with proper resolution for premium wordlists
+        full_path = self._resolve_wordlist_path(best_wordlist)
         return full_path if os.path.exists(full_path) else None
     
+    def _resolve_wordlist_path(self, relative_path: str) -> str:
+        """Resolve relative wordlist path to absolute path"""
+        # Check if it's a premium wordlist that needs special path resolution
+        if 'jhaddix' in relative_path.lower():
+            # Jhaddix wordlists are in ~/tools/wordlists/jhaddix/
+            jhaddix_paths = [
+                os.path.expanduser("~/tools/wordlists/jhaddix/jhaddix-all.txt"),
+                "/usr/share/wordlists/jhaddix/jhaddix-all.txt"
+            ]
+            for path in jhaddix_paths:
+                if os.path.exists(path):
+                    return path
+        
+        elif 'onelistforall' in relative_path.lower():
+            # OneListForAll wordlists are in ~/tools/wordlists/onelistforall/
+            base_dirs = [
+                os.path.expanduser("~/tools/wordlists/onelistforall"),
+                "/usr/share/wordlists/onelistforall"
+            ]
+            
+            # Extract the actual filename from the relative path
+            filename = relative_path.split('/')[-1]
+            
+            for base_dir in base_dirs:
+                if os.path.exists(base_dir):
+                    # Try the file directly in the base directory
+                    full_path = os.path.join(base_dir, filename)
+                    if os.path.exists(full_path):
+                        return full_path
+                    
+                    # Try in subdirectories
+                    for root, dirs, files in os.walk(base_dir):
+                        if filename in files:
+                            return os.path.join(root, filename)
+        
+        # Default: assume it's a SecLists wordlist
+        return os.path.join(self.seclists_base_path, relative_path)
+
+    def get_selected_technology(self) -> Optional[str]:
+        """Get the last selected technology from wordlist selection"""
+        return self._last_selected_technology
+
     def _get_security_tiers(self) -> Dict[str, Set[str]]:
         """Get security tiers for technology prioritization"""
         return {
@@ -359,23 +413,217 @@ class SmartWordlistSelector:
         return None
     
     def _get_candidate_wordlists(self, technology: str, category: str) -> List[Tuple[str, Dict]]:
-        """Get candidate wordlists for technology and category"""
+        """Get candidate wordlists for technology and category with premium priority"""
         candidates = []
         
-        # Get wordlists that contain the technology name in their path/filename
         if not self.catalog or 'wordlists' not in self.catalog:
             return candidates
         
-        for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
+        # Priority 1: Look for technology-specific wordlists first
+        tech_specific_candidates = []
+        for wordlist_path, wordlist_info in self.catalog['wordlists'].items():
+            # Use enhanced technology matching
+            if self._is_technology_relevant(technology, wordlist_path, wordlist_info):
+                if self._is_appropriate_category(wordlist_info, category):
+                    tech_specific_candidates.append((wordlist_path, wordlist_info))
+        
+        # If we found good technology-specific wordlists, use them
+        if tech_specific_candidates:
+            candidates.extend(tech_specific_candidates)
+            print(f"🎯 Found {len(tech_specific_candidates)} technology-specific wordlists for {technology}")
+            return candidates
+        
+        # Priority 2: Premium comprehensive wordlists as fallback
+        if category in ['web_directories', 'web_files']:
+            premium_candidates = self._get_premium_wordlists(category)
+            candidates.extend(premium_candidates)
+            if premium_candidates:
+                print(f"🏆 Using premium wordlists for {category} (no tech-specific found)")
+                return candidates
+        
+        # Priority 2: Technology-specific wordlists
+        for wordlist_path, wordlist_info in self.catalog['wordlists'].items():
             path_lower = wordlist_path.lower()
             
-            # Check if wordlist is relevant to this technology
-            if technology in path_lower or any(tag == technology for tag in wordlist_info.get('tags', [])):
-                # Check if wordlist is appropriate for the category
+            # Skip if already added as premium
+            if any(wordlist_path == p for p, _ in candidates):
+                continue
+            
+            # Use RapidFuzz for better technology matching
+            if self._is_technology_relevant(technology, wordlist_path, wordlist_info):
                 if self._is_appropriate_category(wordlist_info, category):
                     candidates.append((wordlist_path, wordlist_info))
         
         return candidates
+    
+    def _get_premium_wordlists(self, category: str) -> List[Tuple[str, Dict]]:
+        """Get premium wordlists with highest priority"""
+        premium_candidates = []
+        
+        # Premium wordlist priorities (highest to lowest)
+        premium_priorities = [
+            # Jhaddix wordlists - highest priority
+            ('jhaddix', ['jhaddix', 'Discovery/Web-Content/jhaddix']),
+            # OneListForAll comprehensive lists
+            ('onelistforall', ['onelistforallshort.txt', 'onelistforallmicro.txt']),
+            # Large SecLists comprehensive wordlists
+            ('seclists_large', ['directory-list-2.3-big.txt', 'directory-list-2.3-medium.txt'])
+        ]
+        
+        for priority_name, patterns in premium_priorities:
+            for wordlist_path, wordlist_info in self.catalog['wordlists'].items():
+                path_lower = wordlist_path.lower()
+                
+                # Check if this wordlist matches the premium pattern
+                if any(pattern.lower() in path_lower for pattern in patterns):
+                    if self._is_appropriate_category(wordlist_info, category):
+                        lines = wordlist_info.get('lines', 0)
+                        print(f"   🎯 Premium: {wordlist_path} ({lines:,} lines)")
+                        premium_candidates.append((wordlist_path, wordlist_info))
+                        
+                        # For web discovery, one good premium wordlist is often enough
+                        if category in ['web_directories', 'web_files'] and lines > 10000:
+                            return premium_candidates
+        
+        return premium_candidates
+    
+    def _is_technology_relevant(self, technology: str, wordlist_path: str, wordlist_info: Dict) -> bool:
+        """Check if wordlist is relevant to technology using enhanced path matching"""
+        try:
+            from rapidfuzz import fuzz
+            
+            path_lower = wordlist_path.lower()
+            filename = os.path.basename(path_lower)
+            
+            # 1. Direct technology name match in path
+            if technology.lower() in path_lower:
+                return True
+            
+            # 2. Check existing tags (if any)
+            tags = wordlist_info.get('tags', [])
+            if tags and any(tag.lower() == technology.lower() for tag in tags):
+                return True
+            
+            # 3. Enhanced path-based matching for wordlists without tags
+            # Auto-generate implicit tags from path structure
+            implicit_tags = self._extract_implicit_tags(wordlist_path)
+            if any(tag.lower() == technology.lower() for tag in implicit_tags):
+                return True
+            
+            # 4. Technology aliases matching
+            tech_aliases = self.aliases.get('technology_aliases', {}).get(technology, {}).get('aliases', [])
+            for alias in tech_aliases:
+                # Check path and implicit tags
+                if alias.lower() in path_lower:
+                    return True
+                if any(alias.lower() in tag.lower() for tag in implicit_tags):
+                    return True
+                # Fuzzy match on filename
+                if fuzz.partial_ratio(alias.lower(), filename) > 75:  # Lowered threshold
+                    return True
+            
+            # 5. Direct fuzzy matching on filename
+            similarity = fuzz.partial_ratio(technology.lower(), filename)
+            if similarity > 75:  # Lowered threshold for better coverage
+                return True
+            
+            return False
+            
+        except ImportError:
+            # Enhanced fallback without RapidFuzz
+            path_lower = wordlist_path.lower()
+            
+            # Direct match
+            if technology.lower() in path_lower:
+                return True
+            
+            # Check tags
+            tags = wordlist_info.get('tags', [])
+            if tags and any(tag.lower() == technology.lower() for tag in tags):
+                return True
+            
+            # Check implicit tags from path
+            implicit_tags = self._extract_implicit_tags(wordlist_path)
+            if any(tag.lower() == technology.lower() for tag in implicit_tags):
+                return True
+            
+            # Check aliases
+            tech_aliases = self.aliases.get('technology_aliases', {}).get(technology, {}).get('aliases', [])
+            for alias in tech_aliases:
+                if alias.lower() in path_lower:
+                    return True
+            
+            return False
+    
+    def _extract_implicit_tags(self, wordlist_path: str) -> List[str]:
+        """Extract implicit technology tags from wordlist path structure"""
+        implicit_tags = []
+        path_lower = wordlist_path.lower()
+        
+        # Split path into components for analysis
+        path_parts = wordlist_path.lower().replace('\\\\', '/').split('/')
+        filename = os.path.basename(path_lower)
+        
+        # Technology patterns in path/filename
+        tech_patterns = {
+            'wordpress': ['wordpress', 'wp-', 'wp_', 'wpadmin'],
+            'drupal': ['drupal'],
+            'joomla': ['joomla'],
+            'apache': ['apache', 'httpd'],
+            'nginx': ['nginx'],
+            'iis': ['iis', 'microsoft'],
+            'tomcat': ['tomcat'],
+            'php': ['php', '.php'],
+            'asp': ['asp', '.asp', '.aspx'],
+            'coldfusion': ['coldfusion', 'cfm'],
+            'django': ['django'],
+            'rails': ['rails', 'ruby'],
+            'nodejs': ['node', 'express'],
+            'sharepoint': ['sharepoint'],
+            'jenkins': ['jenkins'],
+            'gitlab': ['gitlab'],
+            'mysql': ['mysql'],
+            'mssql': ['mssql', 'sqlserver'],
+            'oracle': ['oracle'],
+            'mongodb': ['mongo'],
+            'elasticsearch': ['elastic'],
+            'redis': ['redis'],
+            'ftp': ['ftp'],
+            'ssh': ['ssh'],
+            'telnet': ['telnet'],
+            'smtp': ['smtp'],
+            'snmp': ['snmp'],
+            'ldap': ['ldap'],
+            'smb': ['smb', 'samba'],
+            'nfs': ['nfs']
+        }
+        
+        # Check each pattern
+        for tech, patterns in tech_patterns.items():
+            for pattern in patterns:
+                if pattern in path_lower:
+                    implicit_tags.append(tech)
+                    break
+        
+        # CMS-specific detection
+        if 'cms' in path_lower:
+            for part in path_parts:
+                if part and len(part) > 2:  # Avoid short meaningless parts
+                    # Check if this part matches a known CMS
+                    cms_names = ['wordpress', 'drupal', 'joomla', 'magento', 'prestashop', 'opencart']
+                    for cms in cms_names:
+                        if cms in part:
+                            implicit_tags.append(cms)
+        
+        # Framework detection
+        if 'framework' in path_lower or 'language' in path_lower:
+            framework_names = ['django', 'rails', 'laravel', 'symfony', 'codeigniter', 'yii', 'zend']
+            for framework in framework_names:
+                if framework in path_lower:
+                    implicit_tags.append(framework)
+        
+        # Remove duplicates and return
+        return list(set(implicit_tags))
     
     def _get_generic_candidate_wordlists(self, category: str) -> List[Tuple[str, Dict]]:
         """Get generic candidate wordlists when technology-specific ones aren't available"""
@@ -384,7 +632,15 @@ class SmartWordlistSelector:
         if not self.catalog or 'wordlists' not in self.catalog:
             return candidates
         
-        # Define generic wordlist patterns for each category
+        # Priority 1: Premium wordlists first (even for generic selection)
+        if category in ['web_directories', 'web_files']:
+            premium_candidates = self._get_premium_wordlists(category)
+            candidates.extend(premium_candidates)
+            if premium_candidates:
+                print(f"🏆 Using premium wordlists for generic {category}")
+                return candidates  # Premium wordlists are sufficient
+        
+        # Priority 2: Standard generic patterns
         generic_patterns = {
             'web_directories': [
                 'discovery/web-content/directory-list',
@@ -406,6 +662,10 @@ class SmartWordlistSelector:
         
         for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
             path_lower = wordlist_path.lower()
+            
+            # Skip if already added as premium
+            if any(wordlist_path == p for p, _ in candidates):
+                continue
             
             # Check if wordlist matches any of the generic patterns
             if any(pattern in path_lower for pattern in relevant_patterns):
@@ -637,16 +897,21 @@ class SmartWordlistSelector:
         """Get human-readable info about wordlist selection"""
         if not wordlist_path:
             return "No technology-specific wordlist found"
-        
+
         filename = os.path.basename(wordlist_path)
         wordlist_info = self.catalog['wordlists'].get(
             os.path.relpath(wordlist_path, self.seclists_base_path), {}
         )
-        
+
         lines = wordlist_info.get('lines', 'unknown')
         size_kb = wordlist_info.get('size_kb', 'unknown')
-        
-        return f"Using {technology} wordlist: {filename} ({lines} lines, {size_kb}KB)"
+
+        # Include fallback level information for transparency
+        fallback_level = getattr(self, '_last_fallback_level', 'unknown')
+        if fallback_level == 'technology-specific':
+            return f"Using {technology} wordlist: {filename} ({lines} lines, {size_kb}KB)"
+        else:
+            return f"Using {fallback_level} wordlist for {technology}: {filename} ({lines} lines, {size_kb}KB)"
     
     def _generate_catalog_on_demand(self) -> Optional[Dict]:
         """Generate catalog on-demand when not found"""
@@ -677,13 +942,10 @@ class SmartWordlistSelector:
                         stat = os.stat(full_path)
                         size_kb = stat.st_size // 1024
                         
-                        # Count lines efficiently (limit to avoid hanging on huge files)
+                        # Count lines efficiently (no artificial cap - count real lines)
                         line_count = 0
                         with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
                             for i, _ in enumerate(f):
-                                if i > 500000:  # Cap at 500k lines for performance
-                                    line_count = 500000  # Store as numeric value for consistent comparison
-                                    break
                                 line_count = i + 1
                         
                         # Categorize wordlist based on path
@@ -707,14 +969,99 @@ class SmartWordlistSelector:
                         print(f"  ⚠️  Skipping {relative_path}: {e}")
                         continue
         
+        # Add Jhaddix All.txt if available
+        jhaddix_paths = [
+            "/usr/share/wordlists/jhaddix/jhaddix-all.txt",  # Linux
+            os.path.expanduser("~/tools/wordlists/jhaddix/jhaddix-all.txt")  # macOS
+        ]
+        
+        jhaddix_path = None
+        for path in jhaddix_paths:
+            if os.path.exists(path):
+                jhaddix_path = path
+                break
+        if jhaddix_path and os.path.exists(jhaddix_path):
+            print(f"🏆 Adding Jhaddix All.txt to catalog...")
+            try:
+                stat = os.stat(jhaddix_path)
+                size_kb = stat.st_size // 1024
+                
+                # Count lines for Jhaddix
+                line_count = 0
+                with open(jhaddix_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    for i, _ in enumerate(f):
+                        line_count = i + 1
+                
+                # Add to catalog with web category
+                catalog['wordlists']['Discovery/Web-Content/jhaddix-all.txt'] = {
+                    'size_kb': size_kb,
+                    'lines': line_count,
+                    'category': 'web',
+                    'tags': ['comprehensive', 'discovery', 'jhaddix']
+                }
+                wordlist_count += 1
+                print(f"  ✅ Added Jhaddix All.txt ({line_count:,} lines)")
+                
+            except Exception as e:
+                print(f"  ⚠️  Could not process Jhaddix All.txt: {e}")
+        
+        # Add OneListForAll wordlists if available
+        onelistforall_dirs = [
+            "/usr/share/wordlists/onelistforall",  # Linux
+            os.path.expanduser("~/tools/wordlists/onelistforall")  # macOS
+        ]
+        
+        onelistforall_dir = None
+        for dir_path in onelistforall_dirs:
+            if os.path.exists(dir_path):
+                onelistforall_dir = dir_path
+                break
+        if onelistforall_dir and os.path.exists(onelistforall_dir):
+            print(f"📚 Adding OneListForAll wordlists to catalog...")
+            onelistforall_count = 0
+            
+            for root, dirs, files in os.walk(onelistforall_dir):
+                for file in sorted(files):
+                    if file.endswith('.txt') and not file.startswith('.') and 'readme' not in file.lower():
+                        full_path = os.path.join(root, file)
+                        relative_path = os.path.relpath(full_path, onelistforall_dir)
+                        
+                        try:
+                            stat = os.stat(full_path)
+                            size_kb = stat.st_size // 1024
+                            
+                            # Count lines
+                            line_count = 0
+                            with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                for i, _ in enumerate(f):
+                                    line_count = i + 1
+                            
+                            # Add to catalog with OneListForAll prefix
+                            catalog_key = f"OneListForAll/{relative_path}"
+                            catalog['wordlists'][catalog_key] = {
+                                'size_kb': size_kb,
+                                'lines': line_count,
+                                'category': 'web',
+                                'tags': ['onelistforall', 'fuzzing']
+                            }
+                            onelistforall_count += 1
+                            wordlist_count += 1
+                            
+                        except Exception as e:
+                            print(f"    ⚠️  Skipping {relative_path}: {e}")
+                            continue
+            
+            if onelistforall_count > 0:
+                print(f"  ✅ Added {onelistforall_count} OneListForAll wordlists")
+        
         catalog['metadata']['total_wordlists'] = wordlist_count
-        print(f"✅ Cataloged {wordlist_count} wordlists")
+        print(f"✅ Cataloged {wordlist_count} total wordlists")
         
         # Save catalog to first available location
         catalog_paths = [
-            os.path.join(os.path.dirname(__file__), 'data', 'seclists_catalog.yaml'),
-            os.path.join(os.path.dirname(__file__), '..', 'data', 'seclists_catalog.yaml'),
-            'seclists_catalog.yaml'  # Current directory
+            os.path.join(os.path.dirname(__file__), 'data', 'unified_wordlists_catalog.yaml'),
+            os.path.join(os.path.dirname(__file__), '..', 'data', 'unified_wordlists_catalog.yaml'),
+            'unified_wordlists_catalog.yaml'  # Current directory
         ]
         
         for catalog_path in catalog_paths:
@@ -736,9 +1083,14 @@ class SmartWordlistSelector:
         """Categorize wordlist based on its path"""
         path_lower = path.lower()
         
-        if 'web' in path_lower or 'http' in path_lower or 'directory' in path_lower or 'file' in path_lower:
+        # Web-related (check first, before username to avoid User-Agent misclassification)
+        if ('web' in path_lower or 'http' in path_lower or 'directory' in path_lower or 
+            'file' in path_lower or 'user-agent' in path_lower or 'useragent' in path_lower or
+            'fuzzing' in path_lower or 'content' in path_lower or 'discovery' in path_lower):
             return 'web'
-        elif 'username' in path_lower or 'user' in path_lower:
+        # Username/User wordlists (but exclude User-Agent files)
+        elif ('username' in path_lower or 
+              ('user' in path_lower and 'user-agent' not in path_lower and 'useragent' not in path_lower)):
             return 'usernames'
         elif 'password' in path_lower or 'pass' in path_lower:
             return 'passwords'

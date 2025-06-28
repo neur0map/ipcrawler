@@ -51,6 +51,20 @@ install:
 		else \
 			echo "  ✅ SecLists already installed"; \
 		fi; \
+		echo "  🏆 Installing Jhaddix All.txt..."; \
+		mkdir -p ~/tools/wordlists/jhaddix 2>/dev/null; \
+		if curl -s https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/big.txt -o /tmp/jhaddix-all.txt 2>/dev/null; then \
+			mv /tmp/jhaddix-all.txt ~/tools/wordlists/jhaddix/jhaddix-all.txt 2>/dev/null && \
+			echo "  ✅ Jhaddix All.txt installed to ~/tools/wordlists/jhaddix/" || echo "  ⚠️  Jhaddix install failed"; \
+		else \
+			echo "  ⚠️  Jhaddix download failed"; \
+		fi; \
+		echo "  📚 Installing OneListForAll..."; \
+		if git clone https://github.com/six2dez/OneListForAll.git ~/tools/wordlists/onelistforall >/dev/null 2>&1; then \
+			echo "  ✅ OneListForAll installed to ~/tools/wordlists/onelistforall/"; \
+		else \
+			echo "  ⚠️  OneListForAll install failed"; \
+		fi; \
 	elif [ -f /etc/debian_version ]; then \
 		echo "🐧 Debian/Ubuntu detected - Installing complete penetration testing suite..."; \
 		sudo apt update; \
@@ -171,6 +185,20 @@ install:
 			fi; \
 		else \
 			echo "  ✅ SecLists already installed"; \
+		fi; \
+		echo "  🏆 Installing Jhaddix All.txt..."; \
+		sudo mkdir -p /usr/share/wordlists/jhaddix 2>/dev/null; \
+		if curl -s https://gist.githubusercontent.com/jhaddix/b80ea67d85c13206125806f0828f4d10/raw/c81a34fe84731430741e74c7ca0ee9b77c63e523/all.txt -o /tmp/jhaddix-all.txt 2>/dev/null; then \
+			sudo mv /tmp/jhaddix-all.txt /usr/share/wordlists/jhaddix/jhaddix-all.txt 2>/dev/null && \
+			echo "  ✅ Jhaddix All.txt installed" || echo "  ⚠️  Jhaddix install failed"; \
+		else \
+			echo "  ⚠️  Jhaddix download failed"; \
+		fi; \
+		echo "  📚 Installing OneListForAll..."; \
+		if sudo git clone https://github.com/six2dez/OneListForAll.git /usr/share/wordlists/onelistforall >/dev/null 2>&1; then \
+			echo "  ✅ OneListForAll installed"; \
+		else \
+			echo "  ⚠️  OneListForAll install failed"; \
 		fi; \
 		sudo apt install -y nbtscan nikto onesixtyone oscanner; \
 		sudo apt install -y smbclient smbmap snmp sslscan sipvicious; \
