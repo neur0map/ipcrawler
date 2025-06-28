@@ -76,7 +76,6 @@ class Target:
 					print(f"🔧 DEBUG: Hostname already exists: {validated_hostname}")
 			elif hostname and not validated_hostname:
 				print(f"⚠️ WARNING: Invalid hostname rejected: '{hostname}'")
-					self.info(f"Added discovered hostname: {hostname}")
 
 	def get_best_hostname(self):
 		"""Get the best hostname to use for web scanning (prefers discovered hostnames)"""
