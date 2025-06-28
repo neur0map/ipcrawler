@@ -67,10 +67,17 @@ class TechnologyDetector:
             r'Python'
         ],
         'nodejs': [
-            r'express',
             r'X-Powered-By:.*Express',
+            r'Server:.*Express',
+            r'\bexpress\b',  # Word boundary to avoid matching "expression"
             r'node\.js',
             r'nodejs'
+        ],
+        'nextjs': [
+            r'X-Powered-By:.*Next\.js',
+            r'Next\.js',
+            r'_next/',
+            r'__next'
         ],
         
         # Web Servers

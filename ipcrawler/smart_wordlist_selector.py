@@ -250,7 +250,7 @@ class SmartWordlistSelector:
         """Calculate size score - prefer comprehensive wordlists for directory enumeration"""
         path_lower = wordlist_path.lower()
         
-        # For directory/web enumeration, we want comprehensive wordlists
+        # For directory/web enumeration, we want comprehensive but reasonable wordlists
         if any(term in path_lower for term in ['web-content', 'discovery', 'directory', 'file']):
             # Penalize tiny wordlists heavily for directory enumeration
             if lines < 100:
@@ -258,9 +258,11 @@ class SmartWordlistSelector:
             elif lines < 1000:
                 return 0.0   # Neutral for small lists
             elif lines < 10000:
-                return 0.3   # Good for medium lists  
+                return 0.3   # Good for medium lists
+            elif lines < 20000:
+                return 0.5   # Best for comprehensive lists (sweet spot)
             else:
-                return 0.5   # Best for comprehensive lists
+                return -0.3  # Penalty for massive wordlists (>20K lines) - too slow
         
         # For other categories (usernames, passwords), prefer smaller targeted lists
         else:

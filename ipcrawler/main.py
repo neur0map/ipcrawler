@@ -1040,20 +1040,10 @@ async def scan_target(target):
 		ipcrawler.completed_targets.append(target)
 		ipcrawler.scanning_targets.remove(target)
 
-async def run():
-	# Find config file - use from git repository directly, no system caching
-	git_config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.toml')
-	if os.path.isfile(git_config_file):
-		config_file = git_config_file
-	else:
-		config_file = None
-
-	# Find global file - use from git repository directly, no system caching
-	git_global_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'global.toml')
-	if os.path.isfile(git_global_file):
-		config['global_file'] = git_global_file
-	else:
-		config['global_file'] = None
+async def run(initial_args):
+	# Use the configuration already set up in main()
+	# Get config file path
+	config_file = config.get('config_file')
 
 	# Plugins are now loaded directly from git repository - no system directory needed
 	# config['plugins_dir'] already set in config.py to the git repository location
@@ -1102,7 +1092,7 @@ async def run():
 	wordlist_group.add_argument('--wordlist-subdomains', action='store', metavar='PATH', help='Override the subdomains wordlist path')
 	wordlist_group.add_argument('--wordlist-snmp-communities', action='store', metavar='PATH', help='Override the SNMP community strings wordlist path')
 	wordlist_group.add_argument('--wordlist-dns-servers', action='store', metavar='PATH', help='Override the DNS servers wordlist path')
-	wordlist_group.add_argument('--wordlist-vhosts', action='store', metavar='PATH', help='Override the virtual hosts wordlist path')
+	parser.add_argument('--wordlist-vhosts', action='store', metavar='PATH', help='Override the virtual hosts wordlist path')
 	
 	# Scan speed and scenario arguments
 	scan_group = parser.add_argument_group('scan scenarios', 'Predefined scan configurations for different scenarios')
@@ -1132,6 +1122,10 @@ async def run():
 	errors = False
 
 	ipcrawler.argparse = parser
+	
+	# Store args globally for Ctrl+C report generation
+	global consolidator_args_global
+	consolidator_args_global = args
 
 	if args.version:
 		show_modern_version(VERSION)
@@ -2132,14 +2126,42 @@ def main():
 		if debug_mode:
 			info('🚀 Debug mode: Sentry monitoring enabled - capturing ALL errors and performance data', verbosity=0)
 	
-	# Store args globally for Ctrl+C report generation (needs to happen before signal registration)
-	global consolidator_args_global
-	consolidator_args_global = args
+	# Parse arguments first
+	# Find config file - use from git repository directly, no system caching
+	git_config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.toml')
+	if os.path.isfile(git_config_file):
+		config_file = git_config_file
+		config['config_file'] = git_config_file  # Store in config dict for run() function
+	else:
+		config_file = None
+		config['config_file'] = None
+
+	# Find global file - use from git repository directly, no system caching
+	git_global_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'global.toml')
+	if os.path.isfile(git_global_file):
+		config['global_file'] = git_global_file
+	else:
+		config['global_file'] = None
+
+	# Basic argument parsing for early setup
+	parser = argparse.ArgumentParser(prog='ipcrawler', add_help=False, allow_abbrev=False, description='Network reconnaissance tool to port scan and automatically enumerate services found on multiple targets.')
+	parser.add_argument('targets', action='store', help='IP addresses (e.g. 10.0.0.1), CIDR notation (e.g. 10.0.0.1/24), or resolvable hostnames (e.g. foo.bar) to scan.', nargs='*')
+	parser.add_argument('-h', '--help', action=ModernHelpAction, help='Show this help message and exit.')
+	parser.add_argument('-v', '--verbose', action='count', default=0, help='Verbose output.')
+	parser.add_argument('--version', action='store_true', help='Show version information.')
+	
+	# Parse basic args
+	parser.error = lambda s: fail(s[0].upper() + s[1:])
+	args, unknown = parser.parse_known_args()
+	
+	if args.version:
+		show_modern_version(VERSION)
+		sys.exit(0)
 	
 	# Capture Ctrl+C and cancel everything.
 	signal.signal(signal.SIGINT, cancel_all_tasks)
 	try:
-		asyncio.run(run())
+		asyncio.run(run(args))
 	except asyncio.exceptions.CancelledError:
 		pass
 	except RuntimeError as e:

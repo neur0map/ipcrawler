@@ -20,6 +20,7 @@ class GitEnumeration(ServiceScan):
     def configure(self):
         # Add option to force Git enumeration on all HTTP/SSH services
         self.add_true_option('force-git-scan', help='Force Git enumeration on all HTTP/SSH services regardless of indicators')
+        self.add_option('timeout', default=900, help='Maximum time in seconds for Git enumeration. Default: %(default)s (15 minutes)')
         
         # === RESTRICTED SERVICE MATCHING ===
         
@@ -128,6 +129,19 @@ class GitEnumeration(ServiceScan):
         
         service.info(f"🔍 Starting advanced Git security enumeration for {service.target.address}:{service.port}")
         
+        try:
+            # Run enumeration with timeout
+            import asyncio
+            await asyncio.wait_for(self._run_git_enumeration(service), timeout=self.get_option('timeout'))
+        except asyncio.TimeoutError:
+            service.info(f"⏰ Git enumeration timed out after {self.get_option('timeout')} seconds")
+            return
+        except Exception as e:
+            service.error(f"❌ Git enumeration failed: {e}")
+            return
+
+    async def _run_git_enumeration(self, service):
+        """Internal method to run Git enumeration (can be timed out)"""
         # Initialize git findings tracking for reporting
         git_findings = {
             'repositories_found': [],
@@ -426,11 +440,11 @@ class GitEnumeration(ServiceScan):
         service.add_manual_command('(http-git) View commit history', f'cd git-dump-{hostname_label}/ && git log --oneline --all')
         service.add_manual_command('(http-git) List all branches', f'cd git-dump-{hostname_label}/ && git branch -a')
         service.add_manual_command('(http-git) Show latest commit files', f'cd git-dump-{hostname_label}/ && git show --name-only')
-        service.add_manual_command('(http-git) Search for sensitive commits', f'cd git-dump-{hostname_label}/ && git log --grep="password\|secret\|key\|credential" --all')
+        service.add_manual_command('(http-git) Search for sensitive commits', f'cd git-dump-{hostname_label}/ && git log --grep="password\\|secret\\|key\\|credential" --all')
         service.add_manual_command('(http-git) Track sensitive files history', f'cd git-dump-{hostname_label}/ && git log --all --full-history -- "*.env" "*.config" "*secret*" "*key*"')
         
         # Secret scanning in Git content
-        service.add_manual_command('(http-git) Basic secret scan', f'cd git-dump-{hostname_label}/ && grep -r -i "password\|secret\|api_key\|private_key" . || true')
+        service.add_manual_command('(http-git) Basic secret scan', f'cd git-dump-{hostname_label}/ && grep -r -i "password\\|secret\\|api_key\\|private_key" . || true')
         service.add_manual_command('(http-git) Scan commit diffs for secrets', f'cd git-dump-{hostname_label}/ && git log --all -p | grep -E "(password|secret|key|token|credential)" || true')
         service.add_manual_command('(http-git) Advanced secret scanning with truffleHog', f'cd git-dump-{hostname_label}/ && truffleHog --regex --entropy=False . || true')
 
@@ -529,8 +543,8 @@ class GitEnumeration(ServiceScan):
         hostname_label = best_hostname.replace('.', '_').replace(':', '_')
         
         # Manual commands for comprehensive secret scanning
-        service.add_manual_command('(secrets) Find files with potential secrets', f'find results/ -name "*git*" -type f -exec grep -l "password\|secret\|key\|token" {{}} \; | head -10')
-        service.add_manual_command('(secrets) Extract potential secrets', f'grep -r -E "(password|secret|api_key|private_key|token)\s*[=:]\s*[\w.-]+" results/*git* | head -20 || true')
+        service.add_manual_command('(secrets) Find files with potential secrets', f'find results/ -name "*git*" -type f -exec grep -l "password\\|secret\\|key\\|token" {{}} \\; | head -10')
+        service.add_manual_command('(secrets) Extract potential secrets', f'grep -r -E "(password|secret|api_key|private_key|token)\\s*[=:]\\s*[\\w.-]+" results/*git* | head -20 || true')
         service.add_manual_command('(secrets) Advanced secret detection with git-secrets', f'git secrets --scan results/ || echo "git-secrets not installed"')
         service.add_manual_command('(secrets) Gitleaks secret scanner', f'gitleaks detect --source results/ || echo "gitleaks not installed"')
 

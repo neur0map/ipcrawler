@@ -118,6 +118,30 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
         
+        /* Default to dark theme */
+        body:not([data-theme]) {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --bg-code: #1e293b;
+            --bg-elevated: #1e293b;
+            
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --text-inverse: #0f172a;
+            
+            --border-primary: #334155;
+            --border-secondary: #475569;
+            --border-accent: #3b82f6;
+            
+            --accent-primary: #3b82f6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --accent-info: #06b6d4;
+        }
+        
         /* Layout Components */
         .container {
             max-width: 1200px;
@@ -245,6 +269,28 @@
             border: 1px solid var(--border-primary);
             cursor: pointer;
             transition: all 0.3s ease;
+        }
+        
+        /* Share Button */
+        .share-btn {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-info));
+            color: white;
+            border: none;
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+        
+        .share-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: linear-gradient(135deg, #2563eb, #0891b2);
         }
         
         .theme-toggle::before {
@@ -616,6 +662,7 @@
                     </div>
                 </div>
                 <div class="controls">
+                    <button class="share-btn" onclick="shareReport()" title="Share scan results">🚀 Share Results</button>
                     <button class="btn" onclick="exportToPDF()">📄 Export PDF</button>
                     <button class="btn" onclick="printReport()">🖨️ Print</button>
                     <div class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode"></div>
@@ -691,11 +738,141 @@
             localStorage.setItem('theme', newTheme);
         }
 
-        // Load saved theme
+        // Load saved theme (default to dark)
         document.addEventListener('DOMContentLoaded', function() {
-            const savedTheme = localStorage.getItem('theme') || 'light';
+            const savedTheme = localStorage.getItem('theme') || 'dark';
             document.body.setAttribute('data-theme', savedTheme);
         });
+
+        // Share functionality
+        function shareReport() {
+            try {
+                // Get data from the statistics cards
+                const statCards = document.querySelectorAll('.stat-card');
+                let targetCount = 0;
+                let totalPorts = 0;
+                let totalServices = 0;
+                let totalWebServices = 0;
+                let totalFindings = 0;
+                let totalManualCommands = 0;
+
+                // Extract numbers from stat cards
+                statCards.forEach(card => {
+                    const number = parseInt(card.querySelector('.stat-number')?.textContent || '0');
+                    const label = card.querySelector('.stat-label')?.textContent?.toLowerCase() || '';
+                    
+                    if (label.includes('targets')) targetCount = number;
+                    else if (label.includes('open ports')) totalPorts = number;
+                    else if (label.includes('services detected')) totalServices = number;
+                    else if (label.includes('web services')) totalWebServices = number;
+                    else if (label.includes('findings')) totalFindings = number;
+                    else if (label.includes('manual commands')) totalManualCommands = number;
+                });
+
+                // Fallback: count actual elements if stats aren't available
+                if (targetCount === 0) {
+                    const targetCards = document.querySelectorAll('.card .card-title');
+                    targetCount = targetCards.length - 1; // Subtract 1 for the executive summary card
+                }
+
+                const shareText = `🔍 Just completed a network security assessment with ipcrawler!
+
+📊 Executive Summary:
+• ${targetCount} target${targetCount > 1 ? 's' : ''} scanned
+• ${totalPorts} open ports discovered
+• ${totalServices} services detected
+• ${totalWebServices} web services enumerated  
+• ${totalFindings} security findings identified
+• ${totalManualCommands} manual commands generated
+
+🕷️ ipcrawler automated the entire reconnaissance process - from port scanning to service enumeration to vulnerability assessment. Professional-grade network security assessment made simple!
+
+#cybersecurity #pentesting #networksecurity #ipcrawler #reconnaissance
+
+Try it yourself: https://github.com/neur0map/ipcrawler`;
+
+                console.log('Attempting to share:', shareText);
+
+                if (navigator.share) {
+                    navigator.share({
+                        title: 'ipcrawler Security Assessment Results',
+                        text: shareText,
+                        url: window.location.href
+                    }).catch(err => {
+                        console.log('Navigator share failed:', err);
+                        fallbackShare(shareText);
+                    });
+                } else {
+                    console.log('Navigator share not available, using fallback');
+                    fallbackShare(shareText);
+                }
+            } catch (error) {
+                console.error('Error in shareReport:', error);
+                // Simple fallback text if everything fails
+                const fallbackText = `🔍 Just completed a network security assessment with ipcrawler!
+
+🕷️ Professional-grade network reconnaissance made simple.
+
+#cybersecurity #pentesting #ipcrawler
+
+Try it yourself: https://github.com/neur0map/ipcrawler`;
+                fallbackShare(fallbackText);
+            }
+        }
+
+        function fallbackShare(text) {
+            try {
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        alert('🚀 Report summary copied to clipboard! Paste it on your favorite platform.');
+                    }).catch(err => {
+                        console.error('Clipboard write failed:', err);
+                        // Try the legacy method as backup
+                        legacyCopyToClipboard(text);
+                    });
+                } else {
+                    legacyCopyToClipboard(text);
+                }
+            } catch (error) {
+                console.error('Error in fallbackShare:', error);
+                // Show the text in a prompt as last resort
+                prompt('🚀 Copy this text to share your results:', text);
+            }
+        }
+
+        function legacyCopyToClipboard(text) {
+            try {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.top = '0';
+                textArea.style.left = '0';
+                textArea.style.width = '2em';
+                textArea.style.height = '2em';
+                textArea.style.padding = '0';
+                textArea.style.border = 'none';
+                textArea.style.outline = 'none';
+                textArea.style.boxShadow = 'none';
+                textArea.style.background = 'transparent';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                if (successful) {
+                    alert('🚀 Report summary copied to clipboard! Paste it on your favorite platform.');
+                } else {
+                    throw new Error('Copy command failed');
+                }
+            } catch (error) {
+                console.error('Legacy copy failed:', error);
+                // Show the text in a prompt as last resort
+                prompt('🚀 Copy this text to share your results:', text);
+            }
+        }
 
         // Collapsible sections
         document.addEventListener('DOMContentLoaded', function() {

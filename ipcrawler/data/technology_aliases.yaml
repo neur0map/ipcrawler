@@ -116,6 +116,11 @@ technology_aliases:
     priority: medium
     description: "Node.js applications"
     
+  nextjs:
+    aliases: ["next.js", "nextjs", "X-Powered-By: Next.js", "_next/", "__next"]
+    priority: medium
+    description: "Next.js React framework"
+    
   # Web Servers
   apache:
     aliases: ["apache", "httpd", "Server: Apache", ".htaccess"]

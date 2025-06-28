@@ -12,6 +12,7 @@ class Nikto(ServiceScan):
 	def configure(self):
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
+		self.add_option('timeout', default=1800, help='Maximum time in seconds for nikto scan. Default: %(default)s (30 minutes)')
 		# Pattern matching for Nikto findings
 		self.add_pattern(r'(?i)osvdb-[0-9]+', description='OSVDB vulnerability identified: {match0}')
 		self.add_pattern(r'(?i)server.*banner[:\s]*([^\n\r]+)', description='Server Banner: {match1}')
@@ -49,7 +50,7 @@ class Nikto(ServiceScan):
 				hostname_label = hostname.replace('.', '_').replace(':', '_')
 				service.info(f"🔧 Running nikto against: {hostname}")
 				# Use more reliable nikto options - remove aggressive tuning options that might cause issues
-				await service.execute('nikto -ask=no -nointeractive -host {http_scheme}://' + hostname + ':{port}', outfile='{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt')
+				await service.execute('timeout ' + str(self.get_option('timeout')) + ' nikto -ask=no -nointeractive -host {http_scheme}://' + hostname + ':{port}', outfile='{protocol}_{port}_{http_scheme}_nikto_' + hostname_label + '.txt')
 
 	def manual(self, service, plugin_was_run):
 		if service.target.ipversion == 'IPv4' and not plugin_was_run:

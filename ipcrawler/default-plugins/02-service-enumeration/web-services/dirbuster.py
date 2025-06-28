@@ -32,6 +32,7 @@ class DirBuster(ServiceScan):
 		self.add_true_option('recursive', help='Enables recursive searching (where available). Warning: This may cause significant increases to scan times.')
 		self.add_option('status-codes', default='200,301,302,303,307,308,403,401,405', help='HTTP status codes to include in results (comma-separated). Default: %(default)s')
 		self.add_option('extras', default='', help='Any extra options you wish to pass to the tool when it runs. e.g. --dirbuster.extras=\'--discover-backup\'')
+		self.add_option('timeout', default=3600, help='Maximum time in seconds for directory busting scan. Default: %(default)s (1 hour)')
 		self.add_choice_option('vhost-mode', default='smart', choices=['all', 'best', 'smart'], help='How to handle multiple discovered hostnames: all=scan all, best=scan best only, smart=scan best + unique domains. Default: %(default)s')
 		self.match_service_name('^http')
 		self.match_service_name('^nacn_http$', negative_match=True)
@@ -289,7 +290,7 @@ class DirBuster(ServiceScan):
 					status_codes = self.get_option('status-codes')
 					
 					# Log the exact command being executed for debugging
-					ferox_cmd = 'feroxbuster -u {http_scheme}://' + scan_hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -x "' + self.get_option('ext') + '" -s ' + status_codes + ' -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + hostname_label + '_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
+					ferox_cmd = 'timeout ' + str(self.get_option('timeout')) + ' feroxbuster -u {http_scheme}://' + scan_hostname + ':{port}/ -t ' + str(self.get_option('threads')) + ' -w ' + wordlist + ' -x "' + self.get_option('ext') + '" -s ' + status_codes + ' -v -k ' + ('' if self.get_option('recursive') else '-n ')  + '-q -e -r -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_' + hostname_label + '_' + name + '.txt"' + (' ' + self.get_option('extras') if self.get_option('extras') else '')
 					service.info(f"🔧 Executing: {ferox_cmd.replace('{http_scheme}', 'http').replace('{port}', str(service.port))}")
 					
 					start_time = time.time()
