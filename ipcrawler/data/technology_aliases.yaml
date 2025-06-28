@@ -119,6 +119,37 @@ technology_aliases:
     priority: medium
     description: "Java applications"
     
+  # Spring Boot & Microservices
+  spring:
+    aliases: ["spring", "spring-boot", "springframework", "actuator", "whitelabel", "spring-security"]
+    priority: high
+    description: "Spring Framework applications"
+    
+  springboot:
+    aliases: ["spring-boot", "springboot", "actuator", "management", "whitelabel-error", "org.springframework.boot"]
+    priority: high
+    description: "Spring Boot applications"
+    
+  eureka:
+    aliases: ["eureka", "netflix-eureka", "service-registry", "service-discovery", "eureka-server", "eureka-client"]
+    priority: high
+    description: "Netflix Eureka service discovery"
+    
+  zuul:
+    aliases: ["zuul", "netflix-zuul", "api-gateway", "gateway", "routes"]
+    priority: high
+    description: "Netflix Zuul API Gateway"
+    
+  hystrix:
+    aliases: ["hystrix", "netflix-hystrix", "circuit-breaker", "fallback"]
+    priority: high
+    description: "Netflix Hystrix circuit breaker"
+    
+  ribbon:
+    aliases: ["ribbon", "netflix-ribbon", "load-balancer", "client-side-lb"]
+    priority: medium
+    description: "Netflix Ribbon load balancer"
+    
   python:
     aliases: ["python", "django", "flask", "wsgi", "gunicorn", "uvicorn", "fastapi"]
     priority: medium

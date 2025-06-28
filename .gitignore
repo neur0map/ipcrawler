@@ -11,6 +11,7 @@ ipcrawler/wordlists/wordlists.toml
 # Smart wordlist catalogs (user-generated, never commit)
 ipcrawler/data/seclists_catalog.yaml
 seclists_catalog.yaml
+unified_wordlists_catalog.yaml
 
 # Environment files (never commit these)
 .env

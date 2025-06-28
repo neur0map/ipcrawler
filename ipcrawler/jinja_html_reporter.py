@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathlib import Path
+import re
 
 
 class Jinja2HTMLReporter:
@@ -646,6 +647,7 @@ class Jinja2HTMLReporter:
         
         try:
             import os
+            import re
             # Construct path to target's scan directory
             results_base = os.path.join(os.getcwd(), 'results', target_name, 'scans')
             
@@ -661,9 +663,12 @@ class Jinja2HTMLReporter:
                                 size = os.path.getsize(file_path)
                                 size_str = self._format_file_size(size)
                                 
-                                # Read file content (limit to reasonable size)
+                                # Check if this is a wordlist result file that needs parsing
                                 content = ""
-                                if size < 50000:  # Only read files smaller than 50KB
+                                if self._is_wordlist_result_file(filename):
+                                    # Parse wordlist result files to extract only positive findings
+                                    content = self._parse_wordlist_result_file(file_path, filename, size_str)
+                                elif size < 50000:  # Only read small files directly
                                     try:
                                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                                             content = f.read()
@@ -684,6 +689,128 @@ class Jinja2HTMLReporter:
             pass
         
         return raw_files
+    
+    def _is_wordlist_result_file(self, filename: str) -> bool:
+        """Check if this file is a wordlist result file that should be parsed"""
+        wordlist_patterns = [
+            'vhosts', 'vhost', 'subdomain', 'directory', 'directories', 'dirbuster', 
+            'feroxbuster', 'gobuster', 'ffuf', 'enhanced_vhosts', 'subdomains'
+        ]
+        filename_lower = filename.lower()
+        return any(pattern in filename_lower for pattern in wordlist_patterns)
+    
+    def _parse_wordlist_result_file(self, file_path: str, filename: str, size_str: str) -> str:
+        """Parse wordlist result files to extract only positive findings"""
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            positive_findings = []
+            filename_lower = filename.lower()
+            
+            # Parse based on file type
+            if 'vhost' in filename_lower or 'subdomain' in filename_lower:
+                positive_findings = self._parse_vhost_findings(content)
+            elif 'director' in filename_lower or 'dirbuster' in filename_lower or 'feroxbuster' in filename_lower:
+                directories, files = self._parse_directory_findings(content)
+                positive_findings = directories + files
+            else:
+                # Generic parsing for other wordlist result files
+                positive_findings = self._parse_generic_findings(content)
+            
+            if positive_findings:
+                findings_text = "\n".join(positive_findings[:50])  # Limit to first 50 findings
+                total_findings = len(positive_findings)
+                
+                if total_findings > 50:
+                    findings_text += f"\n\n... and {total_findings - 50} more findings"
+                
+                return f"📊 Wordlist Results ({size_str}) - {total_findings} positive findings:\n\n{findings_text}"
+            else:
+                # Check if this is a raw wordlist file (no positive findings)
+                if content.count('\n') > 100 and not any(char in content[:1000] for char in [',', 'http', '://', 'Status:']):
+                    return f"📊 Wordlist Results ({size_str}) - No positive findings (raw wordlist file)"
+                else:
+                    return f"📊 Wordlist Results ({size_str}) - No positive findings found"
+                    
+        except Exception as e:
+            return f"📊 Wordlist Results ({size_str}) - Error parsing file: {e}"
+    
+    def _parse_vhost_findings(self, content: str) -> list:
+        """Parse virtual host/subdomain enumeration results"""
+        findings = []
+        
+        # Check if this is CSV format (ffuf output)
+        if 'url,redirectlocation,position,status_code,content_length,content_words,content_lines,content_type,duration' in content:
+            # Parse CSV format
+            lines = content.strip().split('\n')
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('url,'):  # Skip header and empty lines
+                    continue
+                
+                try:
+                    parts = line.split(',')
+                    if len(parts) >= 4:
+                        url = parts[0]
+                        status_code = parts[3]
+                        
+                        # Only include successful responses
+                        if status_code in ['200', '301', '302', '303', '403', '401']:
+                            findings.append(f"{url} [{status_code}]")
+                except (IndexError, ValueError):
+                    continue
+        else:
+            # Parse other formats
+            for line in content.split('\n'):
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Look for lines with good status codes
+                if re.search(r'\b(200|301|302|403)\b', line) and not re.search(r'\b(404|500|502|503)\b', line):
+                    findings.append(line)
+                # Check if this line looks like a direct subdomain
+                elif re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+$', line) and len(line.split('.')) >= 2:
+                    findings.append(line)
+        
+        return findings
+    
+    def _parse_directory_findings(self, content: str) -> tuple:
+        """Parse directory/file enumeration results"""
+        directories = []
+        files = []
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            
+            # Look for successful directory/file discoveries
+            if re.search(r'\b(200|301|302|403)\b', line):
+                # Extract path from the line
+                path_match = re.search(r'(https?://[^\s]+|/[^\s]*)', line)
+                if path_match:
+                    path = path_match.group(1)
+                    if path.endswith('/'):
+                        directories.append(line)
+                    else:
+                        files.append(line)
+        
+        return directories, files
+    
+    def _parse_generic_findings(self, content: str) -> list:
+        """Parse generic wordlist result files"""
+        findings = []
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            
+            # Look for lines with successful status codes
+            if re.search(r'\b(200|301|302|403)\b', line) and not re.search(r'\b(404|500|502|503)\b', line):
+                findings.append(line)
+        
+        return findings
     
     def _format_file_size(self, size_bytes: int) -> str:
         """Format file size in human readable format"""
