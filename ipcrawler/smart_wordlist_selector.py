@@ -536,27 +536,37 @@ class SmartWordlistSelector:
         """Calculate size score - prefer comprehensive wordlists for directory enumeration"""
         path_lower = wordlist_path.lower()
         
+        # Ensure lines is an integer (handle string values from catalog)
+        try:
+            if isinstance(lines, str) and lines.startswith('>'):
+                # Handle legacy string format like ">500000"
+                lines_int = int(lines[1:])  # Remove '>' and convert to int
+            else:
+                lines_int = int(lines) if lines is not None else 0
+        except (ValueError, TypeError):
+            lines_int = 0  # Default to 0 if conversion fails
+        
         # For directory/web enumeration, we want comprehensive but reasonable wordlists
         if any(term in path_lower for term in ['web-content', 'discovery', 'directory', 'file']):
             # Penalize tiny wordlists heavily for directory enumeration
-            if lines < 100:
+            if lines_int < 100:
                 return -0.5  # Heavy penalty for tiny lists like joomla-themes.fuzz.txt (30 lines)
-            elif lines < 1000:
+            elif lines_int < 1000:
                 return 0.0   # Neutral for small lists
-            elif lines < 10000:
+            elif lines_int < 10000:
                 return 0.3   # Good for medium lists
-            elif lines < 20000:
+            elif lines_int < 20000:
                 return 0.5   # Best for comprehensive lists (sweet spot)
             else:
                 return -0.3  # Penalty for massive wordlists (>20K lines) - too slow
         
         # For other categories (usernames, passwords), prefer smaller targeted lists
         else:
-            if lines > 50000:
+            if lines_int > 50000:
                 return -0.2  # Penalty for huge lists
-            elif lines > 10000:
+            elif lines_int > 10000:
                 return 0.0   # Neutral for large lists
-            elif lines > 1000:
+            elif lines_int > 1000:
                 return 0.3   # Good for medium lists
             else:
                 return 0.5   # Best for small targeted lists
@@ -644,7 +654,7 @@ class SmartWordlistSelector:
                         with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
                             for i, _ in enumerate(f):
                                 if i > 500000:  # Cap at 500k lines for performance
-                                    line_count = f">{i}"
+                                    line_count = 500000  # Store as numeric value for consistent comparison
                                     break
                                 line_count = i + 1
                         
