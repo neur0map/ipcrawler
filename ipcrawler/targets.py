@@ -27,12 +27,55 @@ class Target:
 		async with self.lock:
 			self.pending_services.append(service)
 
+	def _validate_hostname(self, hostname):
+		"""Validate hostname before adding to discovered hostnames"""
+		if not hostname:
+			return None
+
+		# Remove any whitespace
+		hostname = hostname.strip()
+
+		# Check for valid hostname format
+		import re
+
+		# Reject obviously malformed hostnames that look like concatenated strings
+		suspicious_patterns = [
+			r'\.html?$',           # Ends with .html or .htm (likely concatenated)
+			r'\.php$',             # Ends with .php (likely concatenated)
+			r'\.js$',              # Ends with .js (likely concatenated)
+			r'\.css$',             # Ends with .css (likely concatenated)
+			r'home$',              # Ends with 'home' (likely concatenated)
+			r'index$',             # Ends with 'index' (likely concatenated)
+			r'admin$',             # Ends with 'admin' (likely concatenated)
+			r'login$',             # Ends with 'login' (likely concatenated)
+		]
+
+		for pattern in suspicious_patterns:
+			if re.search(pattern, hostname, re.IGNORECASE):
+				return None
+
+		# Allow IP addresses and valid hostnames
+		if re.match(r'^[a-zA-Z0-9.-]+$', hostname) and len(hostname) > 0:
+			# Ensure no double dots or invalid characters
+			if '..' not in hostname and not hostname.startswith('.') and not hostname.endswith('.'):
+				# Additional check: hostname should not be too long (max 253 chars per RFC)
+				if len(hostname) <= 253:
+					return hostname
+
+		return None
+
 	async def add_discovered_hostname(self, hostname):
 		"""Add a discovered hostname from vhost discovery"""
 		async with self.lock:
-			if hostname and hostname != self.address and hostname != self.ip:
-				if hostname not in self.discovered_hostnames:
-					self.discovered_hostnames.append(hostname)
+			# Validate hostname before adding
+			validated_hostname = self._validate_hostname(hostname)
+			if validated_hostname and validated_hostname != self.address and validated_hostname != self.ip:
+				if validated_hostname not in self.discovered_hostnames:
+					self.discovered_hostnames.append(validated_hostname)
+				else:
+					print(f"🔧 DEBUG: Hostname already exists: {validated_hostname}")
+			elif hostname and not validated_hostname:
+				print(f"⚠️ WARNING: Invalid hostname rejected: '{hostname}'")
 					self.info(f"Added discovered hostname: {hostname}")
 
 	def get_best_hostname(self):
@@ -48,27 +91,43 @@ class Target:
 	def get_all_hostnames(self):
 		"""Get all available hostnames for comprehensive scanning"""
 		hostnames = []
-		
-		# Add discovered hostnames first (highest priority)
+
+		# Add discovered hostnames first (highest priority) - with validation
 		if self.discovered_hostnames:
-			hostnames.extend(self.discovered_hostnames)
-		
-		# Add original hostname if it was a hostname target
-		if self.type == 'hostname' and self.address and self.address not in hostnames:
-			hostnames.append(self.address)
-		
-		# Always include IP as fallback - CRITICAL for scan functionality
+			for hostname in self.discovered_hostnames:
+				validated = self._validate_hostname(hostname)
+				if validated and validated not in hostnames:
+					hostnames.append(validated)
+				elif hostname and not validated:
+					print(f"⚠️ WARNING: Invalid discovered hostname skipped: '{hostname}'")
+
+		# Add original hostname if it was a hostname target - with validation
+		if self.type == 'hostname' and self.address:
+			validated_address = self._validate_hostname(self.address)
+			if validated_address and validated_address not in hostnames:
+				hostnames.append(validated_address)
+
+		# Always include IP as fallback - with validation
 		fallback_ip = self.ip if self.ip else self.address
-		if fallback_ip and fallback_ip not in hostnames:
-			hostnames.append(fallback_ip)
-		
+		if fallback_ip:
+			validated_fallback = self._validate_hostname(fallback_ip)
+			if validated_fallback and validated_fallback not in hostnames:
+				hostnames.append(validated_fallback)
+
 		# Ensure we ALWAYS have at least one hostname (the IP)
 		if not hostnames:
-			hostnames = [self.ip if self.ip else self.address]
-		
+			final_fallback = self.ip if self.ip else self.address
+			validated_final = self._validate_hostname(final_fallback)
+			if validated_final:
+				hostnames = [validated_final]
+			else:
+				print(f"❌ CRITICAL: No valid hostnames available! Fallback: '{final_fallback}'")
+				# In extreme cases, still return something to prevent crashes
+				hostnames = [final_fallback] if final_fallback else ['127.0.0.1']
+
 		# Debug logging
 		print(f"🔧 DEBUG get_all_hostnames(): discovered_hostnames={self.discovered_hostnames}, type={self.type}, address={self.address}, ip={self.ip}, final_hostnames={hostnames}")
-		
+
 		return hostnames
 
 	def extract_service(self, line, regex=None):

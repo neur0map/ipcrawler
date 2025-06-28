@@ -338,9 +338,9 @@ class Jinja2HTMLReporter:
         class TransformedTarget:
             def __init__(self):
                 pass
-        
+
         transformed = TransformedTarget()
-        
+
         # Copy basic attributes
         if hasattr(target_data, 'hostname'):
             transformed.hostname = target_data.hostname
@@ -348,7 +348,28 @@ class Jinja2HTMLReporter:
             transformed.status = target_data.status
         else:
             transformed.status = 'complete'
-        
+
+        # Preserve all attributes for consolidator compatibility
+        if hasattr(target_data, 'open_ports'):
+            transformed.open_ports = target_data.open_ports
+        else:
+            transformed.open_ports = []
+
+        if hasattr(target_data, 'web_services'):
+            transformed.web_services = target_data.web_services
+        else:
+            transformed.web_services = []
+
+        if hasattr(target_data, 'vulnerabilities'):
+            transformed.vulnerabilities = target_data.vulnerabilities
+        else:
+            transformed.vulnerabilities = []
+
+        if hasattr(target_data, 'manual_commands'):
+            transformed.manual_commands = target_data.manual_commands
+        else:
+            transformed.manual_commands = []
+
         # Transform open_ports to ports (template expects 'ports')
         if hasattr(target_data, 'open_ports'):
             transformed.ports = []
