@@ -288,11 +288,46 @@ technology_aliases:
     priority: medium
     description: "Seafile"
     
-  # Learning Management
+  # Learning Management Systems
   moodle:
     aliases: ["moodle", "course/view.php", "login/index.php", "theme/"]
     priority: medium
     description: "Moodle LMS"
+    
+  chamilo:
+    aliases: ["chamilo", "main/", "user/", "admin/", "plugin/", "app/upload/users/"]
+    priority: medium
+    description: "Chamilo LMS"
+    
+  canvas:
+    aliases: ["canvas", "instructure", "courses/", "login/canvas", "api/v1/"]
+    priority: medium
+    description: "Canvas LMS"
+    
+  blackboard:
+    aliases: ["blackboard", "webapps/", "learn/", "ultra/", "bbcswebdav/"]
+    priority: medium
+    description: "Blackboard LMS"
+    
+  schoology:
+    aliases: ["schoology", "course/", "user/", "assignment/"]
+    priority: medium
+    description: "Schoology LMS"
+    
+  claroline:
+    aliases: ["claroline", "claroline/", "index.php?cidReq="]
+    priority: medium
+    description: "Claroline LMS"
+    
+  sakai:
+    aliases: ["sakai", "portal/", "library/", "access/"]
+    priority: medium
+    description: "Sakai LMS"
+    
+  brightspace:
+    aliases: ["brightspace", "d2l", "desire2learn", "content/", "dropbox/"]
+    priority: medium
+    description: "Brightspace D2L LMS"
     
   # Security & Network Tools
   pfsense:
@@ -554,7 +589,35 @@ wordlist_mapping:
     size_preference: "default"
     
   moodle:
-    preferred_categories: ["web_directories", "web_files"]
+    preferred_categories: ["web_directories", "web_files", "subdomains"]
+    size_preference: "default"
+    
+  chamilo:
+    preferred_categories: ["web_directories", "web_files", "subdomains"]
+    size_preference: "default"
+    
+  canvas:
+    preferred_categories: ["web_directories", "web_files", "subdomains"]
+    size_preference: "default"
+    
+  blackboard:
+    preferred_categories: ["web_directories", "web_files", "subdomains"]
+    size_preference: "comprehensive"
+    
+  schoology:
+    preferred_categories: ["web_directories", "web_files", "subdomains"]
+    size_preference: "default"
+    
+  claroline:
+    preferred_categories: ["web_directories", "web_files", "subdomains"]
+    size_preference: "default"
+    
+  sakai:
+    preferred_categories: ["web_directories", "web_files", "subdomains"]
+    size_preference: "default"
+    
+  brightspace:
+    preferred_categories: ["web_directories", "web_files", "subdomains"]
     size_preference: "default"
     
   sharepoint:
@@ -585,6 +648,19 @@ wordlist_mapping:
   grafana:
     preferred_categories: ["web_directories", "web_files", "usernames", "passwords"]
     size_preference: "default"
+    
+  # LMS platforms often have weak authentication
+  moodle:
+    preferred_categories: ["web_directories", "web_files", "subdomains", "usernames", "passwords"]
+    size_preference: "default"
+    
+  chamilo:
+    preferred_categories: ["web_directories", "web_files", "subdomains", "usernames", "passwords"]
+    size_preference: "default"
+    
+  blackboard:
+    preferred_categories: ["web_directories", "web_files", "subdomains", "usernames", "passwords"]
+    size_preference: "comprehensive"
 
 # Scoring weights for wordlist selection
 scoring:
