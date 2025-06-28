@@ -747,6 +747,21 @@
         }
 
         // Load saved theme (default to dark)
+        // Pass scan data from Jinja2 template to JavaScript
+        window.scanSummary = {
+            totalTargets: {{ summary.total_targets }},
+            totalOpenPorts: {{ summary.total_open_ports }},
+            totalServices: {{ summary.total_services }},
+            totalWebServices: {{ summary.total_web_services }},
+            totalDirectories: {{ summary.total_directories }},
+            totalFiles: {{ summary.total_files }},
+            criticalFindings: {{ summary.critical_findings }},
+            totalManualCommands: {{ summary.total_manual_commands }},
+            generatedTime: '{{ metadata.generated_time }}',
+            isPartial: {{ 'true' if is_partial else 'false' }},
+            isLive: {{ 'true' if is_live else 'false' }}
+        };
+
         document.addEventListener('DOMContentLoaded', function() {
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.body.setAttribute('data-theme', savedTheme);
@@ -755,43 +770,45 @@
         // Share functionality
         function shareReport() {
             try {
-                // Get data from the statistics cards
-                const statCards = document.querySelectorAll('.stat-card');
-                let targetCount = 0;
-                let totalPorts = 0;
-                let totalServices = 0;
-                let totalWebServices = 0;
-                let totalFindings = 0;
-                let totalManualCommands = 0;
-
-                // Extract numbers from stat cards
-                statCards.forEach(card => {
-                    const number = parseInt(card.querySelector('.stat-number')?.textContent || '0');
-                    const label = card.querySelector('.stat-label')?.textContent?.toLowerCase() || '';
-                    
-                    if (label.includes('targets')) targetCount = number;
-                    else if (label.includes('open ports')) totalPorts = number;
-                    else if (label.includes('services detected')) totalServices = number;
-                    else if (label.includes('web services')) totalWebServices = number;
-                    else if (label.includes('findings')) totalFindings = number;
-                    else if (label.includes('manual commands')) totalManualCommands = number;
-                });
-
-                // Fallback: count actual elements if stats aren't available
-                if (targetCount === 0) {
-                    const targetCards = document.querySelectorAll('.card .card-title');
-                    targetCount = targetCards.length - 1; // Subtract 1 for the executive summary card
-                }
-
-                const shareText = `🔍 Just completed a network security assessment with ipcrawler!
+                const summary = window.scanSummary;
+                
+                // Generate dynamic share text based on actual scan results
+                let shareText = `🔍 Just completed a network security assessment with ipcrawler!
 
 📊 Executive Summary:
-• ${targetCount} target${targetCount > 1 ? 's' : ''} scanned
-• ${totalPorts} open ports discovered
-• ${totalServices} services detected
-• ${totalWebServices} web services enumerated  
-• ${totalFindings} security findings identified
-• ${totalManualCommands} manual commands generated
+• ${summary.totalTargets} target${summary.totalTargets > 1 ? 's' : ''} scanned
+• ${summary.totalOpenPorts} open ports discovered
+• ${summary.totalServices} services detected
+• ${summary.totalWebServices} web services enumerated`;
+
+                // Add directories/files if any were found
+                if (summary.totalDirectories > 0 || summary.totalFiles > 0) {
+                    shareText += `
+• ${summary.totalDirectories} directories found
+• ${summary.totalFiles} files discovered`;
+                }
+
+                // Add findings and manual commands
+                shareText += `
+• ${summary.criticalFindings} security findings identified
+• ${summary.totalManualCommands} manual commands generated`;
+
+                // Add scan status information
+                if (summary.isLive) {
+                    shareText += `
+
+🔄 Live scan results - updated continuously as reconnaissance progresses`;
+                } else if (summary.isPartial) {
+                    shareText += `
+
+⏳ Partial scan results - reconnaissance still in progress`;
+                } else {
+                    shareText += `
+
+✅ Complete scan finished at ${summary.generatedTime}`;
+                }
+
+                shareText += `
 
 🕷️ ipcrawler automated the entire reconnaissance process - from port scanning to service enumeration to vulnerability assessment. Professional-grade network security assessment made simple!
 
@@ -817,7 +834,12 @@ Try it yourself: https://github.com/neur0map/ipcrawler`;
             } catch (error) {
                 console.error('Error in shareReport:', error);
                 // Simple fallback text if everything fails
+                const summary = window.scanSummary || {};
                 const fallbackText = `🔍 Just completed a network security assessment with ipcrawler!
+
+📊 Scanned ${summary.totalTargets || 'multiple'} target${(summary.totalTargets || 0) > 1 ? 's' : ''}
+${summary.totalOpenPorts ? `• ${summary.totalOpenPorts} open ports discovered` : ''}
+${summary.criticalFindings ? `• ${summary.criticalFindings} security findings identified` : ''}
 
 🕷️ Professional-grade network reconnaissance made simple.
 
