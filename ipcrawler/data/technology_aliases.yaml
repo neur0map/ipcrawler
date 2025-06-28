@@ -1,6 +1,24 @@
 # Technology Alias Mapping for Intelligent Wordlist Selection
-# Maps detected technology strings to standardized technology keys
-# Used with RapidFuzz for flexible matching
+#
+# IMPORTANT: This file has a specific structure required by the Smart Wordlist Selector:
+#
+# 1. TECHNOLOGY_ALIASES SECTION (Used by RapidFuzz for detection):
+#    - aliases: List of strings to match against detected technologies
+#    - priority: high/medium/low (affects scoring in security-priority system)
+#    - description: Human-readable description of the technology
+#
+# 2. DETECTION → WORDLIST SELECTION FLOW:
+#    Step 1: RapidFuzz matches detected strings against 'aliases' in technology_aliases
+#    Step 2: Smart selector finds wordlists in SecLists by filename/path matching
+#    Step 3: Wordlists are scored and selected based on size and relevance
+#
+# 3. SCORING SECTION (Controls wordlist selection algorithm):
+#    - alias_match_weight: How much filename matching matters (0.7 default)
+#    - size_penalty_weight: How much file size matters (0.3 default)
+#    - priority_bonus: Bonus points for high/medium/low priority technologies
+#
+# NOTE: ALL entries in both sections MUST have exactly these three fields (aliases, priority, description)
+#       in the same format for proper detection and security-priority scoring to work.
 
 technology_aliases:
   # Content Management Systems
@@ -26,12 +44,12 @@ technology_aliases:
     
   prestashop:
     aliases: ["prestashop", "ps_", "classes/", "tools/", "adminps"]
-    priority: medium
+    priority: high
     description: "PrestaShop e-commerce"
     
   opencart:
     aliases: ["opencart", "catalog/view", "admin/view", "index.php?route"]
-    priority: medium
+    priority: high
     description: "OpenCart e-commerce"
     
   concrete5:
@@ -149,17 +167,17 @@ technology_aliases:
     
   websphere:
     aliases: ["websphere", "ibm-websphere", "ibm_security_logout"]
-    priority: medium
+    priority: high
     description: "IBM WebSphere"
     
   jboss:
     aliases: ["jboss", "wildfly", "jboss-web", "management/"]
-    priority: medium
+    priority: high
     description: "JBoss/WildFly"
     
   glassfish:
     aliases: ["glassfish", "sun-glassfish", "common/"]
-    priority: medium
+    priority: high
     description: "GlassFish"
     
   # Cloud Platforms
@@ -191,12 +209,12 @@ technology_aliases:
     
   confluence:
     aliases: ["confluence", "atlassian-confluence", "pages/", "wiki/"]
-    priority: medium
+    priority: high
     description: "Atlassian Confluence"
     
   jira:
     aliases: ["jira", "atlassian-jira", "browse/", "issues/"]
-    priority: medium
+    priority: high
     description: "Atlassian JIRA"
     
   jenkins:
@@ -227,12 +245,12 @@ technology_aliases:
     
   zabbix:
     aliases: ["zabbix", "zabbix.php", "frontends/"]
-    priority: medium
+    priority: high
     description: "Zabbix monitoring"
     
   nagios:
     aliases: ["nagios", "nagios/", "cgi-bin/nagios"]
-    priority: medium
+    priority: high
     description: "Nagios monitoring"
     
   cacti:
@@ -242,7 +260,7 @@ technology_aliases:
     
   prtg:
     aliases: ["prtg", "public/login.htm", "controls/"]
-    priority: medium
+    priority: high
     description: "PRTG monitoring"
     
   prometheus:
@@ -258,7 +276,7 @@ technology_aliases:
     
   adminer:
     aliases: ["adminer", "adminer.php", "adminer-"]
-    priority: medium
+    priority: high
     description: "Adminer database tool"
     
   # Email & Communication
@@ -274,7 +292,7 @@ technology_aliases:
     
   zimbra:
     aliases: ["zimbra", "zimbra/", "public/login.jsp"]
-    priority: medium
+    priority: high
     description: "Zimbra email"
     
   # File Sharing & Cloud Storage
@@ -291,27 +309,27 @@ technology_aliases:
   # Learning Management Systems
   moodle:
     aliases: ["moodle", "course/view.php", "login/index.php", "theme/"]
-    priority: medium
+    priority: high
     description: "Moodle LMS"
     
   chamilo:
     aliases: ["chamilo", "main/", "user/", "admin/", "plugin/", "app/upload/users/"]
-    priority: medium
+    priority: high
     description: "Chamilo LMS"
     
   canvas:
     aliases: ["canvas", "instructure", "courses/", "login/canvas", "api/v1/"]
-    priority: medium
+    priority: high
     description: "Canvas LMS"
     
   blackboard:
     aliases: ["blackboard", "webapps/", "learn/", "ultra/", "bbcswebdav/"]
-    priority: medium
+    priority: high
     description: "Blackboard LMS"
     
   schoology:
     aliases: ["schoology", "course/", "user/", "assignment/"]
-    priority: medium
+    priority: high
     description: "Schoology LMS"
     
   claroline:
@@ -326,7 +344,7 @@ technology_aliases:
     
   brightspace:
     aliases: ["brightspace", "d2l", "desire2learn", "content/", "dropbox/"]
-    priority: medium
+    priority: high
     description: "Brightspace D2L LMS"
     
   # Security & Network Tools
@@ -337,7 +355,7 @@ technology_aliases:
     
   openvpn:
     aliases: ["openvpn", "openvpn-as", "admin/", "connect/"]
-    priority: medium
+    priority: high
     description: "OpenVPN"
     
   # Virtualization & Containers
@@ -348,12 +366,12 @@ technology_aliases:
     
   citrix:
     aliases: ["citrix", "xenapp", "xendesktop", "netscaler"]
-    priority: medium
+    priority: high
     description: "Citrix"
     
   proxmox:
     aliases: ["proxmox", "pve", "nodes/"]
-    priority: medium
+    priority: high
     description: "Proxmox VE"
     
   docker:
@@ -363,23 +381,23 @@ technology_aliases:
     
   kubernetes:
     aliases: ["kubernetes", "k8s", "dashboard", "api/v1"]
-    priority: medium
+    priority: high
     description: "Kubernetes"
     
   # Storage & NAS
   synology:
     aliases: ["synology", "dsm", "webman/", "syno"]
-    priority: medium
+    priority: high
     description: "Synology NAS"
     
   qnap:
     aliases: ["qnap", "qts", "cgi-bin/"]
-    priority: medium
+    priority: high
     description: "QNAP NAS"
     
   freenas:
     aliases: ["freenas", "truenas", "ui/", "legacy/"]
-    priority: medium
+    priority: high
     description: "FreeNAS/TrueNAS"
     
   # Development Tools
@@ -492,13 +510,13 @@ technology_aliases:
   # Password Managers
   bitwarden:
     aliases: ["bitwarden", "vault/", "identity/"]
-    priority: medium
+    priority: high
     description: "Bitwarden"
     
   # VPN Solutions
   pritunl:
     aliases: ["pritunl", "server/", "user/"]
-    priority: medium
+    priority: high
     description: "Pritunl VPN"
     
   # CRM Systems
@@ -510,7 +528,7 @@ technology_aliases:
   # ERP Systems
   odoo:
     aliases: ["odoo", "openerp", "web/login", "modules/"]
-    priority: medium
+    priority: high
     description: "Odoo ERP"
     
   # Help Desk
@@ -525,142 +543,1633 @@ technology_aliases:
     priority: low
     description: "Xibo digital signage"
 
-# Wordlist category mapping
-# Maps technology keys to specific wordlist categories and preferences
-wordlist_mapping:
-  wordpress:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "comprehensive"  # WordPress needs thorough scanning
-    
-  drupal:
-    preferred_categories: ["web_directories", "web_files"] 
-    size_preference: "default"
-    
-  joomla:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  magento:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "comprehensive"
-    
-  php:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  asp:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  java:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  tomcat:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "comprehensive"
-    
-  jenkins:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "comprehensive"
-    
-  gitlab:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  grafana:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  splunk:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "comprehensive"
-    
-  kibana:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  phpmyadmin:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "comprehensive"
-    
-  nextcloud:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  moodle:
-    preferred_categories: ["web_directories", "web_files", "subdomains"]
-    size_preference: "default"
-    
-  chamilo:
-    preferred_categories: ["web_directories", "web_files", "subdomains"]
-    size_preference: "default"
-    
-  canvas:
-    preferred_categories: ["web_directories", "web_files", "subdomains"]
-    size_preference: "default"
-    
-  blackboard:
-    preferred_categories: ["web_directories", "web_files", "subdomains"]
-    size_preference: "comprehensive"
-    
-  schoology:
-    preferred_categories: ["web_directories", "web_files", "subdomains"]
-    size_preference: "default"
-    
-  claroline:
-    preferred_categories: ["web_directories", "web_files", "subdomains"]
-    size_preference: "default"
-    
-  sakai:
-    preferred_categories: ["web_directories", "web_files", "subdomains"]
-    size_preference: "default"
-    
-  brightspace:
-    preferred_categories: ["web_directories", "web_files", "subdomains"]
-    size_preference: "default"
-    
-  sharepoint:
-    preferred_categories: ["web_directories"]
-    size_preference: "comprehensive"
-    
-  aws:
-    preferred_categories: ["web_directories", "subdomains"]
-    size_preference: "default"
-    
-  pfsense:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
-    
-  vmware:
-    preferred_categories: ["web_directories", "web_files"]
-    size_preference: "default"
+  # Additional CMS & Blogging Platforms
+  grav:
+    aliases: ["grav", "user/", "admin/", "cache/"]
+    priority: medium
+    description: "Grav CMS"
 
-  # Add usernames/passwords for high-value targets
-  jenkins:
-    preferred_categories: ["web_directories", "web_files", "usernames", "passwords"]
-    size_preference: "comprehensive"
-    
-  gitlab:
-    preferred_categories: ["web_directories", "web_files", "usernames", "passwords"]
-    size_preference: "default"
-    
-  grafana:
-    preferred_categories: ["web_directories", "web_files", "usernames", "passwords"]
-    size_preference: "default"
-    
-  # LMS platforms often have weak authentication
-  moodle:
-    preferred_categories: ["web_directories", "web_files", "subdomains", "usernames", "passwords"]
-    size_preference: "default"
-    
-  chamilo:
-    preferred_categories: ["web_directories", "web_files", "subdomains", "usernames", "passwords"]
-    size_preference: "default"
-    
-  blackboard:
-    preferred_categories: ["web_directories", "web_files", "subdomains", "usernames", "passwords"]
-    size_preference: "comprehensive"
+  october:
+    aliases: ["october", "octobercms", "backend/", "modules/"]
+    priority: medium
+    description: "October CMS"
+
+  craft:
+    aliases: ["craft", "craftcms", "admin/", "cpresources/"]
+    priority: medium
+    description: "Craft CMS"
+
+  statamic:
+    aliases: ["statamic", "cp/", "assets/"]
+    priority: medium
+    description: "Statamic CMS"
+
+  kirby:
+    aliases: ["kirby", "panel/", "content/"]
+    priority: medium
+    description: "Kirby CMS"
+
+  bolt:
+    aliases: ["bolt", "bolt/", "async/", "thumbs/"]
+    priority: medium
+    description: "Bolt CMS"
+
+  processwire:
+    aliases: ["processwire", "wire/", "site/", "admin/"]
+    priority: medium
+    description: "ProcessWire CMS"
+
+  modx:
+    aliases: ["modx", "manager/", "connectors/", "core/"]
+    priority: medium
+    description: "MODX CMS"
+
+  silverstripe:
+    aliases: ["silverstripe", "admin/", "assets/", "Security/"]
+    priority: medium
+    description: "SilverStripe CMS"
+
+  textpattern:
+    aliases: ["textpattern", "textpattern/", "txp_"]
+    priority: medium
+    description: "Textpattern CMS"
+
+  # E-commerce Platforms
+  shopify:
+    aliases: ["shopify", "myshopify", "checkout/", "cart/"]
+    priority: high
+    description: "Shopify e-commerce"
+
+  woocommerce:
+    aliases: ["woocommerce", "wc-", "shop/", "cart/", "checkout/"]
+    priority: high
+    description: "WooCommerce"
+
+  bigcommerce:
+    aliases: ["bigcommerce", "checkout/", "cart.php"]
+    priority: high
+    description: "BigCommerce"
+
+  oscommerce:
+    aliases: ["oscommerce", "catalog/", "admin/", "includes/"]
+    priority: medium
+    description: "osCommerce"
+
+  zencart:
+    aliases: ["zencart", "zen-cart", "zc_install/", "admin/"]
+    priority: medium
+    description: "Zen Cart"
+
+  xcart:
+    aliases: ["xcart", "x-cart", "cart.php", "admin.php"]
+    priority: medium
+    description: "X-Cart"
+
+  cubecart:
+    aliases: ["cubecart", "admin.php", "skins/"]
+    priority: medium
+    description: "CubeCart"
+
+  # Forums & Community Platforms
+  phpbb:
+    aliases: ["phpbb", "viewforum.php", "viewtopic.php", "ucp.php"]
+    priority: medium
+    description: "phpBB forum"
+
+  vbulletin:
+    aliases: ["vbulletin", "vb", "forumdisplay.php", "showthread.php"]
+    priority: medium
+    description: "vBulletin forum"
+
+  smf:
+    aliases: ["smf", "simplemachines", "index.php?board=", "Themes/"]
+    priority: medium
+    description: "Simple Machines Forum"
+
+  mybb:
+    aliases: ["mybb", "showthread.php", "forumdisplay.php", "inc/"]
+    priority: medium
+    description: "MyBB forum"
+
+  discourse:
+    aliases: ["discourse", "latest/", "categories/", "users/"]
+    priority: medium
+    description: "Discourse forum"
+
+  flarum:
+    aliases: ["flarum", "api/", "assets/", "discussions/"]
+    priority: medium
+    description: "Flarum forum"
+
+  vanilla:
+    aliases: ["vanilla", "vanillaforums", "discussions/", "categories/"]
+    priority: medium
+    description: "Vanilla Forums"
+
+  # Social Media & Communication
+  mastodon:
+    aliases: ["mastodon", "web/", "api/v1/", "about/"]
+    priority: medium
+    description: "Mastodon social network"
+
+  diaspora:
+    aliases: ["diaspora", "stream", "people/", "aspects/"]
+    priority: medium
+    description: "Diaspora social network"
+
+  rocketchat:
+    aliases: ["rocket.chat", "rocketchat", "api/v1/", "channel/"]
+    priority: medium
+    description: "Rocket.Chat"
+
+  mattermost:
+    aliases: ["mattermost", "api/v4/", "channels/", "teams/"]
+    priority: high
+    description: "Mattermost"
+
+  slack:
+    aliases: ["slack", "api/", "messages/", "channels/"]
+    priority: high
+    description: "Slack"
+
+  # Project Management
+  redmine:
+    aliases: ["redmine", "projects/", "issues/", "my/"]
+    priority: medium
+    description: "Redmine"
+
+  mantis:
+    aliases: ["mantis", "mantisbt", "bug_", "view.php"]
+    priority: medium
+    description: "MantisBT"
+
+  trac:
+    aliases: ["trac", "ticket/", "wiki/", "timeline"]
+    priority: medium
+    description: "Trac"
+
+  bugzilla:
+    aliases: ["bugzilla", "show_bug.cgi", "buglist.cgi"]
+    priority: medium
+    description: "Bugzilla"
+
+  # Version Control
+  gitea:
+    aliases: ["gitea", "user/", "repo/", "explore/"]
+    priority: medium
+    description: "Gitea"
+
+  gogs:
+    aliases: ["gogs", "user/", "repo/", "explore/"]
+    priority: medium
+    description: "Gogs"
+
+  bitbucket:
+    aliases: ["bitbucket", "atlassian-bitbucket", "projects/", "repos/"]
+    priority: high
+    description: "Bitbucket"
+
+  # Database Systems
+  mysql:
+    aliases: ["mysql", "X-Powered-By: MySQL", "mysql_"]
+    priority: medium
+    description: "MySQL database"
+
+  postgresql:
+    aliases: ["postgresql", "postgres", "pg_"]
+    priority: medium
+    description: "PostgreSQL database"
+
+  mongodb:
+    aliases: ["mongodb", "mongo", "db/", "collections/"]
+    priority: medium
+    description: "MongoDB"
+
+  cassandra:
+    aliases: ["cassandra", "cql", "keyspaces/"]
+    priority: medium
+    description: "Apache Cassandra"
+
+  couchdb:
+    aliases: ["couchdb", "couch", "_utils/", "_all_dbs"]
+    priority: medium
+    description: "CouchDB"
+
+  # Web Application Firewalls
+  modsecurity:
+    aliases: ["modsecurity", "mod_security", "SecRule"]
+    priority: high
+    description: "ModSecurity WAF"
+
+  cloudflare_waf:
+    aliases: ["cloudflare", "cf-ray", "cf-cache-status"]
+    priority: medium
+    description: "Cloudflare WAF"
+
+  # Identity & Access Management
+  keycloak:
+    aliases: ["keycloak", "auth/", "realms/", "admin/"]
+    priority: high
+    description: "Keycloak IAM"
+
+  okta:
+    aliases: ["okta", "login/", "api/v1/", "oauth2/"]
+    priority: high
+    description: "Okta"
+
+  auth0:
+    aliases: ["auth0", "login/", "authorize", "userinfo"]
+    priority: high
+    description: "Auth0"
+
+  ldap:
+    aliases: ["ldap", "ldaps", "cn=", "ou="]
+    priority: high
+    description: "LDAP directory"
+
+  activedirectory:
+    aliases: ["activedirectory", "ad", "ldap://", "kerberos"]
+    priority: high
+    description: "Active Directory"
+
+  # Single Sign-On
+  saml:
+    aliases: ["saml", "sso", "SingleSignOn", "assertion"]
+    priority: high
+    description: "SAML SSO"
+
+  cas:
+    aliases: ["cas", "central-auth", "login?service="]
+    priority: high
+    description: "CAS authentication"
+
+  # API Management
+  apigee:
+    aliases: ["apigee", "api/", "proxy/", "developer/"]
+    priority: medium
+    description: "Apigee API management"
+
+  swagger:
+    aliases: ["swagger", "swagger-ui", "api-docs", "openapi"]
+    priority: medium
+    description: "Swagger/OpenAPI"
+
+  postman:
+    aliases: ["postman", "collection/", "environment/"]
+    priority: low
+    description: "Postman API"
+
+  # Business Intelligence
+  tableau:
+    aliases: ["tableau", "vizql/", "views/", "workbooks/"]
+    priority: medium
+    description: "Tableau"
+
+  powerbi:
+    aliases: ["powerbi", "power-bi", "reports/", "dashboards/"]
+    priority: medium
+    description: "Power BI"
+
+  qlik:
+    aliases: ["qlik", "qlikview", "qliksense", "sense/"]
+    priority: medium
+    description: "Qlik"
+
+  # Network Devices
+  cisco:
+    aliases: ["cisco", "ios", "asa", "nexus", "catalyst"]
+    priority: high
+    description: "Cisco devices"
+
+  juniper:
+    aliases: ["juniper", "junos", "srx", "ex-series"]
+    priority: high
+    description: "Juniper devices"
+
+  fortinet:
+    aliases: ["fortinet", "fortigate", "fortimanager", "fortianalyzer"]
+    priority: high
+    description: "Fortinet devices"
+
+  paloalto:
+    aliases: ["palo-alto", "panos", "panorama", "globalprotect"]
+    priority: high
+    description: "Palo Alto Networks"
+
+  checkpoint:
+    aliases: ["checkpoint", "check-point", "smartcenter", "gaia"]
+    priority: high
+    description: "Check Point"
+
+  sonicwall:
+    aliases: ["sonicwall", "sonicOS", "management/"]
+    priority: high
+    description: "SonicWall"
+
+  # Wireless & Network Management
+  meraki:
+    aliases: ["meraki", "cisco-meraki", "dashboard/", "network/"]
+    priority: medium
+    description: "Cisco Meraki"
+
+  aruba:
+    aliases: ["aruba", "arubaos", "airwave", "clearpass"]
+    priority: medium
+    description: "Aruba Networks"
+
+  ruckus:
+    aliases: ["ruckus", "zonedirector", "smartzone", "unleashed"]
+    priority: medium
+    description: "Ruckus Wireless"
+
+  # SCADA & Industrial
+  scada:
+    aliases: ["scada", "hmi", "wonderware", "citect"]
+    priority: high
+    description: "SCADA systems"
+
+  modbus:
+    aliases: ["modbus", "modbus-tcp", "502"]
+    priority: high
+    description: "Modbus protocol"
+
+  dnp3:
+    aliases: ["dnp3", "dnp-3", "20000"]
+    priority: high
+    description: "DNP3 protocol"
+
+  # Telephony & VoIP
+  asterisk:
+    aliases: ["asterisk", "freepbx", "elastix", "sip/"]
+    priority: medium
+    description: "Asterisk PBX"
+
+  avaya:
+    aliases: ["avaya", "communication-manager", "session-manager"]
+    priority: medium
+    description: "Avaya systems"
+
+  cisco_cucm:
+    aliases: ["cucm", "callmanager", "cisco-unified"]
+    priority: medium
+    description: "Cisco CUCM"
+
+  # Printers & Devices
+  hp_printer:
+    aliases: ["hp", "hewlett-packard", "laserjet", "officejet"]
+    priority: low
+    description: "HP printers"
+
+  canon_printer:
+    aliases: ["canon", "imagerunner", "pixma"]
+    priority: low
+    description: "Canon printers"
+
+  xerox_printer:
+    aliases: ["xerox", "workcentre", "phaser"]
+    priority: low
+    description: "Xerox printers"
+
+  # Video Conferencing
+  zoom:
+    aliases: ["zoom", "zoomgov", "meeting/", "webinar/"]
+    priority: medium
+    description: "Zoom"
+
+  teams:
+    aliases: ["teams", "microsoft-teams", "skype", "lync"]
+    priority: medium
+    description: "Microsoft Teams"
+
+  webex:
+    aliases: ["webex", "cisco-webex", "meeting/", "event/"]
+    priority: medium
+    description: "Cisco Webex"
+
+  # Streaming & Media
+  plex:
+    aliases: ["plex", "plexmediaserver", "library/", "web/"]
+    priority: low
+    description: "Plex Media Server"
+
+  emby:
+    aliases: ["emby", "embyserver", "mediabrowser"]
+    priority: low
+    description: "Emby Media Server"
+
+  jellyfin:
+    aliases: ["jellyfin", "web/", "system/"]
+    priority: low
+    description: "Jellyfin Media Server"
+
+  # Gaming
+  minecraft:
+    aliases: ["minecraft", "bukkit", "spigot", "forge"]
+    priority: low
+    description: "Minecraft servers"
+
+  steam:
+    aliases: ["steam", "steamcmd", "srcds"]
+    priority: low
+    description: "Steam gaming"
+
+  # Cryptocurrency
+  bitcoin:
+    aliases: ["bitcoin", "btc", "blockchain", "wallet"]
+    priority: medium
+    description: "Bitcoin services"
+
+  ethereum:
+    aliases: ["ethereum", "eth", "geth", "web3"]
+    priority: medium
+    description: "Ethereum services"
+
+  # Remote Access
+  teamviewer:
+    aliases: ["teamviewer", "remote-control", "meeting/"]
+    priority: medium
+    description: "TeamViewer"
+
+  anydesk:
+    aliases: ["anydesk", "remote-desktop"]
+    priority: medium
+    description: "AnyDesk"
+
+  vnc:
+    aliases: ["vnc", "realvnc", "tightvnc", "ultravnc"]
+    priority: medium
+    description: "VNC remote access"
+
+  rdp:
+    aliases: ["rdp", "remote-desktop", "terminal-services", "3389"]
+    priority: high
+    description: "Remote Desktop Protocol"
+
+  # Backup & Recovery
+  acronis:
+    aliases: ["acronis", "backup", "recovery/"]
+    priority: medium
+    description: "Acronis Backup"
+
+  commvault:
+    aliases: ["commvault", "commcell", "webconsole/"]
+    priority: medium
+    description: "Commvault"
+
+  netbackup:
+    aliases: ["netbackup", "veritas", "opscenter/"]
+    priority: medium
+    description: "Veritas NetBackup"
+
+  # Antivirus & Security
+  symantec:
+    aliases: ["symantec", "norton", "endpoint-protection"]
+    priority: medium
+    description: "Symantec security"
+
+  mcafee:
+    aliases: ["mcafee", "epo", "epolicy-orchestrator"]
+    priority: medium
+    description: "McAfee security"
+
+  kaspersky:
+    aliases: ["kaspersky", "klara", "security-center"]
+    priority: medium
+    description: "Kaspersky security"
+
+  trend_micro:
+    aliases: ["trend-micro", "trendmicro", "deep-security"]
+    priority: medium
+    description: "Trend Micro security"
+
+  # Web Frameworks & Libraries
+  react:
+    aliases: ["react", "reactjs", "_next/", "react-dom"]
+    priority: medium
+    description: "React framework"
+
+  angular:
+    aliases: ["angular", "angularjs", "ng-", "@angular"]
+    priority: medium
+    description: "Angular framework"
+
+  vue:
+    aliases: ["vue", "vuejs", "vue-router", "vuex"]
+    priority: medium
+    description: "Vue.js framework"
+
+  laravel:
+    aliases: ["laravel", "artisan", "vendor/laravel", "storage/"]
+    priority: medium
+    description: "Laravel PHP framework"
+
+  symfony:
+    aliases: ["symfony", "vendor/symfony", "app/", "web/"]
+    priority: medium
+    description: "Symfony PHP framework"
+
+  codeigniter:
+    aliases: ["codeigniter", "ci_", "system/", "application/"]
+    priority: medium
+    description: "CodeIgniter PHP framework"
+
+  cakephp:
+    aliases: ["cakephp", "cake", "app/webroot/", "vendors/"]
+    priority: medium
+    description: "CakePHP framework"
+
+  zend:
+    aliases: ["zend", "zf", "library/Zend/", "public/"]
+    priority: medium
+    description: "Zend Framework"
+
+  yii:
+    aliases: ["yii", "yiiframework", "protected/", "assets/"]
+    priority: medium
+    description: "Yii PHP framework"
+
+  # Python Frameworks
+  django:
+    aliases: ["django", "admin/", "static/admin/", "csrf"]
+    priority: medium
+    description: "Django framework"
+
+  flask:
+    aliases: ["flask", "werkzeug", "jinja2", "static/"]
+    priority: medium
+    description: "Flask framework"
+
+  fastapi:
+    aliases: ["fastapi", "docs/", "redoc/", "openapi.json"]
+    priority: medium
+    description: "FastAPI framework"
+
+  tornado:
+    aliases: ["tornado", "tornadoweb"]
+    priority: medium
+    description: "Tornado framework"
+
+  # Ruby Frameworks
+  rails:
+    aliases: ["rails", "ruby-on-rails", "assets/", "actionpack"]
+    priority: medium
+    description: "Ruby on Rails"
+
+  sinatra:
+    aliases: ["sinatra", "rack", "public/"]
+    priority: medium
+    description: "Sinatra framework"
+
+  # .NET Frameworks
+  mvc:
+    aliases: ["mvc", "asp.net-mvc", "controllers/", "views/"]
+    priority: medium
+    description: "ASP.NET MVC"
+
+  webapi:
+    aliases: ["webapi", "asp.net-webapi", "api/", "odata"]
+    priority: medium
+    description: "ASP.NET Web API"
+
+  blazor:
+    aliases: ["blazor", "_framework/", "_content/"]
+    priority: medium
+    description: "Blazor framework"
+
+  # JavaScript Runtimes & Tools
+  webpack:
+    aliases: ["webpack", "bundle.js", "hot-update"]
+    priority: low
+    description: "Webpack bundler"
+
+  babel:
+    aliases: ["babel", "babeljs", "@babel"]
+    priority: low
+    description: "Babel transpiler"
+
+  typescript:
+    aliases: ["typescript", "ts", ".d.ts", "tsc"]
+    priority: medium
+    description: "TypeScript"
+
+  # Mobile Development
+  ionic:
+    aliases: ["ionic", "ionicframework", "cordova", "capacitor"]
+    priority: medium
+    description: "Ionic framework"
+
+  xamarin:
+    aliases: ["xamarin", "mono", "mobile/"]
+    priority: medium
+    description: "Xamarin mobile"
+
+  # Testing Frameworks
+  selenium:
+    aliases: ["selenium", "webdriver", "grid/"]
+    priority: low
+    description: "Selenium testing"
+
+  cypress:
+    aliases: ["cypress", "cypress.io", "fixtures/"]
+    priority: low
+    description: "Cypress testing"
+
+  # Documentation
+  gitbook:
+    aliases: ["gitbook", "gitbook.io", "book/"]
+    priority: low
+    description: "GitBook documentation"
+
+  mkdocs:
+    aliases: ["mkdocs", "material/", "search/"]
+    priority: low
+    description: "MkDocs documentation"
+
+  sphinx:
+    aliases: ["sphinx", "readthedocs", "_static/", "_sources/"]
+    priority: low
+    description: "Sphinx documentation"
+
+  # Analytics & Tracking
+  google_analytics:
+    aliases: ["google-analytics", "gtag", "ga.js", "analytics.js"]
+    priority: low
+    description: "Google Analytics"
+
+  matomo:
+    aliases: ["matomo", "piwik", "piwik.js", "tracker/"]
+    priority: medium
+    description: "Matomo analytics"
+
+  # Error Tracking
+  sentry:
+    aliases: ["sentry", "sentry.io", "raven", "error/"]
+    priority: medium
+    description: "Sentry error tracking"
+
+  bugsnag:
+    aliases: ["bugsnag", "bugsnag.js", "notify/"]
+    priority: medium
+    description: "Bugsnag error tracking"
+
+  # Payment Processing
+  stripe:
+    aliases: ["stripe", "stripe.js", "checkout/", "payment/"]
+    priority: high
+    description: "Stripe payments"
+
+  paypal:
+    aliases: ["paypal", "paypal.com", "checkout/", "express/"]
+    priority: high
+    description: "PayPal payments"
+
+  square:
+    aliases: ["square", "squareup", "checkout/", "payment/"]
+    priority: high
+    description: "Square payments"
+
+  # Email Services
+  mailchimp:
+    aliases: ["mailchimp", "mc-embedded", "subscribe/"]
+    priority: medium
+    description: "Mailchimp"
+
+  sendgrid:
+    aliases: ["sendgrid", "sg-", "mail/send"]
+    priority: medium
+    description: "SendGrid"
+
+  mailgun:
+    aliases: ["mailgun", "mg-", "messages/"]
+    priority: medium
+    description: "Mailgun"
+
+  # CDN & Static Hosting
+  netlify:
+    aliases: ["netlify", "netlify.app", "netlify.com"]
+    priority: low
+    description: "Netlify hosting"
+
+  vercel:
+    aliases: ["vercel", "vercel.app", "now.sh"]
+    priority: low
+    description: "Vercel hosting"
+
+  github_pages:
+    aliases: ["github.io", "pages/", "jekyll"]
+    priority: low
+    description: "GitHub Pages"
+
+  # Serverless
+  aws_lambda:
+    aliases: ["lambda", "aws-lambda", "serverless", "function/"]
+    priority: medium
+    description: "AWS Lambda"
+
+  azure_functions:
+    aliases: ["azure-functions", "function/", "azurewebsites"]
+    priority: medium
+    description: "Azure Functions"
+
+  google_functions:
+    aliases: ["cloud-functions", "cloudfunctions", "function/"]
+    priority: medium
+    description: "Google Cloud Functions"
+
+  # Blockchain & Cryptocurrency
+  metamask:
+    aliases: ["metamask", "ethereum", "web3", "wallet"]
+    priority: medium
+    description: "MetaMask wallet"
+
+  # IoT Platforms
+  thingsboard:
+    aliases: ["thingsboard", "dashboard/", "device/", "tenant/"]
+    priority: medium
+    description: "ThingsBoard IoT"
+
+  # Network Monitoring
+  ntopng:
+    aliases: ["ntopng", "ntop", "flows/", "hosts/"]
+    priority: medium
+    description: "ntopng network monitoring"
+
+  wireshark:
+    aliases: ["wireshark", "tshark", "pcap", "capture/"]
+    priority: medium
+    description: "Wireshark"
+
+  # Log Management
+  graylog:
+    aliases: ["graylog", "graylog2", "streams/", "dashboards/"]
+    priority: medium
+    description: "Graylog"
+
+  fluentd:
+    aliases: ["fluentd", "fluent", "td-agent"]
+    priority: medium
+    description: "Fluentd"
+
+  logstash:
+    aliases: ["logstash", "elastic-logstash", "pipeline/"]
+    priority: medium
+    description: "Logstash"
+
+  # Configuration Management
+  ansible:
+    aliases: ["ansible", "playbook", "inventory", "tower"]
+    priority: medium
+    description: "Ansible"
+
+  puppet:
+    aliases: ["puppet", "puppetlabs", "manifests/", "modules/"]
+    priority: medium
+    description: "Puppet"
+
+  chef:
+    aliases: ["chef", "opscode", "cookbooks/", "recipes/"]
+    priority: medium
+    description: "Chef"
+
+  saltstack:
+    aliases: ["saltstack", "salt", "states/", "pillar/"]
+    priority: medium
+    description: "SaltStack"
+
+  # Orchestration
+  terraform:
+    aliases: ["terraform", "hashicorp", ".tf", "tfstate"]
+    priority: medium
+    description: "Terraform"
+
+  cloudformation:
+    aliases: ["cloudformation", "cfn", "template/", "stack/"]
+    priority: medium
+    description: "AWS CloudFormation"
+
+  # Service Mesh
+  istio:
+    aliases: ["istio", "envoy", "pilot/", "mixer/"]
+    priority: medium
+    description: "Istio service mesh"
+
+  linkerd:
+    aliases: ["linkerd", "conduit", "proxy/"]
+    priority: medium
+    description: "Linkerd service mesh"
+
+  # API Testing
+  insomnia:
+    aliases: ["insomnia", "rest-client", "workspace/"]
+    priority: low
+    description: "Insomnia REST client"
+
+  # Workflow Automation
+  zapier:
+    aliases: ["zapier", "webhook/", "trigger/"]
+    priority: low
+    description: "Zapier automation"
+
+  ifttt:
+    aliases: ["ifttt", "trigger/", "action/"]
+    priority: low
+    description: "IFTTT automation"
+
+  # Digital Asset Management
+  dam:
+    aliases: ["dam", "asset-management", "media/", "library/"]
+    priority: low
+    description: "Digital Asset Management"
+
+  # Survey & Forms
+  typeform:
+    aliases: ["typeform", "form/", "survey/"]
+    priority: low
+    description: "Typeform"
+
+  surveymonkey:
+    aliases: ["surveymonkey", "survey/", "response/"]
+    priority: low
+    description: "SurveyMonkey"
+
+  # Customer Support
+  zendesk:
+    aliases: ["zendesk", "support/", "ticket/", "agent/"]
+    priority: medium
+    description: "Zendesk"
+
+  freshdesk:
+    aliases: ["freshdesk", "freshworks", "support/", "helpdesk/"]
+    priority: medium
+    description: "Freshdesk"
+
+  intercom:
+    aliases: ["intercom", "messenger/", "conversation/"]
+    priority: medium
+    description: "Intercom"
+
+  # Marketing Automation
+  hubspot:
+    aliases: ["hubspot", "hs-", "marketing/", "crm/"]
+    priority: medium
+    description: "HubSpot"
+
+  marketo:
+    aliases: ["marketo", "munchkin", "campaign/"]
+    priority: medium
+    description: "Marketo"
+
+  # Time Tracking
+  toggl:
+    aliases: ["toggl", "time-tracking", "timer/"]
+    priority: low
+    description: "Toggl"
+
+  harvest:
+    aliases: ["harvest", "getharvest", "time/", "expense/"]
+    priority: low
+    description: "Harvest"
+
+  # Design Tools
+  figma:
+    aliases: ["figma", "design/", "prototype/"]
+    priority: low
+    description: "Figma"
+
+  sketch:
+    aliases: ["sketch", "sketchapp", "design/"]
+    priority: low
+    description: "Sketch"
+
+  # Password Managers (Additional)
+  lastpass:
+    aliases: ["lastpass", "vault/", "secure/"]
+    priority: high
+    description: "LastPass"
+
+  onepassword:
+    aliases: ["1password", "onepassword", "vault/"]
+    priority: high
+    description: "1Password"
+
+  keepass:
+    aliases: ["keepass", "kdbx", "database/"]
+    priority: medium
+    description: "KeePass"
+
+  # Additional Security Tools
+  burpsuite:
+    aliases: ["burp", "burpsuite", "proxy/", "scanner/"]
+    priority: high
+    description: "Burp Suite"
+
+  owasp_zap:
+    aliases: ["zap", "owasp-zap", "spider/", "scan/"]
+    priority: high
+    description: "OWASP ZAP"
+
+  nessus:
+    aliases: ["nessus", "tenable", "scan/", "vulnerability/"]
+    priority: high
+    description: "Nessus scanner"
+
+  openvas:
+    aliases: ["openvas", "gvm", "scan/", "report/"]
+    priority: high
+    description: "OpenVAS scanner"
+
+  metasploit:
+    aliases: ["metasploit", "msf", "exploit/", "payload/"]
+    priority: high
+    description: "Metasploit"
+
+  # Additional Databases
+  oracle:
+    aliases: ["oracle", "ora-", "sqlplus", "tnsnames"]
+    priority: medium
+    description: "Oracle Database"
+
+  mssql:
+    aliases: ["mssql", "sql-server", "sqlserver", "master.dbo"]
+    priority: medium
+    description: "Microsoft SQL Server"
+
+  sqlite:
+    aliases: ["sqlite", "sqlite3", ".db", ".sqlite"]
+    priority: low
+    description: "SQLite"
+
+  # Additional Cloud Services
+  digitalocean:
+    aliases: ["digitalocean", "droplet/", "spaces/"]
+    priority: medium
+    description: "DigitalOcean"
+
+  linode:
+    aliases: ["linode", "nanode", "instance/"]
+    priority: medium
+    description: "Linode"
+
+  vultr:
+    aliases: ["vultr", "instance/", "server/"]
+    priority: medium
+    description: "Vultr"
+
+  contabo:
+    aliases: ["contabo", "vps/", "dedicated/"]
+    priority: medium
+    description: "Contabo VPS"
+
+  hetzner:
+    aliases: ["hetzner", "hetzner-cloud", "robot/"]
+    priority: medium
+    description: "Hetzner Cloud"
+
+  ovh:
+    aliases: ["ovh", "ovhcloud", "manager/", "api/"]
+    priority: medium
+    description: "OVH Cloud"
+
+  scaleway:
+    aliases: ["scaleway", "scw", "console/"]
+    priority: medium
+    description: "Scaleway"
+
+  upcloud:
+    aliases: ["upcloud", "console/", "server/"]
+    priority: medium
+    description: "UpCloud"
+
+  # Additional CMS Platforms
+  wagtail:
+    aliases: ["wagtail", "wagtailadmin", "cms/", "admin/"]
+    priority: medium
+    description: "Wagtail CMS"
+
+  apostrophe:
+    aliases: ["apostrophe", "apostrophe-cms", "modules/"]
+    priority: medium
+    description: "Apostrophe CMS"
+
+  keystone:
+    aliases: ["keystone", "keystonejs", "admin/", "api/"]
+    priority: medium
+    description: "KeystoneJS CMS"
+
+  strapi:
+    aliases: ["strapi", "admin/", "content-manager/", "api/"]
+    priority: medium
+    description: "Strapi CMS"
+
+  contentful:
+    aliases: ["contentful", "cdn.contentful", "management/"]
+    priority: medium
+    description: "Contentful CMS"
+
+  sanity:
+    aliases: ["sanity", "sanity.io", "studio/", "desk/"]
+    priority: medium
+    description: "Sanity CMS"
+
+  forestry:
+    aliases: ["forestry", "forestry.io", "admin/"]
+    priority: medium
+    description: "Forestry CMS"
+
+  netlify_cms:
+    aliases: ["netlify-cms", "admin/", "config.yml"]
+    priority: medium
+    description: "Netlify CMS"
+
+  ghost_pro:
+    aliases: ["ghost.org", "ghost.io", "members/", "portal/"]
+    priority: medium
+    description: "Ghost Pro"
+
+  webflow:
+    aliases: ["webflow", "webflow.com", "designer/", "editor/"]
+    priority: medium
+    description: "Webflow"
+
+  squarespace:
+    aliases: ["squarespace", "squarespace.com", "config/"]
+    priority: medium
+    description: "Squarespace"
+
+  wix:
+    aliases: ["wix", "wix.com", "editor/", "manage/"]
+    priority: medium
+    description: "Wix"
+
+  weebly:
+    aliases: ["weebly", "weebly.com", "editor/"]
+    priority: medium
+    description: "Weebly"
+
+  # Additional LMS Platforms
+  totara:
+    aliases: ["totara", "totaralms", "course/", "dashboard/"]
+    priority: high
+    description: "Totara LMS"
+
+  absorb:
+    aliases: ["absorb", "absorblms", "admin/", "learner/"]
+    priority: high
+    description: "Absorb LMS"
+
+  cornerstone:
+    aliases: ["cornerstone", "csod", "ondemand/", "learning/"]
+    priority: high
+    description: "Cornerstone OnDemand"
+
+  docebo:
+    aliases: ["docebo", "lms/", "admin/", "learner/"]
+    priority: high
+    description: "Docebo LMS"
+
+  talentlms:
+    aliases: ["talentlms", "talent/", "admin/", "learner/"]
+    priority: high
+    description: "TalentLMS"
+
+  litmos:
+    aliases: ["litmos", "lms/", "admin/", "course/"]
+    priority: high
+    description: "Litmos LMS"
+
+  edmodo:
+    aliases: ["edmodo", "classroom/", "assignment/", "grade/"]
+    priority: medium
+    description: "Edmodo"
+
+  google_classroom:
+    aliases: ["classroom.google", "classroom/", "courses/", "assignments/"]
+    priority: high
+    description: "Google Classroom"
+
+  microsoft_teams_edu:
+    aliases: ["teams.microsoft", "education/", "assignments/", "class/"]
+    priority: high
+    description: "Microsoft Teams Education"
+
+  # CRM Systems
+  salesforce:
+    aliases: ["salesforce", "force.com", "lightning/", "apex/"]
+    priority: high
+    description: "Salesforce CRM"
+
+  hubspot_crm:
+    aliases: ["hubspot", "app.hubspot", "contacts/", "deals/"]
+    priority: high
+    description: "HubSpot CRM"
+
+  pipedrive:
+    aliases: ["pipedrive", "app.pipedrive", "deals/", "contacts/"]
+    priority: medium
+    description: "Pipedrive CRM"
+
+  zoho_crm:
+    aliases: ["zoho", "crm.zoho", "contacts/", "deals/"]
+    priority: medium
+    description: "Zoho CRM"
+
+  freshsales:
+    aliases: ["freshsales", "freshworks", "contacts/", "deals/"]
+    priority: medium
+    description: "Freshsales CRM"
+
+  insightly:
+    aliases: ["insightly", "crm/", "projects/", "contacts/"]
+    priority: medium
+    description: "Insightly CRM"
+
+  vtiger:
+    aliases: ["vtiger", "vtigercrm", "index.php?module="]
+    priority: medium
+    description: "vTiger CRM"
+
+  suitecrm:
+    aliases: ["suitecrm", "suite", "index.php?module="]
+    priority: medium
+    description: "SuiteCRM"
+
+  civicrm:
+    aliases: ["civicrm", "civicrm/", "contact/", "contribute/"]
+    priority: medium
+    description: "CiviCRM"
+
+  # API Providers & Management
+  rapidapi:
+    aliases: ["rapidapi", "rapidapi.com", "marketplace/", "api/"]
+    priority: medium
+    description: "RapidAPI"
+
+  postman_api:
+    aliases: ["postman", "getpostman", "api/", "workspace/"]
+    priority: medium
+    description: "Postman API Platform"
+
+  insomnia_api:
+    aliases: ["insomnia", "insomnia.rest", "workspace/", "request/"]
+    priority: low
+    description: "Insomnia API Client"
+
+  mulesoft:
+    aliases: ["mulesoft", "anypoint", "exchange/", "runtime/"]
+    priority: medium
+    description: "MuleSoft"
+
+  azure_api:
+    aliases: ["azure-api", "management.azure", "apim/", "gateway/"]
+    priority: high
+    description: "Azure API Management"
+
+  aws_api_gateway:
+    aliases: ["api-gateway", "apigateway", "execute-api", "lambda/"]
+    priority: high
+    description: "AWS API Gateway"
+
+  google_api:
+    aliases: ["googleapis", "cloud-endpoints", "api/", "discovery/"]
+    priority: high
+    description: "Google APIs"
+
+  # Additional Hosting & VPS Providers
+  hostgator:
+    aliases: ["hostgator", "cpanel/", "whm/"]
+    priority: medium
+    description: "HostGator"
+
+  bluehost:
+    aliases: ["bluehost", "cpanel/", "mojo/"]
+    priority: medium
+    description: "Bluehost"
+
+  godaddy:
+    aliases: ["godaddy", "secureserver", "cpanel/"]
+    priority: medium
+    description: "GoDaddy"
+
+  namecheap:
+    aliases: ["namecheap", "cpanel/", "stellar/"]
+    priority: medium
+    description: "Namecheap"
+
+  dreamhost:
+    aliases: ["dreamhost", "panel/", "remixer/"]
+    priority: medium
+    description: "DreamHost"
+
+  siteground:
+    aliases: ["siteground", "cpanel/", "site-tools/"]
+    priority: medium
+    description: "SiteGround"
+
+  a2hosting:
+    aliases: ["a2hosting", "cpanel/", "turbo/"]
+    priority: medium
+    description: "A2 Hosting"
+
+  inmotion:
+    aliases: ["inmotionhosting", "cpanel/", "amp/"]
+    priority: medium
+    description: "InMotion Hosting"
+
+  # Additional E-commerce Platforms
+  etsy:
+    aliases: ["etsy", "etsy.com", "shop/", "listing/"]
+    priority: medium
+    description: "Etsy marketplace"
+
+  amazon_seller:
+    aliases: ["sellercentral", "amazon.com/gp/", "mws/"]
+    priority: high
+    description: "Amazon Seller Central"
+
+  ebay_seller:
+    aliases: ["ebay", "selling.ebay", "my.ebay"]
+    priority: medium
+    description: "eBay Seller"
+
+  alibaba:
+    aliases: ["alibaba", "alibaba.com", "trade/", "supplier/"]
+    priority: medium
+    description: "Alibaba"
+
+  # Additional CMS & Website Builders
+  drupal_commerce:
+    aliases: ["drupal-commerce", "commerce/", "checkout/", "cart/"]
+    priority: high
+    description: "Drupal Commerce"
+
+  joomla_virtuemart:
+    aliases: ["virtuemart", "vm", "shop/", "cart/"]
+    priority: medium
+    description: "VirtueMart for Joomla"
+
+  typo3_shop:
+    aliases: ["typo3-shop", "powermail/", "commerce/"]
+    priority: medium
+    description: "TYPO3 Shop"
+
+  # Wiki & Knowledge Base Systems
+  confluence_server:
+    aliases: ["confluence-server", "wiki/", "pages/", "admin/"]
+    priority: high
+    description: "Confluence Server"
+
+  notion:
+    aliases: ["notion", "notion.so", "workspace/", "page/"]
+    priority: medium
+    description: "Notion"
+
+  obsidian:
+    aliases: ["obsidian", "obsidian.md", "vault/", "graph/"]
+    priority: low
+    description: "Obsidian"
+
+  roam:
+    aliases: ["roam", "roamresearch", "graph/", "block/"]
+    priority: low
+    description: "Roam Research"
+
+  bookstack:
+    aliases: ["bookstack", "books/", "shelves/", "pages/"]
+    priority: medium
+    description: "BookStack"
+
+  outline:
+    aliases: ["outline", "getoutline", "collections/", "documents/"]
+    priority: medium
+    description: "Outline wiki"
+
+  # Help Desk & Support Systems
+  freshdesk_pro:
+    aliases: ["freshdesk", "freshworks", "helpdesk/", "agent/"]
+    priority: medium
+    description: "Freshdesk Pro"
+
+  servicenow:
+    aliases: ["servicenow", "service-now", "incident/", "change/"]
+    priority: high
+    description: "ServiceNow"
+
+  jira_service:
+    aliases: ["jira-service", "servicedesk/", "portal/", "request/"]
+    priority: high
+    description: "Jira Service Management"
+
+  kayako:
+    aliases: ["kayako", "helpdesk/", "ticket/", "staff/"]
+    priority: medium
+    description: "Kayako"
+
+  spiceworks:
+    aliases: ["spiceworks", "help-desk/", "inventory/", "network/"]
+    priority: medium
+    description: "Spiceworks"
+
+  # Additional Security & Monitoring
+  crowdstrike:
+    aliases: ["crowdstrike", "falcon/", "endpoint/", "threat/"]
+    priority: high
+    description: "CrowdStrike"
+
+  sentinelone:
+    aliases: ["sentinelone", "sentinel", "mgmt/", "endpoint/"]
+    priority: high
+    description: "SentinelOne"
+
+  carbon_black:
+    aliases: ["carbonblack", "carbon-black", "response/", "protect/"]
+    priority: high
+    description: "Carbon Black"
+
+  qualys:
+    aliases: ["qualys", "qualysguard", "scan/", "vulnerability/"]
+    priority: high
+    description: "Qualys"
+
+  rapid7:
+    aliases: ["rapid7", "nexpose", "metasploit/", "insight/"]
+    priority: high
+    description: "Rapid7"
+
+  # Additional Development Tools
+  github_enterprise:
+    aliases: ["github-enterprise", "ghe/", "enterprise/", "admin/"]
+    priority: high
+    description: "GitHub Enterprise"
+
+  gitlab_enterprise:
+    aliases: ["gitlab-ee", "gitlab-enterprise", "admin/", "groups/"]
+    priority: high
+    description: "GitLab Enterprise"
+
+  bitbucket_server:
+    aliases: ["bitbucket-server", "stash/", "projects/", "repos/"]
+    priority: medium
+    description: "Bitbucket Server"
+
+  azure_devops:
+    aliases: ["azure-devops", "dev.azure", "tfs/", "visualstudio/"]
+    priority: high
+    description: "Azure DevOps"
+
+  # Additional Collaboration Tools
+  microsoft_365:
+    aliases: ["office365", "microsoft365", "outlook/", "onedrive/"]
+    priority: high
+    description: "Microsoft 365"
+
+  google_workspace:
+    aliases: ["workspace.google", "gsuite", "drive/", "docs/"]
+    priority: high
+    description: "Google Workspace"
+
+  dropbox_business:
+    aliases: ["dropbox", "dropbox.com", "business/", "admin/"]
+    priority: medium
+    description: "Dropbox Business"
+
+  box:
+    aliases: ["box", "box.com", "app/", "admin/"]
+    priority: medium
+    description: "Box"
+
+  # Additional Database Management
+  mongodb_compass:
+    aliases: ["compass", "mongodb-compass", "collections/", "queries/"]
+    priority: medium
+    description: "MongoDB Compass"
+
+  redis_insight:
+    aliases: ["redisinsight", "redis-insight", "browser/", "workbench/"]
+    priority: medium
+    description: "RedisInsight"
+
+  pgadmin:
+    aliases: ["pgadmin", "pgadmin4", "browser/", "dashboard/"]
+    priority: medium
+    description: "pgAdmin"
+
+  mysql_workbench:
+    aliases: ["mysql-workbench", "workbench/", "query/", "admin/"]
+    priority: medium
+    description: "MySQL Workbench"
+
+  # Additional Marketing & Analytics
+  google_ads:
+    aliases: ["ads.google", "adwords", "campaigns/", "keywords/"]
+    priority: medium
+    description: "Google Ads"
+
+  facebook_ads:
+    aliases: ["facebook.com/ads", "business.facebook", "campaigns/", "adsets/"]
+    priority: medium
+    description: "Facebook Ads"
+
+  linkedin_ads:
+    aliases: ["linkedin.com/ads", "campaign-manager", "campaigns/"]
+    priority: medium
+    description: "LinkedIn Ads"
+
+  mailchimp_pro:
+    aliases: ["mailchimp", "us1.admin", "campaigns/", "audience/"]
+    priority: medium
+    description: "Mailchimp Pro"
+
+  constant_contact:
+    aliases: ["constantcontact", "constant-contact", "campaigns/", "contacts/"]
+    priority: medium
+    description: "Constant Contact"
+
+  # Additional ERP Systems
+  sap:
+    aliases: ["sap", "sap-erp", "fiori/", "gui/"]
+    priority: high
+    description: "SAP ERP"
+
+  oracle_erp:
+    aliases: ["oracle-erp", "fusion/", "peoplesoft/", "jdedwards/"]
+    priority: high
+    description: "Oracle ERP"
+
+  microsoft_dynamics:
+    aliases: ["dynamics", "dynamics365", "crm/", "nav/"]
+    priority: high
+    description: "Microsoft Dynamics"
+
+  netsuite:
+    aliases: ["netsuite", "oracle-netsuite", "app/", "system/"]
+    priority: high
+    description: "NetSuite ERP"
+
+  # Additional Communication Platforms
+  discord:
+    aliases: ["discord", "discord.com", "channels/", "servers/"]
+    priority: medium
+    description: "Discord"
+
+  telegram:
+    aliases: ["telegram", "t.me", "web/", "bot/"]
+    priority: medium
+    description: "Telegram"
+
+  whatsapp_business:
+    aliases: ["whatsapp", "business.whatsapp", "api/", "webhook/"]
+    priority: medium
+    description: "WhatsApp Business"
+
+  # Additional Content Delivery
+  cloudfront:
+    aliases: ["cloudfront", "d1234567890.cloudfront", "distribution/"]
+    priority: medium
+    description: "Amazon CloudFront"
+
+  fastly:
+    aliases: ["fastly", "fastly.com", "edge/", "purge/"]
+    priority: medium
+    description: "Fastly CDN"
+
+  maxcdn:
+    aliases: ["maxcdn", "bootstrapcdn", "netdna/"]
+    priority: medium
+    description: "MaxCDN"
+
+  # Additional Monitoring & Observability
+  datadog:
+    aliases: ["datadog", "datadoghq", "dashboard/", "monitors/"]
+    priority: medium
+    description: "Datadog"
+
+  new_relic:
+    aliases: ["newrelic", "new-relic", "apm/", "insights/"]
+    priority: medium
+    description: "New Relic"
+
+  dynatrace:
+    aliases: ["dynatrace", "ruxit", "dashboard/", "problems/"]
+    priority: medium
+    description: "Dynatrace"
+
+  pingdom:
+    aliases: ["pingdom", "my.pingdom", "checks/", "reports/"]
+    priority: medium
+    description: "Pingdom"
+
+  # Additional Testing & QA
+  browserstack:
+    aliases: ["browserstack", "live.browserstack", "automate/", "app-live/"]
+    priority: medium
+    description: "BrowserStack"
+
+  sauce_labs:
+    aliases: ["saucelabs", "sauce-labs", "ondemand/", "manual/"]
+    priority: medium
+    description: "Sauce Labs"
+
+  lambdatest:
+    aliases: ["lambdatest", "automation/", "real-time/"]
+    priority: medium
+    description: "LambdaTest"
+
+  # Additional Design & Creative
+  adobe_creative:
+    aliases: ["adobe", "creative-cloud", "assets/", "libraries/"]
+    priority: medium
+    description: "Adobe Creative Cloud"
+
+  canva:
+    aliases: ["canva", "canva.com", "design/", "brand/"]
+    priority: low
+    description: "Canva"
+
+  invision:
+    aliases: ["invision", "invisionapp", "prototype/", "inspect/"]
+    priority: low
+    description: "InVision"
+
+  # Additional Finance & Accounting
+  quickbooks:
+    aliases: ["quickbooks", "intuit", "qbo/", "accounting/"]
+    priority: medium
+    description: "QuickBooks"
+
+  xero:
+    aliases: ["xero", "xero.com", "accounting/", "reports/"]
+    priority: medium
+    description: "Xero"
+
+  freshbooks:
+    aliases: ["freshbooks", "invoice/", "expense/", "time/"]
+    priority: medium
+    description: "FreshBooks"
+
+  # Additional HR & Recruitment
+  workday:
+    aliases: ["workday", "myworkday", "tenant/", "home/"]
+    priority: high
+    description: "Workday"
+
+  bamboohr:
+    aliases: ["bamboohr", "bamboo", "employees/", "reports/"]
+    priority: medium
+    description: "BambooHR"
+
+  adp:
+    aliases: ["adp", "workforcenow", "payroll/", "workforce/"]
+    priority: medium
+    description: "ADP"
+
+  # Additional Legal & Compliance
+  docusign:
+    aliases: ["docusign", "na1.docusign", "envelope/", "signing/"]
+    priority: medium
+    description: "DocuSign"
+
+  adobe_sign:
+    aliases: ["adobe-sign", "echosign", "agreement/", "signature/"]
+    priority: medium
+    description: "Adobe Sign"
+
+  # Additional IoT & Smart Home
+  smartthings:
+    aliases: ["smartthings", "samsung-smartthings", "device/", "automation/"]
+    priority: low
+    description: "Samsung SmartThings"
+
+  philips_hue:
+    aliases: ["philips-hue", "meethue", "bridge/", "lights/"]
+    priority: low
+    description: "Philips Hue"
+
+  # Additional Gaming Platforms
+  steam_community:
+    aliases: ["steamcommunity", "steam-community", "profiles/", "groups/"]
+    priority: low
+    description: "Steam Community"
+
+  epic_games:
+    aliases: ["epicgames", "epic-games", "launcher/", "store/"]
+    priority: low
+    description: "Epic Games"
+
+  # Additional Social Media Management
+  hootsuite:
+    aliases: ["hootsuite", "dashboard/", "streams/", "publisher/"]
+    priority: medium
+    description: "Hootsuite"
+
+  buffer:
+    aliases: ["buffer", "buffer.com", "publish/", "analytics/"]
+    priority: medium
+    description: "Buffer"
+
+  sprout_social:
+    aliases: ["sproutsocial", "sprout-social", "publishing/", "listening/"]
+    priority: medium
+    description: "Sprout Social"
 
 # Scoring weights for wordlist selection
 scoring:

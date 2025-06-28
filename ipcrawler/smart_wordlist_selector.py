@@ -125,25 +125,132 @@ class SmartWordlistSelector:
         full_path = os.path.join(self.seclists_base_path, best_wordlist)
         return full_path if os.path.exists(full_path) else None
     
+    def _get_security_tiers(self) -> Dict[str, Set[str]]:
+        """Get security tiers for technology prioritization"""
+        return {
+            'critical': {  # Admin interfaces, high-value targets
+                'wordpress', 'drupal', 'joomla', 'magento', 'phpmyadmin', 'cpanel', 'plesk',
+                'jenkins', 'gitlab', 'grafana', 'splunk', 'sharepoint', 'confluence', 'jira',
+                'tomcat', 'weblogic', 'pfsense', 'vmware', 'citrix', 'salesforce', 'sap',
+                'directadmin', 'webmin', 'cyberpanel', 'paloalto', 'cisco', 'exchange',
+                'oracle', 'adminer', 'dotnetnuke', 'sitecore', 'episerver', 'nextcloud',
+                'mysql', 'postgresql', 'mongodb', 'shopify', 'scada', 'wonderware',
+                'rockwell', 'schneider', 'keycloak', 'okta', 'auth0', 'activedirectory',
+                'saml', 'cas', 'servicenow', 'jira_service', 'crowdstrike', 'sentinelone',
+                'carbon_black', 'qualys', 'rapid7', 'github_enterprise', 'gitlab_enterprise',
+                'azure_devops', 'microsoft_365', 'google_workspace', 'workday', 'netsuite',
+                'oracle_erp', 'microsoft_dynamics', 'aws_api_gateway', 'azure_api', 'google_api'
+            },
+            'high': {  # CMS, databases, enterprise apps
+                'prestashop', 'opencart', 'concrete5', 'typo3', 'ghost', 'umbraco',
+                'liferay', 'plone', 'phpbb', 'vbulletin', 'invision', 'discourse',
+                'flarum', 'notion', 'bookstack', 'outline', 'mediawiki', 'dokuwiki',
+                'mssql', 'cassandra', 'couchdb', 'neo4j', 'influxdb', 'clickhouse',
+                'roundcube', 'squirrelmail', 'zimbra', 'moodle', 'chamilo', 'canvas',
+                'blackboard', 'schoology', 'claroline', 'sakai', 'brightspace',
+                'zabbix', 'nagios', 'cacti', 'prtg', 'prometheus', 'kibana',
+                'sonarqube', 'artifactory', 'nexus', 'bamboo', 'teamcity', 'bitbucket',
+                'juniper', 'fortinet', 'sonicwall', 'checkpoint', 'aws', 'azure', 'gcp',
+                'totara', 'absorb', 'cornerstone', 'docebo', 'talentlms', 'litmos',
+                'google_classroom', 'microsoft_teams_edu', 'hubspot_crm', 'zoho_crm',
+                'freshsales', 'insightly', 'vtiger', 'suitecrm', 'civicrm', 'mulesoft',
+                'azure_api', 'aws_api_gateway', 'google_api', 'confluence_server',
+                'freshdesk_pro', 'jira_service', 'kayako', 'spiceworks', 'rdp'
+            },
+            'medium': {  # Frameworks, development tools, platforms
+                'php', 'asp', 'java', 'python', 'ruby', 'nodejs', 'nextjs', 'golang',
+                'rust', 'scala', 'kotlin', 'coldfusion', 'react', 'vue', 'angular',
+                'svelte', 'django', 'flask', 'fastapi', 'rails', 'laravel', 'symfony',
+                'codeigniter', 'cakephp', 'yii', 'zend', 'spring', 'struts',
+                'nginx', 'apache', 'iis', 'websphere', 'jboss', 'glassfish', 'resin',
+                'payara', 'liberty', 'undertow', 'sqlite', 'docker', 'kubernetes',
+                'openshift', 'rancher', 'nomad', 'harbor', 'istio', 'linkerd', 'consul',
+                'synology', 'qnap', 'freenas', 'proxmox', 'ansible', 'puppet', 'chef',
+                'saltstack', 'terraform', 'vercel', 'netlify', 'heroku', 'gatsby',
+                'hugo', 'jekyll', 'nuxt', 'tableau', 'powerbi', 'qlik', 'slack',
+                'teams', 'zoom', 'webex', 'alfresco', 'selenium', 'sentry', 'bugsnag',
+                'rollbar', 'rabbitmq', 'kafka', 'elasticsearch', 'solr', 'redis',
+                'haproxy', 'traefik', 'temenos', 'finastra', 'corebanking', 'pos',
+                'micros', 'hubspot', 'marketo', 'jamf', 'intune', 'airwatch',
+                'raspberry', 'openwrt', 'ddwrt', 'unifi', 'bitwarden', 'pritunl',
+                'sugarcrm', 'odoo', 'osticket', 'digitalocean', 'linode', 'vultr',
+                'hetzner', 'ovh', 'scaleway', 'contabo', 'hostinger', 'bluehost',
+                'godaddy', 'namecheap', 'hostgator', 'dreamhost', 'siteground',
+                'ispconfig', 'cloudways', 'wpengine', 'kinsta', 'pantheon',
+                'oracle_cloud', 'ibm_cloud', 'alibaba_cloud', 'cloudflare', 'akamai',
+                'fastly', 'bunnycdn', 'keycdn', 'office365', 'tiddlywiki',
+                'wagtail', 'apostrophe', 'keystone', 'strapi', 'contentful', 'sanity',
+                'forestry', 'netlify_cms', 'ghost_pro', 'webflow', 'squarespace', 'wix',
+                'weebly', 'edmodo', 'pipedrive', 'rapidapi', 'postman_api', 'insomnia_api',
+                'hostgator', 'bluehost', 'godaddy', 'namecheap', 'dreamhost', 'siteground',
+                'a2hosting', 'inmotion', 'etsy', 'amazon_seller', 'ebay_seller', 'alibaba',
+                'drupal_commerce', 'joomla_virtuemart', 'typo3_shop', 'roam', 'obsidian',
+                'dropbox_business', 'box', 'mongodb_compass', 'redis_insight', 'pgadmin',
+                'mysql_workbench', 'google_ads', 'facebook_ads', 'linkedin_ads', 'mailchimp_pro',
+                'constant_contact', 'discord', 'telegram', 'whatsapp_business', 'cloudfront',
+                'fastly', 'maxcdn', 'datadog', 'new_relic', 'dynatrace', 'pingdom',
+                'browserstack', 'sauce_labs', 'lambdatest', 'adobe_creative', 'invision',
+                'quickbooks', 'xero', 'freshbooks', 'bamboohr', 'adp', 'docusign', 'adobe_sign',
+                'teamviewer', 'anydesk', 'vnc', 'acronis', 'commvault', 'netbackup',
+                'symantec', 'mcafee', 'kaspersky', 'trend_micro', 'hootsuite', 'buffer', 'sprout_social'
+            },
+            'low': {  # Languages, basic tools, legacy, social platforms
+                'perl', 'vbscript', 'blogger', 'tumblr', 'arduino', 'access', 'foxpro', 'dbase', 'cics',
+                'ims', 'cobol', 'fortran', 'documentum', 'matlab', 'autocad', 'vimeo', 'youtube',
+                'homeassistant', 'openhab', 'mqtt', 'memcached', 'facebook', 'twitter', 'linkedin',
+                'steam', 'unity', 'arcgis', 'qgis', 'jupyter', 'rstudio', 'xibo',
+                'lowendbox', 'buyvm', 'ramnode', 'wholesaleinternet', 'upcloud',
+                'kamatera', 'time4vps', 'ventraip', 'x10hosting', '000webhost',
+                'freehostia', 'testng', 'hyper-v', 'canva', 'figma', 'sketch',
+                'smartthings', 'philips_hue', 'steam_community', 'epic_games',
+                'minecraft', 'steam', 'bitcoin', 'ethereum', 'metamask', 'plex', 'emby', 'jellyfin',
+                'tiddlywiki', 'webpack', 'babel', 'typescript', 'ionic', 'xamarin',
+                'selenium', 'cypress', 'gitbook', 'mkdocs', 'sphinx', 'google_analytics',
+                'matomo', 'bugsnag', 'stripe', 'paypal', 'square', 'mailchimp', 'sendgrid',
+                'mailgun', 'netlify', 'vercel', 'github_pages', 'aws_lambda', 'azure_functions',
+                'google_functions', 'thingsboard', 'ntopng', 'wireshark', 'graylog', 'fluentd',
+                'logstash', 'insomnia', 'zapier', 'ifttt', 'dam', 'typeform', 'surveymonkey',
+                'zendesk', 'freshdesk', 'intercom', 'toggl', 'harvest', 'lastpass', 'onepassword',
+                'keepass', 'burpsuite', 'owasp_zap', 'nessus', 'openvas', 'metasploit', 'sqlite'
+            }
+        }
+
     def _find_best_technology_match(self, detected_technologies: Set[str]) -> Optional[str]:
-        """Find best technology match using RapidFuzz on aliases"""
+        """Find best technology match using security-priority system + fuzzy matching"""
+        if not self.aliases:
+            return None
+
         try:
             from rapidfuzz import process, fuzz
         except ImportError:
             print("🔧 RapidFuzz not available - install with: pip install rapidfuzz")
             print("   ↳ Falling back to simple string matching (still functional)")
             return self._simple_technology_match(detected_technologies)
-        
+
         tech_aliases = self.aliases.get('technology_aliases', {})
-        best_match = None
-        best_score = 0
+        if not tech_aliases:
+            return None
+
+        # Get security tiers
+        security_tiers = self._get_security_tiers()
+        
+        # Find all matching technologies with their tiers
+        technology_matches = {}
         
         for tech_key, tech_config in tech_aliases.items():
             aliases = tech_config.get('aliases', [])
             
+            # Determine security tier for this technology
+            security_tier = 'unknown'
+            tier_priority = 0
+            for tier, tech_set in security_tiers.items():
+                if tech_key in tech_set:
+                    security_tier = tier
+                    tier_priority = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1, 'unknown': 0}[tier]
+                    break
+            
             # Check each detected technology against this tech's aliases
             for detected in detected_technologies:
-                # Find best alias match for this detected technology
                 alias_match = process.extractOne(
                     detected.lower(),
                     [alias.lower() for alias in aliases],
@@ -152,30 +259,90 @@ class SmartWordlistSelector:
                 )
                 
                 if alias_match:
-                    score = alias_match[1] / 100.0  # Convert to 0-1 range
+                    match_score = alias_match[1] / 100.0  # Convert to 0-1 range
                     
-                    # Apply priority bonus
+                    # Apply standard priority bonus
                     priority = tech_config.get('priority', 'medium')
-                    priority_bonus = self.aliases.get('scoring', {}).get('priority_bonus', {}).get(priority, 0)
-                    final_score = score + priority_bonus
+                    scoring_config = self.aliases.get('scoring', {})
+                    priority_bonus = scoring_config.get('priority_bonus', {}).get(priority, 0)
                     
-                    if final_score > best_score:
-                        best_score = final_score
-                        best_match = tech_key
+                    # Calculate final score with security tier weighting
+                    base_score = match_score + priority_bonus
+                    security_weighted_score = base_score + (tier_priority * 0.5)  # +2.0 for critical, +1.5 for high, etc.
+                    
+                    technology_matches[tech_key] = {
+                        'score': security_weighted_score,
+                        'tier': security_tier,
+                        'tier_priority': tier_priority,
+                        'base_score': base_score,
+                        'detected_string': detected
+                    }
         
-        return best_match if best_score > 0.6 else None
+        if not technology_matches:
+            return None
+        
+        # Sort by security tier first, then by score within tier
+        sorted_matches = sorted(
+            technology_matches.items(),
+            key=lambda x: (x[1]['tier_priority'], x[1]['score']),
+            reverse=True
+        )
+        
+        best_tech, best_info = sorted_matches[0]
+        
+        # Debug logging for transparency
+        if len(technology_matches) > 1:
+            print(f"🔍 Multiple technologies detected:")
+            for tech, info in sorted_matches[:3]:  # Show top 3
+                print(f"   • {tech} (tier: {info['tier']}, score: {info['score']:.2f}) from '{info['detected_string']}'")
+            print(f"✅ Selected: {best_tech} (tier: {best_info['tier']}) - highest security priority")
+        
+        # Only return if we have a reasonable confidence
+        return best_tech if best_info['score'] > 0.6 else None
     
     def _simple_technology_match(self, detected_technologies: Set[str]) -> Optional[str]:
-        """Fallback simple string matching when RapidFuzz unavailable"""
+        """Fallback simple string matching with security priority when RapidFuzz unavailable"""
+        if not self.aliases:
+            return None
+
         tech_aliases = self.aliases.get('technology_aliases', {})
+        if not tech_aliases:
+            return None
+
+        # Use centralized security tiers
+        security_tiers = self._get_security_tiers()
+        
+        # Find matches organized by security tier
+        tier_matches = {'critical': [], 'high': [], 'medium': [], 'low': [], 'unknown': []}
         
         for tech_key, tech_config in tech_aliases.items():
             aliases = tech_config.get('aliases', [])
             
+            # Determine security tier
+            security_tier = 'unknown'
+            for tier, tech_set in security_tiers.items():
+                if tech_key in tech_set:
+                    security_tier = tier
+                    break
+            
+            # Check for string matches
             for detected in detected_technologies:
                 for alias in aliases:
                     if alias.lower() in detected.lower() or detected.lower() in alias.lower():
-                        return tech_key
+                        tier_matches[security_tier].append((tech_key, detected))
+                        break  # Found a match for this tech, move to next
+                else:
+                    continue  # No match found for this detected tech
+                break  # Found a match, move to next tech_key
+        
+        # Return highest priority match
+        for tier in ['critical', 'high', 'medium', 'low', 'unknown']:
+            if tier_matches[tier]:
+                best_tech, detected_string = tier_matches[tier][0]  # First match in highest available tier
+                if len(sum(tier_matches.values(), [])) > 1:  # Multiple matches found
+                    print(f"🔍 Multiple technologies detected (simple matching)")
+                    print(f"✅ Selected: {best_tech} (tier: {tier}) - highest security priority")
+                return best_tech
         
         return None
     
@@ -441,6 +608,126 @@ class SmartWordlistSelector:
                 tags.append(keyword)
         
         return tags
+    
+    def select_multi_technology_wordlist(self, category: str, detected_technologies: Set[str]) -> List[str]:
+        """
+        Select multiple wordlists when multiple high-value technologies are detected
+        
+        Returns:
+            List of wordlist paths, prioritized by security importance
+        """
+        if not detected_technologies or not self.catalog.get('wordlists'):
+            return []
+        
+        # Get all technology matches with security tiers
+        tech_matches = self._get_all_technology_matches(detected_technologies)
+        
+        selected_wordlists = []
+        
+        # For critical and high-tier technologies, include multiple wordlists
+        for tier in ['critical', 'high']:
+            tier_techs = [tech for tech, info in tech_matches.items() if info['tier'] == tier]
+            
+            for tech in tier_techs[:2]:  # Max 2 technologies per tier to avoid too many wordlists
+                candidates = self._get_candidate_wordlists(tech, category)
+                best_wordlist = self._score_and_select_candidates(candidates, tech)
+                
+                if best_wordlist:
+                    full_path = os.path.join(self.seclists_base_path, best_wordlist)
+                    if os.path.exists(full_path) and full_path not in selected_wordlists:
+                        selected_wordlists.append(full_path)
+        
+        # If no high-value technologies found, fall back to single best match
+        if not selected_wordlists:
+            single_wordlist = self.select_wordlist(category, detected_technologies)
+            if single_wordlist:
+                selected_wordlists.append(single_wordlist)
+        
+        return selected_wordlists
+    
+    def _get_all_technology_matches(self, detected_technologies: Set[str]) -> Dict[str, Dict]:
+        """Get all matching technologies with their security tier information"""
+        if not self.aliases:
+            return {}
+
+        tech_aliases = self.aliases.get('technology_aliases', {})
+        if not tech_aliases:
+            return {}
+
+        # Use centralized security tiers
+        security_tiers = self._get_security_tiers()
+        
+        technology_matches = {}
+        
+        for tech_key, tech_config in tech_aliases.items():
+            aliases = tech_config.get('aliases', [])
+            
+            # Determine security tier
+            security_tier = 'unknown'
+            for tier, tech_set in security_tiers.items():
+                if tech_key in tech_set:
+                    security_tier = tier
+                    break
+            
+            # Simple string matching for all technologies
+            for detected in detected_technologies:
+                for alias in aliases:
+                    if alias.lower() in detected.lower() or detected.lower() in alias.lower():
+                        technology_matches[tech_key] = {
+                            'tier': security_tier,
+                            'detected_string': detected,
+                            'aliases': aliases
+                        }
+                        break
+                else:
+                    continue
+                break
+        
+        return technology_matches
+    
+    def get_security_analysis(self, detected_technologies: Set[str]) -> Dict[str, any]:
+        """
+        Provide detailed security analysis of detected technologies
+        
+        Returns:
+            Analysis with security implications and recommendations
+        """
+        tech_matches = self._get_all_technology_matches(detected_technologies)
+        
+        analysis = {
+            'total_technologies': len(tech_matches),
+            'security_tiers': {'critical': [], 'high': [], 'medium': [], 'low': [], 'unknown': []},
+            'recommendations': [],
+            'risk_level': 'low'
+        }
+        
+        # Categorize technologies by security tier
+        for tech, info in tech_matches.items():
+            tier = info['tier']
+            analysis['security_tiers'][tier].append({
+                'technology': tech,
+                'detected_from': info['detected_string']
+            })
+        
+        # Generate risk assessment and recommendations
+        critical_count = len(analysis['security_tiers']['critical'])
+        high_count = len(analysis['security_tiers']['high'])
+        
+        if critical_count > 0:
+            analysis['risk_level'] = 'critical'
+            analysis['recommendations'].append("🔴 Critical technologies detected - prioritize admin interface testing")
+            analysis['recommendations'].append("🔐 Focus on authentication bypass and privilege escalation")
+        elif high_count > 0:
+            analysis['risk_level'] = 'high'
+            analysis['recommendations'].append("🟡 High-value technologies detected - comprehensive enumeration recommended")
+            analysis['recommendations'].append("💡 Check for default credentials and misconfigurations")
+        elif len(analysis['security_tiers']['medium']) > 0:
+            analysis['risk_level'] = 'medium'
+            analysis['recommendations'].append("🔵 Development tools detected - look for exposed interfaces")
+        else:
+            analysis['recommendations'].append("ℹ️ Basic technologies detected - standard enumeration sufficient")
+        
+        return analysis
 
 
 # Convenience function for easy integration
