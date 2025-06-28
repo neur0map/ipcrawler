@@ -82,7 +82,24 @@
         <!-- Web Services with VHosts/Redirects and Directories -->
         {% if target_data.web_services %}
         <div class="mb-lg">
-            <h4 class="mb-md">🌐 Web Services & Directories</h4>
+            <h4 class="mb-md">🌐 Web Services & Directory Discovery</h4>
+            
+            <!-- Debug info - shows if no directories/files are found -->
+            {% set total_dirs = namespace(count=0) %}
+            {% set total_files = namespace(count=0) %}
+            {% for ws in target_data.web_services %}
+                {% if ws.directories %}{% set total_dirs.count = total_dirs.count + ws.directories|length %}{% endif %}
+                {% if ws.files %}{% set total_files.count = total_files.count + ws.files|length %}{% endif %}
+            {% endfor %}
+            
+            {% if total_dirs.count == 0 and total_files.count == 0 %}
+            <div class="card mb-md" style="border-left: 4px solid var(--accent-warning); background: rgba(245, 158, 11, 0.1);">
+                <div class="card-header">
+                    <h5 class="mb-0" style="color: var(--accent-warning);">⚠️ No Directory/File Discovery Results</h5>
+                </div>
+                <p class="mb-0">Directory busting may not have completed or found results. Check Raw Scan Data section below for dirbuster/feroxbuster output files.</p>
+            </div>
+            {% endif %}
             {% for web_service in target_data.web_services %}
             <div class="card mb-md" style="border-left: 4px solid var(--accent-success);">
                 <div class="card-header">
@@ -109,33 +126,64 @@
                 </div>
                 {% endif %}
                 
-                <!-- Directories - Always prominent -->
+                <!-- Directories - Always prominent with preview -->
                 {% if web_service.directories and web_service.directories|length > 0 %}
-                {% set valid_dirs = web_service.directories|selectattr('path')|list %}
-                {% if valid_dirs|length > 0 %}
                 <div class="mb-md">
-                    <h6 style="color: var(--accent-warning); font-weight: bold;">📁 Directories ({{ valid_dirs|length }})</h6>
-                    <div class="code-block" style="max-height: 200px; overflow-y: auto;">
-                        <pre>{% for dir in valid_dirs %}{{ dir.path }} <span style="color: var(--accent-success);">({{ dir.status_code }})</span>{% if dir.size %} - {{ dir.size }}{% endif %}
-{% endfor %}</pre>
+                    <h6 style="color: var(--accent-warning); font-weight: bold;">📁 Directories Found ({{ web_service.directories|length }})</h6>
+                    
+                    <!-- Show preview of first few directories -->
+                    <div class="code-block mb-sm" style="max-height: 120px; overflow-y: auto; background: rgba(245, 158, 11, 0.1);">
+                        <pre>{% for dir in web_service.directories[:5] %}{{ dir }}
+{% endfor %}{% if web_service.directories|length > 5 %}
+<span style="color: var(--text-muted);">... and {{ web_service.directories|length - 5 }} more directories</span>{% endif %}</pre>
                     </div>
+                    
+                    <!-- Expandable full list -->
+                    {% if web_service.directories|length > 5 %}
+                    <div class="collapsible collapsed">
+                        <div class="collapsible-header">
+                            <span>📋 View all {{ web_service.directories|length }} directories</span>
+                            <span class="collapse-icon">▶</span>
+                        </div>
+                        <div class="collapsible-content">
+                            <div class="code-block" style="max-height: 400px; overflow-y: auto;">
+                                <pre>{% for dir in web_service.directories %}{{ dir }}
+{% endfor %}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
                 {% endif %}
                 
-                <!-- Files - Show top 10 -->
+                <!-- Files - With preview -->
                 {% if web_service.files and web_service.files|length > 0 %}
-                {% set valid_files = web_service.files|selectattr('path')|list %}
-                {% if valid_files|length > 0 %}
                 <div class="mb-md">
-                    <h6 style="color: var(--accent-info); font-weight: bold;">📄 Files ({{ valid_files|length }})</h6>
-                    <div class="code-block" style="max-height: 150px; overflow-y: auto;">
-                        <pre>{% for file in valid_files[:10] %}{{ file.path }} <span style="color: var(--accent-success);">({{ file.status_code }})</span>{% if file.size %} - {{ file.size }}{% endif %}
-{% endfor %}{% if valid_files|length > 10 %}
-<span style="color: var(--text-muted);">... and {{ valid_files|length - 10 }} more files</span>{% endif %}</pre>
+                    <h6 style="color: var(--accent-info); font-weight: bold;">📄 Files Found ({{ web_service.files|length }})</h6>
+                    
+                    <!-- Show preview of first few files -->
+                    <div class="code-block mb-sm" style="max-height: 120px; overflow-y: auto; background: rgba(6, 182, 212, 0.1);">
+                        <pre>{% for file in web_service.files[:5] %}{{ file }}
+{% endfor %}{% if web_service.files|length > 5 %}
+<span style="color: var(--text-muted);">... and {{ web_service.files|length - 5 }} more files</span>{% endif %}</pre>
                     </div>
+                    
+                    <!-- Expandable full list -->
+                    {% if web_service.files|length > 5 %}
+                    <div class="collapsible collapsed">
+                        <div class="collapsible-header">
+                            <span>📋 View all {{ web_service.files|length }} files</span>
+                            <span class="collapse-icon">▶</span>
+                        </div>
+                        <div class="collapsible-content">
+                            <div class="code-block" style="max-height: 400px; overflow-y: auto;">
+                                <pre>{% for file in web_service.files %}{{ file }}
+{% endfor %}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
                 {% endif %}
             </div>
             {% endfor %}
@@ -232,47 +280,114 @@
     {% endif %}
     {% endif %}
 
-    <!-- All Security Findings -->
+    <!-- All Security Findings - Enhanced and Organized -->
     {% if target_data.pattern_matches and target_data.pattern_matches|length > 0 %}
     {% set valid_matches = target_data.pattern_matches|selectattr('description')|list %}
     {% if valid_matches|length > 0 %}
-    <div class="collapsible collapsed">
+    
+    <!-- Categorize findings by severity -->
+    {% set critical_findings = [] %}
+    {% set warning_findings = [] %}
+    {% set info_findings = [] %}
+    {% for match in valid_matches %}
+        {% if match.description and match.description.strip() %}
+            {% if 'CRITICAL' in match.description or 'critical' in match.description|lower or 'vuln' in match.description|lower %}
+                {% set _ = critical_findings.append(match) %}
+            {% elif 'WARNING' in match.description or 'warning' in match.description|lower %}
+                {% set _ = warning_findings.append(match) %}
+            {% else %}
+                {% set _ = info_findings.append(match) %}
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+    
+    <div class="collapsible">
         <div class="collapsible-header">
-            <h3 class="mb-0">🔍 All Security Findings ({{ valid_matches|length }} matches)</h3>
-            <span class="collapse-icon">▶</span>
+            <h3 class="mb-0">🔍 Security Findings Summary ({{ valid_matches|length }} total)</h3>
+            <span class="collapse-icon">▼</span>
         </div>
         <div class="collapsible-content">
-            {% for match in valid_matches %}
-            {% if match.description and match.description.strip() %}
-            <div class="card mb-md">
-                <div class="card-header">
-                    <h4 class="card-title">{{ match.plugin_name or 'Unknown Plugin' }}</h4>
-                    <span class="status status-{{ 'danger' if 'CRITICAL' in match.description else 'warning' if 'WARNING' in match.description else 'info' }}">
-                        {% if 'CRITICAL' in match.description %}Critical
-                        {% elif 'WARNING' in match.description %}Warning
-                        {% else %}Info
+            <div class="stats-grid mb-lg" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="stat-card" style="border-left: 4px solid var(--accent-danger);">
+                    <div class="stat-number text-danger">{{ critical_findings|length }}</div>
+                    <div class="stat-label">Critical Issues</div>
+                </div>
+                <div class="stat-card" style="border-left: 4px solid var(--accent-warning);">
+                    <div class="stat-number text-warning">{{ warning_findings|length }}</div>
+                    <div class="stat-label">Warnings</div>
+                </div>
+                <div class="stat-card" style="border-left: 4px solid var(--accent-info);">
+                    <div class="stat-number text-primary">{{ info_findings|length }}</div>
+                    <div class="stat-label">Information</div>
+                </div>
+            </div>
+            
+            <!-- Critical Findings -->
+            {% if critical_findings|length > 0 %}
+            <div class="collapsible mb-lg">
+                <div class="collapsible-header" style="background: rgba(239, 68, 68, 0.1);">
+                    <h4 class="mb-0" style="color: var(--accent-danger);">🚨 Critical Security Issues ({{ critical_findings|length }})</h4>
+                    <span class="collapse-icon">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    {% for match in critical_findings %}
+                    <div class="card mb-sm" style="border-left: 4px solid var(--accent-danger);">
+                        <div class="card-header">
+                            <strong>{{ match.plugin_name or 'Security Scanner' }}</strong>
+                            <span class="status status-danger">Critical</span>
+                        </div>
+                        <p class="mb-0">{{ match.description }}</p>
+                        {% if match.matched_text and match.matched_text.strip() %}
+                        <div class="code-block mt-sm">
+                            <pre style="font-size: 0.8em;">{{ match.matched_text }}</pre>
+                        </div>
                         {% endif %}
-                    </span>
-                </div>
-                
-                <p class="mb-md">{{ match.description }}</p>
-                
-                {% if match.matched_text and match.matched_text.strip() %}
-                <div class="code-block">
-                    <div class="code-block-header">
-                        <span class="code-title">Matched Content</span>
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                     </div>
-                    <pre>{{ match.matched_text }}</pre>
+                    {% endfor %}
                 </div>
-                {% endif %}
-                
-                {% if match.file_path and match.file_path.strip() %}
-                <p class="text-muted">Found in: <code>{{ match.file_path }}</code></p>
-                {% endif %}
             </div>
             {% endif %}
-            {% endfor %}
+            
+            <!-- Warning Findings -->
+            {% if warning_findings|length > 0 %}
+            <div class="collapsible mb-lg">
+                <div class="collapsible-header" style="background: rgba(245, 158, 11, 0.1);">
+                    <h4 class="mb-0" style="color: var(--accent-warning);">⚠️ Security Warnings ({{ warning_findings|length }})</h4>
+                    <span class="collapse-icon">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    {% for match in warning_findings %}
+                    <div class="card mb-sm" style="border-left: 4px solid var(--accent-warning);">
+                        <div class="card-header">
+                            <strong>{{ match.plugin_name or 'Security Scanner' }}</strong>
+                            <span class="status status-warning">Warning</span>
+                        </div>
+                        <p class="mb-0">{{ match.description }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Information Findings -->
+            {% if info_findings|length > 0 %}
+            <div class="collapsible mb-lg collapsed">
+                <div class="collapsible-header" style="background: rgba(6, 182, 212, 0.1);">
+                    <h4 class="mb-0" style="color: var(--accent-info);">ℹ️ Information Discovered ({{ info_findings|length }})</h4>
+                    <span class="collapse-icon">▶</span>
+                </div>
+                <div class="collapsible-content">
+                    <div style="columns: 2; column-gap: 20px;">
+                        {% for match in info_findings %}
+                        <div class="mb-sm" style="break-inside: avoid;">
+                            <strong>{{ match.plugin_name or 'Scanner' }}:</strong>
+                            <span style="color: var(--text-secondary);">{{ match.description }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -325,15 +440,58 @@
     {% if target_data.raw_files and target_data.raw_files|length > 0 %}
     {% set valid_files = target_data.raw_files|selectattr('name')|list %}
     {% if valid_files|length > 0 %}
+    
+    <!-- Highlight directory busting files -->
+    {% set dir_scan_files = [] %}
+    {% for file in valid_files %}
+        {% if 'feroxbuster' in file.name or 'dirbuster' in file.name or 'gobuster' in file.name or 'dirb' in file.name %}
+            {% set _ = dir_scan_files.append(file) %}
+        {% endif %}
+    {% endfor %}
+    
     <div class="collapsible collapsed">
         <div class="collapsible-header">
-            <h3 class="mb-0">📋 Raw Scan Data ({{ valid_files|length }} files)</h3>
+            <h3 class="mb-0">📋 Raw Scan Data ({{ valid_files|length }} files{% if dir_scan_files|length > 0 %} - {{ dir_scan_files|length }} directory scans{% endif %})</h3>
             <span class="collapse-icon">▶</span>
         </div>
         <div class="collapsible-content">
             <p class="text-muted mb-lg">
-                Raw output files generated during the scan. Click on any file to expand its contents.
+                Raw output files generated during the scan. {% if dir_scan_files|length > 0 %}Directory busting files are highlighted below.{% endif %}
             </p>
+            
+            <!-- Show directory busting files first if they exist -->
+            {% if dir_scan_files|length > 0 %}
+            <div class="card mb-lg" style="border-left: 4px solid var(--accent-warning); background: rgba(245, 158, 11, 0.1);">
+                <div class="card-header">
+                    <h4 class="mb-0" style="color: var(--accent-warning);">📁 Directory/File Discovery Scans</h4>
+                </div>
+                <p class="mb-md">If directories/files aren't showing above, check these raw scan outputs:</p>
+                {% for file in dir_scan_files %}
+                <div class="collapsible collapsed mb-sm">
+                    <div class="collapsible-header" style="background: var(--bg-tertiary);">
+                        <h5 class="card-title mb-0">🔍 {{ file.name }}</h5>
+                        <div class="text-muted">{{ file.size or 'Unknown size' }}</div>
+                    </div>
+                    <div class="collapsible-content">
+                        {% if file.content and file.content.strip() %}
+                        <div class="code-block">
+                            <div class="code-block-header">
+                                <span class="code-title">{{ file.name }}</span>
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                            </div>
+                            <pre>{{ file.content }}</pre>
+                        </div>
+                        {% else %}
+                        <p class="text-muted">File content not available or too large to display.</p>
+                        {% if file.path %}
+                        <p>File path: <code>{{ file.path }}</code></p>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
             
             {% for file in valid_files %}
             {% if file.name and file.name.strip() %}

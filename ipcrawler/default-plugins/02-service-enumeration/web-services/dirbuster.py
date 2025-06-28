@@ -162,6 +162,10 @@ class DirBuster(ServiceScan):
 									service.info(f"✅ Using technology-specific wordlist: {smart_wordlist_path}")
 								else:
 									service.info("🤖 Smart Wordlist Selector found no technology-specific wordlists")
+									service.info(f"🤖 Technologies detected: {', '.join(detected_technologies)}")
+									service.info(f"🤖 Catalog available: {bool(selector.catalog)}")
+									if selector.catalog:
+										service.info(f"🤖 Catalog wordlists: {len(selector.catalog.get('wordlists', {}))}")
 							else:
 								service.info("🤖 Smart Wordlist Selector: SecLists path not available")
 						except Exception as e:

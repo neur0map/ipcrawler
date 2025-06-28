@@ -8,9 +8,13 @@ Hooks into existing WhatWeb, Nmap, and other scan outputs.
 import os
 import re
 import glob
-import yaml
 from typing import Set, Optional, Dict, List
-from pathlib import Path
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 
 class TechnologyDetector:
@@ -37,6 +41,9 @@ class TechnologyDetector:
         aliases_path = os.path.join(os.path.dirname(__file__), 'data', 'technology_aliases.yaml')
         
         try:
+            if not YAML_AVAILABLE:
+                raise ImportError("PyYAML not available")
+            
             with open(aliases_path, 'r') as f:
                 aliases_data = yaml.safe_load(f)
             

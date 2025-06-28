@@ -113,8 +113,18 @@ class SmartWordlistSelector:
         
         # Get candidate wordlists for this technology
         candidates = self._get_candidate_wordlists(best_tech, category)
+        
+        # If no technology-specific wordlists found, try generic ones
         if not candidates:
-            return None
+            candidates = self._get_generic_candidate_wordlists(category)
+        
+        # If still no candidates, try the most generic fallback
+        if not candidates:
+            candidates = self._get_fallback_candidate_wordlists(category)
+        
+        # If STILL no candidates, try an extremely broad search
+        if not candidates:
+            candidates = self._get_desperate_fallback_wordlists(category)
         
         # Score and select best candidate
         best_wordlist = self._score_and_select_candidates(candidates, best_tech)
@@ -366,6 +376,110 @@ class SmartWordlistSelector:
                     candidates.append((wordlist_path, wordlist_info))
         
         return candidates
+    
+    def _get_generic_candidate_wordlists(self, category: str) -> List[Tuple[str, Dict]]:
+        """Get generic candidate wordlists when technology-specific ones aren't available"""
+        candidates = []
+        
+        if not self.catalog or 'wordlists' not in self.catalog:
+            return candidates
+        
+        # Define generic wordlist patterns for each category
+        generic_patterns = {
+            'web_directories': [
+                'discovery/web-content/directory-list',
+                'discovery/web-content/common',
+                'discovery/web-content/big',
+                'discovery/web-content/raft-medium-directories',
+                'discovery/web-content/raft-large-directories',
+                'fuzzing/dirbuster'
+            ],
+            'web_files': [
+                'discovery/web-content/raft-medium-files',
+                'discovery/web-content/raft-large-files',
+                'discovery/web-content/common',
+                'fuzzing/dirbuster'
+            ]
+        }
+        
+        relevant_patterns = generic_patterns.get(category, [])
+        
+        for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
+            path_lower = wordlist_path.lower()
+            
+            # Check if wordlist matches any of the generic patterns
+            if any(pattern in path_lower for pattern in relevant_patterns):
+                # Check if wordlist is appropriate for the category
+                if self._is_appropriate_category_generic(wordlist_info, category, path_lower):
+                    candidates.append((wordlist_path, wordlist_info))
+        
+        return candidates
+    
+    def _get_fallback_candidate_wordlists(self, category: str) -> List[Tuple[str, Dict]]:
+        """Get most generic fallback wordlists as last resort"""
+        candidates = []
+        
+        if not self.catalog or 'wordlists' not in self.catalog:
+            return candidates
+        
+        # Extremely broad fallback patterns - accept any web-related wordlist
+        fallback_patterns = {
+            'web_directories': ['web', 'dir', 'common', 'big.txt', 'medium.txt'],
+            'web_files': ['web', 'file', 'common', 'big.txt', 'medium.txt']
+        }
+        
+        relevant_patterns = fallback_patterns.get(category, [])
+        
+        for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
+            path_lower = wordlist_path.lower()
+            
+            # Very permissive matching for fallback
+            if any(pattern in path_lower for pattern in relevant_patterns):
+                # Accept almost anything for fallback
+                if ('discovery' in path_lower or 
+                    'fuzzing' in path_lower or 
+                    'dirbuster' in path_lower or
+                    'common' in path_lower):
+                    candidates.append((wordlist_path, wordlist_info))
+        
+        return candidates
+    
+    def _get_desperate_fallback_wordlists(self, category: str) -> List[Tuple[str, Dict]]:
+        """Extremely broad fallback - find ANY potential wordlist"""
+        candidates = []
+        
+        if not self.catalog or 'wordlists' not in self.catalog:
+            return candidates
+        
+        # Accept almost anything that looks like it could be a wordlist
+        for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
+            path_lower = wordlist_path.lower()
+            filename = os.path.basename(path_lower)
+            
+            # Very broad acceptance criteria
+            if (category == 'web_directories' and 
+                (any(word in path_lower for word in ['discovery', 'web', 'dir', 'content', 'common', 'list']) or
+                 any(word in filename for word in ['dir', 'common', 'list', 'medium', 'big', 'small']) or
+                 filename.endswith('.txt'))):
+                candidates.append((wordlist_path, wordlist_info))
+        
+        return candidates
+    
+    def _is_appropriate_category_generic(self, wordlist_info: Dict, category: str, path_lower: str) -> bool:
+        """Check if a generic wordlist is appropriate for the requested category"""
+        # For generic wordlists, we're more permissive with categories
+        # since they're meant to be broadly applicable
+        
+        if category in ['web_directories', 'web_files']:
+            # Accept if it's in web-content discovery or contains directory/file keywords
+            return ('web-content' in path_lower or 
+                   'directory' in path_lower or 
+                   'dirbuster' in path_lower or
+                   'raft' in path_lower or
+                   'common' in path_lower)
+        
+        # For other categories, use the stricter check
+        return self._is_appropriate_category(wordlist_info, category)
     
     def _is_appropriate_category(self, wordlist_info: Dict, category: str) -> bool:
         """Check if wordlist is appropriate for the requested category"""
