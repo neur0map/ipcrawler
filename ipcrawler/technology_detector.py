@@ -128,12 +128,23 @@ class TechnologyDetector:
                 # Only read first 16KB for performance
                 content = f.read(16384)
             
-            # Apply technology detection patterns
+            # Apply technology detection patterns with confidence scoring
             for tech, patterns in sorted(self.technology_patterns.items()):
+                confidence_score = 0
+                matches_found = 0
+                
                 for pattern in patterns:
-                    if re.search(pattern, content, re.IGNORECASE):
-                        detected.add(tech)
-                        break  # One match per technology is enough
+                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    if matches:
+                        matches_found += len(matches)
+                        confidence_score += len(matches)
+                
+                # Require stronger evidence for detection (reduce false positives)
+                # Higher threshold for generic technologies, lower for specific ones
+                min_confidence = 2 if tech in ['apache', 'nginx', 'php', 'java'] else 1
+                
+                if confidence_score >= min_confidence:
+                    detected.add(tech)
                         
         except Exception as e:
             # Silent failure - don't break scanning for detection issues

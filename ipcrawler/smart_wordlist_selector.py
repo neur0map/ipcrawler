@@ -98,7 +98,7 @@ class SmartWordlistSelector:
         Select best wordlist for category based on detected technologies
 
         Args:
-            category: Wordlist category (e.g., 'web_directories', 'web_files')
+            category: Wordlist category (e.g., 'web_directories', 'web_files', 'vhosts', 'subdomains')
             detected_technologies: Set of detected technology strings
 
         Returns:
@@ -106,6 +106,19 @@ class SmartWordlistSelector:
         """
         if not detected_technologies or not self.catalog.get('wordlists'):
             return None
+
+        # Map web enumeration categories to standard categories
+        category_mapping = {
+            'vhosts': 'web_directories',
+            'subdomains': 'web_directories', 
+            'directories': 'web_directories',
+            'files': 'web_files',
+            'hostnames': 'web_directories',
+            'virtual_hosts': 'web_directories'
+        }
+        
+        # Use mapped category if available
+        mapped_category = category_mapping.get(category, category)
 
         # Find best technology match using alias mapping
         best_tech = self._find_best_technology_match(detected_technologies)
@@ -117,22 +130,22 @@ class SmartWordlistSelector:
         self._last_fallback_level = None
 
         # Get candidate wordlists for this technology
-        candidates = self._get_candidate_wordlists(best_tech, category)
+        candidates = self._get_candidate_wordlists(best_tech, mapped_category)
         fallback_level = "technology-specific"
 
         # If no technology-specific wordlists found, try generic ones
         if not candidates:
-            candidates = self._get_generic_candidate_wordlists(category)
+            candidates = self._get_generic_candidate_wordlists(mapped_category)
             fallback_level = "generic"
 
         # If still no candidates, try the most generic fallback
         if not candidates:
-            candidates = self._get_fallback_candidate_wordlists(category)
+            candidates = self._get_fallback_candidate_wordlists(mapped_category)
             fallback_level = "fallback"
 
         # If STILL no candidates, try an extremely broad search
         if not candidates:
-            candidates = self._get_desperate_fallback_wordlists(category)
+            candidates = self._get_desperate_fallback_wordlists(mapped_category)
             fallback_level = "desperate"
 
         # Store fallback level for reporting
@@ -361,8 +374,8 @@ class SmartWordlistSelector:
                 print(f"   • {tech} (tier: {info['tier']}, score: {info['score']:.2f}) from '{info['detected_string']}'")
             print(f"✅ Selected: {best_tech} (tier: {best_info['tier']}) - highest security priority")
         
-        # Only return if we have a reasonable confidence
-        return best_tech if best_info['score'] > 0.6 else None
+        # Only return if we have a reasonable confidence (lowered threshold for better coverage)
+        return best_tech if best_info['score'] > 0.4 else None
     
     def _simple_technology_match(self, detected_technologies: Set[str]) -> Optional[str]:
         """Fallback simple string matching with security priority when RapidFuzz unavailable"""
@@ -626,52 +639,44 @@ class SmartWordlistSelector:
         return list(set(implicit_tags))
     
     def _get_generic_candidate_wordlists(self, category: str) -> List[Tuple[str, Dict]]:
-        """Get generic candidate wordlists when technology-specific ones aren't available"""
+        """Get generic wordlists when technology-specific ones aren't available"""
         candidates = []
         
         if not self.catalog or 'wordlists' not in self.catalog:
             return candidates
         
-        # Priority 1: Premium wordlists first (even for generic selection)
-        if category in ['web_directories', 'web_files']:
-            premium_candidates = self._get_premium_wordlists(category)
-            candidates.extend(premium_candidates)
-            if premium_candidates:
-                print(f"🏆 Using premium wordlists for generic {category}")
-                return candidates  # Premium wordlists are sufficient
-        
-        # Priority 2: Standard generic patterns
+        # Enhanced generic patterns for web enumeration
         generic_patterns = {
             'web_directories': [
-                'discovery/web-content/directory-list',
-                'discovery/web-content/common',
-                'discovery/web-content/big',
-                'discovery/web-content/raft-medium-directories',
-                'discovery/web-content/raft-large-directories',
-                'fuzzing/dirbuster'
+                'directory', 'web-content', 'common', 'big.txt', 'medium.txt', 'small.txt',
+                'discovery', 'subdomain', 'vhost', 'dns', 'top1million', 'directory-list'
             ],
             'web_files': [
-                'discovery/web-content/raft-medium-files',
-                'discovery/web-content/raft-large-files',
-                'discovery/web-content/common',
-                'fuzzing/dirbuster'
-            ]
+                'file', 'extension', 'web-content', 'common', 'backup', 'config',
+                'discovery', 'directory-list'
+            ],
+            'usernames': ['username', 'user', 'names', 'admin'],
+            'passwords': ['password', 'pass', 'common', 'rockyou']
         }
         
         relevant_patterns = generic_patterns.get(category, [])
+        if not relevant_patterns:
+            # Fallback to web directory patterns for unknown categories
+            relevant_patterns = generic_patterns['web_directories']
+        
+        print(f"🔍 Searching for generic wordlists with patterns: {relevant_patterns[:3]}...")
         
         for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
             path_lower = wordlist_path.lower()
-            
-            # Skip if already added as premium
-            if any(wordlist_path == p for p, _ in candidates):
-                continue
             
             # Check if wordlist matches any of the generic patterns
             if any(pattern in path_lower for pattern in relevant_patterns):
                 # Check if wordlist is appropriate for the category
                 if self._is_appropriate_category_generic(wordlist_info, category, path_lower):
                     candidates.append((wordlist_path, wordlist_info))
+        
+        if candidates:
+            print(f"🎯 Found {len(candidates)} generic wordlists for {category}")
         
         return candidates
     
@@ -806,14 +811,14 @@ class SmartWordlistSelector:
         # Sort by score (descending), then by wordlist path for deterministic tie-breaking
         scored_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
 
-        # Use adaptive threshold - lower for generic/fallback wordlists
-        min_threshold = 0.3
+        # Use adaptive threshold - more lenient for better coverage
+        min_threshold = 0.2  # Lowered from 0.3
         if scored_candidates:
             best_score = scored_candidates[0][0]
-            # If we have candidates but none score above 0.3, use a lower threshold
+            # If we have candidates but none score above 0.2, use an even lower threshold
             # This handles cases where we're using generic wordlists that don't match the technology name
-            if best_score <= 0.3 and best_score > -0.5:  # Accept reasonable generic wordlists
-                min_threshold = -0.5
+            if best_score <= 0.2 and best_score > -0.3:  # Accept reasonable generic wordlists
+                min_threshold = -0.3  # More lenient
 
         if scored_candidates and scored_candidates[0][0] > min_threshold:
             return scored_candidates[0][1]

@@ -63,9 +63,9 @@ technology_aliases:
     description: "TYPO3 CMS"
     
   ghost:
-    aliases: ["ghost", "ghost/", "content/themes", "admin/"]
+    aliases: ["ghost", "ghost-blog", "content/themes"]
     priority: medium
-    description: "Ghost blogging platform"
+    description: "Ghost CMS"
     
   umbraco:
     aliases: ["umbraco", "umbraco/", "umbraco_client/"]
@@ -313,8 +313,8 @@ technology_aliases:
     description: "Moodle LMS"
     
   chamilo:
-    aliases: ["chamilo", "main/", "user/", "admin/", "plugin/", "app/upload/users/"]
-    priority: high
+    aliases: ["chamilo", "chamilo-lms", "plugin/", "app/upload/users/"]
+    priority: medium
     description: "Chamilo LMS"
     
   canvas:
@@ -447,7 +447,7 @@ technology_aliases:
     
   # Message Queues
   rabbitmq:
-    aliases: ["rabbitmq", "rabbit", "management/", "api/"]
+    aliases: ["rabbitmq", "rabbit", "rabbitmq-management"]
     priority: medium
     description: "RabbitMQ"
     
@@ -668,9 +668,9 @@ technology_aliases:
 
   # Social Media & Communication
   mastodon:
-    aliases: ["mastodon", "web/", "api/v1/", "about/"]
+    aliases: ["mastodon", "joinmastodon", "api/v1/", "about/more"]
     priority: medium
-    description: "Mastodon social network"
+    description: "Mastodon"
 
   diaspora:
     aliases: ["diaspora", "stream", "people/", "aspects/"]
@@ -1064,9 +1064,9 @@ technology_aliases:
     description: "Laravel PHP framework"
 
   symfony:
-    aliases: ["symfony", "vendor/symfony", "app/", "web/"]
+    aliases: ["symfony", "vendor/symfony", "symfony-profiler"]
     priority: medium
-    description: "Symfony PHP framework"
+    description: "Symfony"
 
   codeigniter:
     aliases: ["codeigniter", "ci_", "system/", "application/"]
@@ -1090,9 +1090,9 @@ technology_aliases:
 
   # Python Frameworks
   django:
-    aliases: ["django", "admin/", "static/admin/", "csrf"]
+    aliases: ["django", "djangoproject", "static/admin/", "csrfmiddlewaretoken"]
     priority: medium
-    description: "Django framework"
+    description: "Django"
 
   flask:
     aliases: ["flask", "werkzeug", "jinja2", "static/"]
@@ -2007,17 +2007,17 @@ technology_aliases:
 
   # Additional Communication Platforms
   discord:
-    aliases: ["discord", "discord.com", "channels/", "servers/"]
+    aliases: ["discord", "discord.com", "discord.gg"]
     priority: medium
     description: "Discord"
 
   telegram:
-    aliases: ["telegram", "t.me", "web/", "bot/"]
+    aliases: ["telegram", "t.me", "telegram.org"]
     priority: medium
     description: "Telegram"
 
   whatsapp_business:
-    aliases: ["whatsapp", "business.whatsapp", "api/", "webhook/"]
+    aliases: ["whatsapp", "business.whatsapp", "whatsapp-business"]
     priority: medium
     description: "WhatsApp Business"
 
@@ -2108,7 +2108,7 @@ technology_aliases:
 
   # Additional HR & Recruitment
   workday:
-    aliases: ["workday", "myworkday", "tenant/", "home/"]
+    aliases: ["workday", "myworkday.com", "workday.com"]
     priority: high
     description: "Workday"
 
