@@ -123,6 +123,91 @@ Better results because you're using targeted wordlists instead of spray-and-pray
 
 ---
 
+🔢 **The Scoring System (For The Math Nerds)**
+
+**How does it actually pick the "best" wordlist?** It's all about the score, baby! 
+
+**Technology Match Score (70% weight):**
+```
+wordpress.txt vs "wordpress" = 100% match (perfect!)
+wp-content.txt vs "wordpress" = 90% match (pretty good)
+big.txt vs "wordpress" = 0% match (garbage)
+```
+
+**Size Score (30% weight):**
+- **Too tiny** (< 100 lines): -50% penalty (useless for directory busting)
+- **Sweet spot** (1K-20K lines): +50% bonus (comprehensive but not massive)
+- **Too huge** (> 50K lines): -20% penalty (will take forever to run)
+
+**Security Tier Bonuses:**
+- **Critical tech** (admin panels, databases): +2.0 bonus points
+- **High-value tech** (CMSs, frameworks): +1.5 bonus points  
+- **Medium tech** (languages, tools): +1.0 bonus points
+- **Low-priority** (web servers): +0.5 bonus points
+
+**Final Formula:**
+```
+Final Score = (Technology Match × 0.7) + (Size Score × 0.3) + Security Bonus
+```
+
+**Example Scoring Battle:**
+```
+wordpress.txt:     (1.0 × 0.7) + (0.5 × 0.3) + 1.5 = 2.35 🏆
+big.txt:           (0.0 × 0.7) + (0.3 × 0.3) + 0.0 = 0.09 💩
+wp-plugins.txt:    (0.9 × 0.7) + (-0.5 × 0.3) + 1.5 = 1.98 🥈
+```
+
+**Winner: wordpress.txt** because it's the perfect balance of relevance, size, and security importance!
+
+**Minimum Score Threshold:** Must score > 0.3 or it falls back to defaults. No garbage wordlists allowed! 🚫
+
+---
+
+🔧 **"But I Don't Trust Your Algorithm!" (Fair Enough)**
+
+**Look, I get it.** Some of you old-school pentesters are thinking:
+
+*"This sounds cool but I've been using directory-list-2.3-medium.txt for 10 years and I'm not changing now!"*
+
+**No problem!** You can totally disable this feature:
+
+**Option 1: Turn it off globally**
+```bash
+# In your config file
+smart_wordlists: false
+# Now it works like the old days - you pick your wordlists manually
+```
+
+**Option 2: Override for specific scans**
+```bash
+# Force your favorite wordlist regardless of detection
+ipcrawler --wordlist /path/to/your-favorite-wordlist.txt target.com
+# Smart selection is ignored, uses YOUR wordlist
+```
+
+**Option 3: Hybrid approach**
+```bash
+# Let it detect, but you get final approval
+smart_wordlists: prompt
+# Shows: "Detected WordPress, suggests wordpress.txt - Use it? [Y/n]"
+```
+
+**Why you might want to disable it:**
+- **You're paranoid** (totally valid in this field)
+- **You have custom wordlists** that work better for your targets
+- **You're doing specialized testing** (IoT, embedded systems, etc.)
+- **You just like being in control** (respect ✊)
+
+**Why you might want to keep it:**
+- **It's usually right** and saves time
+- **Finds tech-specific paths** you might forget about
+- **Adapts to new technologies** as they get added
+- **You can focus on exploitation** instead of wordlist management
+
+**The smart part:** Even when disabled, all the technology detection still works for reporting. You just get to pick your own wordlists like a boss! 😎
+
+---
+
 💡 **The Bottom Line**
 
 This is like having that one pentester friend who always knows exactly which wordlist to use... except it's automated and never gets tired or forgets.

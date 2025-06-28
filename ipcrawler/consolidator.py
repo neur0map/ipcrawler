@@ -1480,10 +1480,26 @@ class IPCrawlerConsolidator:
                     if line and not line.startswith('Discovered hostnames:') and not line.startswith('#'):
                         # Remove leading whitespace/bullets
                         hostname = line.lstrip(' -•*').strip()
+
+                        # Validate hostname before adding
                         if hostname and hostname not in results.hostnames:
-                            results.hostnames.append(hostname)
-                            if RICH_AVAILABLE:
-                                console.print(f"[green]🌐 Found hostname: {hostname}[/green]")
+                            # Basic hostname validation
+                            import re
+                            if re.match(r'^[a-zA-Z0-9.-]+$', hostname) and '..' not in hostname:
+                                if not hostname.endswith('.html') and not hostname.endswith('.php'):
+                                    if not hostname.endswith('home') and not hostname.endswith('index'):
+                                        results.hostnames.append(hostname)
+                                        if RICH_AVAILABLE:
+                                            console.print(f"[green]🌐 Found hostname: {hostname}[/green]")
+                                    else:
+                                        if RICH_AVAILABLE:
+                                            console.print(f"[yellow]⚠️ Skipped invalid hostname (looks like path): {hostname}[/yellow]")
+                                else:
+                                    if RICH_AVAILABLE:
+                                        console.print(f"[yellow]⚠️ Skipped invalid hostname (file extension): {hostname}[/yellow]")
+                            else:
+                                if RICH_AVAILABLE:
+                                    console.print(f"[yellow]⚠️ Skipped invalid hostname format: {hostname}[/yellow]")
                             
             except Exception as e:
                 if RICH_AVAILABLE:

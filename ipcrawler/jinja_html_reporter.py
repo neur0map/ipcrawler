@@ -277,7 +277,7 @@ class Jinja2HTMLReporter:
         total_services = total_open_ports  # Each open port is a service
         total_web_services = sum(len(target.web_services) for target in targets.values())
         total_vulnerabilities = sum(len(target.vulnerabilities) for target in targets.values())
-        total_manual_commands = sum(len(target.manual_commands) for target in targets.values())
+        total_manual_commands = sum(len(target.manual_commands) if hasattr(target.manual_commands, '__len__') else 0 for target in targets.values())
         
         # Count critical findings (pattern matches with vulnerability indicators)
         critical_findings = 0
@@ -348,6 +348,14 @@ class Jinja2HTMLReporter:
             transformed.status = target_data.status
         else:
             transformed.status = 'complete'
+
+        # Add ip_address attribute (required by consolidator)
+        if hasattr(target_data, 'ip_address') and target_data.ip_address:
+            transformed.ip_address = target_data.ip_address
+        elif hasattr(target_data, 'ip') and target_data.ip:
+            transformed.ip_address = target_data.ip
+        else:
+            transformed.ip_address = target_name  # Fallback to target name
 
         # Preserve all attributes for consolidator compatibility
         if hasattr(target_data, 'open_ports'):
@@ -533,29 +541,41 @@ class Jinja2HTMLReporter:
         
         if hasattr(target_data, 'manual_commands') and target_data.manual_commands:
             for command in target_data.manual_commands:
-                # Parse command for plugin and description information
+                # Handle both string commands and ManualCommand objects
                 plugin_name = "Manual Command"
                 description = ""
-                command_text = command
+                command_text = ""
                 service = ""
                 port = ""
-                
-                # Try to extract plugin information from command
-                if '(' in command and ')' in command:
-                    # Format: (plugin) description: command
-                    parts = command.split(')', 1)
-                    if len(parts) == 2:
-                        plugin_part = parts[0].replace('(', '').strip()
-                        rest = parts[1].strip()
-                        
-                        if plugin_part:
-                            plugin_name = plugin_part
-                        
-                        if ':' in rest:
-                            desc_cmd = rest.split(':', 1)
-                            if len(desc_cmd) == 2:
-                                description = desc_cmd[0].strip()
-                                command_text = desc_cmd[1].strip()
+
+                # Check if command is already a ManualCommand object
+                if hasattr(command, 'plugin_name'):
+                    # It's already a ManualCommand object
+                    plugin_name = getattr(command, 'plugin_name', 'Manual Command')
+                    description = getattr(command, 'description', '')
+                    command_text = getattr(command, 'command', str(command))
+                    service = getattr(command, 'service', '')
+                    port = getattr(command, 'port', '')
+                else:
+                    # It's a string command, parse it
+                    command_text = str(command)
+
+                    # Try to extract plugin information from command
+                    if '(' in command_text and ')' in command_text:
+                        # Format: (plugin) description: command
+                        parts = command_text.split(')', 1)
+                        if len(parts) == 2:
+                            plugin_part = parts[0].replace('(', '').strip()
+                            rest = parts[1].strip()
+
+                            if plugin_part:
+                                plugin_name = plugin_part
+
+                            if ':' in rest:
+                                desc_cmd = rest.split(':', 1)
+                                if len(desc_cmd) == 2:
+                                    description = desc_cmd[0].strip()
+                                    command_text = desc_cmd[1].strip()
                 
                 cmd_data = {
                     'plugin_name': plugin_name,
