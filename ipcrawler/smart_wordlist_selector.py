@@ -237,20 +237,20 @@ class SmartWordlistSelector:
         # Find all matching technologies with their tiers
         technology_matches = {}
         
-        for tech_key, tech_config in tech_aliases.items():
+        for tech_key, tech_config in sorted(tech_aliases.items()):
             aliases = tech_config.get('aliases', [])
             
             # Determine security tier for this technology
             security_tier = 'unknown'
             tier_priority = 0
-            for tier, tech_set in security_tiers.items():
+            for tier, tech_set in sorted(security_tiers.items()):
                 if tech_key in tech_set:
                     security_tier = tier
                     tier_priority = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1, 'unknown': 0}[tier]
                     break
             
             # Check each detected technology against this tech's aliases
-            for detected in detected_technologies:
+            for detected in sorted(detected_technologies):
                 alias_match = process.extractOne(
                     detected.lower(),
                     [alias.lower() for alias in aliases],
@@ -281,10 +281,10 @@ class SmartWordlistSelector:
         if not technology_matches:
             return None
         
-        # Sort by security tier first, then by score within tier
+        # Sort by security tier first, then by score within tier, then by technology name for deterministic tie-breaking
         sorted_matches = sorted(
             technology_matches.items(),
-            key=lambda x: (x[1]['tier_priority'], x[1]['score']),
+            key=lambda x: (x[1]['tier_priority'], x[1]['score'], x[0]),  # x[0] is tech_key for deterministic tie-breaking
             reverse=True
         )
         
@@ -315,18 +315,18 @@ class SmartWordlistSelector:
         # Find matches organized by security tier
         tier_matches = {'critical': [], 'high': [], 'medium': [], 'low': [], 'unknown': []}
         
-        for tech_key, tech_config in tech_aliases.items():
+        for tech_key, tech_config in sorted(tech_aliases.items()):
             aliases = tech_config.get('aliases', [])
             
             # Determine security tier
             security_tier = 'unknown'
-            for tier, tech_set in security_tiers.items():
+            for tier, tech_set in sorted(security_tiers.items()):
                 if tech_key in tech_set:
                     security_tier = tier
                     break
             
             # Check for string matches
-            for detected in detected_technologies:
+            for detected in sorted(detected_technologies):
                 for alias in aliases:
                     if alias.lower() in detected.lower() or detected.lower() in alias.lower():
                         tier_matches[security_tier].append((tech_key, detected))
@@ -335,10 +335,12 @@ class SmartWordlistSelector:
                     continue  # No match found for this detected tech
                 break  # Found a match, move to next tech_key
         
-        # Return highest priority match
+        # Return highest priority match with deterministic tie-breaking
         for tier in ['critical', 'high', 'medium', 'low', 'unknown']:
             if tier_matches[tier]:
-                best_tech, detected_string = tier_matches[tier][0]  # First match in highest available tier
+                # Sort matches within tier by technology name for deterministic selection
+                sorted_tier_matches = sorted(tier_matches[tier], key=lambda x: x[0])  # Sort by tech_key
+                best_tech, detected_string = sorted_tier_matches[0]  # Best match in highest available tier
                 if len(sum(tier_matches.values(), [])) > 1:  # Multiple matches found
                     print(f"🔍 Multiple technologies detected (simple matching)")
                     print(f"✅ Selected: {best_tech} (tier: {tier}) - highest security priority")
@@ -351,7 +353,10 @@ class SmartWordlistSelector:
         candidates = []
         
         # Get wordlists that contain the technology name in their path/filename
-        for wordlist_path, wordlist_info in self.catalog['wordlists'].items():
+        if not self.catalog or 'wordlists' not in self.catalog:
+            return candidates
+        
+        for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
             path_lower = wordlist_path.lower()
             
             # Check if wordlist is relevant to this technology
@@ -405,8 +410,8 @@ class SmartWordlistSelector:
             
             scored_candidates.append((final_score, wordlist_path, wordlist_info))
         
-        # Sort by score (descending) and return best
-        scored_candidates.sort(reverse=True)
+        # Sort by score (descending), then by wordlist path for deterministic tie-breaking
+        scored_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
         
         if scored_candidates and scored_candidates[0][0] > 0.3:  # Minimum score threshold
             return scored_candidates[0][1]
@@ -510,7 +515,7 @@ class SmartWordlistSelector:
         # Walk through all .txt files in SecLists
         wordlist_count = 0
         for root, dirs, files in os.walk(self.seclists_base_path):
-            for file in files:
+            for file in sorted(files):
                 if file.endswith('.txt') or file.endswith('.fuzz.txt'):
                     full_path = os.path.join(root, file)
                     relative_path = os.path.relpath(full_path, self.seclists_base_path)
@@ -626,7 +631,7 @@ class SmartWordlistSelector:
         
         # For critical and high-tier technologies, include multiple wordlists
         for tier in ['critical', 'high']:
-            tier_techs = [tech for tech, info in tech_matches.items() if info['tier'] == tier]
+            tier_techs = [tech for tech, info in sorted(tech_matches.items()) if info['tier'] == tier]
             
             for tech in tier_techs[:2]:  # Max 2 technologies per tier to avoid too many wordlists
                 candidates = self._get_candidate_wordlists(tech, category)
@@ -659,18 +664,18 @@ class SmartWordlistSelector:
         
         technology_matches = {}
         
-        for tech_key, tech_config in tech_aliases.items():
+        for tech_key, tech_config in sorted(tech_aliases.items()):
             aliases = tech_config.get('aliases', [])
             
             # Determine security tier
             security_tier = 'unknown'
-            for tier, tech_set in security_tiers.items():
+            for tier, tech_set in sorted(security_tiers.items()):
                 if tech_key in tech_set:
                     security_tier = tier
                     break
             
             # Simple string matching for all technologies
-            for detected in detected_technologies:
+            for detected in sorted(detected_technologies):
                 for alias in aliases:
                     if alias.lower() in detected.lower() or detected.lower() in alias.lower():
                         technology_matches[tech_key] = {
@@ -702,7 +707,7 @@ class SmartWordlistSelector:
         }
         
         # Categorize technologies by security tier
-        for tech, info in tech_matches.items():
+        for tech, info in sorted(tech_matches.items()):
             tier = info['tier']
             analysis['security_tiers'][tier].append({
                 'technology': tech,

@@ -651,10 +651,21 @@ class ResultParser:
                         data['protocol_version'] = ssh_match.group(1)
                         data['software'] = ssh_match.group(2)
                 
-                # Extract host keys
-                host_keys = re.findall(r'(\w+)\s+(\w+)\s+([a-fA-F0-9:]+)', content)
-                if host_keys:
-                    data['host_keys'] = [{'type': hk[0], 'bits': hk[1], 'fingerprint': hk[2]} for hk in host_keys]
+                # Extract host keys - fix regex to be more specific
+                # Look for nmap ssh-hostkey script output specifically
+                if '| ssh-hostkey:' in content:
+                    # Parse nmap ssh-hostkey script output
+                    hostkey_section = re.search(r'\| ssh-hostkey:(.*?)(?=\||$)', content, re.DOTALL)
+                    if hostkey_section:
+                        # More specific pattern: require longer hex strings and proper format
+                        keys = re.findall(r'(\w+)\s+(\d+)\s+([a-fA-F0-9:]{47,})', hostkey_section.group(1))
+                        if keys:
+                            data['host_keys'] = [{'type': k[0], 'bits': k[1], 'fingerprint': k[2]} for k in keys]
+                else:
+                    # Fallback: more specific regex requiring longer hex strings
+                    host_keys = re.findall(r'(\w+)\s+(\d+)\s+([a-fA-F0-9:]{47,})', content)
+                    if host_keys:
+                        data['host_keys'] = [{'type': hk[0], 'bits': hk[1], 'fingerprint': hk[2]} for hk in host_keys]
                 
                 # Extract supported algorithms
                 if 'kex algorithms' in content.lower():
@@ -909,6 +920,60 @@ class ResultParser:
         except Exception as e:
             if RICH_AVAILABLE:
                 console.print(f"[red]Error parsing Spring scan {file_path}: {e}[/red]")
+        
+        return data
+    
+    def parse_ssl_scan(self, file_path: str) -> Dict[str, Any]:
+        """Parse SSL scan results"""
+        data = {}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            # Extract SSL version and protocols
+            if 'ssl' in content.lower() or 'tls' in content.lower():
+                # Look for supported protocols
+                protocols = re.findall(r'(SSLv[0-9\.]+|TLSv[0-9\.]+)', content, re.IGNORECASE)
+                if protocols:
+                    data['supported_protocols'] = list(set(protocols))
+                
+                # Look for cipher suites
+                ciphers = re.findall(r'cipher[s]?[:\s]+([A-Z0-9_-]+)', content, re.IGNORECASE)
+                if ciphers:
+                    data['cipher_suites'] = list(set(ciphers))
+                
+                # Look for certificate information
+                cert_info = {}
+                subject_match = re.search(r'subject[:\s]+(.+)', content, re.IGNORECASE)
+                if subject_match:
+                    cert_info['subject'] = subject_match.group(1).strip()
+                
+                issuer_match = re.search(r'issuer[:\s]+(.+)', content, re.IGNORECASE)
+                if issuer_match:
+                    cert_info['issuer'] = issuer_match.group(1).strip()
+                
+                # Look for expiration dates
+                expires_match = re.search(r'not.*after[:\s]+(.+)', content, re.IGNORECASE)
+                if expires_match:
+                    cert_info['expires'] = expires_match.group(1).strip()
+                
+                if cert_info:
+                    data['certificate'] = cert_info
+                
+                # Check for weak ciphers or vulnerabilities
+                vulnerabilities = []
+                weak_indicators = ['weak', 'insecure', 'deprecated', 'vulnerable', 'NULL', 'MD5', 'RC4']
+                for indicator in weak_indicators:
+                    if indicator.lower() in content.lower():
+                        vulnerabilities.append(f"SSL/TLS {indicator} detected")
+                
+                if vulnerabilities:
+                    data['ssl_vulnerabilities'] = vulnerabilities
+        
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error parsing SSL scan {file_path}: {e}[/red]")
         
         return data
     
@@ -1225,7 +1290,7 @@ class IPCrawlerConsolidator:
         xml_parsed_successfully = False
         
         if xml_dir.exists():
-            for xml_file in xml_dir.glob("*nmap*.xml"):
+            for xml_file in sorted(xml_dir.glob("*nmap*.xml")):
                 services = self.parser.parse_nmap_xml(str(xml_file))
                 if services:  # Only extend if we got actual services
                     results.open_ports.extend(services)
@@ -1233,7 +1298,7 @@ class IPCrawlerConsolidator:
         
         # If no XML results or XML parsing failed, parse text files
         if not results.open_ports:
-            for nmap_file in scan_dir.glob("*nmap*.txt"):
+            for nmap_file in sorted(scan_dir.glob("*nmap*.txt")):
                 services = self.parser.parse_nmap_text(str(nmap_file))
                 results.open_ports.extend(services)
                 
@@ -1253,7 +1318,7 @@ class IPCrawlerConsolidator:
         results.open_ports = sorted(unique_ports.values(), key=lambda s: s.port)
         
         # Parse service-specific results
-        for port_dir in scan_dir.glob("tcp*"):
+        for port_dir in sorted(scan_dir.glob("tcp*")):
             if port_dir.is_dir():
                 port_num = int(port_dir.name.replace('tcp', ''))
                 self._parse_service_dir(port_dir, port_num, results)
@@ -1270,6 +1335,13 @@ class IPCrawlerConsolidator:
     
     def _parse_service_dir(self, port_dir: Path, port_num: int, results: TargetResults):
         """Parse results for a specific service/port"""
+        
+        # Debug logging for HTB troubleshooting
+        files_in_dir = sorted(list(port_dir.glob("*")))
+        file_count = len([f for f in files_in_dir if f.is_file()])
+        
+        if RICH_AVAILABLE:
+            console.print(f"[dim]🔍 Parsing port {port_num}: {file_count} files found[/dim]")
         
         # Find corresponding service info
         target_service = None
@@ -1292,9 +1364,24 @@ class IPCrawlerConsolidator:
             results.open_ports.append(target_service)
         
         # Parse all files in the service directory
-        for file_path in port_dir.glob("*"):
+        files_processed = 0
+        files_skipped = 0
+        
+        for file_path in files_in_dir:
             if file_path.is_file():
                 filename = file_path.name.lower()
+                file_size = file_path.stat().st_size
+                
+                # Skip empty files with warning
+                if file_size == 0:
+                    files_skipped += 1
+                    if RICH_AVAILABLE:
+                        console.print(f"[yellow]⚠️ Skipping empty file: {filename}[/yellow]")
+                    continue
+                
+                files_processed += 1
+                if RICH_AVAILABLE:
+                    console.print(f"[dim]📄 Processing: {filename} ({file_size} bytes)[/dim]")
                 
                 # Web responses (curl, etc.)
                 if 'curl' in filename and filename.endswith('.html'):
@@ -1408,6 +1495,27 @@ class IPCrawlerConsolidator:
                         if 'endpoints' in spring_data:
                             target_service.access_info['endpoints'] = spring_data['endpoints']
                 
+                # SSL scan results  
+                elif 'sslscan' in filename:
+                    ssl_data = self.parser.parse_ssl_scan(str(file_path))
+                    if target_service and ssl_data:
+                        target_service.enumeration_data.update(ssl_data)
+                        if 'certificates' in ssl_data:
+                            target_service.config_info['ssl_certificates'] = ssl_data['certificates']
+                
+                # Robots.txt and security files
+                elif 'robots' in filename or 'security' in filename:
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read().strip()
+                        if content and target_service:
+                            if 'robots' in filename:
+                                target_service.enumeration_data['robots_txt'] = content
+                            elif 'security' in filename:
+                                target_service.enumeration_data['security_txt'] = content
+                    except Exception:
+                        pass
+                
                 # Generic nmap script results for any service
                 elif 'nmap' in filename and filename.endswith('.txt'):
                     nmap_data = self.parser.parse_nmap_script_output(str(file_path))
@@ -1429,6 +1537,47 @@ class IPCrawlerConsolidator:
                     for vuln in vulns:
                         if vuln not in results.vulnerabilities:
                             results.vulnerabilities.append(vuln)
+                
+                # Catch-all for unrecognized but potentially useful files
+                else:
+                    # Log unprocessed files for debugging
+                    if RICH_AVAILABLE:
+                        console.print(f"[dim]🔍 Unprocessed file: {filename} ({file_size} bytes)[/dim]")
+                    
+                    # Try generic text extraction for any file with useful keywords
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                            
+                        # Look for common security indicators
+                        security_indicators = ['CVE-', 'vulnerable', 'EXPLOIT', 'password', 'admin', 'root', 'shell', 'exposed', 'misconfigured']
+                        findings = []
+                        for indicator in security_indicators:
+                            if indicator.lower() in content.lower():
+                                findings.append(f"Found '{indicator}' in {filename}")
+                        
+                        if findings and target_service:
+                            if 'generic_findings' not in target_service.enumeration_data:
+                                target_service.enumeration_data['generic_findings'] = []
+                            target_service.enumeration_data['generic_findings'].extend(findings)
+                            if RICH_AVAILABLE:
+                                console.print(f"[cyan]🔍 Generic scan findings in {filename}: {len(findings)} indicators[/cyan]")
+                                
+                    except Exception:
+                        pass  # Ignore parsing errors for unknown files
+        
+        # Debug summary for HTB troubleshooting
+        if RICH_AVAILABLE and files_skipped > 0:
+            console.print(f"[yellow]📊 Port {port_num}: {files_processed} files processed, {files_skipped} skipped[/yellow]")
+        
+        # Check if we found any meaningful data
+        if target_service and target_service.enumeration_data:
+            if RICH_AVAILABLE:
+                data_types = list(target_service.enumeration_data.keys())
+                console.print(f"[green]✅ Port {port_num}: Found data types: {', '.join(data_types[:5])}{('...' if len(data_types) > 5 else '')}[/green]")
+        elif files_processed > 0:
+            if RICH_AVAILABLE:
+                console.print(f"[yellow]⚠️ Port {port_num}: {files_processed} files processed but no data extracted[/yellow]")
     
     def _parse_log_files(self, scan_dir: Path, results: TargetResults):
         """Parse global log files"""

@@ -143,7 +143,7 @@ class TechnologyDetector:
         ]
         
         for pattern in scan_file_patterns:
-            files = glob.glob(os.path.join(self.scan_dir, '**', pattern), recursive=True)
+            files = sorted(glob.glob(os.path.join(self.scan_dir, '**', pattern), recursive=True))
             
             for file_path in files:
                 file_technologies = self._analyze_scan_file(file_path)
@@ -171,7 +171,7 @@ class TechnologyDetector:
                 content = f.read(16384)
             
             # Apply technology detection patterns
-            for tech, patterns in self.TECHNOLOGY_PATTERNS.items():
+            for tech, patterns in sorted(self.TECHNOLOGY_PATTERNS.items()):
                 for pattern in patterns:
                     if re.search(pattern, content, re.IGNORECASE):
                         detected.add(tech)
