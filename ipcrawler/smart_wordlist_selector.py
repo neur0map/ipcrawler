@@ -107,18 +107,21 @@ class SmartWordlistSelector:
         if not detected_technologies or not self.catalog.get('wordlists'):
             return None
 
-        # Map web enumeration categories to standard categories
+        # Enhanced category mapping with semantic correctness
         category_mapping = {
-            'vhosts': 'web_directories',
-            'subdomains': 'web_directories', 
-            'directories': 'web_directories',
-            'files': 'web_files',
-            'hostnames': 'web_directories',
-            'virtual_hosts': 'web_directories'
+            'vhosts': 'subdomains',           # Virtual hosts are subdomain-like
+            'subdomains': 'subdomains',       # Keep subdomain enumeration separate
+            'directories': 'web_directories', # Directory busting
+            'files': 'web_files',            # File enumeration
+            'hostnames': 'subdomains',        # Hostname discovery is subdomain-like
+            'virtual_hosts': 'subdomains'     # Virtual host enumeration
         }
         
-        # Use mapped category if available
+        # Use mapped category if available, with semantic validation
         mapped_category = category_mapping.get(category, category)
+        
+        # Get category-specific strategy
+        category_strategy = self._get_category_strategy(mapped_category)
 
         # Find best technology match using alias mapping
         best_tech = self._find_best_technology_match(detected_technologies)
@@ -129,30 +132,30 @@ class SmartWordlistSelector:
         self._last_selected_technology = best_tech
         self._last_fallback_level = None
 
-        # Get candidate wordlists for this technology
-        candidates = self._get_candidate_wordlists(best_tech, mapped_category)
-        fallback_level = "technology-specific"
+        # Enhanced candidate selection using category strategy
+        candidates = self._get_category_aware_candidates(best_tech, mapped_category, category_strategy)
+        fallback_level = "category-aware"
 
-        # If no technology-specific wordlists found, try generic ones
+        # If no category-aware candidates found, try technology-specific
         if not candidates:
-            candidates = self._get_generic_candidate_wordlists(mapped_category)
-            fallback_level = "generic"
+            candidates = self._get_candidate_wordlists(best_tech, mapped_category)
+            fallback_level = "technology-specific"
 
-        # If still no candidates, try the most generic fallback
+        # If still no candidates, try category-appropriate generic ones
+        if not candidates:
+            candidates = self._get_category_appropriate_generic(mapped_category, category_strategy)
+            fallback_level = "category-generic"
+
+        # Final fallback to any appropriate wordlists
         if not candidates:
             candidates = self._get_fallback_candidate_wordlists(mapped_category)
             fallback_level = "fallback"
 
-        # If STILL no candidates, try an extremely broad search
-        if not candidates:
-            candidates = self._get_desperate_fallback_wordlists(mapped_category)
-            fallback_level = "desperate"
-
         # Store fallback level for reporting
         self._last_fallback_level = fallback_level
 
-        # Score and select best candidate
-        best_wordlist = self._score_and_select_candidates(candidates, best_tech)
+        # Enhanced scoring with category awareness
+        best_wordlist = self._score_and_select_candidates_enhanced(candidates, best_tech, mapped_category, category_strategy)
         if not best_wordlist:
             return None
 
@@ -293,7 +296,7 @@ class SmartWordlistSelector:
         }
 
     def _find_best_technology_match(self, detected_technologies: Set[str]) -> Optional[str]:
-        """Find best technology match using security-priority system + fuzzy matching"""
+        """Find best technology match using enhanced security-priority system + contextual fuzzy matching"""
         if not self.aliases:
             return None
 
@@ -328,15 +331,37 @@ class SmartWordlistSelector:
             
             # Check each detected technology against this tech's aliases
             for detected in sorted(detected_technologies):
-                alias_match = process.extractOne(
-                    detected.lower(),
-                    [alias.lower() for alias in aliases],
-                    scorer=fuzz.partial_ratio,
-                    score_cutoff=70
-                )
+                # Enhanced fuzzy matching with adaptive thresholds
+                best_alias_match = None
+                best_alias_score = 0
+                matched_alias = None
                 
-                if alias_match:
-                    match_score = alias_match[1] / 100.0  # Convert to 0-1 range
+                for alias in aliases:
+                    # Get adaptive score cutoff based on alias characteristics
+                    score_cutoff = self._get_adaptive_score_cutoff(detected, alias)
+                    
+                    alias_match = process.extractOne(
+                        detected.lower(),
+                        [alias.lower()],
+                        scorer=fuzz.partial_ratio,
+                        score_cutoff=score_cutoff
+                    )
+                    
+                    if alias_match and alias_match[1] > best_alias_score:
+                        best_alias_match = alias_match
+                        best_alias_score = alias_match[1]
+                        matched_alias = alias
+                
+                if best_alias_match:
+                    match_score = best_alias_score / 100.0  # Convert to 0-1 range
+                    
+                    # Apply context validation to reduce false positives
+                    context_modifier = self._validate_technology_context(detected, tech_key, matched_alias)
+                    contextual_score = match_score * context_modifier
+                    
+                    # Skip if context validation indicates false positive
+                    if contextual_score < 0.4:
+                        continue
                     
                     # Apply standard priority bonus
                     priority = tech_config.get('priority', 'medium')
@@ -344,7 +369,7 @@ class SmartWordlistSelector:
                     priority_bonus = scoring_config.get('priority_bonus', {}).get(priority, 0)
                     
                     # Calculate final score with security tier weighting
-                    base_score = match_score + priority_bonus
+                    base_score = contextual_score + priority_bonus
                     security_weighted_score = base_score + (tier_priority * 0.5)  # +2.0 for critical, +1.5 for high, etc.
                     
                     technology_matches[tech_key] = {
@@ -352,7 +377,9 @@ class SmartWordlistSelector:
                         'tier': security_tier,
                         'tier_priority': tier_priority,
                         'base_score': base_score,
-                        'detected_string': detected
+                        'detected_string': detected,
+                        'matched_alias': matched_alias,
+                        'context_modifier': context_modifier
                     }
         
         if not technology_matches:
@@ -374,8 +401,108 @@ class SmartWordlistSelector:
                 print(f"   • {tech} (tier: {info['tier']}, score: {info['score']:.2f}) from '{info['detected_string']}'")
             print(f"✅ Selected: {best_tech} (tier: {best_info['tier']}) - highest security priority")
         
-        # Only return if we have a reasonable confidence (lowered threshold for better coverage)
-        return best_tech if best_info['score'] > 0.4 else None
+        # Apply conflict resolution for overlapping technologies
+        technology_matches = self._resolve_technology_conflicts(technology_matches)
+        
+        # Re-sort after conflict resolution
+        sorted_matches = sorted(
+            technology_matches.items(),
+            key=lambda x: (x[1]['tier_priority'], x[1]['score'], x[0]),
+            reverse=True
+        )
+        
+        best_tech, best_info = sorted_matches[0]
+        
+        # Only return if we have reasonable confidence after all validations
+        return best_tech if best_info['score'] > 0.6 else None
+    
+    def _get_adaptive_score_cutoff(self, detected_string: str, alias: str) -> int:
+        """Calculate adaptive score cutoff based on string characteristics"""
+        # Shorter strings need higher precision to avoid false positives
+        if len(alias) <= 3:
+            return 95  # Very strict for short aliases like 'php', 'asp', 'iis'
+        elif len(alias) <= 6:
+            return 85  # Strict for medium aliases like 'nginx', 'apache'
+        elif len(alias) <= 10:
+            return 80  # Moderately strict for longer aliases like 'wordpress'
+        else:
+            return 75  # Slightly more lenient for very long aliases
+    
+    def _validate_technology_context(self, detected_string: str, technology: str, alias: str) -> float:
+        """Validate that detected technology is contextually appropriate"""
+        detected_lower = detected_string.lower()
+        
+        # Strong implementation indicators that suggest actual technology usage
+        implementation_indicators = [
+            'powered by', 'version', 'server:', 'x-powered-by:', '<?php', 
+            'jsessionid', 'phpsessid', '.jsp', '.aspx', 'framework:', 'cms:',
+            'application/', 'x-frame-options', 'set-cookie:', 'content-type:',
+            'x-generator:', 'generator:', 'wp-content', 'wp-admin', 'wp-includes'
+        ]
+        
+        # Mention/documentation indicators that suggest false positive
+        mention_indicators = [
+            'documentation', 'guide', 'tutorial', 'about', 'info', 'help',
+            'learn', 'example', 'sample', 'demo-', 'test-', 'manual',
+            'reference', 'how to', 'introduction', 'overview', 'comparison'
+        ]
+        
+        # Check for strong implementation evidence
+        implementation_score = 0
+        for indicator in implementation_indicators:
+            if indicator in detected_lower:
+                implementation_score += 1
+        
+        # Check for mention/documentation evidence
+        mention_score = 0
+        for indicator in mention_indicators:
+            if indicator in detected_lower:
+                mention_score += 1
+        
+        # Calculate context modifier
+        if implementation_score > 0:
+            return min(1.2 + (implementation_score * 0.1), 1.5)  # Boost for implementation evidence
+        elif mention_score > 0:
+            return max(0.2 - (mention_score * 0.1), 0.1)  # Heavy penalty for documentation/mentions
+        else:
+            # Check for file extensions that might indicate false positives
+            suspicious_extensions = ['.txt', '.md', '.doc', '.pdf', '.html']
+            if any(ext in detected_lower for ext in suspicious_extensions):
+                return 0.7  # Slight penalty for documentation files
+            return 1.0  # Neutral for unclear context
+    
+    def _resolve_technology_conflicts(self, technology_matches: dict) -> dict:
+        """Resolve conflicts when multiple related technologies match the same string"""
+        if len(technology_matches) <= 1:
+            return technology_matches
+        
+        # Define parent-child relationships (child is more specific)
+        parent_child_mapping = {
+            'java': ['spring', 'springboot', 'tomcat', 'jetty', 'jboss', 'glassfish'],
+            'php': ['wordpress', 'drupal', 'joomla', 'laravel', 'symfony', 'codeigniter'],
+            'microsoft': ['iis', 'asp', 'azure', 'sharepoint', 'exchange'],
+            'javascript': ['nodejs', 'react', 'angular', 'vue', 'nextjs'],
+            'python': ['django', 'flask', 'fastapi'],
+            'apache': ['tomcat'],  # Apache Tomcat vs Apache HTTP Server
+        }
+        
+        # Apply conflict resolution
+        resolved_matches = technology_matches.copy()
+        
+        for parent, children in parent_child_mapping.items():
+            if parent in resolved_matches:
+                # Check if any children are also present
+                matching_children = [child for child in children if child in resolved_matches]
+                
+                if matching_children:
+                    # Boost child scores (more specific)
+                    for child in matching_children:
+                        resolved_matches[child]['score'] += 0.3
+                    
+                    # Reduce parent score (less specific)
+                    resolved_matches[parent]['score'] -= 0.2
+        
+        return resolved_matches
     
     def _simple_technology_match(self, detected_technologies: Set[str]) -> Optional[str]:
         """Fallback simple string matching with security priority when RapidFuzz unavailable"""
@@ -782,6 +909,266 @@ class SmartWordlistSelector:
         
         appropriate_categories = category_mapping.get(category, ['other'])
         return wordlist_category in appropriate_categories
+    
+    def _get_category_strategy(self, category: str) -> dict:
+        """Get strategy configuration for different enumeration categories"""
+        strategies = {
+            'subdomains': {
+                'preferred_patterns': ['subdomain', 'dns', 'domain', 'host', 'vhost'],
+                'avoid_patterns': ['directory', 'file', 'path', 'url', 'admin', 'login'],
+                'technology_relevance': 0.2,  # Technology less important for subdomains
+                'size_preference': 'large',   # Need comprehensive coverage
+                'min_size': 5000,
+                'optimal_size': 100000,
+                'max_size': 2000000
+            },
+            'web_directories': {
+                'preferred_patterns': ['directory', 'web-content', 'path', 'folder', 'common', 'admin'],
+                'avoid_patterns': ['subdomain', 'dns', 'user', 'password', 'email'],
+                'technology_relevance': 0.8,  # Technology very important
+                'size_preference': 'balanced',
+                'min_size': 500,
+                'optimal_size': 15000,
+                'max_size': 100000
+            },
+            'web_files': {
+                'preferred_patterns': ['file', 'extension', 'backup', 'config', 'admin', 'sensitive'],
+                'avoid_patterns': ['directory', 'subdomain', 'user', 'domain'],
+                'technology_relevance': 0.9,  # Technology extremely important
+                'size_preference': 'medium',
+                'min_size': 200,
+                'optimal_size': 5000,
+                'max_size': 50000
+            },
+            'usernames': {
+                'preferred_patterns': ['username', 'user', 'names', 'admin', 'account'],
+                'avoid_patterns': ['directory', 'file', 'subdomain', 'password'],
+                'technology_relevance': 0.3,  # Technology less relevant for usernames
+                'size_preference': 'small',
+                'min_size': 50,
+                'optimal_size': 1000,
+                'max_size': 50000
+            },
+            'passwords': {
+                'preferred_patterns': ['password', 'pass', 'common', 'rockyou', 'leaked'],
+                'avoid_patterns': ['directory', 'file', 'subdomain', 'username'],
+                'technology_relevance': 0.1,  # Technology not relevant for passwords
+                'size_preference': 'large',
+                'min_size': 1000,
+                'optimal_size': 1000000,
+                'max_size': 50000000
+            }
+        }
+        
+        return strategies.get(category, strategies['web_directories'])  # Default to web_directories
+    
+    def _get_category_aware_candidates(self, technology: str, category: str, strategy: dict) -> List[Tuple[str, Dict]]:
+        """Get candidates using category-aware filtering"""
+        candidates = []
+        
+        if not self.catalog or 'wordlists' not in self.catalog:
+            return candidates
+        
+        preferred_patterns = strategy.get('preferred_patterns', [])
+        avoid_patterns = strategy.get('avoid_patterns', [])
+        
+        for wordlist_path, wordlist_info in self.catalog['wordlists'].items():
+            path_lower = wordlist_path.lower()
+            
+            # Check if wordlist is appropriate for category
+            if not self._is_appropriate_category(wordlist_info, category):
+                continue
+            
+            # Apply category-specific pattern filtering
+            has_preferred = any(pattern in path_lower for pattern in preferred_patterns)
+            has_avoided = any(pattern in path_lower for pattern in avoid_patterns)
+            
+            if has_avoided:
+                continue  # Skip wordlists with avoid patterns
+            
+            if not has_preferred and preferred_patterns:
+                # If we have preferred patterns but this wordlist doesn't match any, lower priority
+                continue
+            
+            # Check technology relevance based on strategy
+            tech_relevance = strategy.get('technology_relevance', 0.5)
+            if tech_relevance > 0.5:  # High tech relevance categories
+                if self._is_technology_relevant(technology, wordlist_path, wordlist_info):
+                    candidates.append((wordlist_path, wordlist_info))
+            else:  # Low tech relevance categories (like subdomains)
+                candidates.append((wordlist_path, wordlist_info))
+        
+        return candidates
+    
+    def _get_category_appropriate_generic(self, category: str, strategy: dict) -> List[Tuple[str, Dict]]:
+        """Get generic wordlists appropriate for the category"""
+        candidates = []
+        
+        if not self.catalog or 'wordlists' not in self.catalog:
+            return candidates
+        
+        preferred_patterns = strategy.get('preferred_patterns', [])
+        
+        for wordlist_path, wordlist_info in self.catalog['wordlists'].items():
+            path_lower = wordlist_path.lower()
+            
+            # Check if wordlist is appropriate for category
+            if not self._is_appropriate_category(wordlist_info, category):
+                continue
+            
+            # For generic selection, look for common/comprehensive wordlists
+            generic_indicators = ['common', 'big', 'medium', 'small', 'comprehensive', 'all']
+            has_generic = any(indicator in path_lower for indicator in generic_indicators)
+            
+            if has_generic and any(pattern in path_lower for pattern in preferred_patterns):
+                candidates.append((wordlist_path, wordlist_info))
+        
+        return candidates
+    
+    def _score_and_select_candidates_enhanced(self, candidates: List[Tuple[str, Dict]], 
+                                            technology: str, category: str, strategy: dict) -> Optional[str]:
+        """Enhanced scoring with category awareness"""
+        if not candidates:
+            return None
+        
+        scored_candidates = []
+        
+        for wordlist_path, wordlist_info in candidates:
+            # Calculate comprehensive score
+            score = self._calculate_comprehensive_score(wordlist_path, wordlist_info, technology, category, strategy)
+            scored_candidates.append((score, wordlist_path, wordlist_info))
+        
+        # Sort by score (descending)
+        scored_candidates.sort(key=lambda x: x[0], reverse=True)
+        
+        # Return best candidate if score is acceptable
+        if scored_candidates and scored_candidates[0][0] > 0.3:
+            return scored_candidates[0][1]
+        
+        return None
+    
+    def _calculate_comprehensive_score(self, wordlist_path: str, wordlist_info: Dict, 
+                                     technology: str, category: str, strategy: dict) -> float:
+        """Calculate comprehensive score balancing multiple factors"""
+        # Factor 1: Technology relevance (if applicable)
+        tech_relevance = strategy.get('technology_relevance', 0.5)
+        if tech_relevance > 0.3:
+            tech_score = self._calculate_technology_relevance(wordlist_path, technology)
+        else:
+            tech_score = 1.0  # Neutral for categories where tech doesn't matter
+        
+        # Factor 2: Category appropriateness
+        category_score = self._calculate_category_fit(wordlist_path, category, strategy)
+        
+        # Factor 3: Size appropriateness for category
+        size_score = self._calculate_category_size_score(wordlist_info, strategy)
+        
+        # Factor 4: Quality indicators
+        quality_score = self._calculate_quality_score(wordlist_path, wordlist_info)
+        
+        # Weighted combination based on category strategy
+        tech_weight = tech_relevance
+        category_weight = 0.3
+        size_weight = 0.2
+        quality_weight = 0.1
+        
+        # Normalize weights
+        total_weight = tech_weight + category_weight + size_weight + quality_weight
+        tech_weight /= total_weight
+        category_weight /= total_weight
+        size_weight /= total_weight
+        quality_weight /= total_weight
+        
+        final_score = (
+            tech_score * tech_weight +
+            category_score * category_weight +
+            size_score * size_weight +
+            quality_score * quality_weight
+        )
+        
+        return final_score
+    
+    def _calculate_technology_relevance(self, wordlist_path: str, technology: str) -> float:
+        """Calculate how relevant wordlist is to the technology"""
+        path_lower = wordlist_path.lower()
+        tech_lower = technology.lower()
+        
+        # Direct technology name match
+        if tech_lower in path_lower:
+            return 1.0
+        
+        # Check technology aliases
+        tech_config = self.aliases.get('technology_aliases', {}).get(technology, {})
+        aliases = tech_config.get('aliases', [])
+        
+        for alias in aliases:
+            if alias.lower() in path_lower:
+                return 0.8
+        
+        return 0.2  # Low relevance for non-matching wordlists
+    
+    def _calculate_category_fit(self, wordlist_path: str, category: str, strategy: dict) -> float:
+        """Calculate how well wordlist fits the enumeration category"""
+        path_lower = wordlist_path.lower()
+        preferred_patterns = strategy.get('preferred_patterns', [])
+        avoid_patterns = strategy.get('avoid_patterns', [])
+        
+        # Check for preferred patterns
+        preferred_matches = sum(1 for pattern in preferred_patterns if pattern in path_lower)
+        preferred_score = min(preferred_matches * 0.3, 1.0)
+        
+        # Penalty for avoid patterns
+        avoid_matches = sum(1 for pattern in avoid_patterns if pattern in path_lower)
+        avoid_penalty = min(avoid_matches * 0.5, 0.8)
+        
+        return max(preferred_score - avoid_penalty, 0.1)
+    
+    def _calculate_category_size_score(self, wordlist_info: Dict, strategy: dict) -> float:
+        """Calculate size score based on category strategy"""
+        lines = wordlist_info.get('lines', 0)
+        try:
+            lines_int = int(lines) if lines else 0
+        except (ValueError, TypeError):
+            lines_int = 0
+        
+        min_size = strategy.get('min_size', 1000)
+        optimal_size = strategy.get('optimal_size', 10000)
+        max_size = strategy.get('max_size', 100000)
+        
+        if lines_int < min_size:
+            return 0.2  # Too small
+        elif lines_int > max_size:
+            return 0.4  # Too large
+        elif lines_int <= optimal_size:
+            # Scale from min (0.5) to optimal (1.0)
+            ratio = (lines_int - min_size) / (optimal_size - min_size)
+            return 0.5 + (ratio * 0.5)
+        else:
+            # Scale from optimal (1.0) to max (0.4)
+            ratio = (lines_int - optimal_size) / (max_size - optimal_size)
+            return 1.0 - (ratio * 0.6)
+    
+    def _calculate_quality_score(self, wordlist_path: str, wordlist_info: Dict) -> float:
+        """Calculate wordlist quality based on various indicators"""
+        path_lower = wordlist_path.lower()
+        
+        # Quality indicators
+        quality_indicators = ['comprehensive', 'curated', 'verified', 'updated', 'common']
+        low_quality_indicators = ['test', 'demo', 'sample', 'old', 'deprecated']
+        
+        quality_score = 0.5  # Base score
+        
+        # Boost for quality indicators
+        for indicator in quality_indicators:
+            if indicator in path_lower:
+                quality_score += 0.1
+        
+        # Penalty for low quality indicators
+        for indicator in low_quality_indicators:
+            if indicator in path_lower:
+                quality_score -= 0.2
+        
+        return max(min(quality_score, 1.0), 0.1)
     
     def _score_and_select_candidates(self, candidates: List[Tuple[str, Dict]], technology: str) -> Optional[str]:
         """Score candidates and select the best one"""

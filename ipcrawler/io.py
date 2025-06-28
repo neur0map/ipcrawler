@@ -182,9 +182,59 @@ class CommandStreamReader(object):
 				break
 			try:
 				line = (await self.stream.readline()).decode('utf8').rstrip()
-			except ValueError:
-				error('{bright}[{yellow}' + self.target.address + '{crst}/{bgreen}' + self.tag + '{crst}]{rst} A line was longer than 64 KiB and cannot be processed. Ignoring.')
-				continue
+			except ValueError as e:
+				# Handle lines longer than 64KB (common with large JSON responses from Spring Boot actuator)
+				if "line is longer than" in str(e) or "too long" in str(e):
+					try:
+						# Try to read the oversized line in chunks
+						line_chunks = []
+						chunk_size = 32768  # 32KB chunks
+						
+						# Read data until we find a newline or EOF
+						while True:
+							chunk_data = await self.stream.read(chunk_size)
+							if not chunk_data:
+								break
+								
+							try:
+								chunk = chunk_data.decode('utf8')
+								line_chunks.append(chunk)
+								
+								# If we find a newline, we've got the complete line
+								if '\n' in chunk:
+									# Split on newline and keep the first part
+									chunk_lines = chunk.split('\n')
+									line_chunks[-1] = chunk_lines[0]  # Replace last chunk with part before newline
+									
+									# Put back any remaining data after the newline
+									remaining_data = '\n'.join(chunk_lines[1:])
+									if remaining_data:
+										# This is tricky - we can't easily put data back into the stream
+										# For now, we'll log this and continue
+										pass
+									break
+							except UnicodeDecodeError:
+								# Skip invalid UTF-8 chunks
+								continue
+						
+						# Reconstruct the full line
+						line = ''.join(line_chunks).rstrip()
+						
+						# Log that we handled a large line
+						if line:
+							info(f'[{self.target.address}/{self.tag}] 📥 Processed large response ({len(line)} bytes) - likely JSON from actuator endpoint')
+						else:
+							# If we still can't read it, skip and continue
+							warn(f'[{self.target.address}/{self.tag}] ⚠️ Skipped oversized line that could not be processed')
+							continue
+							
+					except Exception as chunk_error:
+						# If chunk reading also fails, log and skip
+						warn(f'[{self.target.address}/{self.tag}] ⚠️ Could not process large line: {str(chunk_error)[:100]}...')
+						continue
+				else:
+					# Other ValueError, re-raise
+					raise e
 
 			if line != '':
 				# Check for nmap timing output and display it prominently
