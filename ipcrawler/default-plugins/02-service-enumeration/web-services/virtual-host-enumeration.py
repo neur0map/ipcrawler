@@ -2,7 +2,13 @@ from ipcrawler.plugins import ServiceScan
 from ipcrawler.wordlists import get_wordlist_manager
 from ipcrawler.config import config
 from shutil import which
-import os, requests, random, string, urllib3
+import os
+import requests
+import random
+import string
+import urllib3
+import platform
+import socket
 
 urllib3.disable_warnings()
 
@@ -48,7 +54,6 @@ class VirtualHost(ServiceScan):
 			else:
 				# Try reverse DNS lookup for the IP
 				try:
-					import socket
 					reverse_dns = socket.gethostbyaddr(service.target.address)[0]
 					if reverse_dns and reverse_dns != service.target.address:
 						hostnames.append(reverse_dns)
@@ -68,11 +73,8 @@ class VirtualHost(ServiceScan):
 			
 			for wordlist in wordlists:
 				if wordlist == 'auto':
-					# Auto-detect best available wordlist using configured size preference
+					# Auto-detect best available wordlist using Smart Wordlist Selector FIRST
 					try:
-						wordlist_manager = get_wordlist_manager()
-						current_size = wordlist_manager.get_wordlist_size()
-						
 						# Detect technologies from scan results
 						from ipcrawler.technology_detector import TechnologyDetector
 						detector = TechnologyDetector(service.target.scandir)
@@ -80,25 +82,105 @@ class VirtualHost(ServiceScan):
 						
 						if detected_technologies:
 							service.info(f"🤖 Detected technologies: {', '.join(detected_technologies)}")
-						
-						# Use smart wordlist selection with technology detection
-						vhost_path = wordlist_manager.get_wordlist_path('vhosts', config.get('data_dir'), current_size, detected_technologies)
-						if vhost_path and os.path.exists(vhost_path):
-							resolved_wordlists.append(vhost_path)
 						else:
-							# Fallback to hardcoded SecLists path
-							fallback_path = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt'
-							if os.path.exists(fallback_path):
-								resolved_wordlists.append(fallback_path)
+							service.info("🤖 No specific technologies detected")
+						
+						# PRIORITY 1: Try Smart Wordlist Selector first
+						smart_wordlist_path = None
+						if detected_technologies:
+							try:
+								from ipcrawler.smart_wordlist_selector import SmartWordlistSelector
+								
+								# Get SecLists path from WordlistManager
+								wordlist_manager = get_wordlist_manager()
+								config_data = wordlist_manager.load_config()
+								seclists_path = config_data.get('detected_paths', {}).get('seclists_base')
+								
+								if seclists_path and os.path.exists(seclists_path):
+									service.info(f"🤖 Using Smart Wordlist Selector with SecLists at: {seclists_path}")
+									selector = SmartWordlistSelector(seclists_path)
+									smart_wordlist_path = selector.select_wordlist('vhosts', detected_technologies)
+									
+									if smart_wordlist_path and os.path.exists(smart_wordlist_path):
+										resolved_wordlists.append(smart_wordlist_path)
+										# Use the actually selected technology, not the first detected one
+										selected_tech = selector.get_selected_technology() or list(detected_technologies)[0]
+										selection_info = selector.get_selection_info(smart_wordlist_path, selected_tech)
+										service.info(f"✅ Smart selection: {selection_info}")
+										service.info(f"✅ Using technology-specific wordlist: {smart_wordlist_path}")
+									else:
+										service.info("🤖 Smart Wordlist Selector found no technology-specific wordlists")
+										service.info(f"🤖 Technologies detected: {', '.join(detected_technologies)}")
+										service.info(f"🤖 Catalog available: {bool(selector.catalog)}")
+										if selector.catalog:
+											service.info(f"🤖 Catalog wordlists: {len(selector.catalog.get('wordlists', {}))}")
+								else:
+									service.info("🤖 Smart Wordlist Selector: SecLists path not available")
+							except Exception as e:
+								service.info(f"🤖 Smart Wordlist Selector unavailable: {e}")
+						
+						# PRIORITY 2: Fallback to WordlistManager if Smart Selector didn't find anything
+						if not smart_wordlist_path:
+							service.info("📚 Falling back to WordlistManager (wordlists.toml)")
+							wordlist_manager = get_wordlist_manager()
+							current_size = wordlist_manager.get_wordlist_size()
+							service.info(f"🔍 WordlistManager size: {current_size}")
+							
+							vhost_path = wordlist_manager.get_wordlist_path('vhosts', config.get('data_dir'), current_size, detected_technologies)
+							service.info(f"🔍 WordlistManager resolved path: {vhost_path}")
+							
+							if vhost_path and os.path.exists(vhost_path):
+								resolved_wordlists.append(vhost_path)
+								service.info(f"✅ Using WordlistManager wordlist: {vhost_path}")
 							else:
+								service.error(f'❌ WordlistManager found no wordlist for size "{current_size}". Path attempted: {vhost_path}')
+								
+						# PRIORITY 3: Hard-coded fallbacks if both Smart Selector and WordlistManager failed
+						if not resolved_wordlists:
+							service.info("📦 Trying hard-coded fallback wordlists")
+							if platform.system() == "Darwin":  # macOS
+								service.info(f"💡 Install SecLists: brew install seclists")
+							else:
+								service.info(f"💡 Install SecLists: sudo apt install seclists")
+							service.info(f"💡 Or specify custom: --vhost-enum.wordlist /path/to/wordlist.txt")
+							
+							fallback_paths = [
+								'/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt',
+								'/usr/share/wordlists/dirb/common.txt',
+								'/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt'
+							]
+							found_fallback = False
+							for fallback_path in fallback_paths:
+								if os.path.exists(fallback_path):
+									service.info(f"🔄 Using fallback wordlist: {fallback_path}")
+									resolved_wordlists.append(fallback_path)
+									found_fallback = True
+									break
+							if not found_fallback:
 								service.warn('No vhost wordlist found. Please install SecLists or specify a custom wordlist.')
 								continue
-					except Exception:
-						# Fallback to hardcoded SecLists path if WordlistManager isn't available
-						fallback_path = '/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt'
-						if os.path.exists(fallback_path):
-							resolved_wordlists.append(fallback_path)
+					except Exception as e:
+						service.error(f'❌ WordlistManager error: {e}')
+						service.info("📦 Trying hard-coded fallback wordlists")
+						if platform.system() == "Darwin":  # macOS
+							service.info(f"💡 Install SecLists: brew install seclists")
 						else:
+							service.info(f"💡 Install SecLists: sudo apt install seclists")
+						service.info(f"💡 Or specify custom: --vhost-enum.wordlist /path/to/wordlist.txt")
+						
+						fallback_paths = [
+							'/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt',
+							'/usr/share/wordlists/dirb/common.txt',
+							'/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt'
+						]
+						found_fallback = False
+						for fallback_path in fallback_paths:
+							if os.path.exists(fallback_path):
+								service.info(f"🔄 Using fallback wordlist: {fallback_path}")
+								resolved_wordlists.append(fallback_path)
+								found_fallback = True
+								break
+						if not found_fallback:
 							service.warn('No vhost wordlist found. Please install SecLists or specify a custom wordlist.')
 							continue
 				else:

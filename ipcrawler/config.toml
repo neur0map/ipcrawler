@@ -12,8 +12,8 @@
 
 # verbose = 1                    # Verbosity level (0-3)
 # max-scans = 50                 # Maximum concurrent scans  
-# timeout = 60                   # Global timeout in minutes
-# target-timeout = 30            # Per-target timeout in minutes
+timeout = 120                   # Global timeout in minutes (2 hours)
+target-timeout = 60             # Per-target timeout in minutes (1 hour)
 # heartbeat = 60                 # Status update interval in seconds
 # nmap-append = '-T3'            # Additional nmap arguments
 # output = 'results'             # Results output directory
@@ -38,6 +38,11 @@ enable-udp-scan = false           # Enable/disable UDP port scanning (can be slo
 smart-wordlists = true             # Enable intelligent technology-based wordlist selection
 smart-wordlists-confidence = 0.7   # Technology detection confidence threshold (0.0-1.0)
 
+# HTB Space Optimization
+# ----------------------
+htb-mode = true                    # Enable HTB space-optimized mode
+wordlist-size = "fast"             # Use smallest wordlists for space constraints
+
 # Network Settings  
 # ----------------
 # proxychains = true             # Run scans through proxychains
@@ -50,15 +55,16 @@ smart-wordlists-confidence = 0.7   # Technology detection confidence threshold (
 # -----------------------------
 # Configure individual plugins (uncomment sections as needed):
 
-# [dirbuster]
-# threads = 20                   # Directory enumeration threads (default: 20)
+[dirbuster]
+threads = 20                   # Directory enumeration threads (default: 20)
+timeout = 7200                 # Directory busting timeout (2 hours)
 
 # [whatweb]
 # aggression = '1'               # WhatWeb aggression level (1-4, default: 1 for reliability)
 # ignore-errors = true           # Continue even with HTTP errors (default: true)
 
-# [nikto] 
-# timeout = 300                  # Nikto scan timeout
+[nikto]
+timeout = 3600                  # Nikto scan timeout (1 hour)
 
 # [nmap-http]
 # scripts = 'http-title,http-headers'  # Custom nmap scripts
