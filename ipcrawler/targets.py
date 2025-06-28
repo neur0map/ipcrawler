@@ -1,4 +1,4 @@
-import asyncio, inspect, os
+import asyncio, inspect, os, re
 from typing import final
 from ipcrawler.config import config
 from ipcrawler.io import e, info, warn, error
@@ -36,8 +36,6 @@ class Target:
 		hostname = hostname.strip()
 
 		# Check for valid hostname format
-		import re
-
 		# Reject obviously malformed hostnames that look like concatenated strings
 		suspicious_patterns = [
 			r'\.html?$',           # Ends with .html or .htm (likely concatenated)
