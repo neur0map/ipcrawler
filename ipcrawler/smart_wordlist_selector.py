@@ -432,12 +432,18 @@ class SmartWordlistSelector:
         
         for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
             path_lower = wordlist_path.lower()
-            
+            wordlist_category = wordlist_info.get('category', 'other')
+
+            # First check if it's categorized as 'web' (most reliable)
+            if category in ['web_directories', 'web_files'] and wordlist_category == 'web':
+                candidates.append((wordlist_path, wordlist_info))
+                continue
+
             # Very permissive matching for fallback
             if any(pattern in path_lower for pattern in relevant_patterns):
                 # Accept almost anything for fallback
-                if ('discovery' in path_lower or 
-                    'fuzzing' in path_lower or 
+                if ('discovery' in path_lower or
+                    'fuzzing' in path_lower or
                     'dirbuster' in path_lower or
                     'common' in path_lower):
                     candidates.append((wordlist_path, wordlist_info))
@@ -455,9 +461,15 @@ class SmartWordlistSelector:
         for wordlist_path, wordlist_info in sorted(self.catalog['wordlists'].items()):
             path_lower = wordlist_path.lower()
             filename = os.path.basename(path_lower)
-            
+            wordlist_category = wordlist_info.get('category', 'other')
+
+            # First check if it's categorized as 'web' (most reliable)
+            if category in ['web_directories', 'web_files'] and wordlist_category == 'web':
+                candidates.append((wordlist_path, wordlist_info))
+                continue
+
             # Very broad acceptance criteria
-            if (category == 'web_directories' and 
+            if (category == 'web_directories' and
                 (any(word in path_lower for word in ['discovery', 'web', 'dir', 'content', 'common', 'list']) or
                  any(word in filename for word in ['dir', 'common', 'list', 'medium', 'big', 'small']) or
                  filename.endswith('.txt'))):
@@ -469,15 +481,22 @@ class SmartWordlistSelector:
         """Check if a generic wordlist is appropriate for the requested category"""
         # For generic wordlists, we're more permissive with categories
         # since they're meant to be broadly applicable
-        
+
         if category in ['web_directories', 'web_files']:
-            # Accept if it's in web-content discovery or contains directory/file keywords
-            return ('web-content' in path_lower or 
-                   'directory' in path_lower or 
+            # First check if it's categorized as 'web' (most reliable)
+            wordlist_category = wordlist_info.get('category', 'other')
+            if wordlist_category == 'web':
+                return True
+
+            # Also accept if it's in web-content discovery or contains directory/file keywords
+            return ('web-content' in path_lower or
+                   'discovery' in path_lower or
+                   'directory' in path_lower or
                    'dirbuster' in path_lower or
                    'raft' in path_lower or
-                   'common' in path_lower)
-        
+                   'common' in path_lower or
+                   'web' in path_lower)
+
         # For other categories, use the stricter check
         return self._is_appropriate_category(wordlist_info, category)
     
@@ -526,10 +545,19 @@ class SmartWordlistSelector:
         
         # Sort by score (descending), then by wordlist path for deterministic tie-breaking
         scored_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
-        
-        if scored_candidates and scored_candidates[0][0] > 0.3:  # Minimum score threshold
+
+        # Use adaptive threshold - lower for generic/fallback wordlists
+        min_threshold = 0.3
+        if scored_candidates:
+            best_score = scored_candidates[0][0]
+            # If we have candidates but none score above 0.3, use a lower threshold
+            # This handles cases where we're using generic wordlists that don't match the technology name
+            if best_score <= 0.3 and best_score > -0.5:  # Accept reasonable generic wordlists
+                min_threshold = -0.5
+
+        if scored_candidates and scored_candidates[0][0] > min_threshold:
             return scored_candidates[0][1]
-        
+
         return None
     
     def _calculate_size_score(self, wordlist_path: str, lines: int) -> float:
