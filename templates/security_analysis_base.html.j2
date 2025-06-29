@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Analysis Report | ipcrawler</title>
+    
+    {% if auto_refresh %}
+    <meta http-equiv="refresh" content="600">
+    {% endif %}
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='80'>🕷️</text></svg>">
+    
+    <!-- CSS -->
+    <style>
+        /* Security Analysis Platform Styles */
+        :root {
+            /* Colors */
+            --bg-primary: #0a0a0b;
+            --bg-secondary: #111114;
+            --bg-tertiary: #1a1a1e;
+            --bg-accent: #252529;
+            --bg-card: #161619;
+            
+            --text-primary: #ffffff;
+            --text-secondary: #b8b8c4;
+            --text-muted: #6b7280;
+            --text-inverse: #000000;
+            
+            --border: #2a2a2f;
+            --border-accent: #3a3a3f;
+            
+            /* Status Colors */
+            --critical: #dc2626;
+            --high: #ea580c;
+            --medium: #d97706;
+            --low: #65a30d;
+            --info: #0891b2;
+            --success: #059669;
+            
+            /* Brand */
+            --accent: #3b82f6;
+            --accent-dark: #1d4ed8;
+            
+            /* Spacing */
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            
+            /* Typography */
+            --font-mono: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            font-size: 14px;
+        }
+        
+        /* Layout */
+        .dashboard {
+            min-height: 100vh;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+        
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: var(--space-4) var(--space-6);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-4);
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        .scan-status {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 0.875rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .controls {
+            display: flex;
+            gap: var(--space-2);
+        }
+        
+        .btn {
+            padding: var(--space-2) var(--space-4);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+        
+        .btn:hover {
+            background: var(--bg-accent);
+            border-color: var(--border-accent);
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--accent-dark);
+        }
+        
+        .main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-6);
+        }
+        
+        /* Critical Findings Section */
+        .critical-section {
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(239, 68, 68, 0.05));
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            border-radius: 8px;
+            padding: var(--space-6);
+            margin-bottom: var(--space-8);
+        }
+        
+        .critical-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+        }
+        
+        .critical-icon {
+            font-size: 1.5rem;
+        }
+        
+        .critical-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--critical);
+        }
+        
+        .critical-count {
+            background: var(--critical);
+            color: white;
+            padding: var(--space-1) var(--space-2);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        /* Stats Grid */
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-8);
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: var(--space-4);
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .stat-card:hover {
+            border-color: var(--border-accent);
+            transform: translateY(-2px);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: var(--space-1);
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .stat-critical { color: var(--critical); }
+        .stat-high { color: var(--high); }
+        .stat-medium { color: var(--medium); }
+        .stat-low { color: var(--low); }
+        .stat-info { color: var(--info); }
+        
+        /* Findings List */
+        .findings-section {
+            margin-bottom: var(--space-8);
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: var(--space-4);
+        }
+        
+        .section-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .findings-grid {
+            display: grid;
+            gap: var(--space-3);
+        }
+        
+        .finding-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: var(--space-4);
+            transition: all 0.2s;
+        }
+        
+        .finding-item:hover {
+            border-color: var(--border-accent);
+        }
+        
+        .finding-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: var(--space-3);
+            margin-bottom: var(--space-2);
+        }
+        
+        .finding-title {
+            font-weight: 500;
+            color: var(--text-primary);
+            flex: 1;
+        }
+        
+        .severity-badge {
+            padding: var(--space-1) var(--space-2);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .severity-critical {
+            background: rgba(220, 38, 38, 0.2);
+            color: var(--critical);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+        }
+        
+        .severity-high {
+            background: rgba(234, 88, 12, 0.2);
+            color: var(--high);
+            border: 1px solid rgba(234, 88, 12, 0.3);
+        }
+        
+        .severity-medium {
+            background: rgba(217, 119, 6, 0.2);
+            color: var(--medium);
+            border: 1px solid rgba(217, 119, 6, 0.3);
+        }
+        
+        .severity-low {
+            background: rgba(101, 163, 13, 0.2);
+            color: var(--low);
+            border: 1px solid rgba(101, 163, 13, 0.3);
+        }
+        
+        .severity-info {
+            background: rgba(8, 145, 178, 0.2);
+            color: var(--info);
+            border: 1px solid rgba(8, 145, 178, 0.3);
+        }
+        
+        .finding-target {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: var(--space-2);
+        }
+        
+        .finding-description {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        
+        /* Target Sections */
+        .target-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: var(--space-6);
+            overflow: hidden;
+        }
+        
+        .target-header {
+            background: var(--bg-tertiary);
+            padding: var(--space-4);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .target-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .target-stats {
+            display: flex;
+            gap: var(--space-4);
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+        
+        .target-content {
+            padding: var(--space-4);
+        }
+        
+        /* Services Grid */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+        
+        .service-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: var(--space-3);
+        }
+        
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-2);
+        }
+        
+        .service-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .service-port {
+            font-family: var(--font-mono);
+            background: var(--bg-tertiary);
+            padding: var(--space-1) var(--space-2);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: var(--accent);
+        }
+        
+        .service-details {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Code Blocks */
+        .code-section {
+            margin: var(--space-4) 0;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-tertiary);
+            padding: var(--space-2) var(--space-3);
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .code-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+        
+        .copy-btn {
+            padding: var(--space-1) var(--space-2);
+            background: var(--bg-accent);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .code-content {
+            background: var(--bg-primary);
+            padding: var(--space-3);
+            border-bottom-left-radius: 6px;
+            border-bottom-right-radius: 6px;
+            border: 1px solid var(--border);
+            border-top: none;
+        }
+        
+        .code-content pre {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            overflow-x: auto;
+            margin: 0;
+        }
+        
+        /* Collapsible Sections */
+        .collapsible {
+            margin: var(--space-3) 0;
+        }
+        
+        .collapsible-header {
+            background: var(--bg-tertiary);
+            padding: var(--space-3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        
+        .collapsible-header:hover {
+            background: var(--bg-accent);
+        }
+        
+        .collapsible-title {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .collapsible-icon {
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+        
+        .collapsible.collapsed .collapsible-icon {
+            transform: rotate(-90deg);
+        }
+        
+        .collapsible-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-top: none;
+            border-bottom-left-radius: 6px;
+            border-bottom-right-radius: 6px;
+            padding: var(--space-4);
+        }
+        
+        .collapsible.collapsed .collapsible-content {
+            display: none;
+        }
+        
+        /* Footer */
+        .footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: var(--space-4) var(--space-6);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: var(--space-3);
+            }
+            
+            .controls {
+                flex-wrap: wrap;
+            }
+            
+            .main {
+                padding: var(--space-4);
+            }
+            
+            .stats-overview {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+            
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .header, .footer, .controls, .btn { display: none !important; }
+            .collapsible-content { display: block !important; }
+            body { background: white; color: black; }
+            .dashboard { display: block; }
+        }
+        
+        /* Utilities */
+        .mb-4 { margin-bottom: var(--space-4); }
+        .mt-4 { margin-top: var(--space-4); }
+        .text-center { text-align: center; }
+        .font-mono { font-family: var(--font-mono); }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo">🕷️ ipcrawler</div>
+                    <div class="scan-status">
+                        {% if is_live %}
+                        <div class="status-dot"></div>
+                        <span>Live Scan</span>
+                        {% elif is_partial %}
+                        <div class="status-dot" style="background: var(--medium);"></div>
+                        <span>Scan in Progress</span>
+                        {% else %}
+                        <div class="status-dot" style="background: var(--success); animation: none;"></div>
+                        <span>Scan Complete</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="shareReport()">
+                        🚀 Share Results
+                    </button>
+                    <button class="btn" onclick="window.print()">
+                        🖨️ Print
+                    </button>
+                    <button class="btn" onclick="exportToPDF()">
+                        📄 Export PDF
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Critical Findings Alert -->
+            {% if summary.critical_findings > 0 %}
+            <div class="critical-section">
+                <div class="critical-header">
+                    <div class="critical-icon">🚨</div>
+                    <div class="critical-title">Critical Security Findings</div>
+                    <div class="critical-count">{{ summary.critical_findings }}</div>
+                </div>
+                <p>Immediate attention required. Review high-risk vulnerabilities and exposed credentials below.</p>
+            </div>
+            {% endif %}
+            
+            <!-- Overview Stats -->
+            <div class="stats-overview">
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.target_count }}</div>
+                    <div class="stat-label">Targets</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.total_open_ports }}</div>
+                    <div class="stat-label">Open Ports</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ metadata.total_services }}</div>
+                    <div class="stat-label">Services</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number stat-critical">{{ summary.critical_findings }}</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ summary.total_web_services }}</div>
+                    <div class="stat-label">Web Services</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ summary.total_directories }}</div>
+                    <div class="stat-label">Directories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ summary.total_files }}</div>
+                    <div class="stat-label">Files</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ summary.total_manual_commands }}</div>
+                    <div class="stat-label">Commands</div>
+                </div>
+            </div>
+            
+            <!-- Target Analysis -->
+            {% for target_name, target_data in targets.items() %}
+            <div class="target-section">
+                {% include 'security_analysis_target.html.j2' %}
+            </div>
+            {% endfor %}
+        </main>
+        
+        <!-- Footer -->
+        <footer class="footer">
+            <p>
+                Generated by <a href="https://github.com/neur0map/ipcrawler" target="_blank">ipcrawler</a>
+                on {{ metadata.generated_time }}
+                {% if metadata.scan_duration %} | Scan time: {{ metadata.scan_duration }}{% endif %}
+            </p>
+        </footer>
+    </div>
+    
+    <script>
+        // Global scan data for sharing
+        window.scanData = {
+            targets: {{ metadata.target_count }},
+            ports: {{ metadata.total_open_ports }},
+            services: {{ metadata.total_services }},
+            critical: {{ summary.critical_findings }},
+            web: {{ summary.total_web_services }},
+            directories: {{ summary.total_directories }},
+            files: {{ summary.total_files }},
+            commands: {{ summary.total_manual_commands }},
+            time: '{{ metadata.generated_time }}',
+            isLive: {{ 'true' if is_live else 'false' }},
+            isPartial: {{ 'true' if is_partial else 'false' }}
+        };
+        
+        // Share functionality
+        function shareReport() {
+            const data = window.scanData;
+            const shareText = `🕷️ Security Assessment Complete!
+
+📊 Results Summary:
+• ${data.targets} target${data.targets > 1 ? 's' : ''} analyzed
+• ${data.ports} open ports discovered
+• ${data.services} services enumerated
+• ${data.critical} critical findings identified
+
+🔍 Discovery Details:
+• ${data.web} web services found
+• ${data.directories} directories enumerated
+• ${data.files} files discovered
+• ${data.commands} manual commands generated
+
+${data.isLive ? '🔄 Live scan results updating...' : data.isPartial ? '⏳ Scan in progress...' : '✅ Complete analysis finished'}
+
+🛡️ Professional security reconnaissance with ipcrawler
+#cybersecurity #penetration-testing #security-assessment
+
+https://github.com/neur0map/ipcrawler`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Security Assessment Results',
+                    text: shareText
+                }).catch(() => copyToClipboard(shareText));
+            } else {
+                copyToClipboard(shareText);
+            }
+        }
+        
+        function copyToClipboard(text) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('🚀 Results copied to clipboard!');
+                });
+            } else {
+                // Fallback
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('🚀 Results copied to clipboard!');
+            }
+        }
+        
+        function exportToPDF() {
+            window.print();
+        }
+        
+        // Collapsible sections
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.collapsible-header')) {
+                const collapsible = e.target.closest('.collapsible');
+                collapsible.classList.toggle('collapsed');
+            }
+        });
+        
+        // Copy code functionality
+        function copyCode(button) {
+            const codeBlock = button.closest('.code-section').querySelector('pre');
+            const text = codeBlock.textContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    button.textContent = 'Copied!';
+                    setTimeout(() => button.textContent = 'Copy', 2000);
+                });
+            }
+        }
+        
+        // Auto-refresh for live scans
+        {% if auto_refresh %}
+        let refreshCountdown = 600;
+        const indicator = document.createElement('div');
+        indicator.style.cssText = 'position: fixed; top: 20px; right: 20px; background: var(--accent); color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px; z-index: 1000; font-family: var(--font-mono);';
+        document.body.appendChild(indicator);
+        
+        setInterval(() => {
+            refreshCountdown--;
+            const min = Math.floor(refreshCountdown / 60);
+            const sec = refreshCountdown % 60;
+            indicator.textContent = `Refresh ${min}:${sec.toString().padStart(2, '0')}`;
+            if (refreshCountdown <= 0) location.reload();
+        }, 1000);
+        {% endif %}
+    </script>
+</body>
+</html>

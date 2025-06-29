@@ -263,8 +263,8 @@ class Jinja2HTMLReporter:
             targets, partial, static_mode, daemon_mode, watch_mode, update_interval
         )
         
-        # Load and render the professional template
-        template = self.jinja_env.get_template('professional_base.html.j2')
+        # Load and render the security analysis template
+        template = self.jinja_env.get_template('security_analysis_base.html.j2')
         return template.render(context)
     
     def _prepare_template_context(self, targets: Dict[str, Any], partial: bool,
@@ -294,9 +294,11 @@ class Jinja2HTMLReporter:
         # Count critical findings (pattern matches with vulnerability indicators)
         critical_findings = 0
         for target in targets.values():
-            critical_findings += len([p for p in target.patterns if any(
-                keyword in p.lower() for keyword in ['vuln', 'exploit', 'cve', 'critical', 'high']
-            )])
+            if hasattr(target, 'patterns'):
+                for p in target.patterns:
+                    pattern_text = str(p).lower() if hasattr(p, 'lower') else str(p).lower()
+                    if any(keyword in pattern_text for keyword in ['vuln', 'exploit', 'cve', 'critical', 'high']):
+                        critical_findings += 1
         
         # Generate timestamps
         generated_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -350,7 +352,7 @@ class Jinja2HTMLReporter:
         }
     
     def _transform_target_data(self, target_name: str, target_data: Any) -> Any:
-        """Transform TargetResults object to match professional template structure"""
+        """Transform TargetResults object to match security analysis template structure"""
         # Create a new object with template-compatible structure
         class TransformedTarget:
             def __init__(self):
@@ -374,136 +376,236 @@ class Jinja2HTMLReporter:
         else:
             transformed.ip_address = target_name  # Fallback to target name
 
-        # Preserve all attributes for consolidator compatibility
-        if hasattr(target_data, 'open_ports'):
-            transformed.open_ports = target_data.open_ports
-        else:
-            transformed.open_ports = []
-
-        if hasattr(target_data, 'web_services'):
-            transformed.web_services = target_data.web_services
-        else:
-            transformed.web_services = []
-
-        if hasattr(target_data, 'vulnerabilities'):
-            transformed.vulnerabilities = target_data.vulnerabilities
-        else:
-            transformed.vulnerabilities = []
-
-        if hasattr(target_data, 'manual_commands'):
-            transformed.manual_commands = target_data.manual_commands
-        else:
-            transformed.manual_commands = []
-
-        # Add missing attributes that the template/consolidator expects
-        if hasattr(target_data, 'patterns'):
-            transformed.patterns = target_data.patterns
-        else:
-            transformed.patterns = []
-
-        if hasattr(target_data, 'scans'):
-            transformed.scans = target_data.scans
-        else:
-            transformed.scans = {}
-
-        if hasattr(target_data, 'services'):
-            transformed.services = target_data.services
-        else:
-            transformed.services = []
-
-        # Transform open_ports to ports (template expects 'ports')
-        if hasattr(target_data, 'open_ports'):
-            transformed.ports = []
-            for port_info in target_data.open_ports:
-                port_data = {
-                    'port': port_info.port,
-                    'protocol': port_info.protocol,
-                    'state': getattr(port_info, 'state', 'open'),
-                    'service': getattr(port_info, 'service', 'unknown'),
-                    'version': getattr(port_info, 'version', '')
-                }
-                transformed.ports.append(type('Port', (), port_data)())
-        else:
-            transformed.ports = []
+        # Transform open ports with proper structure expected by security template
+        transformed.open_ports = self._transform_open_ports(target_data)
         
-        # Create services from enumeration data
-        transformed.services = self._extract_services(target_data)
+        # Transform services with proper structure
+        transformed.services = self._transform_services(target_data)
         
-        # Transform pattern matches with rich context
-        transformed.pattern_matches = self._transform_pattern_matches(target_name, target_data)
+        # Transform patterns with security-focused structure
+        transformed.patterns = self._transform_security_patterns(target_data)
         
-        # Transform manual commands with proper structure
-        transformed.manual_commands = self._transform_manual_commands(target_data)
+        # Transform web services with enhanced security data
+        transformed.web_services = self._transform_web_services_security(target_data)
         
-        # Extract web services data
-        transformed.web_services = self._extract_web_services(target_data)
+        # Transform manual commands with proper grouping
+        transformed.manual_commands = self._transform_manual_commands_security(target_data)
+        
+        # Transform output files for security analysis
+        transformed.output_files = self._transform_output_files(target_name, target_data)
         
         # Extract vulnerabilities
         transformed.vulnerabilities = self._extract_vulnerabilities(target_data)
         
-        # Extract raw scan files
-        transformed.raw_files = self._extract_raw_files(target_name, target_data)
-        
-        # Extract notes and observations
-        transformed.notes = self._extract_notes(target_data)
+        # Legacy compatibility - preserve original attributes
+        if hasattr(target_data, 'scans'):
+            transformed.scans = target_data.scans
+        else:
+            transformed.scans = {}
         
         return transformed
     
-    def _extract_services(self, target_data: Any) -> list:
-        """Extract service enumeration data from target"""
+    def _transform_open_ports(self, target_data: Any) -> list:
+        """Transform open ports for security analysis template"""
+        open_ports = []
+        
+        if hasattr(target_data, 'open_ports'):
+            for port_info in target_data.open_ports:
+                port_data = type('Port', (), {
+                    'port': getattr(port_info, 'port', 0),
+                    'protocol': getattr(port_info, 'protocol', 'tcp'),
+                    'service_name': getattr(port_info, 'service', 'unknown'),
+                    'version': getattr(port_info, 'version', ''),
+                    'secure': getattr(port_info, 'secure', False),
+                    'state': getattr(port_info, 'state', 'open')
+                })()
+                open_ports.append(port_data)
+        
+        return open_ports
+    
+    def _transform_services(self, target_data: Any) -> list:
+        """Transform services for security analysis template"""
         services = []
         
         if hasattr(target_data, 'open_ports'):
             for port_info in target_data.open_ports:
-                if hasattr(port_info, 'enumeration_data') and port_info.enumeration_data:
-                    service_data = {
-                        'name': getattr(port_info, 'service', f'Service on port {port_info.port}'),
-                        'port': port_info.port,
-                        'version': getattr(port_info, 'version', ''),
-                        'scan_results': self._format_enumeration_data(port_info.enumeration_data),
-                        'vulnerabilities': self._extract_service_vulnerabilities(port_info)
-                    }
-                    services.append(type('Service', (), service_data)())
+                service_data = type('Service', (), {
+                    'port': getattr(port_info, 'port', 0),
+                    'protocol': getattr(port_info, 'protocol', 'tcp'),
+                    'service_name': getattr(port_info, 'service', 'unknown'),
+                    'version': getattr(port_info, 'version', ''),
+                    'secure': getattr(port_info, 'secure', False)
+                })()
+                services.append(service_data)
         
         return services
     
-    def _format_enumeration_data(self, enum_data: dict) -> str:
-        """Format enumeration data for display"""
-        if not enum_data:
-            return ""
+    def _transform_security_patterns(self, target_data: Any) -> list:
+        """Transform patterns with security analysis focus"""
+        patterns = []
         
-        output_lines = []
-        for key, value in enum_data.items():
-            if value:
-                if isinstance(value, list):
-                    output_lines.append(f"{key}:")
-                    for item in value:
-                        output_lines.append(f"  - {item}")
-                elif isinstance(value, dict):
-                    output_lines.append(f"{key}:")
-                    for subkey, subvalue in value.items():
-                        output_lines.append(f"  {subkey}: {subvalue}")
-                else:
-                    output_lines.append(f"{key}: {value}")
+        if hasattr(target_data, 'patterns'):
+            for pattern in target_data.patterns:
+                # Extract security level from pattern description
+                pattern_text = str(pattern)
+                description = pattern_text
+                
+                # Try to extract structured information from pattern
+                if ':' in pattern_text and len(pattern_text.split(':')) >= 2:
+                    parts = pattern_text.split(':', 1)
+                    description = parts[1].strip()
+                
+                pattern_data = type('Pattern', (), {
+                    'description': description,
+                    'original': pattern_text
+                })()
+                patterns.append(pattern_data)
         
-        return "\n".join(output_lines)
+        return patterns
     
-    def _extract_service_vulnerabilities(self, port_info: Any) -> list:
-        """Extract vulnerabilities for a specific service"""
-        vulnerabilities = []
+    def _transform_web_services_security(self, target_data: Any) -> list:
+        """Transform web services with security analysis focus"""
+        web_services = []
         
-        # Check for vulnerabilities in enumeration data
-        if hasattr(port_info, 'enumeration_data') and port_info.enumeration_data:
-            for key, value in port_info.enumeration_data.items():
-                if 'vuln' in key.lower() or 'cve' in key.lower():
-                    vuln_data = {
-                        'title': f"Vulnerability in {key}",
-                        'severity': 'medium',
-                        'description': str(value)
-                    }
-                    vulnerabilities.append(type('Vulnerability', (), vuln_data)())
+        if hasattr(target_data, 'web_services'):
+            for web_service in target_data.web_services:
+                # Extract directories and files from web service
+                directories = []
+                files = []
+                
+                if hasattr(web_service, 'directories'):
+                    for directory in web_service.directories:
+                        if isinstance(directory, dict):
+                            dir_data = type('Directory', (), {
+                                'path': directory.get('path', ''),
+                                'status': directory.get('status', ''),
+                                'size': directory.get('size', '')
+                            })()
+                        else:
+                            dir_data = type('Directory', (), {
+                                'path': str(directory),
+                                'status': '',
+                                'size': ''
+                            })()
+                        directories.append(dir_data)
+                
+                if hasattr(web_service, 'files'):
+                    for file in web_service.files:
+                        if isinstance(file, dict):
+                            file_data = type('File', (), {
+                                'path': file.get('path', ''),
+                                'status': file.get('status', ''),
+                                'size': file.get('size', '')
+                            })()
+                        else:
+                            file_data = type('File', (), {
+                                'path': str(file),
+                                'status': '',
+                                'size': ''
+                            })()
+                        files.append(file_data)
+                
+                ws_data = type('WebService', (), {
+                    'url': getattr(web_service, 'url', ''),
+                    'port': getattr(web_service, 'port', 80),
+                    'title': getattr(web_service, 'title', ''),
+                    'server': getattr(web_service, 'server', ''),
+                    'cms': getattr(web_service, 'cms', ''),
+                    'technologies': getattr(web_service, 'technologies', []),
+                    'directories': directories,
+                    'files': files
+                })()
+                web_services.append(ws_data)
         
-        return vulnerabilities
+        return web_services
+    
+    def _transform_manual_commands_security(self, target_data: Any) -> list:
+        """Transform manual commands with security analysis focus"""
+        manual_commands = []
+        
+        if hasattr(target_data, 'manual_commands'):
+            current_group = None
+            commands_in_group = []
+            
+            for command in target_data.manual_commands:
+                command_text = str(command)
+                
+                # Try to extract title and commands from the manual command
+                if ':' in command_text:
+                    parts = command_text.split(':', 1)
+                    title = parts[0].strip()
+                    remaining = parts[1].strip() if len(parts) > 1 else ''
+                    
+                    # If we have a new title, finish the previous group
+                    if current_group and current_group != title:
+                        if commands_in_group:
+                            group_data = type('CommandGroup', (), {
+                                'title': current_group,
+                                'commands': commands_in_group.copy()
+                            })()
+                            manual_commands.append(group_data)
+                        commands_in_group = []
+                    
+                    current_group = title
+                    if remaining:
+                        commands_in_group.append(remaining)
+                else:
+                    # No title, add to current group or create default group
+                    if not current_group:
+                        current_group = "Manual Commands"
+                    commands_in_group.append(command_text)
+            
+            # Add the final group
+            if current_group and commands_in_group:
+                group_data = type('CommandGroup', (), {
+                    'title': current_group,
+                    'commands': commands_in_group
+                })()
+                manual_commands.append(group_data)
+        
+        return manual_commands
+    
+    def _transform_output_files(self, target_name: str, target_data: Any) -> list:
+        """Transform output files for security analysis"""
+        output_files = []
+        
+        try:
+            import os
+            import time
+            # Construct path to target's scan directory
+            results_base = os.path.join(os.getcwd(), 'results', target_name, 'scans')
+            
+            if os.path.exists(results_base):
+                for root, dirs, files in os.walk(results_base):
+                    for filename in files:
+                        if not filename.startswith('.') and not filename.startswith('_'):
+                            file_path = os.path.join(root, filename)
+                            try:
+                                stat = os.stat(file_path)
+                                size = self._format_file_size(stat.st_size)
+                                modified = time.strftime('%Y-%m-%d %H:%M', time.localtime(stat.st_mtime))
+                                
+                                # Try to extract plugin name from filename
+                                plugin = 'unknown'
+                                if '_' in filename:
+                                    parts = filename.split('_')
+                                    if len(parts) >= 3:
+                                        plugin = parts[2]  # Usually format: protocol_port_plugin_*
+                                
+                                file_data = type('OutputFile', (), {
+                                    'name': filename,
+                                    'size': size,
+                                    'modified': modified,
+                                    'plugin': plugin
+                                })()
+                                output_files.append(file_data)
+                            except (OSError, IndexError):
+                                continue
+        except Exception:
+            pass
+        
+        return output_files
+    
     
     def _transform_pattern_matches(self, target_name: str, target_data: Any) -> list:
         """Transform pattern matches with rich context and plugin information"""
@@ -552,78 +654,6 @@ class Jinja2HTMLReporter:
         
         return pattern_matches
     
-    def _transform_manual_commands(self, target_data: Any) -> list:
-        """Transform manual commands with proper structure"""
-        manual_commands = []
-        
-        if hasattr(target_data, 'manual_commands') and target_data.manual_commands:
-            for command in target_data.manual_commands:
-                # Handle both string commands and ManualCommand objects
-                plugin_name = "Manual Command"
-                description = ""
-                command_text = ""
-                service = ""
-                port = ""
-
-                # Check if command is already a ManualCommand object
-                if hasattr(command, 'plugin_name'):
-                    # It's already a ManualCommand object
-                    plugin_name = getattr(command, 'plugin_name', 'Manual Command')
-                    description = getattr(command, 'description', '')
-                    command_text = getattr(command, 'command', str(command))
-                    service = getattr(command, 'service', '')
-                    port = getattr(command, 'port', '')
-                else:
-                    # It's a string command, parse it
-                    command_text = str(command)
-
-                    # Try to extract plugin information from command
-                    if '(' in command_text and ')' in command_text:
-                        # Format: (plugin) description: command
-                        parts = command_text.split(')', 1)
-                        if len(parts) == 2:
-                            plugin_part = parts[0].replace('(', '').strip()
-                            rest = parts[1].strip()
-
-                            if plugin_part:
-                                plugin_name = plugin_part
-
-                            if ':' in rest:
-                                desc_cmd = rest.split(':', 1)
-                                if len(desc_cmd) == 2:
-                                    description = desc_cmd[0].strip()
-                                    command_text = desc_cmd[1].strip()
-                
-                cmd_data = {
-                    'plugin_name': plugin_name,
-                    'command': command_text,
-                    'description': description,
-                    'service': service,
-                    'port': port
-                }
-                manual_commands.append(type('ManualCommand', (), cmd_data)())
-        
-        return manual_commands
-    
-    def _extract_web_services(self, target_data: Any) -> list:
-        """Extract web services with directory and file findings"""
-        web_services = []
-        
-        if hasattr(target_data, 'web_services'):
-            for web_service in target_data.web_services:
-                ws_data = {
-                    'url': getattr(web_service, 'url', ''),
-                    'status_code': getattr(web_service, 'status_code', 200),
-                    'title': getattr(web_service, 'title', ''),
-                    'technologies': getattr(web_service, 'technologies', []),
-                    'directories': getattr(web_service, 'directories', []),
-                    'files': getattr(web_service, 'files', []),
-                    'vhosts': getattr(web_service, 'vhosts', []),  # Add missing vhosts attribute
-                    'vulnerabilities': getattr(web_service, 'vulnerabilities', [])  # Add missing vulnerabilities attribute
-                }
-                web_services.append(type('WebService', (), ws_data)())
-        
-        return web_services
     
     def _extract_vulnerabilities(self, target_data: Any) -> list:
         """Extract all vulnerabilities from target data"""
