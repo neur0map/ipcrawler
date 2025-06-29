@@ -362,11 +362,13 @@ class ipcrawler(object):
 		else:
 			combined_patterns = self.patterns
 
+		# Create subprocess with increased buffer limits for large responses (e.g., Spring Boot Actuator JSON)
 		process = await asyncio.create_subprocess_shell(
 			cmd,
 			stdin=open('/dev/null'),
 			stdout=asyncio.subprocess.PIPE,
-			stderr=asyncio.subprocess.PIPE)
+			stderr=asyncio.subprocess.PIPE,
+			limit=1024*1024)  # 1MB limit instead of default 64KB to handle large JSON responses
 
 		cout = CommandStreamReader(process.stdout, target, tag, patterns=combined_patterns, outfile=outfile)
 		cerr = CommandStreamReader(process.stderr, target, tag, patterns=combined_patterns, outfile=errfile)
