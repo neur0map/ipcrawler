@@ -9,7 +9,6 @@
 [![License](https://img.shields.io/badge/license-GPL%20v3-green.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 
-*"It's like bowling with bumpers."* - [@ippsec](https://twitter.com/ippsec)
 
 ### 🤖 Get AI-Powered Repository Summary
 
