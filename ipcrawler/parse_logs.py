@@ -147,7 +147,7 @@ def parse_cms_detection(scans_dir: str) -> Optional[Dict[str, Any]]:
 
 
 def parse_errors_log(errors_log_path: str) -> List[Dict[str, Any]]:
-    """Parse the YAML-formatted errors.log."""
+    """Parse the YAML-formatted errors.log and convert to Pydantic-compatible format."""
     if not os.path.exists(errors_log_path):
         return []
     
@@ -159,19 +159,64 @@ def parse_errors_log(errors_log_path: str) -> List[Dict[str, Any]]:
             return []
         
         # Load YAML content
-        errors = yaml.safe_load(content)
+        raw_errors = yaml.safe_load(content)
         
         # Ensure it's a list
-        if isinstance(errors, list):
-            return errors
-        elif errors is not None:
-            return [errors]
+        if isinstance(raw_errors, list):
+            error_list = raw_errors
+        elif raw_errors is not None:
+            error_list = [raw_errors]
         else:
             return []
+        
+        # Convert to Pydantic-compatible format
+        formatted_errors = []
+        for error_entry in error_list:
+            if isinstance(error_entry, dict):
+                formatted_error = {
+                    "plugin": error_entry.get("plugin", "unknown"),
+                    "message": error_entry.get("message", ""),
+                    "severity": "medium",  # Default severity
+                    "command": error_entry.get("command"),
+                    "exit_code": error_entry.get("exit_code"),
+                    "timestamp": error_entry.get("timestamp"),
+                    "target": error_entry.get("target")
+                }
+                
+                # Determine severity based on exit code or message content
+                if error_entry.get("exit_code", 0) != 0:
+                    formatted_error["severity"] = "high"
+                elif "warning" in error_entry.get("message", "").lower():
+                    formatted_error["severity"] = "low"
+                    
+                formatted_errors.append(formatted_error)
+        
+        return formatted_errors
             
     except Exception as e:
         logger.warning(f"Error parsing errors log {errors_log_path}: {e}")
         return []
+
+
+def generate_summary(target: str, ports: List[Dict], endpoints: List[Dict], cms: Optional[Dict], errors: List[Dict]) -> Dict[str, Any]:
+    """Generate summary statistics for the scan."""
+    # Count tools run by checking for log files in scans directory
+    scans_dir = f"results/{target}/scans"
+    tools_run = 0
+    
+    if os.path.exists(scans_dir):
+        # Count .log files (excluding errors.log and suppressed_output.log)
+        for file in os.listdir(scans_dir):
+            if file.endswith('.log') and file not in ['errors.log', 'suppressed_output.log', '_commands.log']:
+                tools_run += 1
+    
+    return {
+        "tools_run": tools_run,
+        "errors": len(errors),
+        "endpoints_found": len(endpoints),
+        "cms_detected": cms["name"] if cms else None,
+        "ports_open": len(ports)
+    }
 
 
 def build_parsed_yaml(target: str) -> None:
@@ -198,6 +243,9 @@ def build_parsed_yaml(target: str) -> None:
     cms = parse_cms_detection(scans_dir)
     errors = parse_errors_log(errors_log_path)
     
+    # Generate summary statistics
+    summary = generate_summary(target, ports, endpoints, cms, errors)
+    
     # Build the parsed data structure
     parsed_data = {
         "target": target,
@@ -205,7 +253,8 @@ def build_parsed_yaml(target: str) -> None:
         "ports": ports,
         "endpoints": endpoints,
         "cms": cms,
-        "errors": errors
+        "errors": errors,
+        "summary": summary
     }
     
     # Ensure target directory exists

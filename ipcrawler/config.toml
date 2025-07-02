@@ -10,7 +10,7 @@
 # ------------------------
 # Uncomment and modify any settings you want to change from defaults:
 
-# verbose = 1                    # Verbosity level (0-3)
+verbose = 1                    # Verbosity level (0-3) - show terminal output by default
 # max-scans = 50                 # Maximum concurrent scans  
 timeout = 120                   # Global timeout in minutes (2 hours)
 target-timeout = 60             # Per-target timeout in minutes (1 hour)

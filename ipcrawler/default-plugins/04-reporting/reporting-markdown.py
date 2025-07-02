@@ -21,7 +21,7 @@ class Markdown(Report):
 		for target in targets:
 			os.makedirs(os.path.join(report, target.address), exist_ok=True)
 
-			files = [os.path.abspath(filename) for filename in glob.iglob(os.path.join(target.scandir, '**/*'), recursive=True) if os.path.isfile(filename) and filename.endswith(('.txt', '.html'))]
+			files = [os.path.abspath(filename) for filename in glob.iglob(os.path.join(target.scandir, '**/*'), recursive=True) if os.path.isfile(filename) and filename.endswith('.txt')]
 
 			if target.scans['ports']:
 				os.makedirs(os.path.join(report, target.address, 'Port Scans'), exist_ok=True)

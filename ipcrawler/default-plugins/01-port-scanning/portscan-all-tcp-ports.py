@@ -1,6 +1,6 @@
 from ipcrawler.plugins import PortScan
 from ipcrawler.config import config
-import re, requests
+import re, requests, asyncio
 
 class AllTCPPortScan(PortScan):
 
@@ -26,37 +26,37 @@ class AllTCPPortScan(PortScan):
 
 		if target.ports:
 			if target.ports['tcp']:
-				process, stdout, stderr = await target.execute('nmap {nmap_extra}' + service_opts + timing_opts + ' -p ' + target.ports['tcp'] + ' -oN "{scandir}/_full_tcp_nmap.txt" -oX "{scandir}/xml/_full_tcp_nmap.xml" {address}', blocking=False)
+				process, stdout, stderr = await target.execute('nmap {nmap_extra}' + service_opts + timing_opts + ' -p ' + target.ports['tcp'] + ' -oN "{scandir}/_full_tcp_nmap.txt" -oX "{scandir}/xml/_full_tcp_nmap.xml" {address}')
 			else:
 				return []
 		else:
-			process, stdout, stderr = await target.execute('nmap {nmap_extra}' + service_opts + timing_opts + ' -p- -oN "{scandir}/_full_tcp_nmap.txt" -oX "{scandir}/xml/_full_tcp_nmap.xml" {address}', blocking=False)
-		services = []
-		while True:
-			line = await stdout.readline()
-			if line is not None:
-				match = re.search('^Discovered open port ([0-9]+)/tcp', line)
-				if match:
-					target.info('Discovered open port {bmagenta}tcp/' + match.group(1) + '{rst} on {byellow}' + target.address + '{rst}', verbosity=1)
-				service = target.extract_service(line)
+			process, stdout, stderr = await target.execute('nmap {nmap_extra}' + service_opts + timing_opts + ' -p- -oN "{scandir}/_full_tcp_nmap.txt" -oX "{scandir}/xml/_full_tcp_nmap.xml" {address}')
+		services = await target.extract_services(stdout)
 
-				if service:
-					# Check if HTTP service appears to be WinRM. If so, override service name as wsman.
-					if service.name == 'http' and service.port in [5985, 5986]:
-						try:
-							# Quick check for WinRM with timeout to prevent hanging
-							url = ('https' if service.secure else 'http') + '://' + target.address + ':' + str(service.port) + '/wsman'
-							response = requests.get(url, verify=False, timeout=3)
-							if response.status_code == 405:
-								service.name = 'wsman'
-							elif response.status_code == 401:
-								service.name = 'wsman'
-						except (requests.exceptions.RequestException, requests.exceptions.Timeout):
-							# If WinRM check fails, keep as HTTP (don't block scan)
-							target.debug('WinRM detection failed for {}:{}, keeping as HTTP'.format(target.address, service.port))
+		for service in services:
+			# Check if HTTP service appears to be WinRM. If so, override service name as wsman.
+			if service.name == 'http' and service.port in [5985, 5986]:
+				try:
+					# Quick check for WinRM with timeout to prevent hanging
+					url = ('https' if service.secure else 'http') + '://' + target.address + ':' + str(service.port) + '/wsman'
+					response = requests.get(url, verify=False, timeout=3)
+					if response.status_code == 405:
+						service.name = 'wsman'
+					elif response.status_code == 401:
+						service.name = 'wsman'
+				except (requests.exceptions.RequestException, requests.exceptions.Timeout):
+					# If WinRM check fails, keep as HTTP (don't block scan)
+					target.debug('WinRM detection failed for {}:{}, keeping as HTTP'.format(target.address, service.port))
 
-					services.append(service)
-			else:
-				break
-		await process.wait()
+		# Ensure proper process cleanup on macOS
+		try:
+			await asyncio.wait_for(process.wait(), timeout=10)
+		except asyncio.TimeoutError:
+			# Force cleanup if process doesn't terminate properly
+			try:
+				process.kill()
+				await asyncio.wait_for(process.wait(), timeout=3)
+			except (asyncio.TimeoutError, OSError):
+				pass
+		
 		return services

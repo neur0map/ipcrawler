@@ -29,6 +29,10 @@ class MockStreamReader:
 		self.outfile = outfile
 		self.ended = True  # Mark as ended since we have all content
 		
+		# Split content into lines for line-by-line reading
+		self.lines = (content or "").split('\n') if content else []
+		self.line_index = 0
+		
 		# Process patterns and write outfile if needed
 		self._process_content()
 	
@@ -55,8 +59,13 @@ class MockStreamReader:
 							pass  # Silently continue if pattern logging fails
 	
 	async def readline(self):
-		"""Mock readline method."""
-		return b""  # Return empty since all content is processed
+		"""Mock readline method that returns lines one by one, then None when finished."""
+		if self.line_index < len(self.lines):
+			line = self.lines[self.line_index]
+			self.line_index += 1
+			return line.encode('utf-8') + b'\n'  # Return as bytes like real readline
+		else:
+			return None  # Signal end of stream
 
 class Pattern:
 
@@ -309,6 +318,11 @@ class ipcrawler(object):
 	def extract_service(self, line, regex):
 		if regex is None:
 			regex = r'^(?P<port>\d+)\/(?P<protocol>(tcp|udp))(.*)open(\s*)(?P<service>[\w\-\/]+)(\s*)(.*)$'
+		
+		# Convert bytes to string if necessary
+		if isinstance(line, bytes):
+			line = line.decode('utf-8', errors='replace').strip()
+		
 		match = re.search(regex, line)
 		if match:
 			protocol = match.group('protocol').lower()
@@ -324,9 +338,9 @@ class ipcrawler(object):
 			return None
 
 	async def extract_services(self, stream, regex):
-		if not isinstance(stream, CommandStreamReader):
-			print('Error: extract_services must be passed an instance of a CommandStreamReader.')
-			sys.exit(1)
+		if not isinstance(stream, (CommandStreamReader, MockStreamReader)):
+			print('Error: extract_services must be passed an instance of a CommandStreamReader or MockStreamReader.')
+			return []
 
 		services = []
 		while True:
@@ -466,10 +480,20 @@ class ipcrawler(object):
 		# Execute with comprehensive unified logging - this replaces the original system
 		enhanced_env = self._get_enhanced_env()
 		
-		# Use output suppression to capture any plugin print statements
-		with target._unified_logger.create_output_suppressor():
+		# Check verbosity - only suppress output in quiet mode (verbosity 0)
+		from ipcrawler.config import config
+		suppress_output = config.get('verbose', 0) == 0
+		
+		if suppress_output:
+			# Use output suppression to capture any plugin print statements
+			with target._unified_logger.create_output_suppressor():
+				exit_code, stdout_content, stderr_content = await target._unified_logger.execute_with_logging(
+					cmd, plugin_name, cwd=target.scandir, env=enhanced_env, timeout=600  # 10 minute timeout
+				)
+		else:
+			# Allow terminal output to show when verbose mode is enabled
 			exit_code, stdout_content, stderr_content = await target._unified_logger.execute_with_logging(
-				cmd, plugin_name, cwd=target.scandir, env=enhanced_env
+				cmd, plugin_name, cwd=target.scandir, env=enhanced_env, timeout=600  # 10 minute timeout
 			)
 		
 		# Print clean status message instead of raw output

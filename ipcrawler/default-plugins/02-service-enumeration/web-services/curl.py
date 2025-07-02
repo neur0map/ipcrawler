@@ -288,4 +288,4 @@ class Curl(ServiceScan):
 					scan_hostname = f'[{hostname}]'
 				
 				service.info(f"🔧 Running curl against: {hostname}")
-				await service.execute('curl -sSik {http_scheme}://' + scan_hostname + ':{port}' + self.get_option('path'), outfile='{protocol}_{port}_{http_scheme}_curl_' + hostname_label + '.html')
+				await service.execute('curl -sSik {http_scheme}://' + scan_hostname + ':{port}' + self.get_option('path'), outfile='{protocol}_{port}_{http_scheme}_curl_' + hostname_label + '.txt')

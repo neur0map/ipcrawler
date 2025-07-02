@@ -23,7 +23,7 @@ class CherryTree(Report):
 			for target in targets:
 				output.writelines('<node name="' + escape(target.address) + '" is_bold="1" custom_icon_id="1">\n')
 
-				files = [os.path.abspath(filename) for filename in glob.iglob(os.path.join(target.scandir, '**/*'), recursive=True) if os.path.isfile(filename) and filename.endswith(('.txt', '.html'))]
+				files = [os.path.abspath(filename) for filename in glob.iglob(os.path.join(target.scandir, '**/*'), recursive=True) if os.path.isfile(filename) and filename.endswith('.txt')]
 
 				if target.scans['ports']:
 					output.writelines('<node name="Port Scans" custom_icon_id="2">\n')

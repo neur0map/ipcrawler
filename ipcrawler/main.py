@@ -29,6 +29,8 @@ from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, 
 from ipcrawler.loading import scan_status
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.parse_logs import build_parsed_yaml
+from ipcrawler.validator import load_and_validate_report
+from ipcrawler.report_renderer import render_markdown_report
 from ipcrawler.targets import Target, Service
 from ipcrawler.wordlists import init_wordlist_manager
 from ipcrawler.consolidator import IPCrawlerConsolidator
@@ -156,7 +158,7 @@ def cancel_all_tasks(sig, frame):
 	if len(alive) > 0:
 		error('The following process IDs could not be killed: ' + ', '.join([str(x.pid) for x in sorted(alive, key=lambda x: x.pid)]))
 	
-	# Generate consolidator HTML report on interruption
+	# Consolidate scan results on interruption
 	try:
 		# Always try to generate a report, even with minimal data
 		consolidator = IPCrawlerConsolidator(config['output'])
@@ -166,22 +168,17 @@ def cancel_all_tasks(sig, frame):
 			if hasattr(consolidator_args_global, 'report_target') and consolidator_args_global.report_target:
 				consolidator.specific_target = consolidator_args_global.report_target
 			
-			# Generate report from existing files
-			output_file = getattr(consolidator_args_global, 'report_output', None)
-			if hasattr(consolidator_args_global, 'partial') and consolidator_args_global.partial:
-				info('🕷️  Generating partial HTML report after interruption...', verbosity=1)
-				consolidator.generate_partial_report(output_file)
-			else:
-				info('🕷️  Generating HTML report after interruption...', verbosity=1)
-				consolidator.generate_html_report(output_file)
+			# Consolidate results only
+			info('🕷️  Consolidating scan results after interruption...', verbosity=1)
+			consolidator.consolidate_all_targets(consolidator.specific_target)
 		else:
-			# Fallback: generate partial report with whatever data exists
-			info('🕷️  Generating partial HTML report from available scan data...', verbosity=1)
-			consolidator.generate_partial_report()
+			# Fallback: consolidate whatever data exists
+			info('🕷️  Consolidating available scan data...', verbosity=1)
+			consolidator.consolidate_all_targets(None)
 		
-		info('📄 HTML report generated after interruption', verbosity=1)
+		info('📄 Scan results consolidated after interruption', verbosity=1)
 	except Exception as e:
-		warn(f'⚠️  Failed to generate HTML report after interruption: {e}', verbosity=1)
+		warn(f'⚠️  Failed to consolidate results after interruption: {e}', verbosity=1)
 		debug(f'Consolidator interruption error details: {str(e)}', verbosity=2)
 
 	if not config['disable_keyboard_control']:
@@ -748,7 +745,10 @@ async def scan_target(target):
 
 			if matching_tags and not excluded_tags:
 				target.scans['ports'][plugin.slug] = {'plugin':plugin, 'commands':[]}
-				pending.append(asyncio.create_task(port_scan(plugin, target)))
+				port_task = asyncio.create_task(port_scan(plugin, target))
+				port_task.plugin_priority = plugin.priority
+				port_task.plugin_name = plugin.name
+				pending.append(port_task)
 
 	async with ipcrawler.lock:
 		ipcrawler.scanning_targets.append(target)
@@ -756,6 +756,11 @@ async def scan_target(target):
 	start_time = time.time()
 	info(f'🎯 Scanning target: {target.address}', verbosity=1)
 
+	# Track priority 0 port scans to enable early service enumeration
+	priority_0_scans = {task for task in pending if hasattr(task, 'plugin_priority') and task.plugin_priority == 0}
+	priority_0_completed = set()
+	service_enumeration_started = False
+	
 	timed_out = False
 	while pending:
 		done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED, timeout=1)
@@ -784,11 +789,37 @@ async def scan_target(target):
 				except asyncio.InvalidStateError:
 					pass
 
+				# Track priority 0 port scan completion
+				if task in priority_0_scans:
+					priority_0_completed.add(task)
+					if hasattr(task, 'plugin_name'):
+						info(f'✅ High-priority port scan completed: {task.plugin_name}', verbosity=1)
+
 				if task.result()['type'] == 'port':
 					for service in (task.result()['result'] or []):
 						services.append(service)
 
-		for service in services:
+		# Check if we can start service enumeration early
+		if not service_enumeration_started and priority_0_scans and len(priority_0_completed) == len(priority_0_scans):
+			service_enumeration_started = True
+			remaining_port_scans = [task for task in pending if hasattr(task, 'plugin_priority')]
+			if remaining_port_scans:
+				remaining_names = [getattr(task, 'plugin_name', 'Unknown') for task in remaining_port_scans]
+				info(f'🚀 Starting service enumeration early! Background scans continue: {", ".join(remaining_names)}', verbosity=1)
+			else:
+				info(f'🚀 All port scans completed, starting service enumeration', verbosity=1)
+
+		# Only start service enumeration if priority 0 scans completed OR all port scans completed
+		should_start_service_enumeration = (
+			service_enumeration_started or  # Priority 0 scans completed
+			not any(hasattr(task, 'plugin_priority') for task in pending)  # No more port scans pending
+		)
+		
+		# Convert pending to set for service enumeration compatibility
+		if should_start_service_enumeration and isinstance(pending, list):
+			pending = set(pending)
+		
+		for service in services if should_start_service_enumeration else []:
 			if service.full_tag() not in target.services:
 				target.services.append(service.full_tag())
 			else:
@@ -1041,6 +1072,26 @@ async def scan_target(target):
 		try:
 			build_parsed_yaml(target.address)
 			info(f'📄 Parsed YAML generated for {target.address}', verbosity=1)
+			
+			# Phase 3: Validate parsed YAML with Pydantic
+			try:
+				parsed_yaml_path = f"results/{target.address}/parsed.yaml"
+				validated_report = load_and_validate_report(parsed_yaml_path, exit_on_failure=False)
+				if validated_report:
+					info(f'✅ YAML validation passed for {target.address}', verbosity=1)
+					
+					# Phase 4: Generate Jinja2 Markdown report from validated YAML
+					try:
+						if render_markdown_report(validated_report):
+							info(f'📋 Jinja2 Markdown report generated for {target.address}', verbosity=1)
+						else:
+							warn(f'⚠️ Failed to generate Jinja2 markdown report for {target.address}', verbosity=1)
+					except Exception as e:
+						warn(f'⚠️ Unexpected error generating markdown report for {target.address}: {e}', verbosity=1)
+				else:
+					warn(f'❌ YAML validation failed for {target.address}', verbosity=1)
+			except Exception as e:
+				warn(f'⚠️ Unexpected validation error for {target.address}: {e}', verbosity=1)
 		except Exception as e:
 			warn(f'⚠️ Failed to generate parsed YAML for {target.address}: {e}', verbosity=1)
 
@@ -1115,11 +1166,7 @@ async def run(initial_args):
 	scenario_group.add_argument('--pentest', action='store_true', help='Penetration testing mode: comprehensive wordlists optimized for real-world assessment')
 	scenario_group.add_argument('--recon', action='store_true', help='Quick reconnaissance mode: fast wordlists for initial target discovery')
 	scenario_group.add_argument('--stealth', action='store_true', help='Stealth mode: slower scans with reduced threads to avoid detection')
-	parser.add_argument('-w', '--watch', action='store_true', help='Watch mode: continuously update HTML reports as scans progress')
-	parser.add_argument('-d', '--daemon', action='store_true', help='Daemon mode: real-time monitoring and live HTML report generation')
-	parser.add_argument('--partial', action='store_true', help='Generate partial HTML report from incomplete/interrupted scans')
-	parser.add_argument('-r', '--report-target', type=str, metavar='TARGET', help='Generate HTML report for specific target only')
-	parser.add_argument('--report-output', action='store', metavar='FILE', help='Custom output file for HTML report')
+	parser.add_argument('-r', '--report-target', type=str, metavar='TARGET', help='Consolidate results for specific target only')
 	
 	parser.add_argument('-v', '--verbose', action='count', help='Enable verbose output. Repeat for more verbosity.')
 	parser.add_argument('--debug', action='store_true', help='Enable debug mode with detailed plugin output. Automatically loads .env file for Sentry monitoring if available. Default: %(default)s')
@@ -1482,24 +1529,14 @@ async def run(initial_args):
 		if args.list == 'consolidator':
 			print('\n🕷️ ipcrawler Consolidator Usage:')
 			print('='*50)
-			print('Generate comprehensive HTML reports from scan results')
+			print('Consolidate and analyze scan results')
 			print()
 			print('📝 Basic Usage:')
-			print('  --consolidator-output FILE    Custom output file for HTML report')
-			print('  --consolidator-target TARGET  Generate report for specific target only')
-			print()
-			print('🔄 Live Modes:')
-			print('  --consolidator-watch          Watch mode: continuously update report as scans progress')
-			print('  --consolidator-daemon         Daemon mode: real-time monitoring and live reports')
-			print('  --consolidator-partial        Generate partial report from interrupted scans')
-			print()
-			print('⏱️  Timing:')
-			print('  --consolidator-interval N     Update interval in seconds (default: 30 for watch, 5 for daemon)')
+			print('  --consolidator-target TARGET  Consolidate results for specific target only')
 			print()
 			print('📄 Examples:')
-			print('  ipcrawler 192.168.1.1 --consolidator-watch')
-			print('  ipcrawler 192.168.1.0/24 --consolidator-daemon --consolidator-interval 10')
-			print('  ipcrawler 192.168.1.1 --consolidator-target 192.168.1.1 --consolidator-output custom.html')
+			print('  ipcrawler 192.168.1.1 --consolidator-target 192.168.1.1')
+			print('  python -m ipcrawler.consolidator --target 192.168.1.1')
 			print()
 		else:
 			show_modern_plugin_list(ipcrawler.plugin_types, args.list)
@@ -1704,11 +1741,9 @@ async def run(initial_args):
 			ipcrawler.service_scan_semaphore = asyncio.Semaphore(config['max_scans'])
 		else:
 			ipcrawler.port_scan_semaphore = asyncio.Semaphore(config['max_port_scans'])
-			# If max scans and max port scans is the same, the service scan semaphore and port scan semaphore should be the same object
-			if config['max_scans'] == config['max_port_scans']:
-				ipcrawler.service_scan_semaphore = ipcrawler.port_scan_semaphore
-			else:
-				ipcrawler.service_scan_semaphore = asyncio.Semaphore(config['max_scans'] - config['max_port_scans'])
+			# Use separate semaphore pools to allow service scans to start immediately when services are discovered
+			# This prevents port scans from blocking service enumeration
+			ipcrawler.service_scan_semaphore = asyncio.Semaphore(config['max_scans'])
 
 	tags = []
 	for tag_group in list(set(filter(None, args.tags.lower().split(',')))):
@@ -1905,7 +1940,7 @@ async def run(initial_args):
 
 	start_time = time.time()
 	
-	# Show message about HTML report generation
+	# Show message about result consolidation
 	flags = []
 	if hasattr(args, 'watch') and args.watch:
 		flags.append('-w')
@@ -1915,9 +1950,9 @@ async def run(initial_args):
 		flags.append('--partial')
 	
 	if flags:
-		info(f'🕷️  HTML report will be generated on scan completion or Ctrl+C (flags: {" ".join(flags)})', verbosity=1)
+		info(f'🕷️  Scan results will be consolidated on completion or Ctrl+C (flags: {" ".join(flags)})', verbosity=1)
 	else:
-		info('🕷️  HTML report will be generated on scan completion or Ctrl+C', verbosity=1)
+		info('🕷️  Scan results will be consolidated on completion or Ctrl+C', verbosity=1)
 
 	if not config['disable_keyboard_control']:
 		try:
@@ -2033,7 +2068,7 @@ async def run(initial_args):
 		elapsed_time = calculate_elapsed_time(start_time)
 		warn(f'⏰ Timeout reached ({config["timeout"]} min). Cancelling all scans and exiting.', verbosity=0)
 		
-		# Generate consolidator HTML report on timeout (same as normal completion)
+		# Consolidate scan results on timeout (same as normal completion)
 		try:
 			consolidator = IPCrawlerConsolidator(config['output'])
 			
@@ -2041,14 +2076,13 @@ async def run(initial_args):
 			if hasattr(args, 'report_target') and args.report_target:
 				consolidator.specific_target = args.report_target
 			
-			# Generate report from existing files (partial report for timeout)
-			output_file = getattr(args, 'report_output', None)
-			info('🕷️  Generating partial HTML report from scan results before timeout exit...', verbosity=1)
-			consolidator.generate_partial_report(output_file)
+			# Consolidate results before timeout exit
+			info('🕷️  Consolidating scan results before timeout exit...', verbosity=1)
+			consolidator.consolidate_all_targets(consolidator.specific_target)
 			
-			info('📄 HTML report generated after timeout', verbosity=1)
+			info('📄 Scan results consolidated after timeout', verbosity=1)
 		except Exception as e:
-			warn(f'⚠️ Failed to generate HTML report after timeout: {e}', verbosity=1)
+			warn(f'⚠️ Failed to consolidate results after timeout: {e}', verbosity=1)
 			debug(f'Timeout consolidator error details: {str(e)}', verbosity=2)
 	else:
 		while len(asyncio.all_tasks()) > 1: # this code runs in the main() task so it will be the only task left running
@@ -2058,7 +2092,7 @@ async def run(initial_args):
 		info(f'✅ All targets completed in {elapsed_time}!', verbosity=1)
 		info('📄 Check _manual_commands.txt files for additional commands to run manually', verbosity=1)
 		
-		# Generate consolidator HTML report
+		# Consolidate scan results
 		try:
 			consolidator = IPCrawlerConsolidator(config['output'])
 			
@@ -2066,28 +2100,14 @@ async def run(initial_args):
 			if hasattr(args, 'report_target') and args.report_target:
 				consolidator.specific_target = args.report_target
 			
-			# Generate report from existing files
-			output_file = getattr(args, 'report_output', None)
-			if hasattr(args, 'partial') and args.partial:
-				info('🕷️  Generating partial HTML report from scan results...', verbosity=1)
-				consolidator.generate_partial_report(output_file)
-			else:
-				info('🕷️  Generating HTML report from scan results...', verbosity=1)
-				consolidator.generate_html_report(output_file)
+			# Consolidate scan results
+			info('🕷️  Consolidating scan results...', verbosity=1)
+			consolidator.consolidate_all_targets(consolidator.specific_target)
 			
-			info('📄 HTML report generated successfully', verbosity=1)
+			info('📄 Scan results consolidated successfully', verbosity=1)
 		except Exception as e:
-			warn(f'⚠️ Failed to generate HTML report: {e}', verbosity=1)
+			warn(f'⚠️ Failed to consolidate scan results: {e}', verbosity=1)
 			debug(f'Consolidator error details: {str(e)}', verbosity=2)
-			
-			# Try to generate at least a partial report with available data
-			try:
-				info('🕷️  Attempting to generate partial report with available data...', verbosity=1)
-				consolidator.generate_partial_report(output_file)
-				info('📄 Partial HTML report generated as fallback', verbosity=1)
-			except Exception as e2:
-				warn(f'⚠️ Failed to generate fallback partial report: {e2}', verbosity=1)
-				debug(f'Fallback consolidator error: {str(e2)}', verbosity=2)
 
 
 	if ipcrawler.missing_services:

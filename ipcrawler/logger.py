@@ -197,13 +197,27 @@ class UnifiedLogger:
                 )
                 exit_code = process.returncode
             except asyncio.TimeoutError:
-                # Handle timeout gracefully
+                # Handle timeout gracefully with macOS-specific cleanup
                 try:
                     process.terminate()
                     await asyncio.wait_for(process.wait(), timeout=5)
                 except asyncio.TimeoutError:
+                    # Force kill and ensure proper cleanup on macOS
                     process.kill()
-                    await process.wait()
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=3)
+                    except asyncio.TimeoutError:
+                        # Last resort: force zombie cleanup on macOS
+                        import os
+                        import signal
+                        try:
+                            if hasattr(process, 'pid') and process.pid:
+                                os.kill(process.pid, signal.SIGKILL)
+                                # Give macOS time to clean up the process
+                                await asyncio.sleep(0.1)
+                        except (OSError, ProcessLookupError):
+                            # Process already cleaned up
+                            pass
                 
                 # Get partial output if available
                 stdout_data = b"[Command timed out - partial output may be available above]"

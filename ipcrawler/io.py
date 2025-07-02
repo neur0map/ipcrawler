@@ -491,11 +491,7 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 	
 	# Reporting options
 	reporting_options = [
-		("-w, --watch", "Enable watch mode (HTML reports always generated)", ""),
-		("-d, --daemon", "Enable daemon mode (HTML reports always generated)", ""),
-		("--partial", "Generate partial HTML report from incomplete scans", ""),
-		("-r, --report-target", "Report for specific target only", "TARGET"),
-		("--report-output", "Custom HTML report filename", "FILE")
+		("-r, --report-target", "Report for specific target only", "TARGET")
 	]
 	
 	reporting_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
@@ -506,7 +502,7 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 	for option, desc, value in reporting_options:
 		reporting_table.add_row(option, desc, value)
 	
-	console.print(Panel(reporting_table, title="📊 HTML Reporting", border_style=success_color, box=box.ROUNDED))
+	console.print(Panel(reporting_table, title="📊 Reporting", border_style=success_color, box=box.ROUNDED))
 	console.print()
 	
 	# Scan scenarios

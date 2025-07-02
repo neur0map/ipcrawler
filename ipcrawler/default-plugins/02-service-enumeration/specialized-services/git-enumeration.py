@@ -279,7 +279,7 @@ class GitEnumeration(ServiceScan):
                     continue
             
             # Check curl/HTTP responses for Git-related headers or content
-            http_files = [f for f in os.listdir(scan_dir) if 'curl' in f.lower() and (f.endswith('.html') or f.endswith('.txt'))]
+            http_files = [f for f in os.listdir(scan_dir) if 'curl' in f.lower() and f.endswith('.txt')]
             for http_file in http_files:
                 filepath = os.path.join(scan_dir, http_file)
                 try:
