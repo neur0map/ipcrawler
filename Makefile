@@ -79,6 +79,12 @@ install:
 		fi; \
 	elif [ -f /etc/debian_version ]; then \
 		echo "🐧 Debian/Ubuntu detected - Installing complete penetration testing suite..."; \
+		echo "🔑 Fixing Kali GPG keys if needed..."; \
+		if grep -q "kali" /etc/os-release 2>/dev/null; then \
+			echo "  🔧 Kali Linux detected - updating GPG keys"; \
+			sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys ED65462EC8D5E4C5 2>/dev/null || true; \
+			wget -q -O - https://archive.kali.org/archive-key.asc | sudo apt-key add - 2>/dev/null || true; \
+		fi; \
 		sudo apt update; \
 		echo "  📦 Checking and installing base tools..."; \
 		base_tools="python3 python3-pip curl nmap"; \
