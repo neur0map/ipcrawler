@@ -1,4 +1,4 @@
-import asyncio, inspect, os, re, sys
+import asyncio, inspect, os, platform, re, sys
 from typing import final
 from ipcrawler.config import config
 from ipcrawler.io import slugify, info, warn, error, fail, CommandStreamReader
@@ -356,6 +356,41 @@ class ipcrawler(object):
 		else:
 			fail('Error: plugin slug "' + plugin.slug + '" in ' + filename + ' is already assigned.', file=sys.stderr)
 
+	def _get_enhanced_env(self):
+		"""Generate enhanced environment for subprocess calls with proper PATH handling."""
+		env = os.environ.copy()
+		system = platform.system()
+		
+		# Define expected paths by platform based on Makefile install locations
+		if system == "Darwin":  # macOS
+			expected_paths = [
+				"/opt/homebrew/bin",  # Apple Silicon Homebrew
+				"/usr/local/bin",     # Intel Homebrew
+				"/usr/bin",           # System
+				"/bin"                # System
+			]
+		elif system == "Linux":
+			expected_paths = [
+				"/usr/bin",           # APT packages
+				"/usr/local/bin",     # Manual/GitHub installs
+				"/bin",               # System
+				"/usr/sbin",          # System admin tools
+				"/sbin"               # System admin tools
+			]
+		else:
+			expected_paths = ["/usr/bin", "/usr/local/bin", "/bin"]
+		
+		# Ensure all expected paths are in PATH
+		current_path = env.get('PATH', '')
+		path_dirs = current_path.split(os.pathsep) if current_path else []
+		
+		for expected_path in expected_paths:
+			if expected_path not in path_dirs and os.path.exists(expected_path):
+				path_dirs.insert(0, expected_path)  # Add to front for priority
+		
+		env['PATH'] = os.pathsep.join(path_dirs)
+		return env
+
 	async def execute(self, cmd, target, tag, patterns=None, outfile=None, errfile=None):
 		if patterns:
 			combined_patterns = self.patterns + patterns
@@ -363,17 +398,26 @@ class ipcrawler(object):
 			combined_patterns = self.patterns
 
 		# Create subprocess with increased buffer limits for large responses (e.g., Spring Boot Actuator JSON)
+		# Use enhanced environment to ensure all expected PATH directories are available
+		enhanced_env = self._get_enhanced_env()
+		
+		# Use asyncio.subprocess.DEVNULL instead of synchronous open()
 		process = await asyncio.create_subprocess_shell(
 			cmd,
-			stdin=open('/dev/null'),
+			stdin=asyncio.subprocess.DEVNULL,
 			stdout=asyncio.subprocess.PIPE,
 			stderr=asyncio.subprocess.PIPE,
+			env=enhanced_env,
 			limit=1024*1024)  # 1MB limit instead of default 64KB to handle large JSON responses
 
 		cout = CommandStreamReader(process.stdout, target, tag, patterns=combined_patterns, outfile=outfile)
 		cerr = CommandStreamReader(process.stderr, target, tag, patterns=combined_patterns, outfile=errfile)
 
-		asyncio.create_task(cout._read())
-		asyncio.create_task(cerr._read())
+		# Store tasks to prevent premature garbage collection
+		# Keep references to prevent tasks from being garbage collected
+		self._active_tasks = getattr(self, '_active_tasks', [])
+		cout_task = asyncio.create_task(cout._read())
+		cerr_task = asyncio.create_task(cerr._read())
+		self._active_tasks.extend([cout_task, cerr_task])
 
 		return process, cout, cerr

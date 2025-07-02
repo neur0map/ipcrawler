@@ -1256,6 +1256,13 @@ async def run(initial_args):
 	ipcrawler.plugin_types['service'].sort(key=lambda x: x.priority)
 	ipcrawler.plugin_types['report'].sort(key=lambda x: x.priority)
 
+	# Validate tool availability before proceeding with plugin checks
+	from ipcrawler.tool_validator import validate_tools
+	debug_verbosity = 2 if config.get('debug', False) else 1
+	if not validate_tools(verbosity=debug_verbosity):
+		error("Tool validation failed. Cannot proceed with scan.")
+		sys.exit(1)
+
 	if not config['global_file']:
 		unknown_help()
 		fail('Error: Could not find global.toml in the git repository directory.')
@@ -2149,6 +2156,7 @@ def main():
 	parser.add_argument('-h', '--help', action=ModernHelpAction, help='Show this help message and exit.')
 	parser.add_argument('-v', '--verbose', action='count', default=0, help='Verbose output.')
 	parser.add_argument('--version', action='store_true', help='Show version information.')
+	parser.add_argument('--tools-check', action='store_true', help='Run comprehensive tool validation check and exit.')
 	
 	# Parse basic args
 	parser.error = lambda s: fail(s[0].upper() + s[1:])
@@ -2157,6 +2165,19 @@ def main():
 	if args.version:
 		show_modern_version(VERSION)
 		sys.exit(0)
+	
+	if args.tools_check:
+		from ipcrawler.tool_validator import ToolValidator
+		validator = ToolValidator()
+		report = validator.get_tool_report(verbosity=2)
+		validator.validate_subprocess_environment()
+		
+		if report["success"]:
+			info("✅ All critical tools are available and properly configured.")
+			sys.exit(0)
+		else:
+			error("❌ Tool validation failed. Some required tools are missing.")
+			sys.exit(1)
 	
 	# Capture Ctrl+C and cancel everything.
 	signal.signal(signal.SIGINT, cancel_all_tasks)

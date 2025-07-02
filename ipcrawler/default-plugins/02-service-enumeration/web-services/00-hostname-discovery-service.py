@@ -63,7 +63,7 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 			return False
 
 	def add_to_hosts(self, ip_address, hostname):
-		"""Add hostname to /etc/hosts file (runs with sudo privileges)"""
+		"""Add hostname to /etc/hosts file (requires sudo privileges)"""
 		try:
 			hosts_file = '/etc/hosts'
 			timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -73,15 +73,19 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 			with open(hosts_file, 'r') as f:
 				content = f.read()
 				if hostname in content:
-					return False  # Already exists
+					return 'exists'  # Already exists
 			
-			# Add entry to hosts file (we have sudo privileges)
+			# Add entry to hosts file (requires sudo)
 			with open(hosts_file, 'a') as f:
 				f.write(f"\n{entry}\n")
 			
-			return True
+			return 'added'
+		except PermissionError:
+			return 'permission_denied'
+		except FileNotFoundError:
+			return 'file_not_found'
 		except Exception as e:
-			return False
+			return f'error: {str(e)}'
 
 	async def run(self, service):
 		"""Run hostname discovery on the discovered HTTP service"""
@@ -139,10 +143,18 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 
 									# Check if we should add to /etc/hosts
 									if self.is_kali_or_htb():
-										if self.add_to_hosts(service.target.address, redirect_host):
+										result = self.add_to_hosts(service.target.address, redirect_host)
+										if result == 'added':
 											service.info(f"✅ Added to /etc/hosts: {service.target.address} {redirect_host}")
-										else:
+										elif result == 'exists':
 											service.info(f"ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
+										elif result == 'permission_denied':
+											service.info(f"⚠️ Cannot modify /etc/hosts (requires sudo): {redirect_host}")
+											service.info(f"💡 Run with sudo to enable /etc/hosts modification")
+										elif result == 'file_not_found':
+											service.info(f"⚠️ /etc/hosts file not found: {redirect_host}")
+										else:
+											service.info(f"❌ Failed to modify /etc/hosts: {result}")
 									else:
 										service.info(f"ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
 
@@ -212,8 +224,20 @@ class RedirectHostnameDiscoveryService(ServiceScan):
 											service.info(f"🌐 Additional hostname: {redirect_host}")
 
 											if self.is_kali_or_htb():
-												if self.add_to_hosts(service.target.address, redirect_host):
+												result = self.add_to_hosts(service.target.address, redirect_host)
+												if result == 'added':
 													service.info(f"✅ Added to /etc/hosts: {service.target.address} {redirect_host}")
+												elif result == 'exists':
+													service.info(f"ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
+												elif result == 'permission_denied':
+													service.info(f"⚠️ Cannot modify /etc/hosts (requires sudo): {redirect_host}")
+													service.info(f"💡 Run with sudo to enable /etc/hosts modification")
+												elif result == 'file_not_found':
+													service.info(f"⚠️ /etc/hosts file not found: {redirect_host}")
+												else:
+													service.info(f"❌ Failed to modify /etc/hosts: {result}")
+											else:
+												service.info(f"ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
 
 											discovered_hostnames.append(redirect_host)
 											# Store hostname in target for other plugins to use

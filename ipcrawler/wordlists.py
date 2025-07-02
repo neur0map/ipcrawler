@@ -84,8 +84,10 @@ class WordlistManager:
             '/opt/seclists',
             '/usr/share/wordlists/seclists',
             '/home/kali/SecLists',  # Common Kali location
-            os.path.expanduser('~/SecLists'),  # User home directory
-            os.path.expanduser('~/tools/SecLists')  # Common pentesting setup
+            os.path.expanduser('~/tools/wordlists/seclists'),  # Consistent with other wordlists
+            os.path.expanduser('~/tools/wordlists/SecLists'),  # Case variant for consistency
+            os.path.expanduser('~/SecLists'),  # User home directory (legacy)
+            os.path.expanduser('~/tools/SecLists')  # Common pentesting setup (legacy)
         ]
         
         # No built-in fallback wordlists - WordlistManager should fail if no proper wordlists found

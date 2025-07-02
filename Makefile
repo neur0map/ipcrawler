@@ -1,4 +1,6 @@
 # IPCrawler Makefile - Simple installation and management
+# This Makefile no longer uses venv or modifies PATH.
+# It installs a symlink in ~/.local/bin/ipcrawler and removes it on clean.
 
 .PHONY: install clean clean-all update debug help dev-install fix-permissions
 
@@ -37,39 +39,49 @@ install:
 		echo "   ✅ ipcrawler automatically uses nmap script alternatives on macOS"; \
 		echo "   💡 For complete tool coverage, use Linux (Kali/Ubuntu) instead"; \
 		echo "🔧 Installing SecLists wordlists..."; \
-		if [ ! -d "/usr/local/share/seclists" ] && [ ! -d "/opt/SecLists" ] && [ ! -d "$$HOME/tools/SecLists" ]; then \
+		if [ ! -d "$$HOME/tools/wordlists/seclists" ] && [ ! -d "$$HOME/tools/SecLists" ] && [ ! -d "/opt/SecLists" ] && [ ! -d "/usr/local/share/seclists" ]; then \
 			echo "  📦 Installing SecLists from GitHub..."; \
-			sudo mkdir -p /opt 2>/dev/null || mkdir -p ~/tools 2>/dev/null; \
-			if [ -w /opt ]; then \
-				git clone --depth 1 https://github.com/danielmiessler/SecLists.git /opt/SecLists 2>/dev/null && \
-				sudo ln -sf /opt/SecLists /usr/local/share/seclists 2>/dev/null || \
-				echo "  ✅ SecLists installed to /opt/SecLists"; \
+			mkdir -p ~/tools/wordlists 2>/dev/null; \
+			if git clone --depth 1 https://github.com/danielmiessler/SecLists.git ~/tools/wordlists/seclists 2>/dev/null; then \
+				echo "  ✅ SecLists installed to ~/tools/wordlists/seclists"; \
 			else \
-				git clone --depth 1 https://github.com/danielmiessler/SecLists.git ~/tools/SecLists 2>/dev/null && \
-				echo "  ✅ SecLists installed to ~/tools/SecLists"; \
+				echo "  ⚠️  SecLists installation failed"; \
 			fi; \
 		else \
 			echo "  ✅ SecLists already installed"; \
 		fi; \
 		echo "  🏆 Installing Jhaddix All.txt..."; \
 		mkdir -p ~/tools/wordlists/jhaddix 2>/dev/null; \
-		if curl -s https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/big.txt -o /tmp/jhaddix-all.txt 2>/dev/null; then \
-			mv /tmp/jhaddix-all.txt ~/tools/wordlists/jhaddix/jhaddix-all.txt 2>/dev/null && \
-			echo "  ✅ Jhaddix All.txt installed to ~/tools/wordlists/jhaddix/" || echo "  ⚠️  Jhaddix install failed"; \
+		if [ ! -f "$$HOME/tools/wordlists/jhaddix/jhaddix-all.txt" ]; then \
+			if curl -s https://gist.githubusercontent.com/jhaddix/b80ea67d85c13206125806f0828f4d10/raw/c81a34fe84731430741e74c7ca0ee9b77c63e523/all.txt -o /tmp/jhaddix-all.txt 2>/dev/null; then \
+				mv /tmp/jhaddix-all.txt ~/tools/wordlists/jhaddix/jhaddix-all.txt 2>/dev/null && \
+				echo "  ✅ Jhaddix All.txt installed to ~/tools/wordlists/jhaddix/" || echo "  ⚠️  Jhaddix install failed"; \
+			else \
+				echo "  ⚠️  Jhaddix download failed"; \
+			fi; \
 		else \
-			echo "  ⚠️  Jhaddix download failed"; \
+			echo "  ✅ Jhaddix All.txt already installed"; \
 		fi; \
 		echo "  📚 Installing OneListForAll..."; \
-		if git clone https://github.com/six2dez/OneListForAll.git ~/tools/wordlists/onelistforall >/dev/null 2>&1; then \
-			echo "  ✅ OneListForAll installed to ~/tools/wordlists/onelistforall/"; \
+		if [ ! -d "$$HOME/tools/wordlists/onelistforall" ] || [ ! -f "$$HOME/tools/wordlists/onelistforall/onelistforall.txt" ]; then \
+			rm -rf ~/tools/wordlists/onelistforall 2>/dev/null; \
+			if git clone --depth 1 https://github.com/six2dez/OneListForAll.git ~/tools/wordlists/onelistforall; then \
+				if [ -f "$$HOME/tools/wordlists/onelistforall/onelistforall.txt" ]; then \
+					echo "  ✅ OneListForAll installed to ~/tools/wordlists/onelistforall/"; \
+				else \
+					echo "  ⚠️  OneListForAll clone succeeded but wordlist files missing"; \
+				fi; \
+			else \
+				echo "  ⚠️  OneListForAll clone failed"; \
+			fi; \
 		else \
-			echo "  ⚠️  OneListForAll install failed"; \
+			echo "  ✅ OneListForAll already installed"; \
 		fi; \
 	elif [ -f /etc/debian_version ]; then \
 		echo "🐧 Debian/Ubuntu detected - Installing complete penetration testing suite..."; \
 		sudo apt update; \
 		echo "  📦 Checking and installing base tools..."; \
-		base_tools="python3 python3-pip python3-venv curl nmap"; \
+		base_tools="python3 python3-pip curl nmap"; \
 		missing_base=""; \
 		for tool in $$base_tools; do \
 			if command -v $$tool >/dev/null 2>&1 || dpkg -l | grep -q "^ii.*$$tool"; then \
@@ -286,60 +298,29 @@ install:
 		echo "✅ All essential tools are available"; \
 	fi
 	@echo "🚀 Installing IPCrawler..."
-	@echo "📦 Installing Python dependencies system-wide (for sudo compatibility)..."
-	@sudo python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null || \
-	 sudo python3 -m pip install -r requirements.txt 2>/dev/null || \
-	 { echo "⚠️  Creating virtual environment for dependencies..."; \
-	   python3 -m venv .venv; \
-	   .venv/bin/pip install -r requirements.txt; }
-	@echo "🔧 Verifying Smart Wordlist Selector dependencies..."
-	@python3 -c "import rapidfuzz; print('  ✅ RapidFuzz available - Enhanced technology matching enabled')" 2>/dev/null || \
-	 echo "  ⚠️  RapidFuzz not installed - Smart Wordlist Selector will use simple matching"
-	@echo "🔧 Creating executable wrapper with sudo privileges..."
-	@mkdir -p ~/.local/bin
-	@echo '#!/bin/bash' > ~/.local/bin/ipcrawler
-	@echo 'SCRIPT_DIR="$$(pwd)"' >> ~/.local/bin/ipcrawler
-	@echo 'if [ -f "$$SCRIPT_DIR/ipcrawler.py" ]; then' >> ~/.local/bin/ipcrawler
-	@echo '    if [ -f "$$SCRIPT_DIR/.venv/bin/python" ]; then' >> ~/.local/bin/ipcrawler
-	@echo '        exec sudo "$$SCRIPT_DIR/.venv/bin/python" "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
-	@echo '    else' >> ~/.local/bin/ipcrawler
-	@echo '        exec sudo python3 "$$SCRIPT_DIR/ipcrawler.py" "$$@"' >> ~/.local/bin/ipcrawler
-	@echo '    fi' >> ~/.local/bin/ipcrawler
-	@echo 'else' >> ~/.local/bin/ipcrawler
-	@echo '    echo "Error: Please run ipcrawler from the git repository directory containing ipcrawler.py"' >> ~/.local/bin/ipcrawler
-	@echo '    echo "cd /path/to/ipcrawler && ipcrawler [options]"' >> ~/.local/bin/ipcrawler
-	@echo '    exit 1' >> ~/.local/bin/ipcrawler
-	@echo 'fi' >> ~/.local/bin/ipcrawler
-	@chmod +x ~/.local/bin/ipcrawler
-	@echo "🔧 Adding ~/.local/bin to PATH if needed..."
-	@if ! echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \
-		echo 'export PATH="$$HOME/.local/bin:$$PATH"' >> ~/.bashrc 2>/dev/null || true; \
-		echo 'export PATH="$$HOME/.local/bin:$$PATH"' >> ~/.zshrc 2>/dev/null || true; \
-		echo "💡 Added ~/.local/bin to PATH in shell config files"; \
-		echo "⚠️  Run 'source ~/.bashrc' or restart your terminal to update PATH"; \
-	fi
+	@echo "📦 Installing Python dependencies..."
+	@python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null || \
+	 python3 -m pip install -r requirements.txt 2>/dev/null || \
+	 echo "⚠️  Failed to install dependencies. Please install manually: pip3 install -r requirements.txt"
+	@echo "🔗 Creating user-local symlink..."
+	@mkdir -p $(HOME)/.local/bin
+	@chmod +x $(CURDIR)/ipcrawler.py
+	@ln -fs $(CURDIR)/ipcrawler.py $(HOME)/.local/bin/ipcrawler
 	@echo "✅ Installation complete!"
-	@echo "💡 Usage: cd to this directory and run 'ipcrawler --version' to test."
+	@echo "🧪 Testing installation..."
+	@$(HOME)/.local/bin/ipcrawler --version
 	@echo "💡 Updates: Use 'git pull && make update' to get latest changes."
 
 # Update everything
 update:
 	@echo "🔄 Updating IPCrawler..."
 	@git pull
-	@if [ -f ".venv/bin/pip" ]; then \
-		.venv/bin/pip install -r requirements.txt; \
-	else \
-		python3 -m pip install --user --break-system-packages -r requirements.txt 2>/dev/null || \
-		python3 -m pip install --user -r requirements.txt; \
-	fi
 	@echo "✅ Update complete!"
 
 # Clean ipcrawler only
 clean:
 	@echo "🧹 Cleaning ipcrawler..."
-	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
-	@rm -rf .venv 2>/dev/null || true
-	@python3 -m pip uninstall -y platformdirs colorama impacket psutil requests toml Unidecode rich 2>/dev/null || true
+	@rm -f $(HOME)/.local/bin/ipcrawler
 	@echo "🧹 Removing all IPCrawler system directories to ensure git-only operation..."
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
@@ -360,14 +341,10 @@ clean:
 	@echo "✅ IPCrawler removed! (Tools and results preserved)"
 
 # Clean everything including tools
-clean-all:
+clean-all: clean
 	@echo "🧹 Complete cleanup - removing all installed tools..."
 	@echo "⚠️  This will remove all penetration testing tools installed by this Makefile"
 	@echo "📁 Results directory will be preserved"
-	@# Remove ipcrawler first
-	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
-	@rm -rf .venv 2>/dev/null || true
-	@python3 -m pip uninstall -y platformdirs colorama impacket psutil requests toml Unidecode rich 2>/dev/null || true
 	@echo "🧹 Removing all IPCrawler system directories to ensure git-only operation..."
 	@rm -rf "$$HOME/.config/IPCrawler" "$$HOME/.local/share/IPCrawler" 2>/dev/null || true
 	@rm -rf "$$HOME/Library/Application Support/IPCrawler" 2>/dev/null || true
@@ -441,7 +418,7 @@ fix-permissions:
 		exit 1; \
 	fi
 
-# System diagnostics with comprehensive tool detection
+# System diagnostics with comprehensive tool detection and venv-free verification
 debug:
 	@echo "🔬 IPCrawler System Diagnostics"
 	@echo "================================"
@@ -466,108 +443,210 @@ debug:
 	fi
 	@echo "Shell: $$SHELL"
 	@echo "User: $$(whoami)"
+	@echo "Current Directory: $$(pwd)"
 	@echo ""
 	@echo "🐍 Python Environment"
-	@echo "Python: $$(python3 --version 2>/dev/null || echo 'Not found')"
-	@echo "Python Path: $$(which python3 2>/dev/null || echo 'Not in PATH')"
-	@echo "Pip: $$(python3 -m pip --version 2>/dev/null || echo 'Not found')"
+	@echo "Python Version: $$(python3 --version 2>/dev/null || echo 'Not found')"
+	@echo "Python Binary: $$(which python3 2>/dev/null || echo 'Not in PATH')"
+	@echo "Pip Version: $$(python3 -m pip --version 2>/dev/null || echo 'Not found')"
+	@echo "Python Module Path:"
+	@python3 -c "import sys; print('  ' + '\\n  '.join(sys.path[:3]))" 2>/dev/null || echo "  ❌ Cannot access Python"
 	@echo ""
-	@echo "🕷️  IPCrawler Installation"
-	@echo "IPCrawler: $$(ipcrawler --version 2>/dev/null || echo 'Not installed')"
-	@echo "IPCrawler Path: $$(which ipcrawler 2>/dev/null || echo 'Not in PATH')"
-	@if command -v ipcrawler >/dev/null 2>&1; then \
-		echo "Installation Type: Direct (git clone)"; \
-		if [ -f "requirements.txt" ]; then \
-			echo "Development Mode: Yes (live updates via git pull)"; \
+	@echo "🕷️  IPCrawler Installation & Configuration"
+	@echo "IPCrawler Binary: $$(which ipcrawler 2>/dev/null || echo 'Not in PATH')"
+	@if [ -L "$$(which ipcrawler 2>/dev/null)" ]; then \
+		echo "Installation Type: Symlink (✅ venv-free)"; \
+		echo "Symlink Target: $$(readlink $$(which ipcrawler))"; \
+		if [ -f "$$(readlink $$(which ipcrawler))" ]; then \
+			echo "Target Status: ✅ Valid"; \
+		else \
+			echo "Target Status: ❌ Broken symlink"; \
+		fi; \
+	elif command -v ipcrawler >/dev/null 2>&1; then \
+		echo "Installation Type: ⚠️  Other (may use venv)"; \
+	else \
+		echo "Installation Type: ❌ Not installed"; \
+	fi
+	@echo "IPCrawler Script: $$(ls -la $(CURDIR)/ipcrawler.py 2>/dev/null || echo 'ipcrawler.py not found')"
+	@if [ -f "$(CURDIR)/ipcrawler.py" ]; then \
+		echo "Script Executable: $$([ -x $(CURDIR)/ipcrawler.py ] && echo '✅ Yes' || echo '❌ No')"; \
+		shebang=$$(head -1 $(CURDIR)/ipcrawler.py); \
+		if [ "$$shebang" = "#!/usr/bin/env python3" ]; then \
+			echo "Shebang: ✅ Correct ($$shebang)"; \
+		else \
+			echo "Shebang: ⚠️  $$shebang"; \
 		fi; \
 	fi
 	@echo ""
-	@echo "📚 Wordlists & SecLists"
-	@for path in "/usr/share/seclists" "/usr/share/SecLists" "/opt/SecLists" "$$HOME/tools/SecLists" "$$HOME/SecLists"; do \
-		if [ -d "$$path" ]; then \
-			echo "✅ SecLists found at: $$path"; \
-			if [ -f "$$path/Usernames/top-usernames-shortlist.txt" ]; then \
-				echo "   └─ Usernames: ✅"; \
+	@echo "🔧 IPCrawler Functionality Test"
+	@if command -v ipcrawler >/dev/null 2>&1; then \
+		echo "Version Check:"; \
+		if ipcrawler --version >/dev/null 2>&1; then \
+			echo "  ✅ IPCrawler runs successfully"; \
+			if ipcrawler --tools-check >/dev/null 2>&1; then \
+				echo "  ✅ Tool validation passes"; \
 			else \
-				echo "   └─ Usernames: ❌"; \
+				echo "  ⚠️  Tool validation issues detected"; \
+			fi; \
+		else \
+			echo "  ❌ IPCrawler fails to run"; \
+		fi; \
+	else \
+		echo "❌ IPCrawler command not available"; \
+		echo "   💡 Run 'make install' to install"; \
+	fi
+	@echo ""
+	@echo "📚 Wordlists & Security Lists"
+	@echo "SecLists Detection:"
+	@seclists_found=0; \
+	for path in "$$HOME/tools/wordlists/seclists" "$$HOME/tools/wordlists/SecLists" "$$HOME/tools/SecLists" "/usr/share/seclists" "/usr/share/SecLists" "/opt/SecLists" "$$HOME/SecLists"; do \
+		if [ -d "$$path" ]; then \
+			echo "  ✅ SecLists: $$path"; \
+			seclists_found=1; \
+			if [ -f "$$path/Discovery/Web-Content/common.txt" ]; then \
+				echo "    └─ Web Content: ✅"; \
+			fi; \
+			if [ -f "$$path/Discovery/DNS/subdomains-top1million-110000.txt" ]; then \
+				echo "    └─ DNS/Subdomains: ✅"; \
+			fi; \
+			if [ -f "$$path/Usernames/top-usernames-shortlist.txt" ]; then \
+				echo "    └─ Usernames: ✅"; \
 			fi; \
 			if [ -f "$$path/Passwords/Common-Credentials/darkweb2017_top-100.txt" ]; then \
-				echo "   └─ Passwords: ✅"; \
+				echo "    └─ Passwords: ✅"; \
 			elif [ -f "$$path/Passwords/darkweb2017-top100.txt" ]; then \
-				echo "   └─ Passwords: ✅ (alt structure)"; \
-			else \
-				echo "   └─ Passwords: ❌"; \
+				echo "    └─ Passwords: ✅ (alt structure)"; \
 			fi; \
 			break; \
 		fi; \
 	done; \
-	if [ ! -d "/usr/share/seclists" ] && [ ! -d "/usr/share/SecLists" ] && [ ! -d "/opt/SecLists" ] && [ ! -d "$$HOME/tools/SecLists" ] && [ ! -d "$$HOME/SecLists" ]; then \
-		echo "❌ SecLists not found in standard locations"; \
-		echo "   💡 Run 'make install' to auto-install"; \
+	if [ $$seclists_found -eq 0 ]; then \
+		echo "  ❌ SecLists not found"; \
+	fi
+	@echo "Additional Wordlists:"
+	@if [ -d "$$HOME/tools/wordlists/jhaddix" ]; then \
+		echo "  ✅ Jhaddix All.txt: $$HOME/tools/wordlists/jhaddix/"; \
+		if [ -f "$$HOME/tools/wordlists/jhaddix/jhaddix-all.txt" ]; then \
+			file_size=$$(du -h "$$HOME/tools/wordlists/jhaddix/jhaddix-all.txt" 2>/dev/null | cut -f1 || echo "unknown"); \
+			echo "    └─ File present: ✅ ($$file_size)"; \
+		else \
+			echo "    └─ File missing: ❌"; \
+		fi; \
+	else \
+		echo "  ❌ Jhaddix All.txt not found"; \
+	fi
+	@if [ -d "$$HOME/tools/wordlists/onelistforall" ]; then \
+		echo "  ✅ OneListForAll: $$HOME/tools/wordlists/onelistforall/"; \
+		if [ -f "$$HOME/tools/wordlists/onelistforall/onelistforall.txt" ]; then \
+			file_size=$$(du -h "$$HOME/tools/wordlists/onelistforall/onelistforall.txt" 2>/dev/null | cut -f1 || echo "unknown"); \
+			echo "    └─ Main wordlist: ✅ ($$file_size)"; \
+		elif [ -f "$$HOME/tools/wordlists/onelistforall/onelistforallshort.txt" ]; then \
+			file_size=$$(du -h "$$HOME/tools/wordlists/onelistforall/onelistforallshort.txt" 2>/dev/null | cut -f1 || echo "unknown"); \
+			echo "    └─ Short wordlist: ✅ ($$file_size)"; \
+		elif [ -f "$$HOME/tools/wordlists/onelistforall/onelistforallmicro.txt" ]; then \
+			file_size=$$(du -h "$$HOME/tools/wordlists/onelistforall/onelistforallmicro.txt" 2>/dev/null | cut -f1 || echo "unknown"); \
+			echo "    └─ Micro wordlist: ✅ ($$file_size)"; \
+		else \
+			echo "    └─ Main wordlists: ❌ (archived in 7z)"; \
+		fi; \
+		txt_files=$$(find "$$HOME/tools/wordlists/onelistforall/" -name "*.txt" 2>/dev/null | wc -l | tr -d ' '); \
+		if [ "$$txt_files" -gt 0 ]; then \
+			echo "    └─ Total wordlist files: $$txt_files"; \
+		else \
+			echo "    └─ No wordlist files found: ❌"; \
+		fi; \
+	else \
+		echo "  ❌ OneListForAll not found"; \
 	fi
 	@echo ""
-	@echo "🔧 Core Tools (Required)"
-	@for tool in python3 pip nmap curl git; do \
+	@echo "🔧 Core Tools (Essential)"
+	@core_tools="python3 pip nmap curl git"; \
+	core_missing=0; \
+	for tool in $$core_tools; do \
 		if command -v $$tool >/dev/null 2>&1; then \
-			version=$$($$tool --version 2>/dev/null | head -1 | sed 's/.*version //' | sed 's/ .*//' || echo 'unknown'); \
-			echo "✅ $$tool ($$version) - $$(which $$tool)"; \
+			version=$$($$tool --version 2>/dev/null | head -1 | cut -d' ' -f2- || echo 'unknown'); \
+			echo "  ✅ $$tool: $$version"; \
+			echo "    └─ Path: $$(which $$tool)"; \
 		else \
-			echo "❌ $$tool - Required for installation"; \
+			echo "  ❌ $$tool: Not found"; \
+			core_missing=$$((core_missing + 1)); \
 		fi; \
 	done
 	@echo ""
 	@echo "🎯 Directory Busting Tools"
-	@found_dirb_tools=0; \
-	for tool in feroxbuster gobuster ffuf dirsearch dirb; do \
+	@dirb_tools="feroxbuster gobuster ffuf dirsearch dirb"; \
+	dirb_found=0; \
+	for tool in $$dirb_tools; do \
 		if command -v $$tool >/dev/null 2>&1; then \
-			echo "✅ $$tool - $$(which $$tool)"; \
-			found_dirb_tools=1; \
+			echo "  ✅ $$tool: $$(which $$tool)"; \
+			dirb_found=$$((dirb_found + 1)); \
 		else \
-			echo "⚠️  $$tool"; \
+			echo "  ⚠️  $$tool: Not available"; \
 		fi; \
 	done; \
-	if [ $$found_dirb_tools -eq 0 ]; then \
-		echo "❌ No directory busting tools found!"; \
-		echo "   💡 Install with: sudo apt install feroxbuster gobuster"; \
-	fi
+	echo "  📊 Available: $$dirb_found/5 tools"
 	@echo ""
 	@echo "🌐 Network Enumeration Tools"
-	@for tool in dnsrecon nikto smbclient masscan; do \
+	@net_tools="dnsrecon nikto smbclient masscan whatweb sslscan"; \
+	net_found=0; \
+	for tool in $$net_tools; do \
 		if command -v $$tool >/dev/null 2>&1; then \
-			echo "✅ $$tool - $$(which $$tool)"; \
+			echo "  ✅ $$tool: $$(which $$tool)"; \
+			net_found=$$((net_found + 1)); \
 		else \
-			echo "⚠️  $$tool"; \
+			echo "  ⚠️  $$tool: Not available"; \
 		fi; \
-	done
+	done; \
+	echo "  📊 Available: $$net_found/7 tools"
 	@echo ""
-	@echo "🔍 Specialized Tools"
-	@# Check enum4linux variants
+	@echo "🔍 Specialized Security Tools"
+	@# Enhanced impacket detection
+	@if python3 -c "import impacket" 2>/dev/null; then \
+		echo "  ✅ impacket: Python module available"; \
+		if command -v impacket-scripts >/dev/null 2>&1; then \
+			echo "    └─ Scripts: $$(which impacket-scripts)"; \
+		elif ls /usr/share/doc/python3-impacket/examples/ 2>/dev/null | head -1 >/dev/null; then \
+			echo "    └─ Scripts: /usr/share/doc/python3-impacket/examples/"; \
+		fi; \
+	else \
+		echo "  ⚠️  impacket: Not available"; \
+	fi
+	@# Enhanced enum4linux detection
 	@if command -v enum4linux-ng >/dev/null 2>&1; then \
-		echo "✅ enum4linux-ng - $$(which enum4linux-ng)"; \
+		echo "  ✅ enum4linux-ng: $$(which enum4linux-ng)"; \
 	elif command -v enum4linux >/dev/null 2>&1; then \
-		echo "✅ enum4linux - $$(which enum4linux)"; \
+		echo "  ✅ enum4linux: $$(which enum4linux)"; \
 	else \
-		echo "⚠️  enum4linux (Windows/SMB enumeration)"; \
+		echo "  ⚠️  enum4linux: Not available"; \
 	fi
-	@# Check impacket variants
-	@if command -v impacket-scripts >/dev/null 2>&1; then \
-		echo "✅ impacket-scripts - $$(which impacket-scripts)"; \
-	elif dpkg -l 2>/dev/null | grep -q python3-impacket; then \
-		echo "✅ python3-impacket (package installed)"; \
-	elif python3 -c "import impacket" 2>/dev/null; then \
-		echo "✅ impacket (python module)"; \
-	else \
-		echo "⚠️  impacket (Windows/AD tools)"; \
-	fi
-	@for tool in nbtscan onesixtyone oscanner redis-cli smbmap snmpwalk sslscan whatweb hydra sqlmap; do \
+	@# Additional specialized tools
+	@spec_tools="nbtscan onesixtyone oscanner smbmap snmpwalk hydra sqlmap john hashcat"; \
+	spec_found=0; \
+	for tool in $$spec_tools; do \
 		if command -v $$tool >/dev/null 2>&1; then \
-			echo "✅ $$tool - $$(which $$tool)"; \
+			echo "  ✅ $$tool: $$(which $$tool)"; \
+			spec_found=$$((spec_found + 1)); \
 		else \
-			echo "⚠️  $$tool"; \
+			echo "  ⚠️  $$tool: Not available"; \
 		fi; \
-	done
+	done; \
+	echo "  📊 Available: $$spec_found/10 tools"
 	@echo ""
-	@echo "📊 Summary"
+	@echo "🔍 Path Independence Verification"
+	@echo "Current PATH:"
+	@echo "$$PATH" | tr ':' '\n' | head -10 | sed 's/^/  /'
+	@if echo "$$PATH" | grep -q ".venv"; then \
+		echo "  ⚠️  Virtual environment detected in PATH"; \
+	else \
+		echo "  ✅ No virtual environment in PATH"; \
+	fi
+	@if [ -f "$(CURDIR)/.venv/bin/python" ]; then \
+		echo "  ⚠️  Virtual environment exists in project"; \
+	else \
+		echo "  ✅ No virtual environment in project"; \
+	fi
+	@echo ""
+	@echo "📊 System Readiness Summary"
 	@core_missing=0; \
 	for tool in python3 pip nmap curl git; do \
 		if ! command -v $$tool >/dev/null 2>&1; then \
@@ -581,13 +660,32 @@ debug:
 			break; \
 		fi; \
 	done; \
-	if [ $$core_missing -eq 0 ] && [ $$dirb_available -eq 1 ]; then \
-		echo "✅ System ready for IPCrawler!"; \
+	seclists_available=0; \
+	for path in "/usr/share/seclists" "/usr/share/SecLists" "/opt/SecLists" "$$HOME/tools/SecLists" "$$HOME/SecLists"; do \
+		if [ -d "$$path" ]; then \
+			seclists_available=1; \
+			break; \
+		fi; \
+	done; \
+	ipcrawler_working=0; \
+	if command -v ipcrawler >/dev/null 2>&1 && ipcrawler --version >/dev/null 2>&1; then \
+		ipcrawler_working=1; \
+	fi; \
+	if [ $$core_missing -eq 0 ] && [ $$dirb_available -eq 1 ] && [ $$seclists_available -eq 1 ] && [ $$ipcrawler_working -eq 1 ]; then \
+		echo "✅ System fully ready for IPCrawler!"; \
+		echo "   • All core tools present"; \
+		echo "   • Directory busting tools available"; \
+		echo "   • Wordlists installed"; \
+		echo "   • IPCrawler operational"; \
 	elif [ $$core_missing -gt 0 ]; then \
-		echo "❌ Missing $$core_missing core tools - run 'make install'"; \
+		echo "❌ Missing $$core_missing essential tools"; \
+		echo "   💡 Run 'make install' to install required tools"; \
+	elif [ $$ipcrawler_working -eq 0 ]; then \
+		echo "❌ IPCrawler not working properly"; \
+		echo "   💡 Run 'make install' to fix installation"; \
 	else \
-		echo "⚠️  System mostly ready - some tools missing"; \
-		echo "   💡 Run 'make install' to install missing tools"; \
+		echo "⚠️  System partially ready"; \
+		echo "   💡 Run 'make install' to install missing components"; \
 	fi
 
 # Development installation - same as install but explicit

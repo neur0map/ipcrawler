@@ -7,6 +7,7 @@ venv/
 .vscode/
 claude.md
 ipcrawler/wordlists/wordlists.toml
+cleanup_ipcrawler.sh
 
 # Smart wordlist catalogs (user-generated, never commit)
 ipcrawler/data/seclists_catalog.yaml

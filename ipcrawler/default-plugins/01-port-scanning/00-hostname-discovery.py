@@ -59,7 +59,7 @@ class RedirectHostnameDiscovery(PortScan):
 			return False
 
 	def add_to_hosts(self, ip_address, hostname):
-		"""Add hostname to /etc/hosts file (runs with sudo privileges)"""
+		"""Add hostname to /etc/hosts file (requires sudo privileges)"""
 		try:
 			hosts_file = '/etc/hosts'
 			timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -69,15 +69,19 @@ class RedirectHostnameDiscovery(PortScan):
 			with open(hosts_file, 'r') as f:
 				content = f.read()
 				if hostname in content:
-					return False  # Already exists
+					return 'exists'  # Already exists
 			
-			# Add entry to hosts file (we have sudo privileges)
+			# Add entry to hosts file (requires sudo)
 			with open(hosts_file, 'a') as f:
 				f.write(f"\n{entry}\n")
 			
-			return True
+			return 'added'
+		except PermissionError:
+			return 'permission_denied'
+		except FileNotFoundError:
+			return 'file_not_found'
 		except Exception as e:
-			return False
+			return f'error: {str(e)}'
 
 	async def run(self, target):
 		"""Run hostname discovery on common HTTP ports"""
@@ -115,10 +119,18 @@ class RedirectHostnameDiscovery(PortScan):
 							
 							# Check if we should add to /etc/hosts
 							if self.is_kali_or_htb():
-								if self.add_to_hosts(target.address, redirect_host):
+								result = self.add_to_hosts(target.address, redirect_host)
+								if result == 'added':
 									print(f"🎯 [{target.address}/hostname-discovery] ✅ Added to /etc/hosts: {target.address} {redirect_host}")
-								else:
+								elif result == 'exists':
 									print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
+								elif result == 'permission_denied':
+									print(f"🎯 [{target.address}/hostname-discovery] ⚠️ Cannot modify /etc/hosts (requires sudo): {redirect_host}")
+									print(f"🎯 [{target.address}/hostname-discovery] 💡 Run with sudo to enable /etc/hosts modification")
+								elif result == 'file_not_found':
+									print(f"🎯 [{target.address}/hostname-discovery] ⚠️ /etc/hosts file not found: {redirect_host}")
+								else:
+									print(f"🎯 [{target.address}/hostname-discovery] ❌ Failed to modify /etc/hosts: {result}")
 							else:
 								print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
 							
@@ -156,8 +168,20 @@ class RedirectHostnameDiscovery(PortScan):
 									print(f"🎯 [{target.address}/hostname-discovery] 🌐 Additional hostname: {redirect_host}")
 									
 									if self.is_kali_or_htb():
-										if self.add_to_hosts(target.address, redirect_host):
+										result = self.add_to_hosts(target.address, redirect_host)
+										if result == 'added':
 											print(f"🎯 [{target.address}/hostname-discovery] ✅ Added to /etc/hosts: {target.address} {redirect_host}")
+										elif result == 'exists':
+											print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
+										elif result == 'permission_denied':
+											print(f"🎯 [{target.address}/hostname-discovery] ⚠️ Cannot modify /etc/hosts (requires sudo): {redirect_host}")
+											print(f"🎯 [{target.address}/hostname-discovery] 💡 Run with sudo to enable /etc/hosts modification")
+										elif result == 'file_not_found':
+											print(f"🎯 [{target.address}/hostname-discovery] ⚠️ /etc/hosts file not found: {redirect_host}")
+										else:
+											print(f"🎯 [{target.address}/hostname-discovery] ❌ Failed to modify /etc/hosts: {result}")
+									else:
+										print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
 									
 									discovered_hostnames.append(redirect_host)
 									# Store hostname in target directly (avoid async call in PortScan)

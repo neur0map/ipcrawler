@@ -233,6 +233,8 @@ class EnhancedVhostDiscovery(ServiceScan):
 
                     # Build ffuf command with enhanced options
                     verbose_level = self.get_global('verbose', 0)
+                    if verbose_level is None:
+                        verbose_level = 0
                     ffuf_cmd = ('ffuf -u {http_scheme}://' + hostname + ':{port}/ -t ' + str(self.get_option('threads')) +
                         ' -w ' + wordlist + ' -H "Host: FUZZ.' + hostname + '" -mc all -fs ' + wildcard_size +
                         ' -fc ' + wildcard_status + ' -r -noninteractive')
