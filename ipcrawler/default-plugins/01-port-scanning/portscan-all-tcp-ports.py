@@ -48,9 +48,11 @@ class AllTCPPortScan(PortScan):
 					# If WinRM check fails, keep as HTTP (don't block scan)
 					target.debug('WinRM detection failed for {}:{}, keeping as HTTP'.format(target.address, service.port))
 
-		# Ensure proper process cleanup on macOS
+		# Ensure proper process cleanup on macOS with configured timeout
+		configured_timeout = config.get('timeout', 120) * 60  # Default 2 hours in seconds
+		
 		try:
-			await asyncio.wait_for(process.wait(), timeout=10)
+			await asyncio.wait_for(process.wait(), timeout=configured_timeout)
 		except asyncio.TimeoutError:
 			# Force cleanup if process doesn't terminate properly
 			try:

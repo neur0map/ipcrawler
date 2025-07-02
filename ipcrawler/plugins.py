@@ -484,16 +484,19 @@ class ipcrawler(object):
 		from ipcrawler.config import config
 		suppress_output = config.get('verbose', 0) == 0
 		
+		# Use configured timeout (convert from minutes to seconds)
+		configured_timeout = config.get('timeout', 120) * 60  # Default 2 hours in seconds
+		
 		if suppress_output:
 			# Use output suppression to capture any plugin print statements
 			with target._unified_logger.create_output_suppressor():
 				exit_code, stdout_content, stderr_content = await target._unified_logger.execute_with_logging(
-					cmd, plugin_name, cwd=target.scandir, env=enhanced_env, timeout=600  # 10 minute timeout
+					cmd, plugin_name, cwd=target.scandir, env=enhanced_env, timeout=configured_timeout
 				)
 		else:
 			# Allow terminal output to show when verbose mode is enabled
 			exit_code, stdout_content, stderr_content = await target._unified_logger.execute_with_logging(
-				cmd, plugin_name, cwd=target.scandir, env=enhanced_env, timeout=600  # 10 minute timeout
+				cmd, plugin_name, cwd=target.scandir, env=enhanced_env, timeout=configured_timeout
 			)
 		
 		# Print clean status message instead of raw output

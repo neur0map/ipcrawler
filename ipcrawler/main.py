@@ -1086,14 +1086,14 @@ async def scan_target(target):
 							info(f'📋 Jinja2 Markdown report generated for {target.address}', verbosity=1)
 						else:
 							warn(f'⚠️ Failed to generate Jinja2 markdown report for {target.address}', verbosity=1)
-					except Exception as e:
-						warn(f'⚠️ Unexpected error generating markdown report for {target.address}: {e}', verbosity=1)
+					except Exception as ex:
+						warn(f'⚠️ Unexpected error generating markdown report for {target.address}: {ex}', verbosity=1)
 				else:
 					warn(f'❌ YAML validation failed for {target.address}', verbosity=1)
-			except Exception as e:
-				warn(f'⚠️ Unexpected validation error for {target.address}: {e}', verbosity=1)
-		except Exception as e:
-			warn(f'⚠️ Failed to generate parsed YAML for {target.address}: {e}', verbosity=1)
+			except Exception as ex:
+				warn(f'⚠️ Unexpected validation error for {target.address}: {ex}', verbosity=1)
+		except Exception as ex:
+			warn(f'⚠️ Failed to generate parsed YAML for {target.address}: {ex}', verbosity=1)
 
 	async with ipcrawler.lock:
 		ipcrawler.completed_targets.append(target)

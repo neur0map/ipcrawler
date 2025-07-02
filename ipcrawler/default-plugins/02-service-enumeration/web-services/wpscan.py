@@ -10,6 +10,8 @@ class WPScan(ServiceScan):
 	def configure(self):
 		self.add_option('api-token', help='An API Token from wpvulndb.com to help search for more vulnerabilities.')
 		self.match_service_name('^http')
+		self.match_service_name('ssl/http')
+		self.match_service_name('^https')
 		self.match_service_name('^nacn_http$', negative_match=True)
 
 	def manual(self, service, plugin_was_run):

@@ -10,6 +10,8 @@ class NmapHTTP(ServiceScan):
 
 	def configure(self):
 		self.match_service_name('^http')
+		self.match_service_name('ssl/http')
+		self.match_service_name('^https')
 		self.match_service_name('^nacn_http$', negative_match=True)
 		
 		# Enhanced HTTP Server Detection with Security Context

@@ -11,6 +11,8 @@ class Nikto(ServiceScan):
 
 	def configure(self):
 		self.match_service_name('^http')
+		self.match_service_name('ssl/http')
+		self.match_service_name('^https')
 		self.match_service_name('^nacn_http$', negative_match=True)
 		self.add_option('timeout', default=1800, help='Maximum time in seconds for nikto scan. Default: %(default)s (30 minutes)')
 		# Pattern matching for Nikto findings

@@ -35,6 +35,8 @@ class DirBuster(ServiceScan):
 		self.add_option('timeout', default=3600, help='Maximum time in seconds for directory busting scan. Default: %(default)s (1 hour)')
 		self.add_choice_option('vhost-mode', default='smart', choices=['all', 'best', 'smart'], help='How to handle multiple discovered hostnames: all=scan all, best=scan best only, smart=scan best + unique domains. Default: %(default)s')
 		self.match_service_name('^http')
+		self.match_service_name('ssl/http')
+		self.match_service_name('^https')
 		self.match_service_name('^nacn_http$', negative_match=True)
 		# Pattern matching for directory busting findings
 		self.add_pattern(r'(?i)200\s+\d+\w?\s+([^\s]+)', description='Directory/File Found (200): {match1}')

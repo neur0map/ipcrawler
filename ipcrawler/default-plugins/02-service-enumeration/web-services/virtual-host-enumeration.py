@@ -26,6 +26,8 @@ class VirtualHost(ServiceScan):
 		self.add_list_option('wordlist', default=['auto'], help='The wordlist(s) to use when enumerating virtual hosts. Use "auto" for automatic SecLists detection, or specify custom paths. Default: %(default)s')
 		self.add_option('threads', default=10, help='The number of threads to use when enumerating virtual hosts. Default: %(default)s')
 		self.match_service_name('^http')
+		self.match_service_name('ssl/http')
+		self.match_service_name('^https')
 		self.match_service_name('^nacn_http$', negative_match=True)
 
 	async def run(self, service):

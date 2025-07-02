@@ -51,6 +51,10 @@ wordlist-size = "fast"             # Use smallest wordlists for space constraint
 # -------------
 # accessible = true              # Screen reader friendly output
 
+# macOS Compatibility
+# -------------------
+ignore-plugin-checks = true      # Skip plugin dependency checks (useful on macOS)
+
 # Plugin-Specific Configuration
 # -----------------------------
 # Configure individual plugins (uncomment sections as needed):

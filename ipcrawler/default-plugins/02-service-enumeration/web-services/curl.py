@@ -10,6 +10,8 @@ class Curl(ServiceScan):
 	def configure(self):
 		self.add_option("path", default="/", help="The path on the web server to curl. Default: %(default)s")
 		self.match_service_name('^http')
+		self.match_service_name('ssl/http')
+		self.match_service_name('^https')
 		self.match_service_name('^nacn_http$', negative_match=True)
 		# Enhanced technology detection patterns
 		self.add_pattern(r'(?i)powered[ -]by[:\s]*([^\n\r]+)', description='Technology Stack: Powered by {match1} - web framework/CMS identification')

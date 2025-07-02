@@ -37,6 +37,8 @@ class EnhancedVhostDiscovery(ServiceScan):
         self.add_option('timeout', default=10, help='Request timeout in seconds. Default: %(default)s')
         self.add_option('common-only', default=False, help='Only test common subdomains (faster). Default: %(default)s')
         self.match_service_name('^http')
+        self.match_service_name('ssl/http')
+        self.match_service_name('^https')
         self.match_service_name('^nacn_http$', negative_match=True)
 
     async def run(self, service):
