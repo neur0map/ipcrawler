@@ -28,6 +28,7 @@ from ipcrawler.config import config, configurable_keys, configurable_boolean_key
 from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader, show_modern_help, show_modern_version, show_modern_plugin_list, show_ascii_art
 from ipcrawler.loading import scan_status
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
+from ipcrawler.parse_logs import build_parsed_yaml
 from ipcrawler.targets import Target, Service
 from ipcrawler.wordlists import init_wordlist_manager
 from ipcrawler.consolidator import IPCrawlerConsolidator
@@ -1035,6 +1036,13 @@ async def scan_target(target):
 		warn(f'⏰ Target {target.address} timeout ({config["target_timeout"]} min). Moving to next target.', verbosity=0)
 	else:
 		info(f'✅ Target {target.address} completed in {elapsed_time}', verbosity=1)
+		
+		# Phase 2: Parse raw logs into structured YAML
+		try:
+			build_parsed_yaml(target.address)
+			info(f'📄 Parsed YAML generated for {target.address}', verbosity=1)
+		except Exception as e:
+			warn(f'⚠️ Failed to generate parsed YAML for {target.address}: {e}', verbosity=1)
 
 	async with ipcrawler.lock:
 		ipcrawler.completed_targets.append(target)

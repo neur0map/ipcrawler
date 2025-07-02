@@ -3,6 +3,60 @@ from typing import final
 from ipcrawler.config import config
 from ipcrawler.io import slugify, info, warn, error, fail, CommandStreamReader
 from ipcrawler.targets import Service
+from ipcrawler.logger import setup_unified_logging
+
+
+class MockProcess:
+	"""Mock process object to maintain compatibility with existing code."""
+	
+	def __init__(self, returncode):
+		self.returncode = returncode
+		self.pid = None
+	
+	async def wait(self):
+		"""Mock wait method."""
+		return self.returncode
+
+
+class MockStreamReader:
+	"""Mock stream reader to maintain compatibility with existing CommandStreamReader usage."""
+	
+	def __init__(self, content, target, tag, patterns=None, outfile=None):
+		self.content = content
+		self.target = target
+		self.tag = tag
+		self.patterns = patterns or []
+		self.outfile = outfile
+		self.ended = True  # Mark as ended since we have all content
+		
+		# Process patterns and write outfile if needed
+		self._process_content()
+	
+	def _process_content(self):
+		"""Process content for patterns and write to outfile if specified."""
+		if self.content and self.outfile:
+			try:
+				with open(self.outfile, 'w') as f:
+					f.write(self.content)
+			except Exception as e:
+				error(f"Failed to write to {self.outfile}: {e}")
+		
+		# Process patterns (simplified version of CommandStreamReader pattern matching)
+		if self.content and self.patterns:
+			for line in self.content.split('\n'):
+				for pattern in self.patterns:
+					if re.search(pattern.pattern, line):
+						# Log pattern match (similar to original CommandStreamReader)
+						try:
+							pattern_file = os.path.join(self.target.scandir, '_patterns.log')
+							with open(pattern_file, 'a') as f:
+								f.write(f"[{self.tag}] {pattern.description or pattern.pattern}: {line}\n")
+						except Exception as e:
+							pass  # Silently continue if pattern logging fails
+	
+	async def readline(self):
+		"""Mock readline method."""
+		return b""  # Return empty since all content is processed
 
 class Pattern:
 
@@ -397,8 +451,39 @@ class ipcrawler(object):
 		else:
 			combined_patterns = self.patterns
 
-		# Create subprocess with increased buffer limits for large responses (e.g., Spring Boot Actuator JSON)
-		# Use enhanced environment to ensure all expected PATH directories are available
+		# Setup unified logging for this target if not already done
+		if not hasattr(target, '_unified_logger'):
+			target._unified_logger = setup_unified_logging(target.address, target.scandir)
+
+		# Extract plugin name for logging
+		plugin_name = self._extract_plugin_name(cmd, tag)
+		
+		# Check if this should use unified logging (skip internal commands)
+		if self._should_bypass_unified_logging(cmd):
+			# Use original execution path for internal commands
+			return await self._execute_original(cmd, target, tag, combined_patterns, outfile, errfile)
+		
+		# Execute with comprehensive unified logging - this replaces the original system
+		enhanced_env = self._get_enhanced_env()
+		
+		# Use output suppression to capture any plugin print statements
+		with target._unified_logger.create_output_suppressor():
+			exit_code, stdout_content, stderr_content = await target._unified_logger.execute_with_logging(
+				cmd, plugin_name, cwd=target.scandir, env=enhanced_env
+			)
+		
+		# Print clean status message instead of raw output
+		target._unified_logger.print_status(plugin_name, exit_code == 0)
+		
+		# Create enhanced mock process and stream objects for full compatibility
+		mock_process = MockProcess(exit_code)
+		mock_cout = MockStreamReader(stdout_content, target, tag, combined_patterns, outfile)
+		mock_cerr = MockStreamReader(stderr_content, target, tag, combined_patterns, errfile)
+		
+		return mock_process, mock_cout, mock_cerr
+
+	async def _execute_original(self, cmd, target, tag, combined_patterns, outfile=None, errfile=None):
+		"""Original execute method for internal commands that should bypass unified logging."""
 		enhanced_env = self._get_enhanced_env()
 		
 		# Use asyncio.subprocess.DEVNULL instead of synchronous open()
@@ -421,3 +506,25 @@ class ipcrawler(object):
 		self._active_tasks.extend([cout_task, cerr_task])
 
 		return process, cout, cerr
+
+	def _extract_plugin_name(self, cmd: str, tag: str) -> str:
+		"""Extract plugin name from command or tag."""
+		# Try to get plugin name from command
+		cmd_parts = cmd.strip().split()
+		if cmd_parts:
+			# Remove common prefixes
+			tool_name = cmd_parts[0]
+			if tool_name in ['timeout', 'sudo']:
+				tool_name = cmd_parts[1] if len(cmd_parts) > 1 else tool_name
+			return tool_name
+		
+		return tag or "unknown"
+	
+	def _should_bypass_unified_logging(self, cmd: str) -> bool:
+		"""Check if command should bypass unified logging."""
+		# Skip logging for internal/utility commands
+		bypass_commands = ['mkdir', 'chmod', 'chown', 'cp', 'mv', 'ln', 'touch', 'echo', 'cat']
+		cmd_parts = cmd.strip().split()
+		if cmd_parts and cmd_parts[0] in bypass_commands:
+			return True
+		return False

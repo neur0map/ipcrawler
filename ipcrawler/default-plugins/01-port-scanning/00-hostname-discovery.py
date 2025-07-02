@@ -5,8 +5,8 @@ import urllib3
 import os
 import platform
 import subprocess
-import re
 from datetime import datetime
+from ipcrawler.logger import setup_unified_logging
 
 # Note: SSL warnings are managed per-request for security awareness
 
@@ -58,23 +58,18 @@ class RedirectHostnameDiscovery(PortScan):
 		except Exception:
 			return False
 
-	def add_to_hosts(self, ip_address, hostname):
-		"""Add hostname to /etc/hosts file (requires sudo privileges)"""
+	def add_to_hosts(self, ip, hostname):
+		"""Add hostname to /etc/hosts file"""
 		try:
-			hosts_file = '/etc/hosts'
-			timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-			entry = f"{ip_address} {hostname}  # added by ipcrawler {timestamp}"
-			
 			# Check if entry already exists
-			with open(hosts_file, 'r') as f:
+			with open('/etc/hosts', 'r') as f:
 				content = f.read()
-				if hostname in content:
-					return 'exists'  # Already exists
+				if f"{ip} {hostname}" in content or f"{hostname}" in content:
+					return 'exists'
 			
-			# Add entry to hosts file (requires sudo)
-			with open(hosts_file, 'a') as f:
-				f.write(f"\n{entry}\n")
-			
+			# Add new entry
+			with open('/etc/hosts', 'a') as f:
+				f.write(f"\n{ip} {hostname}\n")
 			return 'added'
 		except PermissionError:
 			return 'permission_denied'
@@ -85,134 +80,143 @@ class RedirectHostnameDiscovery(PortScan):
 
 	async def run(self, target):
 		"""Run hostname discovery on common HTTP ports"""
-		discovered_hostnames = []
-		common_http_ports = [80, 443, 8080, 8443, 8000, 8001, 9000, 9001]
+		# Setup unified logging for this plugin
+		if not hasattr(target, '_unified_logger'):
+			target._unified_logger = setup_unified_logging(target.address, target.scandir)
 		
-		for port in common_http_ports:
-			for secure in [False, True]:
-				if (port in [443, 8443] and not secure) or (port not in [443, 8443] and secure):
-					continue  # Skip inappropriate combinations
-					
-				try:
-					scheme = 'https' if secure else 'http'
-					url = f"{scheme}://{target.address}:{port}/"
-					
-					# Try to connect and check for redirects
-					# Attempt secure connection first, fallback to insecure if needed
-					try:
-						resp = requests.get(url, verify=True, allow_redirects=False, timeout=5)
-					except requests.exceptions.SSLError:
-						# Fallback to unverified connection with warning
-						print(f"⚠️ [{target.address}/hostname-discovery] SSL verification failed for {url}, retrying without verification (vulnerable to MITM)")
-						with urllib3.warnings.catch_warnings():
-							urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-							resp = requests.get(url, verify=False, allow_redirects=False, timeout=5)
-					
-					if 'Location' in resp.headers:
-						location = resp.headers['Location']
-						parsed = urlparse(location)
-						redirect_host = parsed.hostname
+		# Use output suppressor to capture any remaining print statements
+		with target._unified_logger.create_output_suppressor():
+			discovered_hostnames = []
+			common_http_ports = [80, 443, 8080, 8443, 8000, 8001, 9000, 9001]
+			
+			for port in common_http_ports:
+				for secure in [False, True]:
+					if (port in [443, 8443] and not secure) or (port not in [443, 8443] and secure):
+						continue  # Skip inappropriate combinations
 						
-						if redirect_host and redirect_host != target.address:
-							print(f"🎯 [{target.address}/hostname-discovery] 🔄 Redirect found: {url} → {location}")
-							print(f"🎯 [{target.address}/hostname-discovery] 🌐 Hostname discovered: {redirect_host}")
-							
-							# Check if we should add to /etc/hosts
-							if self.is_kali_or_htb():
-								result = self.add_to_hosts(target.address, redirect_host)
-								if result == 'added':
-									print(f"🎯 [{target.address}/hostname-discovery] ✅ Added to /etc/hosts: {target.address} {redirect_host}")
-								elif result == 'exists':
-									print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
-								elif result == 'permission_denied':
-									print(f"🎯 [{target.address}/hostname-discovery] ⚠️ Cannot modify /etc/hosts (requires sudo): {redirect_host}")
-									print(f"🎯 [{target.address}/hostname-discovery] 💡 Run with sudo to enable /etc/hosts modification")
-								elif result == 'file_not_found':
-									print(f"🎯 [{target.address}/hostname-discovery] ⚠️ /etc/hosts file not found: {redirect_host}")
-								else:
-									print(f"🎯 [{target.address}/hostname-discovery] ❌ Failed to modify /etc/hosts: {result}")
-							else:
-								print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
-							
-							if redirect_host not in discovered_hostnames:
-								discovered_hostnames.append(redirect_host)
-								# Add to target's discovered hostnames directly
-								target.discovered_hostnames.append(redirect_host)
-								print(f"🎯 [{target.address}/hostname-discovery] Added discovered hostname: {redirect_host}")
-					
-					# Also check common redirect paths
-					redirect_paths = ['/', '/index.html', '/home', '/admin', '/login']
-					for path in redirect_paths[:2]:  # Limit to avoid too many requests
-						if path == '/':
-							continue  # Already checked
-							
+					try:
+						scheme = 'https' if secure else 'http'
+						url = f"{scheme}://{target.address}:{port}/"
+						
+						# Try to connect and check for redirects
+						# Attempt secure connection first, fallback to insecure if needed
 						try:
-							path_url = f"{scheme}://{target.address}:{port}{path}"
-							# Attempt secure connection first, fallback to insecure if needed
-							try:
-								path_resp = requests.get(path_url, verify=True, allow_redirects=False, timeout=3)
-							except requests.exceptions.SSLError:
-								# Fallback to unverified connection with warning
-								print(f"⚠️ [{target.address}/hostname-discovery] SSL verification failed for {path_url}, retrying without verification (vulnerable to MITM)")
-								with urllib3.warnings.catch_warnings():
-									urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-									path_resp = requests.get(path_url, verify=False, allow_redirects=False, timeout=3)
+							resp = requests.get(url, verify=True, allow_redirects=False, timeout=5)
+						except requests.exceptions.SSLError:
+							# SSL verification failed - log this via target logger
+							target.warn(f"SSL verification failed for {url}, retrying without verification (vulnerable to MITM)", verbosity=1)
+							with urllib3.warnings.catch_warnings():
+								urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+								resp = requests.get(url, verify=False, allow_redirects=False, timeout=5)
+						
+						if 'Location' in resp.headers:
+							location = resp.headers['Location']
+							parsed = urlparse(location)
+							redirect_host = parsed.hostname
 							
-							if 'Location' in path_resp.headers:
-								location = path_resp.headers['Location']
-								parsed = urlparse(location)
-								redirect_host = parsed.hostname
+							if redirect_host and redirect_host != target.address:
+								target.info(f"🔄 Redirect found: {url} → {location}", verbosity=1)
+								target.info(f"🌐 Hostname discovered: {redirect_host}", verbosity=1)
 								
-								if redirect_host and redirect_host != target.address and redirect_host not in discovered_hostnames:
-									print(f"🎯 [{target.address}/hostname-discovery] 🔄 Redirect found at {path}: {path_url} → {location}")
-									print(f"🎯 [{target.address}/hostname-discovery] 🌐 Additional hostname: {redirect_host}")
-									
-									if self.is_kali_or_htb():
-										result = self.add_to_hosts(target.address, redirect_host)
-										if result == 'added':
-											print(f"🎯 [{target.address}/hostname-discovery] ✅ Added to /etc/hosts: {target.address} {redirect_host}")
-										elif result == 'exists':
-											print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Entry already exists in /etc/hosts: {redirect_host}")
-										elif result == 'permission_denied':
-											print(f"🎯 [{target.address}/hostname-discovery] ⚠️ Cannot modify /etc/hosts (requires sudo): {redirect_host}")
-											print(f"🎯 [{target.address}/hostname-discovery] 💡 Run with sudo to enable /etc/hosts modification")
-										elif result == 'file_not_found':
-											print(f"🎯 [{target.address}/hostname-discovery] ⚠️ /etc/hosts file not found: {redirect_host}")
-										else:
-											print(f"🎯 [{target.address}/hostname-discovery] ❌ Failed to modify /etc/hosts: {result}")
+								# Check if we should add to /etc/hosts
+								if self.is_kali_or_htb():
+									result = self.add_to_hosts(target.address, redirect_host)
+									if result == 'added':
+										target.info(f"✅ Added to /etc/hosts: {target.address} {redirect_host}", verbosity=1)
+									elif result == 'exists':
+										target.info(f"ℹ️ Entry already exists in /etc/hosts: {redirect_host}", verbosity=1)
+									elif result == 'permission_denied':
+										target.warn(f"Cannot modify /etc/hosts (requires sudo): {redirect_host}", verbosity=1)
+										target.info(f"💡 Run with sudo to enable /etc/hosts modification", verbosity=1)
+									elif result == 'file_not_found':
+										target.warn(f"/etc/hosts file not found: {redirect_host}", verbosity=1)
 									else:
-										print(f"🎯 [{target.address}/hostname-discovery] ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification")
-									
+										target.error(f"Failed to modify /etc/hosts: {result}", verbosity=1)
+								else:
+									target.info(f"ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification", verbosity=1)
+								
+								if redirect_host not in discovered_hostnames:
 									discovered_hostnames.append(redirect_host)
-									# Store hostname in target directly (avoid async call in PortScan)
+									# Add to target's discovered hostnames directly
 									target.discovered_hostnames.append(redirect_host)
-						except:
-							continue  # Skip failed path checks
+									target.info(f"Added discovered hostname: {redirect_host}", verbosity=1)
+						
+						# Also check common redirect paths
+						redirect_paths = ['/', '/index.html', '/home', '/admin', '/login']
+						for path in redirect_paths[:2]:  # Limit to avoid too many requests
+							if path == '/':
+								continue  # Already checked
+								
+							try:
+								path_url = f"{scheme}://{target.address}:{port}{path}"
+								# Attempt secure connection first, fallback to insecure if needed
+								try:
+									path_resp = requests.get(path_url, verify=True, allow_redirects=False, timeout=3)
+								except requests.exceptions.SSLError:
+									target.warn(f"SSL verification failed for {path_url}, retrying without verification (vulnerable to MITM)", verbosity=1)
+									with urllib3.warnings.catch_warnings():
+										urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+										path_resp = requests.get(path_url, verify=False, allow_redirects=False, timeout=3)
+								
+								if 'Location' in path_resp.headers:
+									location = path_resp.headers['Location']
+									parsed = urlparse(location)
+									redirect_host = parsed.hostname
+									
+									if redirect_host and redirect_host != target.address and redirect_host not in discovered_hostnames:
+										target.info(f"🔄 Redirect found at {path}: {path_url} → {location}", verbosity=1)
+										target.info(f"🌐 Additional hostname: {redirect_host}", verbosity=1)
+										
+										if self.is_kali_or_htb():
+											result = self.add_to_hosts(target.address, redirect_host)
+											if result == 'added':
+												target.info(f"✅ Added to /etc/hosts: {target.address} {redirect_host}", verbosity=1)
+											elif result == 'exists':
+												target.info(f"ℹ️ Entry already exists in /etc/hosts: {redirect_host}", verbosity=1)
+											elif result == 'permission_denied':
+												target.warn(f"Cannot modify /etc/hosts (requires sudo): {redirect_host}", verbosity=1)
+												target.info(f"💡 Run with sudo to enable /etc/hosts modification", verbosity=1)
+											elif result == 'file_not_found':
+												target.warn(f"/etc/hosts file not found: {redirect_host}", verbosity=1)
+											else:
+												target.error(f"Failed to modify /etc/hosts: {result}", verbosity=1)
+										else:
+											target.info(f"ℹ️ Not on Kali/HTB system - skipping /etc/hosts modification", verbosity=1)
+										
+										discovered_hostnames.append(redirect_host)
+										# Store hostname in target directly (avoid async call in PortScan)
+										target.discovered_hostnames.append(redirect_host)
+							except requests.exceptions.Timeout:
+								continue  # Timeout on redirect check
+							except requests.exceptions.ConnectionError:
+								continue  # Connection failed
+							except Exception:
+								continue  # Other errors
 							
-				except requests.exceptions.ConnectTimeout:
-					continue  # Port likely closed
-				except requests.exceptions.ConnectionError:
-					continue  # Port likely closed  
-				except Exception as e:
-					print(f"❌ [{target.address}/hostname-discovery] Error checking {scheme}://{target.address}:{port}/: {e}")
-					continue
+					except requests.exceptions.Timeout:
+						continue  # Port likely closed
+					except requests.exceptions.ConnectionError:
+						continue  # Port likely closed  
+					except Exception as e:
+						target.error(f"Error checking {scheme}://{target.address}:{port}/: {e}", verbosity=1)
+						continue
 		
 		if discovered_hostnames:
-			print(f"🎯 [{target.address}/hostname-discovery] Total hostnames discovered: {len(discovered_hostnames)}")
+			target.info(f"Total hostnames discovered: {len(discovered_hostnames)}", verbosity=0)
 			for hostname in discovered_hostnames:
-				print(f"🎯 [{target.address}/hostname-discovery]    - {hostname}")
+				target.info(f"   - {hostname}", verbosity=0)
 			
 			# Write discovered hostnames to file for consolidator to read
 			try:
 				await target.execute(
-					'echo "Discovered hostnames:" > "{scandir}/_hostname_discovery.txt"'
+					f'echo "Discovered hostnames for {target.address}:" > "{{scandir}}/_hostname_discovery.txt"'
 				)
 				for hostname in discovered_hostnames:
 					await target.execute(
 						f'echo "  {hostname}" >> "{{scandir}}/_hostname_discovery.txt"'
 					)
-				print(f"🎯 [{target.address}/hostname-discovery] ✅ Wrote {len(discovered_hostnames)} hostnames to _hostname_discovery.txt")
+				target.info(f"✅ Wrote {len(discovered_hostnames)} hostnames to _hostname_discovery.txt", verbosity=1)
 			except Exception as e:
-				print(f"🎯 [{target.address}/hostname-discovery] ⚠️ Failed to write hostname file: {e}")
+				target.warn(f"Failed to write hostname file: {e}", verbosity=1)
 		
 		return []  # PortScan plugins return services, but we're doing discovery

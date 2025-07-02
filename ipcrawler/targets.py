@@ -3,6 +3,7 @@ from typing import final
 from ipcrawler.config import config
 from ipcrawler.io import e, info, warn, error
 from ipcrawler.loading import start_tool_loading, stop_tool_loading, update_tool_progress, scan_status
+from ipcrawler.logger import setup_unified_logging
 
 class Target:
 
@@ -231,6 +232,10 @@ class Target:
 	async def execute(self, cmd, blocking=True, outfile=None, errfile=None, future_outfile=None):
 		target = self
 
+		# Setup unified logging for this target if not already done
+		if not hasattr(target, '_unified_logger'):
+			target._unified_logger = setup_unified_logging(target.address, target.scandir)
+
 		# Create variables for command references.
 		address = target.address
 		addressv6 = target.address
@@ -256,12 +261,14 @@ class Target:
 		cmd = e(cmd)
 		tag = plugin.slug
 
-		# Start loading interface for port scan with intelligent estimates
-		estimated_time = self._estimate_port_scan_time(plugin.name)
-		start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
-		
-		# Show beautiful command execution details
-		scan_status.show_command_execution(address, plugin.name, cmd, config['verbose'])
+		# Start loading interface for port scan with intelligent estimates (only in non-unified mode)
+		if not hasattr(target, '_unified_logger'):
+			estimated_time = self._estimate_port_scan_time(plugin.name)
+			start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
+			
+			# Show beautiful command execution details (only in verbose mode)
+			if config['verbose'] >= 2:
+				scan_status.show_command_execution(address, plugin.name, cmd, config['verbose'])
 
 		if outfile is not None:
 			outfile = os.path.join(target.scandir, e(outfile))
@@ -410,12 +417,14 @@ class Service:
 		if plugin.run_once_boolean:
 			plugin_tag = plugin.slug
 
-		# Start loading interface for service scan with intelligent estimates
-		estimated_time = self._estimate_service_scan_time(plugin.name)
-		start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
-		
-		# Show beautiful command execution details
-		scan_status.show_command_execution(f"{self.target.address}:{self.port}", plugin.name, cmd, config['verbose'])
+		# Start loading interface for service scan with intelligent estimates (only in non-unified mode)
+		if not hasattr(target, '_unified_logger'):
+			estimated_time = self._estimate_service_scan_time(plugin.name)
+			start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
+			
+			# Show beautiful command execution details (only in verbose mode)
+			if config['verbose'] >= 2:
+				scan_status.show_command_execution(f"{self.target.address}:{self.port}", plugin.name, cmd, config['verbose'])
 
 		if outfile is not None:
 			outfile = os.path.join(scandir, e(outfile))
