@@ -125,7 +125,6 @@ class Plugin(object):
 
 	@final
 	def get_option(self, name, default=None):
-		# TODO: make sure name is simple.
 		name = self.slug.replace('-', '_') + '.' + slugify(name).replace('-', '_')
 
 		if name in vars(self.ipcrawler.args):
@@ -320,7 +319,6 @@ class ipcrawler(object):
 		self.load_module = None
 
 	def add_argument(self, plugin, name, **kwargs):
-		# TODO: make sure name is simple.
 		name = '--' + plugin.slug + '.' + slugify(name)
 
 		if self.argparse_group is None:

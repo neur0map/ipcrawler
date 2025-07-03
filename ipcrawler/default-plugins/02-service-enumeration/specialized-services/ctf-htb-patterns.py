@@ -130,6 +130,6 @@ class CTFHTBPatterns(ServiceScan):
 		self.add_pattern(r'(?i)payment|billing|checkout', description='INFO: Payment system detected - test for business logic vulnerabilities')
 
 	async def run(self, service):
-		# This plugin only provides pattern matching, no active scanning
+
 		service.info(f"🎯 CTF/HTB pattern detection active for {service.target.address}:{service.port}")
 		service.info(f"📋 Monitoring for common CTF/HTB vulnerability patterns and technologies")

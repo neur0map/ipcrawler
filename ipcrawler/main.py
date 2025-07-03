@@ -59,8 +59,7 @@ def copy_tree_ignore_broken_symlinks(src, dst):
 	
 	shutil.copytree(src, dst, ignore=ignore_broken_symlinks)
 
-# IPCrawler should only work from git repository directory - no system config caching
-# This ensures git pull updates are immediately effective
+	# Work from git repository directory - no system config caching
 
 # if not os.path.exists(config['config_dir']):
 # 	shutil.rmtree(config['config_dir'], ignore_errors=True, onerror=None)
@@ -158,9 +157,7 @@ def generate_target_reports(target_address, reason="completed"):
 	except Exception as ex:
 		warn(f'⚠️ Failed to generate parsed YAML for {target_address}: {ex}', verbosity=1)
 
-# sig and frame args are only present so the function
-# works with signal.signal() and handles Ctrl-C.
-# They are not used for any other purpose.
+	# Signal handler for Ctrl+C
 def cancel_all_tasks(sig, frame):
 	for task in asyncio.all_tasks():
 		task.cancel()
@@ -354,7 +351,7 @@ async def get_semaphore(ipcrawler):
 	while True:
 		# If service scan semaphore is locked, see if we can use port scan semaphore.
 		if semaphore.locked():
-			if semaphore != ipcrawler.port_scan_semaphore: # This will be true unless user sets max_scans == max_port_scans
+			if semaphore != ipcrawler.port_scan_semaphore:
 
 				port_scan_task_count = 0
 				for target in ipcrawler.scanning_targets:
@@ -687,7 +684,7 @@ def safe_makedirs(path, mode=0o755):
 	"""Create directories with proper permissions, avoiding root ownership issues"""
 	try:
 		os.makedirs(path, mode=mode, exist_ok=True)
-		# Ensure current user owns the directory (prevents root ownership issues)
+
 		if os.getuid() != 0:  # Only if not running as root
 			try:
 				import pwd
@@ -813,7 +810,6 @@ async def scan_target(target):
 	while pending:
 		done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED, timeout=1)
 
-		# Check if global timeout has occurred.
 		if config['target_timeout'] is not None:
 			elapsed_seconds = round(time.time() - start_time)
 			m, s = divmod(elapsed_seconds, 60)
@@ -848,7 +844,7 @@ async def scan_target(target):
 					for service in (task.result()['result'] or []):
 						services.append(service)
 
-			# Check if we can start service enumeration early (priority 0 scans completed)
+	
 			if not service_enumeration_started and priority_0_scans and len(priority_0_completed) == len(priority_0_scans):
 				service_enumeration_started = True
 				remaining_port_scans = [task for task in pending if hasattr(task, 'plugin_priority')]
@@ -933,7 +929,7 @@ async def scan_target(target):
 					else:
 						continue
 
-				# Check if this plugin matches the discovered service
+		
 				for s in plugin.service_names:
 					if re.search(s, service.name):
 						plugin_service_match = True
@@ -959,7 +955,6 @@ async def scan_target(target):
 								excluded_tags = True
 								break
 
-					# TODO: Maybe make this less messy, keep manual-only plugins separate?
 					plugin_is_runnable = False
 					for member_name, _ in inspect.getmembers(plugin, predicate=inspect.ismethod):
 						if member_name == 'run':
@@ -1777,7 +1772,7 @@ async def run(initial_args):
 		else:
 			ipcrawler.port_scan_semaphore = asyncio.Semaphore(config['max_port_scans'])
 			# Use separate semaphore pools to allow service scans to start immediately when services are discovered
-			# This prevents port scans from blocking service enumeration
+		
 			ipcrawler.service_scan_semaphore = asyncio.Semaphore(config['max_scans'])
 
 	tags = []
@@ -2033,7 +2028,6 @@ async def run(initial_args):
 			cancel_all_tasks(None, None)
 			sys.exit(1)
 
-		# Check if global timeout has occurred.
 		if config['timeout'] is not None:
 			elapsed_seconds = round(time.time() - start_time)
 			m, s = divmod(elapsed_seconds, 60)
@@ -2052,7 +2046,7 @@ async def run(initial_args):
 			for process_list in targ.running_tasks.values():
 				# If we're not scanning ports, count ServiceScans instead.
 				if config['force_services']:
-					if issubclass(process_list['plugin'].__class__, ServiceScan): # TODO should we really count ServiceScans? Test...
+					if issubclass(process_list['plugin'].__class__, ServiceScan):
 						port_scan_task_count += 1
 				else:
 					if issubclass(process_list['plugin'].__class__, PortScan):
@@ -2120,7 +2114,7 @@ async def run(initial_args):
 			warn(f'⚠️ Failed to consolidate results after timeout: {e}', verbosity=1)
 			debug(f'Timeout consolidator error details: {str(e)}', verbosity=2)
 	else:
-		while len(asyncio.all_tasks()) > 1: # this code runs in the main() task so it will be the only task left running
+		while len(asyncio.all_tasks()) > 1:
 			await asyncio.sleep(1)
 
 		elapsed_time = calculate_elapsed_time(start_time)
@@ -2251,7 +2245,7 @@ def main():
 	except RuntimeError as e:
 		# Handle "Event loop is closed" errors gracefully
 		if "Event loop is closed" in str(e):
-			pass  # This is expected during shutdown
+			pass
 		else:
 			raise  # Re-raise other RuntimeErrors
 

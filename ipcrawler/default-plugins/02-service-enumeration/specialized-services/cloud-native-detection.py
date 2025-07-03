@@ -206,6 +206,6 @@ class CloudNativeDetection(ServiceScan):
 		self.add_pattern(r'(?i)acr|azure.*container.*registry', description='Azure Container Registry detected')
 
 	async def run(self, service):
-		# This plugin only provides pattern matching, no active scanning
+
 		service.info(f"☁️ Cloud-native technology detection active for {service.target.address}:{service.port}")
 		service.info(f"🐳 Monitoring for containers, orchestration, and modern cloud infrastructure")

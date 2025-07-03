@@ -40,7 +40,7 @@ class SubdomainEnumeration(ServiceScan):
 				domains.append(discovered)
 				service.info(f"🔄 Using discovered hostname for subdomain enum: {discovered}")
 
-		# For IP targets, provide helpful guidance
+
 		if len(domains) == 0 and service.target.type == 'ip':
 			service.info(f"💡 To enumerate subdomains for IP {service.target.address}, use: --subdomain-enum.domain=example.com")
 			return

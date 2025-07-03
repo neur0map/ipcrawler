@@ -35,8 +35,6 @@ class Enum4Linux(ServiceScan):
             if is_macos:
                 self.warn('enum4linux not available on macOS. '
                           'Using nmap SMB scripts as alternative.')
-                # Don't add duplicate option - just update the internal state
-                # The option was already added in configure()
                 return True
             else:
                 self.error('The enum4linux program could not be found. '
@@ -47,8 +45,6 @@ class Enum4Linux(ServiceScan):
             if is_macos:
                 self.warn('enum4linux-ng not available on macOS. '
                           'Using nmap SMB scripts as alternative.')
-                # Don't add duplicate option - just update the internal state
-                # The option was already added in configure()
                 return True
             else:
                 self.error('The enum4linux-ng program could not be found. '
