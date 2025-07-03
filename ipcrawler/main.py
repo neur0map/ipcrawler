@@ -1126,6 +1126,15 @@ async def scan_target(target):
 		ipcrawler.scanning_targets.remove(target)
 
 async def run(initial_args):
+	# Reset global ipcrawler instance state
+	ipcrawler.pending_targets.clear()
+	ipcrawler.scanning_targets.clear()
+	ipcrawler.completed_targets.clear()
+	ipcrawler.plugins.clear()
+	ipcrawler.plugin_types = {'port': [], 'service': [], 'report': []}
+	ipcrawler.missing_services.clear()
+	ipcrawler.errors = False
+	
 	# Use the configuration already set up in main()
 	# Get config file path
 	config_file = config.get('config_file')
@@ -1994,10 +2003,10 @@ async def run(initial_args):
 			config['disable_keyboard_control'] = True
 			terminal_settings = None
 
-	pending = []
+	pending = set()
 	i = 0
 	while ipcrawler.pending_targets:
-		pending.append(asyncio.create_task(scan_target(ipcrawler.pending_targets.pop(0))))
+		pending.add(asyncio.create_task(scan_target(ipcrawler.pending_targets.pop(0))))
 		i+=1
 		if i >= num_initial_targets:
 			break
@@ -2083,9 +2092,6 @@ async def run(initial_args):
 						break
 
 			if matching_tags and not excluded_tags:
-				# Ensure pending is a set for consolidation report tasks
-				if isinstance(pending, list):
-					pending = set(pending)
 				pending.add(asyncio.create_task(generate_report(plugin, ipcrawler.completed_targets)))
 
 		while pending:
