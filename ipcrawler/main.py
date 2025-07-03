@@ -191,10 +191,20 @@ def cancel_all_tasks(sig, frame):
 	# Generate reports for each interrupted target first
 	try:
 		info('🕷️  Generating reports for interrupted targets...', verbosity=1)
-		for target in ipcrawler.scanning_targets:
-			generate_target_reports(target.address, "interrupted")
-	except Exception as e:
-		warn(f'⚠️  Failed to generate reports for interrupted targets: {e}', verbosity=1)
+		
+		# Discover targets from results directory (same approach as consolidator)
+		results_dir = config['output']
+		discovered_targets = []
+		if os.path.exists(results_dir):
+			for item in os.listdir(results_dir):
+				target_dir = os.path.join(results_dir, item)
+				if os.path.isdir(target_dir) and os.path.exists(os.path.join(target_dir, 'scans')):
+					discovered_targets.append(item)
+		
+		for target_address in discovered_targets:
+			generate_target_reports(target_address, "interrupted")
+	except Exception as ex:
+		warn(f'⚠️  Failed to generate reports for interrupted targets: {ex}', verbosity=1)
 	
 	# Consolidate scan results on interruption
 	try:
@@ -215,9 +225,9 @@ def cancel_all_tasks(sig, frame):
 			consolidator.consolidate_all_targets(None)
 		
 		info('Scan results consolidated after interruption', verbosity=1)
-	except Exception as e:
-		warn(f'⚠️  Failed to consolidate results after interruption: {e}', verbosity=1)
-		debug(f'Consolidator interruption error details: {str(e)}', verbosity=2)
+	except Exception as ex:
+		warn(f'⚠️  Failed to consolidate results after interruption: {ex}', verbosity=1)
+		debug(f'Consolidator interruption error details: {str(ex)}', verbosity=2)
 
 	if not config['disable_keyboard_control']:
 		# Restore original terminal settings.
@@ -729,7 +739,7 @@ async def scan_target(target):
 
 	target.reportdir = reportdir
 
-	pending = []
+	pending = set()
 
 	heartbeat = asyncio.create_task(start_heartbeat(target, period=config['heartbeat']))
 
@@ -752,7 +762,7 @@ async def scan_target(target):
 				services.append(service)
 
 		if services:
-			pending.append(asyncio.create_task(asyncio.sleep(0)))
+			pending.add(asyncio.create_task(asyncio.sleep(0)))
 		else:
 			error('No services were defined. Please check your service syntax: [tcp|udp]/<port>/<service-name>/[secure|insecure]')
 			heartbeat.cancel()
@@ -786,7 +796,7 @@ async def scan_target(target):
 				port_task = asyncio.create_task(port_scan(plugin, target))
 				port_task.plugin_priority = plugin.priority
 				port_task.plugin_name = plugin.name
-				pending.append(port_task)
+				pending.add(port_task)
 
 	async with ipcrawler.lock:
 		ipcrawler.scanning_targets.append(target)
@@ -812,13 +822,14 @@ async def scan_target(target):
 				break
 
 		if not config['force_services']:
-			# Extract Services
+			# Extract Services from pending queue
 			services = []
 
 			async with target.lock:
 				while target.pending_services:
 					services.append(target.pending_services.pop(0))
 
+			# Process completed tasks and extract new services
 			for task in done:
 				try:
 					if task.exception():
@@ -837,25 +848,21 @@ async def scan_target(target):
 					for service in (task.result()['result'] or []):
 						services.append(service)
 
-		# Check if we can start service enumeration early
-		if not service_enumeration_started and priority_0_scans and len(priority_0_completed) == len(priority_0_scans):
-			service_enumeration_started = True
-			remaining_port_scans = [task for task in pending if hasattr(task, 'plugin_priority')]
-			if remaining_port_scans:
-				remaining_names = [getattr(task, 'plugin_name', 'Unknown') for task in remaining_port_scans]
-				info(f'Starting service enumeration early! Background scans continue: {", ".join(remaining_names)}', verbosity=1)
-			else:
-				info(f'All port scans completed, starting service enumeration', verbosity=1)
+			# Check if we can start service enumeration early (priority 0 scans completed)
+			if not service_enumeration_started and priority_0_scans and len(priority_0_completed) == len(priority_0_scans):
+				service_enumeration_started = True
+				remaining_port_scans = [task for task in pending if hasattr(task, 'plugin_priority')]
+				if remaining_port_scans:
+					remaining_names = [getattr(task, 'plugin_name', 'Unknown') for task in remaining_port_scans]
+					info(f'Starting service enumeration early! Background scans continue: {", ".join(remaining_names)}', verbosity=1)
+				else:
+					info(f'All port scans completed, starting service enumeration', verbosity=1)
 
-		# Only start service enumeration if priority 0 scans completed OR all port scans completed
+		# Determine if we should start service enumeration
 		should_start_service_enumeration = (
 			service_enumeration_started or  # Priority 0 scans completed
 			not any(hasattr(task, 'plugin_priority') for task in pending)  # No more port scans pending
 		)
-		
-		# Convert pending to set for service enumeration compatibility
-		if should_start_service_enumeration and isinstance(pending, list):
-			pending = set(pending)
 		
 		for service in services if should_start_service_enumeration else []:
 			if service.full_tag() not in target.services:
@@ -1055,6 +1062,7 @@ async def scan_target(target):
 						target.scans['services'][service] = {}
 					target.scans['services'][service][plugin_tag] = {'plugin':plugin, 'commands':[]}
 
+				# Add service enumeration task to pending set
 				pending.add(asyncio.create_task(service_scan(plugin, service)))
 
 			if not service_match:
@@ -1082,6 +1090,7 @@ async def scan_target(target):
 					break
 
 		if matching_tags and not excluded_tags:
+			# Add report generation task to pending set
 			pending.add(asyncio.create_task(generate_report(plugin, [target])))
 
 	while pending:
@@ -2074,6 +2083,9 @@ async def run(initial_args):
 						break
 
 			if matching_tags and not excluded_tags:
+				# Ensure pending is a set for consolidation report tasks
+				if isinstance(pending, list):
+					pending = set(pending)
 				pending.add(asyncio.create_task(generate_report(plugin, ipcrawler.completed_targets)))
 
 		while pending:
