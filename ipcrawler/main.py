@@ -27,6 +27,7 @@ colorama.init()
 from ipcrawler.config import config, configurable_keys, configurable_boolean_keys
 from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader, show_modern_help, show_modern_version, show_modern_plugin_list, show_ascii_art
 from ipcrawler.loading import scan_status
+from ipcrawler.user_display import user_display
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.parse_logs import build_parsed_yaml
 from ipcrawler.validator import load_and_validate_report
@@ -128,6 +129,35 @@ def calculate_elapsed_time(start_time, short=False):
 	else:
 		return ', '.join(elapsed_time)
 
+def generate_target_reports(target_address, reason="completed"):
+	"""Generate parsed.yaml and report.md for a target. Safe to call multiple times."""
+	try:
+		# Phase 2: Parse raw logs into structured YAML
+		build_parsed_yaml(target_address)
+		info(f'📄 Parsed YAML generated for {target_address} ({reason})', verbosity=1)
+		
+		# Phase 3: Validate parsed YAML with Pydantic
+		try:
+			parsed_yaml_path = f"results/{target_address}/parsed.yaml"
+			validated_report = load_and_validate_report(parsed_yaml_path, exit_on_failure=False)
+			if validated_report:
+				info(f'✅ YAML validation passed for {target_address}', verbosity=1)
+				
+				# Phase 4: Generate Jinja2 Markdown report from validated YAML
+				try:
+					if render_markdown_report(validated_report):
+						info(f'📋 Markdown report generated for {target_address} ({reason})', verbosity=1)
+					else:
+						warn(f'⚠️ Failed to generate markdown report for {target_address}', verbosity=1)
+				except Exception as ex:
+					warn(f'⚠️ Unexpected error generating markdown report for {target_address}: {ex}', verbosity=1)
+			else:
+				warn(f'❌ YAML validation failed for {target_address}', verbosity=1)
+		except Exception as ex:
+			warn(f'⚠️ Unexpected validation error for {target_address}: {ex}', verbosity=1)
+	except Exception as ex:
+		warn(f'⚠️ Failed to generate parsed YAML for {target_address}: {ex}', verbosity=1)
+
 # sig and frame args are only present so the function
 # works with signal.signal() and handles Ctrl-C.
 # They are not used for any other purpose.
@@ -158,6 +188,14 @@ def cancel_all_tasks(sig, frame):
 	if len(alive) > 0:
 		error('The following process IDs could not be killed: ' + ', '.join([str(x.pid) for x in sorted(alive, key=lambda x: x.pid)]))
 	
+	# Generate reports for each interrupted target first
+	try:
+		info('🕷️  Generating reports for interrupted targets...', verbosity=1)
+		for target in ipcrawler.scanning_targets:
+			generate_target_reports(target.address, "interrupted")
+	except Exception as e:
+		warn(f'⚠️  Failed to generate reports for interrupted targets: {e}', verbosity=1)
+	
 	# Consolidate scan results on interruption
 	try:
 		# Always try to generate a report, even with minimal data
@@ -176,7 +214,7 @@ def cancel_all_tasks(sig, frame):
 			info('🕷️  Consolidating available scan data...', verbosity=1)
 			consolidator.consolidate_all_targets(None)
 		
-		info('📄 Scan results consolidated after interruption', verbosity=1)
+		info('Scan results consolidated after interruption', verbosity=1)
 	except Exception as e:
 		warn(f'⚠️  Failed to consolidate results after interruption: {e}', verbosity=1)
 		debug(f'Consolidator interruption error details: {str(e)}', verbosity=2)
@@ -356,7 +394,7 @@ async def port_scan(plugin, target):
 
 	async with target.ipcrawler.port_scan_semaphore:
 		# Show beautiful scan start message
-		scan_status.show_scan_start(target.address, plugin.name, config['verbose'])
+		user_display.plugin_start(target.address, plugin.name)
 
 		start_time = time.time()
 
@@ -442,7 +480,7 @@ async def port_scan(plugin, target):
 			target.running_tasks.pop(plugin.slug, None)
 
 		# Show beautiful completion message
-		scan_status.show_scan_completion(target.address, plugin.name, elapsed_time, True, config['verbose'])
+		user_display.plugin_complete(target.address, plugin.name, elapsed_time, True)
 		return {'type':'port', 'plugin':plugin, 'result':result}
 
 async def service_scan(plugin, service):
@@ -525,7 +563,7 @@ async def service_scan(plugin, service):
 			tag = service.tag() + '/' + plugin.slug
 
 			# Show beautiful service scan start message
-			scan_status.show_scan_start(f"{service.target.address}:{service.port}", plugin.name, config['verbose'])
+			user_display.plugin_start(f"{service.target.address}:{service.port}", plugin.name)
 
 			start_time = time.time()
 
@@ -617,7 +655,7 @@ async def service_scan(plugin, service):
 				service.target.running_tasks.pop(tag, None)
 
 			# Show beautiful service completion message
-			scan_status.show_scan_completion(f"{service.target.address}:{service.port}", plugin.name, elapsed_time, True, config['verbose'])
+			user_display.plugin_complete(f"{service.target.address}:{service.port}", plugin.name, elapsed_time, True)
 			return {'type':'service', 'plugin':plugin, 'result':result}
 
 async def generate_report(plugin, targets):
@@ -754,7 +792,7 @@ async def scan_target(target):
 		ipcrawler.scanning_targets.append(target)
 
 	start_time = time.time()
-	info(f'🎯 Scanning target: {target.address}', verbosity=1)
+	user_display.target_start(target.address)
 
 	# Track priority 0 port scans to enable early service enumeration
 	priority_0_scans = {task for task in pending if hasattr(task, 'plugin_priority') and task.plugin_priority == 0}
@@ -793,7 +831,7 @@ async def scan_target(target):
 				if task in priority_0_scans:
 					priority_0_completed.add(task)
 					if hasattr(task, 'plugin_name'):
-						info(f'✅ High-priority port scan completed: {task.plugin_name}', verbosity=1)
+						info(f'High-priority port scan completed: {task.plugin_name}', verbosity=1)
 
 				if task.result()['type'] == 'port':
 					for service in (task.result()['result'] or []):
@@ -805,9 +843,9 @@ async def scan_target(target):
 			remaining_port_scans = [task for task in pending if hasattr(task, 'plugin_priority')]
 			if remaining_port_scans:
 				remaining_names = [getattr(task, 'plugin_name', 'Unknown') for task in remaining_port_scans]
-				info(f'🚀 Starting service enumeration early! Background scans continue: {", ".join(remaining_names)}', verbosity=1)
+				info(f'Starting service enumeration early! Background scans continue: {", ".join(remaining_names)}', verbosity=1)
 			else:
-				info(f'🚀 All port scans completed, starting service enumeration', verbosity=1)
+				info(f'All port scans completed, starting service enumeration', verbosity=1)
 
 		# Only start service enumeration if priority 0 scans completed OR all port scans completed
 		should_start_service_enumeration = (
@@ -1065,35 +1103,14 @@ async def scan_target(target):
 					pass
 
 		warn(f'⏰ Target {target.address} timeout ({config["target_timeout"]} min). Moving to next target.', verbosity=0)
-	else:
-		info(f'✅ Target {target.address} completed in {elapsed_time}', verbosity=1)
 		
-		# Phase 2: Parse raw logs into structured YAML
-		try:
-			build_parsed_yaml(target.address)
-			info(f'📄 Parsed YAML generated for {target.address}', verbosity=1)
-			
-			# Phase 3: Validate parsed YAML with Pydantic
-			try:
-				parsed_yaml_path = f"results/{target.address}/parsed.yaml"
-				validated_report = load_and_validate_report(parsed_yaml_path, exit_on_failure=False)
-				if validated_report:
-					info(f'✅ YAML validation passed for {target.address}', verbosity=1)
-					
-					# Phase 4: Generate Jinja2 Markdown report from validated YAML
-					try:
-						if render_markdown_report(validated_report):
-							info(f'📋 Jinja2 Markdown report generated for {target.address}', verbosity=1)
-						else:
-							warn(f'⚠️ Failed to generate Jinja2 markdown report for {target.address}', verbosity=1)
-					except Exception as ex:
-						warn(f'⚠️ Unexpected error generating markdown report for {target.address}: {ex}', verbosity=1)
-				else:
-					warn(f'❌ YAML validation failed for {target.address}', verbosity=1)
-			except Exception as ex:
-				warn(f'⚠️ Unexpected validation error for {target.address}: {ex}', verbosity=1)
-		except Exception as ex:
-			warn(f'⚠️ Failed to generate parsed YAML for {target.address}: {ex}', verbosity=1)
+		# Generate reports for timed-out target (partial data may still be useful)
+		generate_target_reports(target.address, "timed out")
+	else:
+		user_display.target_complete(target.address, elapsed_time)
+		
+		# Generate reports for completed target
+		generate_target_reports(target.address, "completed")
 
 	async with ipcrawler.lock:
 		ipcrawler.completed_targets.append(target)

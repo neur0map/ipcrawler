@@ -173,9 +173,14 @@ def parse_errors_log(errors_log_path: str) -> List[Dict[str, Any]]:
         formatted_errors = []
         for error_entry in error_list:
             if isinstance(error_entry, dict):
+                # Handle empty error messages by providing a default
+                error_message = error_entry.get("message", "")
+                if not error_message or error_message.strip() == "":
+                    error_message = f"Plugin {error_entry.get('plugin', 'unknown')} encountered an error"
+                
                 formatted_error = {
                     "plugin": error_entry.get("plugin", "unknown"),
-                    "message": error_entry.get("message", ""),
+                    "message": error_message,
                     "severity": "medium",  # Default severity
                     "command": error_entry.get("command"),
                     "exit_code": error_entry.get("exit_code"),

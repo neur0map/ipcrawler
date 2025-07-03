@@ -3,6 +3,14 @@ from colorama import Fore, Style
 from ipcrawler.config import config
 from ipcrawler.loading import scan_status, is_loading_active, record_tool_activity
 
+# Import UserDisplay but handle circular import
+try:
+    from ipcrawler.user_display import user_display
+    USER_DISPLAY_AVAILABLE = True
+except ImportError:
+    USER_DISPLAY_AVAILABLE = False
+    user_display = None
+
 # ASCII art imports
 try:
 	import pyfiglet
@@ -96,63 +104,64 @@ def cprint(*args, color=Fore.RESET, char='*', sep=' ', end='\n', frame_index=1, 
 		return fmted
 
 def debug(*args, color=Fore.GREEN, sep=' ', end='\n', file=sys.stdout, **kvargs):
-	if config['verbose'] >= 2:
-		if config['accessible']:
-			args = ('Debug:',) + args
-		cprint(*args, color=color, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
+	# Format the message
+	message = sep.join(str(arg) for arg in args)
+	
+	# Use new UserDisplay if available
+	if USER_DISPLAY_AVAILABLE and user_display:
+		user_display.status_debug(message)
+	else:
+		# Fallback to old system
+		if config['verbose'] >= 2:
+			if config['accessible']:
+				args = ('Debug:',) + args
+			cprint(*args, color=color, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def info(*args, sep=' ', end='\n', file=sys.stdout, **kvargs):
-	# Use modern status display if loading is active
-	if is_loading_active() and len(args) >= 1:
-		# Try to parse target/plugin from the formatted message
-		message = ' '.join(str(arg) for arg in args)
-		
-		# Process color templates before sending to loading system
-		processed_message = message
-		color_replacements = {
-			'bgreen':  Fore.GREEN  + Style.BRIGHT,
-			'bred':	Fore.RED	+ Style.BRIGHT,
-			'bblue':   Fore.BLUE   + Style.BRIGHT,
-			'byellow': Fore.YELLOW + Style.BRIGHT,
-			'bmagenta': Fore.MAGENTA + Style.BRIGHT,
-			'green':  Fore.GREEN,
-			'red':	Fore.RED,
-			'blue':   Fore.BLUE,
-			'yellow': Fore.YELLOW,
-			'magenta': Fore.MAGENTA,
-			'bright': Style.BRIGHT,
-			'srst':   Style.NORMAL,
-			'crst':   Fore.RESET,
-			'rst':	Style.NORMAL + Fore.RESET
-		}
-		
-		if config['accessible']:
-			# Disable colors in accessible mode
-			color_replacements = {key: '' for key in color_replacements}
-		
-		for template, replacement in color_replacements.items():
-			processed_message = processed_message.replace('{' + template + '}', replacement)
-		
-		if '[' in processed_message and ']' in processed_message:
-			# Extract target and message parts
-			parts = processed_message.split(']', 1)
-			if len(parts) == 2:
-				target_part = parts[0].replace('[', '').strip()
-				msg_part = parts[1].strip()
-				scan_status.show_scan_result(target_part, "scan", msg_part, "info", config['verbose'])
-				return
+	# Format the message
+	message = sep.join(str(arg) for arg in args)
 	
-	cprint(*args, color=Fore.BLUE, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
+	# Get verbosity from kwargs or use default
+	verbosity = kvargs.get('verbosity', 0)
+	
+	# Use new UserDisplay if available
+	if USER_DISPLAY_AVAILABLE and user_display:
+		user_display.status_info(message, verbosity)
+	else:
+		# Fallback to old system
+		cprint(*args, color=Fore.BLUE, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def warn(*args, sep=' ', end='\n', file=sys.stderr,**kvargs):
-	if config['accessible']:
-		args = ('Warning:',) + args
-	cprint(*args, color=Fore.YELLOW, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
+	# Format the message
+	message = sep.join(str(arg) for arg in args)
+	
+	# Get verbosity from kwargs or use default
+	verbosity = kvargs.get('verbosity', 0)
+	
+	# Use new UserDisplay if available
+	if USER_DISPLAY_AVAILABLE and user_display:
+		user_display.status_warning(message, verbosity)
+	else:
+		# Fallback to old system
+		if config['accessible']:
+			args = ('Warning:',) + args
+		cprint(*args, color=Fore.YELLOW, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def error(*args, sep=' ', end='\n', file=sys.stderr, **kvargs):
-	if config['accessible']:
-		args = ('Error:',) + args
-	cprint(*args, color=Fore.RED, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
+	# Format the message
+	message = sep.join(str(arg) for arg in args)
+	
+	# Get verbosity from kwargs or use default
+	verbosity = kvargs.get('verbosity', 0)
+	
+	# Use new UserDisplay if available
+	if USER_DISPLAY_AVAILABLE and user_display:
+		user_display.status_error(message, verbosity)
+	else:
+		# Fallback to old system
+		if config['accessible']:
+			args = ('Error:',) + args
+		cprint(*args, color=Fore.RED, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def fail(*args, sep=' ', end='\n', file=sys.stderr, **kvargs):
 	if config['accessible']:

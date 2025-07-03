@@ -66,6 +66,18 @@ class MockStreamReader:
 			return line.encode('utf-8') + b'\n'  # Return as bytes like real readline
 		else:
 			return None  # Signal end of stream
+	
+	async def readlines(self):
+		"""Mock readlines method that returns all remaining lines as a list."""
+		lines = []
+		while True:
+			line = await self.readline()
+			if line is not None:
+				# Decode bytes back to string for compatibility with curl plugins
+				lines.append(line.decode('utf-8').rstrip('\n'))
+			else:
+				break
+		return lines
 
 class Pattern:
 
