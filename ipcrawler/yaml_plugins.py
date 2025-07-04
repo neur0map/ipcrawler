@@ -469,19 +469,48 @@ class YamlPluginLoader:
             return None
     
     def load_plugins(self) -> Dict[str, YamlPlugin]:
-        """Load all YAML plugins from configured directories"""
+        """Load all YAML plugins from configured directories with optimization"""
+        import time
+        start_time = time.time()
+        
         logger.info("Loading YAML plugins...")
         
         plugin_files = self.discover_plugins()
         
-        for plugin_file in plugin_files:
-            plugin = self.parse_plugin(plugin_file)
-            if plugin:
-                plugin_id = f"{plugin.metadata.name}_{plugin_file.stem}"
-                self.plugins[plugin_id] = plugin
-                logger.debug(f"Loaded YAML plugin: {plugin.metadata.name} from {plugin_file}")
+        # Use concurrent processing for better performance
+        import concurrent.futures
+        from threading import Lock
         
-        logger.info(f"Loaded {len(self.plugins)} YAML plugins")
+        plugins_lock = Lock()
+        
+        def load_single_plugin(plugin_file):
+            try:
+                plugin = self.parse_plugin(plugin_file)
+                if plugin:
+                    plugin_id = f"{plugin.metadata.name}_{plugin_file.stem}"
+                    with plugins_lock:
+                        self.plugins[plugin_id] = plugin
+                    logger.debug(f"Loaded YAML plugin: {plugin.metadata.name} from {plugin_file}")
+                    return 1
+                return 0
+            except Exception as ex:
+                logger.error(f"Error loading plugin {plugin_file}: {ex}")
+                return 0
+        
+        # Load plugins concurrently for better performance
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(load_single_plugin, plugin_file): plugin_file 
+                      for plugin_file in plugin_files}
+            
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # Process result but don't need to count
+                except Exception as ex:
+                    plugin_file = futures[future]
+                    logger.error(f"Failed to load plugin {plugin_file}: {ex}")
+        
+        load_time = time.time() - start_time
+        logger.info(f"Loaded {len(self.plugins)} YAML plugins in {load_time:.3f}s")
         return self.plugins
     
     def get_plugin(self, plugin_id: str) -> Optional[YamlPlugin]:

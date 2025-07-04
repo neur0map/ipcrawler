@@ -38,7 +38,9 @@ configurable_keys = [
 	'enable_yaml_plugins',
 	'yaml_plugins_dir',
 	'debug_yaml_plugins',
-	'yaml_plugins_only'
+	'yaml_plugins_only',
+	'yaml_dry_run',
+	'yaml_debug_dashboard_port'
 ]
 
 configurable_boolean_keys = [
@@ -53,7 +55,8 @@ configurable_boolean_keys = [
 	'smart_wordlists',
 	'enable_yaml_plugins',
 	'debug_yaml_plugins',
-	'yaml_plugins_only'
+	'yaml_plugins_only',
+	'yaml_dry_run'
 ]
 
 config = {
@@ -96,5 +99,7 @@ config = {
 	'enable_yaml_plugins': False,
 	'yaml_plugins_dir': os.path.join(os.path.dirname(os.path.realpath(__file__)), 'yaml-plugins'),
 	'debug_yaml_plugins': False,
-	'yaml_plugins_only': False
+	'yaml_plugins_only': False,
+	'yaml_dry_run': False,
+	'yaml_debug_dashboard_port': 8080
 }

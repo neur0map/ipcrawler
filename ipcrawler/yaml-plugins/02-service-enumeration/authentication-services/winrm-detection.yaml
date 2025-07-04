@@ -11,9 +11,7 @@ conditions:
   services:
     include: ["^wsman"]
   ports:
-    - protocol: "tcp"
-      ports: [5985, 5986]
-      service_patterns: ["^http"]
+    include: [5985, 5986]
 
 options:
   - name: "create_detection_file"

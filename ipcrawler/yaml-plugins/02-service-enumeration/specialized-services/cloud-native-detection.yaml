@@ -1,0 +1,232 @@
+name: "Cloud-Native & Container Detection"
+description: "Comprehensive detection of cloud-native technologies, containers, orchestration platforms, and modern cloud services"
+author: "IPCrawler YAML Plugin System"
+version: "1.0.0"
+
+metadata:
+  type: "servicescan"
+  slug: "cloud-native-detection"
+  priority: 3
+  references:
+    - "https://kubernetes.io/docs/concepts/services-networking/"
+    - "https://docs.docker.com/engine/api/"
+    - "https://prometheus.io/docs/prometheus/latest/querying/api/"
+
+conditions:
+  services_include:
+    - "^http"
+    - "ssl/http"
+    - "^https"
+    - "^unknown$"
+  services_exclude:
+    - "^nacn_http$"
+
+commands:
+  - description: "Docker API detection"
+    command: "curl -sSik http://{address}:{port}/version"
+    timeout: 30
+
+  - description: "Docker Registry API detection"
+    command: "curl -sSik http://{address}:{port}/v2/"
+    timeout: 30
+
+  - description: "Kubernetes API Server detection"
+    command: "curl -sSik http://{address}:{port}/api/v1"
+    timeout: 30
+
+  - description: "Kubernetes metrics detection"
+    command: "curl -sSik http://{address}:{port}/metrics"
+    timeout: 30
+
+  - description: "Etcd API detection"
+    command: "curl -sSik http://{address}:{port}/v2/keys"
+    timeout: 30
+
+  - description: "Consul API detection"
+    command: "curl -sSik http://{address}:{port}/v1/agent/self"
+    timeout: 30
+
+  - description: "Prometheus API detection"
+    command: "curl -sSik http://{address}:{port}/api/v1/query?query=up"
+    timeout: 30
+
+  - description: "Grafana API detection"
+    command: "curl -sSik http://{address}:{port}/api/health"
+    timeout: 30
+
+  - description: "Harbor Registry detection"
+    command: "curl -sSik http://{address}:{port}/api/health"
+    timeout: 30
+
+  - description: "OpenShift API detection"
+    command: "curl -sSik http://{address}:{port}/oapi/v1"
+    timeout: 30
+
+  - description: "Rancher API detection"
+    command: "curl -sSik http://{address}:{port}/v3"
+    timeout: 30
+
+  - description: "Container health endpoints"
+    command: "curl -sSik http://{address}:{port}/health"
+    timeout: 30
+
+patterns:
+  - description: "Docker Engine API"
+    pattern: "ApiVersion.*docker"
+    category: "container_runtime"
+    severity: "high"
+
+  - description: "Docker Registry"
+    pattern: "Docker-Distribution-Api-Version"
+    category: "container_registry"
+    severity: "medium"
+
+  - description: "Kubernetes API Server"
+    pattern: "\"kind\":\\s*\"APIVersions\""
+    category: "orchestration"
+    severity: "critical"
+
+  - description: "Kubernetes Dashboard"
+    pattern: "kubernetes-dashboard"
+    category: "orchestration_ui"
+    severity: "high"
+
+  - description: "Etcd Key-Value Store"
+    pattern: "\"action\":\\s*\"get\""
+    category: "key_value_store"
+    severity: "high"
+
+  - description: "Consul Service Discovery"
+    pattern: "\"Config\":\\s*\\{.*\"Datacenter\""
+    category: "service_discovery"
+    severity: "medium"
+
+  - description: "Prometheus Metrics Server"
+    pattern: "\"status\":\\s*\"success\".*\"data\""
+    category: "monitoring"
+    severity: "medium"
+
+  - description: "Grafana Dashboard"
+    pattern: "\"database\":\\s*\"ok\""
+    category: "monitoring_ui"
+    severity: "medium"
+
+  - description: "Harbor Container Registry"
+    pattern: "\"status\":\\s*\"healthy\""
+    category: "container_registry"
+    severity: "medium"
+
+  - description: "OpenShift Container Platform"
+    pattern: "\"kind\":\\s*\"APIResourceList\".*openshift"
+    category: "orchestration"
+    severity: "critical"
+
+  - description: "Rancher Management Platform"
+    pattern: "\"type\":\\s*\"cluster\""
+    category: "orchestration_management"
+    severity: "high"
+
+  - description: "Container Health Check"
+    pattern: "\"status\":\\s*(\"up\"|\"healthy\"|\"ok\")"
+    category: "container_health"
+    severity: "info"
+
+  - description: "Helm Tiller"
+    pattern: "\"kind\":\\s*\"Status\".*tiller"
+    category: "package_manager"
+    severity: "medium"
+
+  - description: "Istio Service Mesh"
+    pattern: "istio.*pilot"
+    category: "service_mesh"
+    severity: "medium"
+
+  - description: "Linkerd Service Mesh"
+    pattern: "linkerd.*control-plane"
+    category: "service_mesh"
+    severity: "medium"
+
+  - description: "Jenkins CI/CD"
+    pattern: "jenkins.*hudson"
+    category: "ci_cd"
+    severity: "medium"
+
+  - description: "GitLab CI/CD"
+    pattern: "gitlab.*api"
+    category: "ci_cd"
+    severity: "medium"
+
+  - description: "Traefik Load Balancer"
+    pattern: "traefik.*api"
+    category: "load_balancer"
+    severity: "medium"
+
+  - description: "NGINX Ingress Controller"
+    pattern: "nginx.*ingress"
+    category: "ingress_controller"
+    severity: "medium"
+
+  - description: "Envoy Proxy"
+    pattern: "envoy.*admin"
+    category: "proxy"
+    severity: "medium"
+
+  - description: "Vault Secrets Management"
+    pattern: "\"initialized\":\\s*true.*vault"
+    category: "secrets_management"
+    severity: "high"
+
+  - description: "Apache Mesos"
+    pattern: "mesos.*master"
+    category: "orchestration"
+    severity: "medium"
+
+  - description: "Marathon Framework"
+    pattern: "marathon.*apps"
+    category: "orchestration"
+    severity: "medium"
+
+  - description: "AWS ECS Agent"
+    pattern: "ecs.*agent"
+    category: "cloud_orchestration"
+    severity: "medium"
+
+  - description: "Google Cloud Run"
+    pattern: "cloud.*run"
+    category: "cloud_orchestration"
+    severity: "medium"
+
+  - description: "Azure Container Instances"
+    pattern: "azure.*container"
+    category: "cloud_orchestration"
+    severity: "medium"
+
+  - description: "Serverless Framework"
+    pattern: "serverless.*framework"
+    category: "serverless"
+    severity: "low"
+
+  - description: "Knative Serving"
+    pattern: "knative.*serving"
+    category: "serverless"
+    severity: "medium"
+
+  - description: "OpenFaaS"
+    pattern: "openfaas.*gateway"
+    category: "serverless"
+    severity: "medium"
+
+  - description: "Falco Security Monitoring"
+    pattern: "falco.*security"
+    category: "security_monitoring"
+    severity: "medium"
+
+  - description: "Twistlock/Prisma Cloud"
+    pattern: "twistlock.*console"
+    category: "container_security"
+    severity: "medium"
+
+  - description: "Aqua Security"
+    pattern: "aqua.*console"
+    category: "container_security"
+    severity: "medium"

@@ -1,0 +1,202 @@
+name: "Nikto Web Vulnerability Scanner"
+description: "Comprehensive web vulnerability scanning using Nikto to detect common web application security issues"
+author: "IPCrawler YAML Plugin System"
+version: "1.0.0"
+
+metadata:
+  type: "servicescan"
+  slug: "nikto"
+  priority: 4
+  references:
+    - "https://cirt.net/Nikto2"
+    - "https://github.com/sullo/nikto"
+
+conditions:
+  services_include:
+    - "^http"
+    - "ssl/http"
+    - "^https"
+  services_exclude:
+    - "^nacn_http$"
+
+commands:
+  - description: "Nikto web vulnerability scan"
+    command: "nikto -h {url} -output {scandir}/nikto-{port}.txt"
+    timeout: 300
+
+  - description: "Nikto SSL scan"
+    command: "nikto -h {url} -ssl -output {scandir}/nikto-ssl-{port}.txt"
+    timeout: 300
+
+  - description: "Nikto comprehensive scan with plugins"
+    command: "nikto -h {url} -Plugins '@@ALL' -output {scandir}/nikto-comprehensive-{port}.txt"
+    timeout: 600
+
+  - description: "Nikto mutation testing"
+    command: "nikto -h {url} -mutate 1,2,3,4 -output {scandir}/nikto-mutate-{port}.txt"
+    timeout: 300
+
+  - description: "Nikto evasion techniques"
+    command: "nikto -h {url} -evasion 1,2,3,4 -output {scandir}/nikto-evasion-{port}.txt"
+    timeout: 300
+
+patterns:
+  - description: "Critical Vulnerability Found"
+    pattern: "\\+\\s*(CRITICAL|HIGH).*:.*"
+    category: "critical_vulnerability"
+    severity: "critical"
+
+  - description: "SQL Injection Vulnerability"
+    pattern: "\\+.*SQL.*injection|\\+.*database.*error"
+    category: "sql_injection"
+    severity: "critical"
+
+  - description: "Cross-Site Scripting (XSS)"
+    pattern: "\\+.*XSS|\\+.*cross.*site.*scripting"
+    category: "xss"
+    severity: "high"
+
+  - description: "Directory Traversal"
+    pattern: "\\+.*directory.*traversal|\\+.*path.*traversal"
+    category: "directory_traversal"
+    severity: "high"
+
+  - description: "File Inclusion Vulnerability"
+    pattern: "\\+.*(local|remote).*file.*inclusion|\\+.*LFI|\\+.*RFI"
+    category: "file_inclusion"
+    severity: "high"
+
+  - description: "Command Injection"
+    pattern: "\\+.*command.*injection|\\+.*code.*execution"
+    category: "command_injection"
+    severity: "critical"
+
+  - description: "Authentication Bypass"
+    pattern: "\\+.*authentication.*bypass|\\+.*login.*bypass"
+    category: "authentication_bypass"
+    severity: "high"
+
+  - description: "Information Disclosure"
+    pattern: "\\+.*information.*disclosure|\\+.*sensitive.*information"
+    category: "information_disclosure"
+    severity: "medium"
+
+  - description: "Configuration Files Exposed"
+    pattern: "\\+.*config.*file|\\+.*configuration.*exposed"
+    category: "config_exposure"
+    severity: "medium"
+
+  - description: "Backup Files Found"
+    pattern: "\\+.*backup.*file|\\+.*\\.bak|\\+.*\\.old"
+    category: "backup_exposure"
+    severity: "medium"
+
+  - description: "Default Credentials"
+    pattern: "\\+.*default.*credential|\\+.*default.*password"
+    category: "default_credentials"
+    severity: "high"
+
+  - description: "Admin Interface Found"
+    pattern: "\\+.*admin.*interface|\\+.*administrative.*panel"
+    category: "admin_interface"
+    severity: "medium"
+
+  - description: "Debug Information"
+    pattern: "\\+.*debug.*information|\\+.*stack.*trace"
+    category: "debug_info"
+    severity: "medium"
+
+  - description: "SSL/TLS Issues"
+    pattern: "\\+.*SSL.*issue|\\+.*certificate.*problem"
+    category: "ssl_issue"
+    severity: "medium"
+
+  - description: "HTTP Methods Allowed"
+    pattern: "\\+.*HTTP.*method.*allowed|\\+.*dangerous.*method"
+    category: "http_methods"
+    severity: "medium"
+
+  - description: "Server Information Disclosure"
+    pattern: "\\+.*Server.*banner|\\+.*server.*version"
+    category: "server_disclosure"
+    severity: "low"
+
+  - description: "CGI Scripts Found"
+    pattern: "\\+.*CGI.*script|\\+.*/cgi-bin/"
+    category: "cgi_script"
+    severity: "medium"
+
+  - description: "PHP Information"
+    pattern: "\\+.*PHP.*info|\\+.*phpinfo"
+    category: "php_info"
+    severity: "medium"
+
+  - description: "ASP.NET Tracing"
+    pattern: "\\+.*ASP.*NET.*tracing|\\+.*trace.*axd"
+    category: "asp_tracing"
+    severity: "medium"
+
+  - description: "Outdated Software"
+    pattern: "\\+.*outdated.*software|\\+.*old.*version"
+    category: "outdated_software"
+    severity: "medium"
+
+  - description: "Potentially Dangerous File"
+    pattern: "\\+.*dangerous.*file|\\+.*shell.*script"
+    category: "dangerous_file"
+    severity: "high"
+
+  - description: "Directory Listing Enabled"
+    pattern: "\\+.*directory.*listing|\\+.*index.*of"
+    category: "directory_listing"
+    severity: "medium"
+
+  - description: "Cross-Site Request Forgery"
+    pattern: "\\+.*CSRF|\\+.*cross.*site.*request"
+    category: "csrf"
+    severity: "medium"
+
+  - description: "Clickjacking Vulnerability"
+    pattern: "\\+.*clickjacking|\\+.*X-Frame-Options"
+    category: "clickjacking"
+    severity: "medium"
+
+  - description: "HTTP Security Headers Missing"
+    pattern: "\\+.*security.*header.*missing|\\+.*X-Content-Type-Options"
+    category: "missing_headers"
+    severity: "low"
+
+  - description: "Weak Encryption"
+    pattern: "\\+.*weak.*encryption|\\+.*weak.*cipher"
+    category: "weak_encryption"
+    severity: "medium"
+
+  - description: "Session Management Issue"
+    pattern: "\\+.*session.*issue|\\+.*cookie.*security"
+    category: "session_management"
+    severity: "medium"
+
+  - description: "Input Validation Issue"
+    pattern: "\\+.*input.*validation|\\+.*parameter.*injection"
+    category: "input_validation"
+    severity: "medium"
+
+  - description: "Denial of Service Potential"
+    pattern: "\\+.*denial.*of.*service|\\+.*DoS.*vulnerability"
+    category: "dos_vulnerability"
+    severity: "medium"
+
+  - description: "Buffer Overflow Potential"
+    pattern: "\\+.*buffer.*overflow|\\+.*memory.*corruption"
+    category: "buffer_overflow"
+    severity: "high"
+
+  - description: "Privilege Escalation"
+    pattern: "\\+.*privilege.*escalation|\\+.*elevation.*of.*privilege"
+    category: "privilege_escalation"
+    severity: "high"
+
+  - description: "Nikto Test Completion"
+    pattern: "\\+\\s*[0-9]+\\s*host\\(s\\)\\s*tested"
+    category: "scan_completion"
+    severity: "info"

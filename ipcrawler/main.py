@@ -766,41 +766,42 @@ async def scan_target(target):
 			ipcrawler.errors = True
 			return
 	else:
-		for plugin in target.ipcrawler.plugin_types['port']:
-			if config['proxychains'] and plugin.type == 'udp':
-				continue
+		from ipcrawler.yaml_integration import should_skip_python_plugins
+		if not should_skip_python_plugins():
+			for plugin in target.ipcrawler.plugin_types['port']:
+				if config['proxychains'] and plugin.type == 'udp':
+					continue
 
-			if config['port_scans'] and plugin.slug in config['port_scans']:
-				matching_tags = True
-				excluded_tags = False
-			else:
-				plugin_tag_set = set(plugin.tags)
+				if config['port_scans'] and plugin.slug in config['port_scans']:
+					matching_tags = True
+					excluded_tags = False
+				else:
+					plugin_tag_set = set(plugin.tags)
 
-				matching_tags = False
-				for tag_group in target.ipcrawler.tags:
-					if set(tag_group).issubset(plugin_tag_set):
-						matching_tags = True
-						break
+					matching_tags = False
+					for tag_group in target.ipcrawler.tags:
+						if set(tag_group).issubset(plugin_tag_set):
+							matching_tags = True
+							break
 
-				excluded_tags = False
-				for tag_group in target.ipcrawler.excluded_tags:
-					if set(tag_group).issubset(plugin_tag_set):
-						excluded_tags = True
-						break
+					excluded_tags = False
+					for tag_group in target.ipcrawler.excluded_tags:
+						if set(tag_group).issubset(plugin_tag_set):
+							excluded_tags = True
+							break
 
-			if matching_tags and not excluded_tags:
-				target.scans['ports'][plugin.slug] = {'plugin':plugin, 'commands':[]}
-				port_task = asyncio.create_task(port_scan(plugin, target))
-				port_task.plugin_priority = plugin.priority
-				port_task.plugin_name = plugin.name
-				pending.add(port_task)
+				if matching_tags and not excluded_tags:
+					target.scans['ports'][plugin.slug] = {'plugin':plugin, 'commands':[]}
+					port_task = asyncio.create_task(port_scan(plugin, target))
+					port_task.plugin_priority = plugin.priority
+					port_task.plugin_name = plugin.name
+					pending.add(port_task)
 
 		# Add YAML port scan tasks to pending set
 		from ipcrawler.yaml_integration import get_yaml_port_scan_tasks, should_skip_python_plugins
-		if not should_skip_python_plugins():  # Only add YAML tasks if not using yaml_plugins_only
-			yaml_port_scan_tasks = get_yaml_port_scan_tasks(target)
-			for yaml_task in yaml_port_scan_tasks:
-				pending.add(yaml_task)
+		yaml_port_scan_tasks = get_yaml_port_scan_tasks(target)
+		for yaml_task in yaml_port_scan_tasks:
+			pending.add(yaml_task)
 
 	async with ipcrawler.lock:
 		ipcrawler.scanning_targets.append(target)
@@ -1043,36 +1044,37 @@ async def scan_target(target):
 				if plugin_service_match:
 					service_match = True
 
-			for plugin in matching_plugins:
-				plugin_tag = service.tag() + '/' + plugin.slug
+			from ipcrawler.yaml_integration import should_skip_python_plugins
+			if not should_skip_python_plugins():
+				for plugin in matching_plugins:
+					plugin_tag = service.tag() + '/' + plugin.slug
 
-				if plugin.run_once_boolean:
-					plugin_tag = plugin.slug
+					if plugin.run_once_boolean:
+						plugin_tag = plugin.slug
 
-				plugin_queued = False
-				if service in target.scans['services']:
-					for s in target.scans['services']:
-						if plugin_tag in target.scans['services'][s]:
-							plugin_queued = True
-							warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (not run_once). Possible duplicate? Skipping.', verbosity=2)
-							break
+					plugin_queued = False
+					if service in target.scans['services']:
+						for s in target.scans['services']:
+							if plugin_tag in target.scans['services'][s]:
+								plugin_queued = True
+								warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (not run_once). Possible duplicate? Skipping.', verbosity=2)
+								break
 
-				if plugin_queued:
-					continue
-				else:
-					if service not in target.scans['services']:
-						target.scans['services'][service] = {}
-					target.scans['services'][service][plugin_tag] = {'plugin':plugin, 'commands':[]}
+					if plugin_queued:
+						continue
+					else:
+						if service not in target.scans['services']:
+							target.scans['services'][service] = {}
+						target.scans['services'][service][plugin_tag] = {'plugin':plugin, 'commands':[]}
 
-				# Add service enumeration task to pending set
-				pending.add(asyncio.create_task(service_scan(plugin, service)))
+					# Add service enumeration task to pending set
+					pending.add(asyncio.create_task(service_scan(plugin, service)))
 
 			# Add YAML service scan tasks to pending set
 			from ipcrawler.yaml_integration import get_yaml_service_scan_tasks
-			if not should_skip_python_plugins():  # Only add YAML tasks if not using yaml_plugins_only
-				yaml_service_scan_tasks = get_yaml_service_scan_tasks(service)
-				for yaml_task in yaml_service_scan_tasks:
-					pending.add(yaml_task)
+			yaml_service_scan_tasks = get_yaml_service_scan_tasks(service)
+			for yaml_task in yaml_service_scan_tasks:
+				pending.add(yaml_task)
 
 			if not service_match:
 				warn(f'⚠️ [{target.address}] Service {service.full_tag()} did not match any plugins', verbosity=2)

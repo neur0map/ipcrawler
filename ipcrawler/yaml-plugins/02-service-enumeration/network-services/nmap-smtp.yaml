@@ -1,0 +1,99 @@
+name: "SMTP Service Enumeration"
+description: "Comprehensive SMTP service enumeration including user enumeration, relay testing, and vulnerability detection"
+author: "IPCrawler YAML Plugin System"
+version: "1.0.0"
+
+metadata:
+  type: "servicescan"
+  slug: "nmap-smtp"
+  priority: 4
+  references:
+    - "https://tools.ietf.org/html/rfc5321"
+    - "https://nmap.org/nsedoc/scripts/smtp-enum-users.html"
+
+conditions:
+  services_include:
+    - "^smtp"
+    - "^smtps"
+    - "^submission"
+  ports_include:
+    - 25
+    - 465
+    - 587
+
+commands:
+  - description: "SMTP service detection"
+    command: "nmap -sV -p {port} --script smtp-commands {address}"
+    timeout: 60
+
+  - description: "SMTP user enumeration"
+    command: "nmap -p {port} --script smtp-enum-users --script-args smtp-enum-users.methods={{VRFY,EXPN,RCPT}} {address}"
+    timeout: 120
+
+  - description: "SMTP relay test"
+    command: "nmap -p {port} --script smtp-open-relay {address}"
+    timeout: 60
+
+  - description: "SMTP vulnerability scan"
+    command: "nmap -p {port} --script smtp-vuln* {address}"
+    timeout: 120
+
+  - description: "SMTP NTLM information"
+    command: "nmap -p {port} --script smtp-ntlm-info {address}"
+    timeout: 60
+
+patterns:
+  - description: "SMTP Server Banner"
+    pattern: "220\\s+(.+)\\s+SMTP"
+    category: "smtp_banner"
+    severity: "info"
+
+  - description: "SMTP Commands Supported"
+    pattern: "250.*([A-Z]{3,10}).*"
+    category: "smtp_commands"
+    severity: "info"
+
+  - description: "SMTP User Found"
+    pattern: "250.*(.+@.+)|User.*exists.*(.+)"
+    category: "smtp_user"
+    severity: "medium"
+
+  - description: "SMTP Open Relay"
+    pattern: "Server.*is.*open.*relay|Relay.*test.*successful"
+    category: "open_relay"
+    severity: "high"
+
+  - description: "SMTP Authentication Required"
+    pattern: "530.*Authentication.*required|250.*AUTH"
+    category: "auth_required"
+    severity: "info"
+
+  - description: "SMTP TLS/SSL Support"
+    pattern: "250.*STARTTLS|220.*TLS"
+    category: "tls_support"
+    severity: "info"
+
+  - description: "SMTP Size Limit"
+    pattern: "250.*SIZE.*([0-9]+)"
+    category: "size_limit"
+    severity: "info"
+
+  - description: "SMTP VRFY Command"
+    pattern: "250.*VRFY|252.*Cannot.*VRFY"
+    category: "vrfy_command"
+    severity: "medium"
+
+  - description: "SMTP EXPN Command"
+    pattern: "250.*EXPN|252.*Cannot.*EXPN"
+    category: "expn_command"
+    severity: "medium"
+
+  - description: "SMTP NTLM Domain"
+    pattern: "Target_Name:\\s*(.+)|NetBIOS_Domain_Name:\\s*(.+)"
+    category: "ntlm_domain"
+    severity: "medium"
+
+  - description: "SMTP Version Information"
+    pattern: "Postfix|Sendmail|Microsoft.*Exchange|qmail"
+    category: "smtp_software"
+    severity: "info"

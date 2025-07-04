@@ -1,0 +1,213 @@
+name: "SMB Vulnerability Scanner"
+description: "Comprehensive SMB vulnerability detection including EternalBlue, null sessions, and common SMB exploits"
+author: "IPCrawler YAML Plugin System"
+version: "1.0.0"
+
+metadata:
+  type: "servicescan"
+  slug: "smb-vuln"
+  priority: 4
+  references:
+    - "https://docs.microsoft.com/en-us/windows-server/storage/file-server/troubleshoot/detect-enable-and-disable-smbv1-v2-v3"
+    - "https://www.cvedetails.com/vulnerability-list/vendor_id-26/product_id-103/Microsoft-Windows.html"
+
+conditions:
+  services_include:
+    - "^smb"
+    - "^microsoft-ds"
+    - "^netbios"
+  ports_include:
+    - 139
+    - 445
+
+commands:
+  - description: "SMB version detection"
+    command: "nmap -sV -p {port} --script smb-protocols {address}"
+    timeout: 60
+
+  - description: "SMB EternalBlue vulnerability check"
+    command: "nmap -p {port} --script smb-vuln-ms17-010 {address}"
+    timeout: 60
+
+  - description: "SMB double pulsar check"
+    command: "nmap -p {port} --script smb-double-pulsar-backdoor {address}"
+    timeout: 45
+
+  - description: "SMB null session check"
+    command: "smbclient -L //{address} -N"
+    timeout: 30
+
+  - description: "SMB enum shares with null session"
+    command: "enum4linux -S {address}"
+    timeout: 60
+
+  - description: "SMB vulnerability scan comprehensive"
+    command: "nmap -p {port} --script smb-vuln* {address}"
+    timeout: 120
+
+  - description: "SMB security mode check"
+    command: "nmap -p {port} --script smb-security-mode {address}"
+    timeout: 30
+
+  - description: "SMB OS discovery"
+    command: "nmap -p {port} --script smb-os-discovery {address}"
+    timeout: 30
+
+  - description: "SMB signing check"
+    command: "nmap -p {port} --script smb2-security-mode {address}"
+    timeout: 30
+
+  - description: "SMBv1 detection"
+    command: "nmap -p {port} --script smb-protocols {address} | grep 'SMBv1'"
+    timeout: 30
+
+patterns:
+  - description: "EternalBlue Vulnerable (MS17-010)"
+    pattern: "MS17-010.*VULNERABLE"
+    category: "critical_vulnerability"
+    severity: "critical"
+
+  - description: "DoublePulsar Backdoor Detected"
+    pattern: "DoublePulsar.*INFECTED"
+    category: "backdoor"
+    severity: "critical"
+
+  - description: "SMBv1 Enabled"
+    pattern: "SMBv1.*true|dialects:.*NT LM 0.12"
+    category: "protocol_vulnerability"
+    severity: "high"
+
+  - description: "SMB Null Session Allowed"
+    pattern: "Anonymous.*login.*successful|NT_STATUS_OK"
+    category: "authentication_bypass"
+    severity: "high"
+
+  - description: "SMB Guest Access Enabled"
+    pattern: "Guest.*access.*enabled|map to guest.*Bad User"
+    category: "guest_access"
+    severity: "medium"
+
+  - description: "SMB Signing Disabled"
+    pattern: "Message signing.*disabled|required.*false"
+    category: "security_misconfiguration"
+    severity: "medium"
+
+  - description: "SMB Encryption Disabled"
+    pattern: "SMB.*encryption.*not supported"
+    category: "encryption_weakness"
+    severity: "medium"
+
+  - description: "SMB Share Discovery"
+    pattern: "Sharename.*Type.*Comment"
+    category: "information_disclosure"
+    severity: "medium"
+
+  - description: "SMB Administrative Share"
+    pattern: "\\$.*Disk.*Remote.*Admin|C\\$.*Disk.*Default.*share"
+    category: "administrative_access"
+    severity: "high"
+
+  - description: "SMB IPC Share"
+    pattern: "IPC\\$.*IPC.*Remote.*IPC"
+    category: "ipc_access"
+    severity: "medium"
+
+  - description: "SMB Print Share"
+    pattern: "print\\$.*Disk.*Printer.*Drivers"
+    category: "printer_access"
+    severity: "low"
+
+  - description: "SMB Netlogon Share"
+    pattern: "NETLOGON.*Disk.*Logon.*server.*share"
+    category: "domain_access"
+    severity: "medium"
+
+  - description: "SMB SYSVOL Share"
+    pattern: "SYSVOL.*Disk.*Logon.*server.*share"
+    category: "domain_access"
+    severity: "medium"
+
+  - description: "Windows Version Discovery"
+    pattern: "OS:\\s*Windows.*Version:\\s*([0-9\\.]+)"
+    category: "os_fingerprint"
+    severity: "info"
+
+  - description: "Windows Computer Name"
+    pattern: "Computer name:\\s*(.+)"
+    category: "hostname"
+    severity: "info"
+
+  - description: "Windows Domain Name"
+    pattern: "Domain name:\\s*(.+)"
+    category: "domain_info"
+    severity: "medium"
+
+  - description: "Windows Forest Name"
+    pattern: "Forest name:\\s*(.+)"
+    category: "domain_info"
+    severity: "medium"
+
+  - description: "SMB Dialect Negotiation"
+    pattern: "Preferred dialect:\\s*(.+)"
+    category: "protocol_info"
+    severity: "info"
+
+  - description: "SMB2/3 Security Mode"
+    pattern: "SMB2.*security.*mode:\\s*(.+)"
+    category: "security_mode"
+    severity: "info"
+
+  - description: "SMB Vulnerability CVE-2017-7494"
+    pattern: "CVE-2017-7494.*VULNERABLE"
+    category: "samba_vulnerability"
+    severity: "critical"
+
+  - description: "SMB Vulnerability CVE-2020-1472"
+    pattern: "CVE-2020-1472.*VULNERABLE|Zerologon.*VULNERABLE"
+    category: "netlogon_vulnerability"
+    severity: "critical"
+
+  - description: "SMB Vulnerability CVE-2019-1040"
+    pattern: "CVE-2019-1040.*VULNERABLE"
+    category: "authentication_vulnerability"
+    severity: "high"
+
+  - description: "SMB Vulnerability CVE-2019-1142"
+    pattern: "CVE-2019-1142.*VULNERABLE"
+    category: "authentication_vulnerability"
+    severity: "high"
+
+  - description: "SMB NTLM Relay Possible"
+    pattern: "SMB.*signing.*not.*required"
+    category: "relay_attack"
+    severity: "high"
+
+  - description: "SMB Anonymous Enumeration"
+    pattern: "Got.*domain.*info.*for.*domain"
+    category: "information_disclosure"
+    severity: "medium"
+
+  - description: "SMB User Enumeration"
+    pattern: "user:\\[.*\\].*rid:\\[.*\\]"
+    category: "user_enumeration"
+    severity: "medium"
+
+  - description: "SMB Group Enumeration"
+    pattern: "group:\\[.*\\].*rid:\\[.*\\]"
+    category: "group_enumeration"
+    severity: "medium"
+
+  - description: "SMB Password Policy"
+    pattern: "(minimum.*password.*length|maximum.*password.*age):\\s*(.+)"
+    category: "password_policy"
+    severity: "medium"
+
+  - description: "SMB Lockout Policy"
+    pattern: "(account.*lockout.*threshold|lockout.*duration):\\s*(.+)"
+    category: "lockout_policy"
+    severity: "medium"
+
+  - description: "SMB DC Name Discovery"
+    pattern: "Domain.*Controller.*Name:\\s*(.+)"
+    category: "domain_controller"
+    severity: "medium"
