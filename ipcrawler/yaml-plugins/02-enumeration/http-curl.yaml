@@ -1,0 +1,142 @@
+metadata:
+  name: "HTTP Basic Enumeration"
+  description: "Basic HTTP enumeration using curl to identify technologies and gather information"
+  type: "servicescan"
+  priority: 10
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^http", "ssl/http", "^https"]
+    exclude: ["^nacn_http$"]
+  when:
+    ip_version: ["IPv4"]
+
+options:
+  - name: "path"
+    type: "string"
+    default: "/"
+    help: "Path to curl on the web server"
+  - name: "timeout"
+    type: "integer"
+    default: 30
+    help: "Request timeout in seconds"
+  - name: "follow_redirects"
+    type: "boolean"
+    default: true
+    help: "Follow HTTP redirects"
+
+execution:
+  commands:
+    - name: "basic_curl"
+      command: "curl -s -i --max-time {timeout} {http_scheme}://{hostname}:{port}{path}"
+      output_file: "{protocol}_{port}_{http_scheme}_curl.txt"
+      timeout: 60
+    
+    - name: "curl_headers"
+      command: "curl -s -I --max-time {timeout} {http_scheme}://{hostname}:{port}{path}"
+      output_file: "{protocol}_{port}_{http_scheme}_curl_headers.txt"
+      timeout: 30
+
+  manual_commands:
+    - description: "(curl) Basic HTTP enumeration"
+      command: "curl -s -i {http_scheme}://{hostname}:{port}{path}"
+    - description: "(curl) Headers only"
+      command: "curl -s -I {http_scheme}://{hostname}:{port}{path}"
+
+output:
+  patterns:
+    # Basic information patterns
+    - pattern: "(?i)<title>([^<]+)</title>"
+      description: "Page Title: {match1}"
+      severity: "info"
+      category: "information"
+    
+    - pattern: "(?i)powered.by[:\\s]*([^\\n\\r]+)"
+      description: "Technology: Powered by {match1}"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)x-powered-by[:\\s]*([^\\n\\r]+)"
+      description: "Technology Header: X-Powered-By {match1}"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)server[:\\s]*([^\\n\\r]+)"
+      description: "Web Server: {match1}"
+      severity: "info"
+      category: "technology"
+    
+    # Security-related patterns
+    - pattern: "(?i)\\.git/|git-|/\\.git/"
+      description: "CRITICAL: Git repository exposed - source code disclosure risk"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)phpinfo\\(\\)|phpinfo"
+      description: "CRITICAL: PHP Info page exposed - configuration disclosure"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)index of /|directory listing"
+      description: "WARNING: Directory indexing enabled"
+      severity: "medium"
+      category: "security"
+    
+    # Version detection
+    - pattern: "(?i)php[/\\s]*([\\d\\.]+)"
+      description: "PHP Version {match1} detected"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)apache[/\\s]*([\\d\\.]+)"
+      description: "Apache Version {match1} detected"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)nginx[/\\s]*([\\d\\.]+)"
+      description: "Nginx Version {match1} detected"
+      severity: "info"
+      category: "version"
+
+  technology_detection:
+    # CMS Detection
+    - pattern: "(?i)wp-content|wp-includes|wordpress"
+      technology: "WordPress"
+    
+    - pattern: "(?i)laravel|laravel_session|/vendor/laravel"
+      technology: "Laravel"
+    
+    - pattern: "(?i)django|django-|/admin/login"
+      technology: "Django"
+    
+    - pattern: "(?i)flask|flask-|werkzeug"
+      technology: "Flask"
+    
+    - pattern: "(?i)joomla|/administrator/|com_content"
+      technology: "Joomla"
+    
+    - pattern: "(?i)drupal|sites/default|/user/login"
+      technology: "Drupal"
+    
+    # JavaScript Frameworks
+    - pattern: "(?i)react|react-dom|_react|__REACT"
+      technology: "React.js"
+    
+    - pattern: "(?i)vue\\.js|vue-|__VUE"
+      technology: "Vue.js"
+    
+    - pattern: "(?i)angular|ng-|@angular"
+      technology: "Angular"
+
+requirements:
+  tools:
+    - name: "curl"
+      check_command: "curl --version"
+      install_hint: "apt-get install curl"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false 

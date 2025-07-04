@@ -1,0 +1,299 @@
+metadata:
+  name: "Nmap Oracle Database Enumeration"
+  description: "Oracle database enumeration using comprehensive nmap scripts"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+  tags: ["default", "safe", "databases"]
+
+conditions:
+  services:
+    include: ["^oracle"]
+
+options:
+  - name: "min_rate"
+    type: "integer"
+    default: 5000
+    help: "Minimum packet rate per second"
+  - name: "max_rate"
+    type: "integer"
+    default: 10000
+    help: "Maximum packet rate per second"
+  - name: "timing_template"
+    type: "choice"
+    choices: ["T1", "T2", "T3", "T4", "T5"]
+    default: "T5"
+    help: "Nmap timing template"
+
+execution:
+  commands:
+    - name: "nmap_oracle_enumeration"
+      command: "nmap {nmap_extra} -{timing_template} --min-rate={min_rate} --max-rate={max_rate} -sV -p {port} --script=\"banner,(oracle* or ssl*) and not (brute or broadcast or dos or external or fuzzer)\" -oN \"{scandir}/{protocol}_{port}_oracle_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_oracle_nmap.xml\" {address}"
+      timeout: 600
+      output_file: "{protocol}_{port}_oracle_nmap.txt"
+
+  manual_commands:
+    - description: "(nmap) Oracle enumeration with scripts"
+      command: "nmap -T5 -sV -p {port} --script=\"oracle*\" {address}"
+    - description: "(nmap) Oracle SID brute-force"
+      command: "nmap {nmap_extra} -T5 --min-rate=5000 --max-rate=10000 -sV -p {port} --script=\"banner,oracle-sid-brute\" -oN \"{scandir}/{protocol}_{port}_oracle_sid-brute_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_oracle_sid-brute_nmap.xml\" {address}"
+    - description: "(sqlplus) Oracle SQL*Plus client"
+      command: "sqlplus <username>/<password>@{address}:{port}/<sid>"
+    - description: "(tnscmd10g) Oracle TNS listener commands"
+      command: "tnscmd10g version -h {address} -p {port}"
+    - description: "(oscanner) Oracle security scanner"
+      command: "oscanner -s {address} -P {port}"
+
+output:
+  patterns:
+    # Oracle Version Detection
+    - pattern: "(?i)oracle.*version[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)oracle.*database.*([\\d\\.]+)"
+      description: "Oracle Database v{match1} detected"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)oracle.*server.*([\\d\\.]+)"
+      description: "Oracle Server v{match1} detected"
+      severity: "info"
+      category: "technology"
+    
+    # SID Information
+    - pattern: "(?i)sid[:\\s]*([^\\n\\r]+)"
+      description: "Oracle SID: {match1}"
+      severity: "medium"
+      category: "enumeration"
+    
+    - pattern: "(?i)service.*name[s]?[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Service Names: {match1}"
+      severity: "medium"
+      category: "enumeration"
+    
+    - pattern: "(?i)instance.*name[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Instance Name: {match1}"
+      severity: "medium"
+      category: "enumeration"
+    
+    # TNS Listener Information
+    - pattern: "(?i)tns.*listener"
+      description: "Oracle TNS Listener detected"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)listener.*version[:\\s]*([^\\n\\r]+)"
+      description: "Oracle TNS Listener Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)listener.*status[:\\s]*([^\\n\\r]+)"
+      description: "Oracle TNS Listener Status: {match1}"
+      severity: "info"
+      category: "status"
+    
+    # Authentication and Security
+    - pattern: "(?i)authentication.*required"
+      description: "Oracle authentication required"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)authentication.*disabled"
+      description: "CRITICAL: Oracle authentication disabled"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)default.*password.*detected"
+      description: "CRITICAL: Oracle default password detected"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)weak.*password.*detected"
+      description: "HIGH: Oracle weak password detected"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)empty.*password.*detected"
+      description: "CRITICAL: Oracle empty password detected"
+      severity: "critical"
+      category: "security"
+    
+    # Database Information
+    - pattern: "(?i)database.*name[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Database Name: {match1}"
+      severity: "medium"
+      category: "enumeration"
+    
+    - pattern: "(?i)tablespace[s]?[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Tablespaces: {match1}"
+      severity: "medium"
+      category: "enumeration"
+    
+    - pattern: "(?i)user[s]?[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Users: {match1}"
+      severity: "high"
+      category: "enumeration"
+    
+    - pattern: "(?i)schema[s]?[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Schemas: {match1}"
+      severity: "medium"
+      category: "enumeration"
+    
+    # SSL/TLS Configuration
+    - pattern: "(?i)ssl.*enabled"
+      description: "Oracle SSL/TLS enabled - encrypted connections supported"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)ssl.*disabled"
+      description: "WARNING: Oracle SSL/TLS disabled - unencrypted connections"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)encryption.*enabled"
+      description: "Oracle Advanced Security encryption enabled"
+      severity: "info"
+      category: "security"
+    
+    # Configuration Information
+    - pattern: "(?i)oracle.*home[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Home Directory: {match1}"
+      severity: "low"
+      category: "configuration"
+    
+    - pattern: "(?i)oracle.*base[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Base Directory: {match1}"
+      severity: "low"
+      category: "configuration"
+    
+    - pattern: "(?i)archive.*mode[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Archive Mode: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    - pattern: "(?i)log.*mode[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Log Mode: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    # Vulnerability Patterns
+    - pattern: "(?i)oracle.*8\\.[0-1]\\."
+      description: "CRITICAL: Oracle 8.0-8.1 detected - multiple known vulnerabilities"
+      severity: "critical"
+      category: "vulnerability"
+    
+    - pattern: "(?i)oracle.*9\\.[0-2]\\."
+      description: "HIGH: Oracle 9.0-9.2 detected - known vulnerabilities"
+      severity: "high"
+      category: "vulnerability"
+    
+    - pattern: "(?i)oracle.*10\\.[0-1]\\."
+      description: "MEDIUM: Oracle 10.0-10.1 detected - check for patches"
+      severity: "medium"
+      category: "vulnerability"
+    
+    - pattern: "(?i)privilege.*escalation.*possible"
+      description: "CRITICAL: Oracle privilege escalation vulnerability detected"
+      severity: "critical"
+      category: "vulnerability"
+    
+    - pattern: "(?i)buffer.*overflow.*detected"
+      description: "CRITICAL: Oracle buffer overflow vulnerability detected"
+      severity: "critical"
+      category: "vulnerability"
+    
+    # Error Messages and Status
+    - pattern: "(?i)ORA-\\d+[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Error: {match1}"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)TNS-\\d+[:\\s]*([^\\n\\r]+)"
+      description: "Oracle TNS Error: {match1}"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)connection.*refused"
+      description: "Oracle connection refused"
+      severity: "info"
+      category: "network"
+    
+    - pattern: "(?i)invalid.*username.*password"
+      description: "Oracle authentication failed"
+      severity: "info"
+      category: "authentication"
+    
+    # Performance and Monitoring
+    - pattern: "(?i)uptime[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Uptime: {match1}"
+      severity: "info"
+      category: "statistics"
+    
+    - pattern: "(?i)sessions[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Active Sessions: {match1}"
+      severity: "info"
+      category: "statistics"
+    
+    - pattern: "(?i)processes[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Processes: {match1}"
+      severity: "info"
+      category: "statistics"
+    
+    # Backup and Recovery
+    - pattern: "(?i)backup.*file.*found"
+      description: "Oracle backup file detected - potential data exposure"
+      severity: "medium"
+      category: "data_exposure"
+    
+    - pattern: "(?i)rman.*backup.*found"
+      description: "Oracle RMAN backup detected"
+      severity: "medium"
+      category: "backup"
+    
+    - pattern: "(?i)export.*dump.*found"
+      description: "Oracle export dump file detected"
+      severity: "medium"
+      category: "data_exposure"
+    
+    # Clustering and RAC
+    - pattern: "(?i)rac.*enabled"
+      description: "Oracle Real Application Clusters (RAC) enabled"
+      severity: "info"
+      category: "configuration"
+    
+    - pattern: "(?i)cluster.*name[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Cluster Name: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    - pattern: "(?i)node.*name[:\\s]*([^\\n\\r]+)"
+      description: "Oracle Node Name: {match1}"
+      severity: "info"
+      category: "configuration"
+
+  technology_detection:
+    - pattern: "(?i)oracle.*database.*([\\d\\.]+)"
+      technology: "Oracle Database"
+      version_group: 1
+    
+    - pattern: "(?i)oracle.*server.*([\\d\\.]+)"
+      technology: "Oracle Server"
+      version_group: 1
+    
+    - pattern: "(?i)oracle.*([\\d\\.]+)"
+      technology: "Oracle"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

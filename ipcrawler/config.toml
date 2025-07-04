@@ -47,6 +47,12 @@ wordlist-size = "fast"             # Use smallest wordlists for space constraint
 # ----------------
 # proxychains = true             # Run scans through proxychains
 
+# YAML Plugin System (Phase 1)
+# ----------------------------
+enable-yaml-plugins = true        # Enable YAML-based plugins alongside Python plugins
+debug-yaml-plugins = true         # Enable detailed debugging for YAML plugin decisions
+# yaml-plugins-only = false       # Use only YAML plugins (disable Python plugins)
+
 # Accessibility
 # -------------
 # accessible = true              # Screen reader friendly output

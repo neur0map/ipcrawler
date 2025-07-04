@@ -1,0 +1,203 @@
+# YAML Plugin Schema for IPCrawler
+# This schema defines how to structure YAML-based plugins to replace Python plugins
+
+plugin_schema:
+  # === METADATA ===
+  metadata:
+    name: "string"                    # Plugin name (required)
+    description: "string"             # Human-readable description (required)
+    version: "string"                # Plugin version (optional, default: "1.0")
+    author: "string"                 # Plugin author (optional)
+    priority: "integer"              # Execution priority (optional, default: 50)
+    type: "string"                   # Plugin type: "portscan", "servicescan", "bruteforce", "reporting"
+    
+  # === EXECUTION CONDITIONS ===
+  conditions:
+    # Service/Port Matching (replaces tags and service_name matching)
+    services:
+      include: ["string"]            # Service names to include (regex patterns)
+      exclude: ["string"]            # Service names to exclude (regex patterns)
+    
+    ports:
+      include: ["integer"]           # Specific ports to include
+      exclude: ["integer"]           # Specific ports to exclude
+      ranges: ["string"]             # Port ranges like "80-8080"
+    
+    protocols:
+      include: ["tcp", "udp"]        # Protocols to include
+      exclude: ["tcp", "udp"]        # Protocols to exclude
+    
+    # Advanced Conditions (replaces complex Python logic)
+    when:
+      ssl_required: "boolean"        # Only run if SSL/TLS is present
+      ip_version: ["IPv4", "IPv6"]   # IP version restrictions
+      has_hostname: "boolean"        # Only run if hostname is available
+      custom_condition: "string"     # Custom condition expression
+    
+    # Target Restrictions
+    targets:
+      max_instances: "integer"       # Max concurrent instances per target
+      run_once: "boolean"           # Run only once per target (default: false)
+      timeout: "integer"            # Plugin timeout in seconds
+  
+  # === PLUGIN OPTIONS ===
+  options:
+    - name: "string"                # Option name
+      type: "string|integer|boolean|choice"  # Option type
+      default: "any"                # Default value
+      help: "string"                # Help text for option
+      choices: ["string"]           # Valid choices (for choice type)
+      required: "boolean"           # Is this option required?
+  
+  # === COMMAND EXECUTION ===
+  execution:
+    # Main execution commands
+    commands:
+      - name: "string"              # Command identifier
+        condition: "string"         # When to run this command (optional)
+        command: "string"           # Command template with placeholders
+        timeout: "integer"          # Command timeout (optional)
+        background: "boolean"       # Run in background (optional)
+        output_file: "string"       # Output file template (optional)
+        environment: "object"       # Environment variables (optional)
+        working_directory: "string" # Working directory (optional)
+    
+    # Manual commands (for user reference)
+    manual_commands:
+      - description: "string"       # Description of manual command
+        command: "string"           # Manual command template
+        condition: "string"         # When this manual command applies
+  
+  # === OUTPUT PROCESSING ===
+  output:
+    # Pattern matching for interesting findings
+    patterns:
+      - pattern: "string"           # Regex pattern
+        description: "string"       # Description template with {match0}, {match1} etc.
+        severity: "info|low|medium|high|critical"  # Finding severity
+        category: "string"          # Finding category
+        condition: "string"         # When to apply this pattern (optional)
+    
+    # Service detection patterns
+    service_detection:
+      - pattern: "string"           # Regex to detect new services
+        service_name: "string"      # Service name to assign
+        port_override: "integer"    # Override port number (optional)
+    
+    # Technology detection
+    technology_detection:
+      - pattern: "string"           # Regex to detect technologies
+        technology: "string"        # Technology name
+        version_group: "integer"    # Regex group containing version (optional)
+  
+  # === VALIDATION & REQUIREMENTS ===
+  requirements:
+    tools:
+      - name: "string"              # Required tool name
+        check_command: "string"     # Command to check if tool exists
+        install_hint: "string"      # How to install if missing (optional)
+    
+    files:
+      - path: "string"              # Required file path
+        description: "string"       # What this file is for
+    
+    permissions:
+      - type: "root|user|network"   # Required permission type
+        description: "string"       # Why this permission is needed
+
+  # === DEBUGGING & METADATA ===
+  debug:
+    log_level: "debug|info|warn|error"  # Default log level for this plugin
+    trace_decisions: "boolean"      # Log decision-making process
+    show_command_output: "boolean"  # Show command output in debug mode
+
+# === EXAMPLE YAML PLUGIN ===
+example_plugins:
+  simple_curl:
+    metadata:
+      name: "HTTP Basic Enumeration"
+      description: "Basic HTTP enumeration using curl"
+      type: "servicescan"
+      priority: 10
+    
+    conditions:
+      services:
+        include: ["^http", "ssl/http", "^https"]
+        exclude: ["^nacn_http$"]
+      when:
+        ip_version: ["IPv4"]
+    
+    options:
+      - name: "path"
+        type: "string"
+        default: "/"
+        help: "Path to curl on the web server"
+      - name: "timeout"
+        type: "integer"
+        default: 30
+        help: "Request timeout in seconds"
+    
+    execution:
+      commands:
+        - name: "basic_curl"
+          command: "curl -s -L --max-time {timeout} {http_scheme}://{hostname}:{port}{path}"
+          output_file: "{protocol}_{port}_{http_scheme}_curl.txt"
+          timeout: 60
+    
+    output:
+      patterns:
+        - pattern: "(?i)<title>([^<]+)</title>"
+          description: "Page Title: {match1}"
+          severity: "info"
+          category: "information"
+        - pattern: "(?i)powered.by[:\\s]*([^\\n\\r]+)"
+          description: "Technology: Powered by {match1}"
+          severity: "info"
+          category: "technology"
+      
+      technology_detection:
+        - pattern: "(?i)wordpress|wp-content"
+          technology: "WordPress"
+        - pattern: "(?i)laravel|laravel_session"
+          technology: "Laravel"
+    
+    requirements:
+      tools:
+        - name: "curl"
+          check_command: "curl --version"
+          install_hint: "apt-get install curl"
+
+  port_scanner:
+    metadata:
+      name: "Top TCP Port Scanner"
+      description: "Scans top 1000 TCP ports using nmap"
+      type: "portscan"
+      priority: 0
+    
+    conditions:
+      when:
+        custom_condition: "not target.ports"  # Only if no custom ports specified
+    
+    options:
+      - name: "top_ports"
+        type: "integer"
+        default: 1000
+        help: "Number of top ports to scan"
+    
+    execution:
+      commands:
+        - name: "nmap_scan"
+          command: "nmap {nmap_extra} -T4 --top-ports {top_ports} -sV -sC -oN \"{scandir}/_quick_tcp_nmap.txt\" -oX \"{scandir}/xml/_quick_tcp_nmap.xml\" {address}"
+          timeout: 1800
+    
+    output:
+      service_detection:
+        - pattern: "^(\\d+)/(tcp|udp)\\s+open\\s+(\\S+)"
+          service_name: "{match3}"
+          # Special handling for WinRM detection would be in post-processing
+    
+    requirements:
+      tools:
+        - name: "nmap"
+          check_command: "nmap --version"
+          install_hint: "apt-get install nmap" 

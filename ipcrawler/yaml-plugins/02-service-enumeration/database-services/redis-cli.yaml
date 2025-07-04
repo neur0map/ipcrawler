@@ -1,0 +1,236 @@
+metadata:
+  name: "Redis CLI Enumeration"
+  description: "Redis database enumeration using redis-cli commands"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+  tags: ["default", "safe", "redis"]
+
+conditions:
+  services:
+    include: ["^redis$"]
+
+execution:
+  commands:
+    - name: "redis_info"
+      command: "redis-cli -p {port} -h {address} INFO"
+      timeout: 300
+      output_file: "{protocol}_{port}_redis_info.txt"
+      condition: "tool_available"
+    
+    - name: "redis_config"
+      command: "redis-cli -p {port} -h {address} CONFIG GET '*'"
+      timeout: 300
+      output_file: "{protocol}_{port}_redis_config.txt"
+      condition: "no_auth_required"
+    
+    - name: "redis_client_list"
+      command: "redis-cli -p {port} -h {address} CLIENT LIST"
+      timeout: 300
+      output_file: "{protocol}_{port}_redis_client-list.txt"
+      condition: "no_auth_required"
+
+  manual_commands:
+    - description: "(redis-cli) Connect to Redis server"
+      command: "redis-cli -h {address} -p {port}"
+    - description: "(redis-cli) Get Redis info"
+      command: "redis-cli -h {address} -p {port} INFO"
+    - description: "(redis-cli) List all keys"
+      command: "redis-cli -h {address} -p {port} KEYS '*'"
+    - description: "(redis-cli) Get server configuration"
+      command: "redis-cli -h {address} -p {port} CONFIG GET '*'"
+    - description: "(redis-cli) Monitor Redis commands"
+      command: "redis-cli -h {address} -p {port} MONITOR"
+
+output:
+  patterns:
+    # Redis Version Detection
+    - pattern: "(?i)redis.*version[:\\s]*([^\\n\\r]+)"
+      description: "Redis Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)redis_version[:\\s]*([^\\n\\r]+)"
+      description: "Redis Server Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)redis_mode[:\\s]*([^\\n\\r]+)"
+      description: "Redis Mode: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    # Authentication and Security
+    - pattern: "(?i)NOAUTH Authentication required"
+      description: "Redis authentication required"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)requirepass[:\\s]*([^\\n\\r]+)"
+      description: "Redis password authentication configured"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)protected.*mode[:\\s]*no"
+      description: "CRITICAL: Redis protected mode disabled - unrestricted access"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)bind[:\\s]*127\\.0\\.0\\.1"
+      description: "Redis bound to localhost only"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)bind[:\\s]*0\\.0\\.0\\.0"
+      description: "WARNING: Redis bound to all interfaces"
+      severity: "medium"
+      category: "security"
+    
+    # Database Information
+    - pattern: "(?i)databases[:\\s]*([^\\n\\r]+)"
+      description: "Redis Databases: {match1}"
+      severity: "medium"
+      category: "enumeration"
+    
+    - pattern: "(?i)keyspace_hits[:\\s]*([^\\n\\r]+)"
+      description: "Redis Keyspace Hits: {match1}"
+      severity: "low"
+      category: "statistics"
+    
+    - pattern: "(?i)keyspace_misses[:\\s]*([^\\n\\r]+)"
+      description: "Redis Keyspace Misses: {match1}"
+      severity: "low"
+      category: "statistics"
+    
+    - pattern: "(?i)connected_clients[:\\s]*([^\\n\\r]+)"
+      description: "Redis Connected Clients: {match1}"
+      severity: "info"
+      category: "statistics"
+    
+    # Memory and Performance
+    - pattern: "(?i)used_memory[:\\s]*([^\\n\\r]+)"
+      description: "Redis Memory Usage: {match1}"
+      severity: "info"
+      category: "performance"
+    
+    - pattern: "(?i)used_memory_human[:\\s]*([^\\n\\r]+)"
+      description: "Redis Memory Usage (Human): {match1}"
+      severity: "info"
+      category: "performance"
+    
+    - pattern: "(?i)maxmemory[:\\s]*([^\\n\\r]+)"
+      description: "Redis Max Memory: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    # Persistence Configuration
+    - pattern: "(?i)save[:\\s]*([^\\n\\r]+)"
+      description: "Redis Save Configuration: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    - pattern: "(?i)appendonly[:\\s]*yes"
+      description: "Redis AOF (Append Only File) enabled"
+      severity: "info"
+      category: "configuration"
+    
+    - pattern: "(?i)appendonly[:\\s]*no"
+      description: "Redis AOF (Append Only File) disabled"
+      severity: "info"
+      category: "configuration"
+    
+    # Replication Information
+    - pattern: "(?i)role[:\\s]*master"
+      description: "Redis configured as master"
+      severity: "info"
+      category: "replication"
+    
+    - pattern: "(?i)role[:\\s]*slave"
+      description: "Redis configured as slave"
+      severity: "info"
+      category: "replication"
+    
+    - pattern: "(?i)master_host[:\\s]*([^\\n\\r]+)"
+      description: "Redis Master Host: {match1}"
+      severity: "medium"
+      category: "replication"
+    
+    - pattern: "(?i)connected_slaves[:\\s]*([^\\n\\r]+)"
+      description: "Redis Connected Slaves: {match1}"
+      severity: "info"
+      category: "replication"
+    
+    # Security Vulnerabilities
+    - pattern: "(?i)redis.*2\\.[0-5]\\."
+      description: "CRITICAL: Redis 2.x detected - multiple known vulnerabilities"
+      severity: "critical"
+      category: "vulnerability"
+    
+    - pattern: "(?i)redis.*[34]\\.[0-9]\\."
+      description: "WARNING: Redis 3.x/4.x detected - check for known vulnerabilities"
+      severity: "medium"
+      category: "vulnerability"
+    
+    - pattern: "(?i)eval.*lua.*script"
+      description: "Redis Lua scripting enabled - potential code execution"
+      severity: "medium"
+      category: "security"
+    
+    # Network and Connection Info
+    - pattern: "(?i)tcp_port[:\\s]*([^\\n\\r]+)"
+      description: "Redis TCP Port: {match1}"
+      severity: "info"
+      category: "network"
+    
+    - pattern: "(?i)uptime_in_seconds[:\\s]*([^\\n\\r]+)"
+      description: "Redis Uptime: {match1} seconds"
+      severity: "info"
+      category: "statistics"
+    
+    # Client Information
+    - pattern: "(?i)client.*list.*addr[:\\s]*([^\\n\\r]+)"
+      description: "Redis Client Address: {match1}"
+      severity: "info"
+      category: "enumeration"
+    
+    - pattern: "(?i)client.*list.*name[:\\s]*([^\\n\\r]+)"
+      description: "Redis Client Name: {match1}"
+      severity: "info"
+      category: "enumeration"
+    
+    # Error Messages
+    - pattern: "(?i)DENIED Redis is running in protected mode"
+      description: "Redis protected mode blocking access"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)WRONGPASS invalid username-password pair"
+      description: "Redis authentication failed"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)Connection refused"
+      description: "Redis connection refused"
+      severity: "info"
+      category: "network"
+
+  technology_detection:
+    - pattern: "(?i)redis.*version[:\\s]*([\\d\\.]+)"
+      technology: "Redis"
+      version_group: 1
+    
+    - pattern: "(?i)redis_version[:\\s]*([\\d\\.]+)"
+      technology: "Redis"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "redis-cli"
+      check_command: "redis-cli --version"
+      install_hint: "apt-get install redis-tools"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

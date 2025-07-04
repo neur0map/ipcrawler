@@ -1,0 +1,312 @@
+metadata:
+  name: "NetBIOS Name Scanning"
+  description: "NetBIOS name enumeration using nbtscan for Windows network discovery"
+  type: "servicescan"
+  priority: 10
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^smb", "^microsoft-ds", "^netbios"]
+  ports:
+    include: [137]
+  protocols:
+    include: ["udp"]
+  targets:
+    run_once: true
+  when:
+    ip_version: ["IPv4"]
+
+options:
+  - name: "timeout"
+    type: "integer"
+    default: 30
+    help: "Command timeout in seconds"
+  - name: "verbose"
+    type: "boolean"
+    default: true
+    help: "Enable verbose output"
+
+execution:
+  commands:
+    - name: "nbtscan_enumeration"
+      command: "nbtscan -rvh {ipaddress} 2>&1"
+      timeout: 30
+      output_file: "nbtscan.txt"
+
+  manual_commands:
+    - description: "(nbtscan) NetBIOS name scan with verbose output"
+      command: "nbtscan -rvh {address}"
+    - description: "(nbtscan) NetBIOS name scan for network range"
+      command: "nbtscan -r {network}/24"
+    - description: "(nbtscan) NetBIOS name scan from file"
+      command: "nbtscan -f targets.txt"
+    - description: "(nbtscan) NetBIOS name scan with timeout"
+      command: "nbtscan -t 5 {address}"
+    - description: "(nmblookup) NetBIOS name lookup"
+      command: "nmblookup -A {address}"
+    - description: "(smbclient) List NetBIOS names"
+      command: "smbclient -L {address} -N"
+
+output:
+  patterns:
+    # NetBIOS Name Detection
+    - pattern: "(?i)netbios.*name[:\\s]*([^\\n\\r\\s]+)"
+      description: "NetBIOS Name: {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<00>"
+      description: "NetBIOS Computer Name: {match2} at {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<20>"
+      description: "NetBIOS File Server: {match2} at {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<03>"
+      description: "NetBIOS Messenger Service: {match2} at {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<1C>"
+      description: "NetBIOS Domain Controller: {match2} at {match1}"
+      severity: "medium"
+      category: "netbios"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<1B>"
+      description: "NetBIOS Domain Master Browser: {match2} at {match1}"
+      severity: "medium"
+      category: "netbios"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<1D>"
+      description: "NetBIOS Master Browser: {match2} at {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<1E>"
+      description: "NetBIOS Browser Service: {match2} at {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    # Domain and Workgroup Information
+    - pattern: "(?i)domain[:\\s]*([^\\n\\r\\s]+)"
+      description: "NetBIOS Domain: {match1}"
+      severity: "info"
+      category: "domain"
+    
+    - pattern: "(?i)workgroup[:\\s]*([^\\n\\r\\s]+)"
+      description: "NetBIOS Workgroup: {match1}"
+      severity: "info"
+      category: "domain"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<1C>.*GROUP"
+      description: "NetBIOS Domain Group: {match2} at {match1}"
+      severity: "info"
+      category: "domain"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<00>.*GROUP"
+      description: "NetBIOS Workgroup: {match2} at {match1}"
+      severity: "info"
+      category: "domain"
+    
+    # MAC Address Detection
+    - pattern: "(?i)mac.*address[:\\s]*([a-fA-F0-9:-]+)"
+      description: "MAC Address: {match1}"
+      severity: "info"
+      category: "network"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+.*\\s+([a-fA-F0-9:-]+)"
+      description: "Host {match1} MAC Address: {match2}"
+      severity: "info"
+      category: "network"
+    
+    # Service Detection
+    - pattern: "(?i)file.*server.*service"
+      description: "File Server Service detected"
+      severity: "info"
+      category: "service"
+    
+    - pattern: "(?i)print.*server.*service"
+      description: "Print Server Service detected"
+      severity: "info"
+      category: "service"
+    
+    - pattern: "(?i)messenger.*service"
+      description: "Messenger Service detected"
+      severity: "info"
+      category: "service"
+    
+    - pattern: "(?i)rpc.*service"
+      description: "RPC Service detected"
+      severity: "info"
+      category: "service"
+    
+    # User and Computer Information
+    - pattern: "(?i)user[:\\s]*([^\\n\\r\\s]+)"
+      description: "NetBIOS User: {match1}"
+      severity: "info"
+      category: "user"
+    
+    - pattern: "(?i)computer[:\\s]*([^\\n\\r\\s]+)"
+      description: "NetBIOS Computer: {match1}"
+      severity: "info"
+      category: "computer"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+).*UNIQUE"
+      description: "Unique NetBIOS Name: {match2} at {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+).*GROUP"
+      description: "NetBIOS Group: {match2} at {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    # System Information
+    - pattern: "(?i)windows.*([0-9]+\\.[0-9]+)"
+      description: "Windows Version: {match1}"
+      severity: "info"
+      category: "os"
+    
+    - pattern: "(?i)windows.*server.*([0-9]{4})"
+      description: "Windows Server Version: {match1}"
+      severity: "info"
+      category: "os"
+    
+    - pattern: "(?i)windows.*(7|8|10|11)"
+      description: "Windows Desktop Version: {match1}"
+      severity: "info"
+      category: "os"
+    
+    # Security-related patterns
+    - pattern: "(?i)administrator"
+      description: "Administrator account detected"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)guest"
+      description: "Guest account detected"
+      severity: "low"
+      category: "security"
+    
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<03>.*UNIQUE"
+      description: "NetBIOS Messenger User: {match2} at {match1}"
+      severity: "info"
+      category: "user"
+    
+    # Server Roles and Services
+    - pattern: "(?i)domain.*controller"
+      description: "Domain Controller detected"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)backup.*domain.*controller"
+      description: "Backup Domain Controller detected"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)primary.*domain.*controller"
+      description: "Primary Domain Controller detected"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)master.*browser"
+      description: "Master Browser detected"
+      severity: "info"
+      category: "service"
+    
+    - pattern: "(?i)backup.*browser"
+      description: "Backup Browser detected"
+      severity: "info"
+      category: "service"
+    
+    # Error Patterns
+    - pattern: "(?i)no.*response"
+      description: "No NetBIOS response from target"
+      severity: "info"
+      category: "connectivity"
+    
+    - pattern: "(?i)timeout"
+      description: "NetBIOS query timeout"
+      severity: "info"
+      category: "connectivity"
+    
+    - pattern: "(?i)connection.*refused"
+      description: "NetBIOS connection refused"
+      severity: "info"
+      category: "connectivity"
+    
+    - pattern: "(?i)name.*not.*found"
+      description: "NetBIOS name not found"
+      severity: "info"
+      category: "connectivity"
+    
+    - pattern: "(?i)host.*unreachable"
+      description: "NetBIOS host unreachable"
+      severity: "info"
+      category: "connectivity"
+    
+    # IP Address and Host Information
+    - pattern: "(?i)([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)\\s+([^\\s]+)\\s+<([0-9A-F]{2})>"
+      description: "NetBIOS Entry: {match2} at {match1} (Type: {match3})"
+      severity: "info"
+      category: "netbios"
+    
+    # Statistics and Summary
+    - pattern: "(?i)([0-9]+).*hosts.*responded"
+      description: "NetBIOS Scan Results: {match1} hosts responded"
+      severity: "info"
+      category: "summary"
+    
+    - pattern: "(?i)([0-9]+).*names.*found"
+      description: "NetBIOS Names Found: {match1}"
+      severity: "info"
+      category: "summary"
+    
+    # Share Information (if detected)
+    - pattern: "(?i)share[:\\s]*([^\\n\\r]+)"
+      description: "NetBIOS Share: {match1}"
+      severity: "info"
+      category: "shares"
+    
+    - pattern: "(?i)disk.*share"
+      description: "NetBIOS Disk Share detected"
+      severity: "info"
+      category: "shares"
+    
+    - pattern: "(?i)printer.*share"
+      description: "NetBIOS Printer Share detected"
+      severity: "info"
+      category: "shares"
+
+  technology_detection:
+    - pattern: "(?i)windows.*server.*([0-9]{4})"
+      technology: "Windows Server"
+      version_group: 1
+    
+    - pattern: "(?i)windows.*(7|8|10|11)"
+      technology: "Windows Desktop"
+      version_group: 1
+    
+    - pattern: "(?i)windows.*([0-9]+\\.[0-9]+)"
+      technology: "Windows"
+      version_group: 1
+    
+    - pattern: "(?i)samba.*([0-9]+\\.[0-9]+)"
+      technology: "Samba"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "nbtscan"
+      check_command: "nbtscan --help"
+      install_hint: "apt-get install nbtscan"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

@@ -795,6 +795,13 @@ async def scan_target(target):
 				port_task.plugin_name = plugin.name
 				pending.add(port_task)
 
+		# Add YAML port scan tasks to pending set
+		from ipcrawler.yaml_integration import get_yaml_port_scan_tasks, should_skip_python_plugins
+		if not should_skip_python_plugins():  # Only add YAML tasks if not using yaml_plugins_only
+			yaml_port_scan_tasks = get_yaml_port_scan_tasks(target)
+			for yaml_task in yaml_port_scan_tasks:
+				pending.add(yaml_task)
+
 	async with ipcrawler.lock:
 		ipcrawler.scanning_targets.append(target)
 
@@ -1059,6 +1066,13 @@ async def scan_target(target):
 
 				# Add service enumeration task to pending set
 				pending.add(asyncio.create_task(service_scan(plugin, service)))
+
+			# Add YAML service scan tasks to pending set
+			from ipcrawler.yaml_integration import get_yaml_service_scan_tasks
+			if not should_skip_python_plugins():  # Only add YAML tasks if not using yaml_plugins_only
+				yaml_service_scan_tasks = get_yaml_service_scan_tasks(service)
+				for yaml_task in yaml_service_scan_tasks:
+					pending.add(yaml_task)
 
 			if not service_match:
 				warn(f'⚠️ [{target.address}] Service {service.full_tag()} did not match any plugins', verbosity=2)
@@ -1340,6 +1354,14 @@ async def run(initial_args):
 	ipcrawler.plugin_types['port'].sort(key=lambda x: x.priority)
 	ipcrawler.plugin_types['service'].sort(key=lambda x: x.priority)
 	ipcrawler.plugin_types['report'].sort(key=lambda x: x.priority)
+
+	# Initialize YAML plugin system
+	from ipcrawler.yaml_integration import initialize_yaml_plugins
+	yaml_initialized = initialize_yaml_plugins()
+	if yaml_initialized:
+		info('✅ YAML plugin system initialized successfully', verbosity=1)
+	else:
+		debug('YAML plugin system not enabled or failed to initialize', verbosity=2)
 
 	# Validate tool availability before proceeding with plugin checks
 	from ipcrawler.tool_validator import validate_tools

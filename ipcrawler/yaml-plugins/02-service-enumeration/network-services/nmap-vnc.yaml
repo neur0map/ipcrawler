@@ -1,0 +1,271 @@
+metadata:
+  name: "Nmap VNC"
+  description: "VNC service enumeration with security analysis using nmap scripts"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^vnc"]
+
+options:
+  - name: "min_rate"
+    type: "integer"
+    default: 5000
+    help: "Minimum packet rate per second"
+  - name: "max_rate"
+    type: "integer"
+    default: 10000
+    help: "Maximum packet rate per second"
+  - name: "timing_template"
+    type: "choice"
+    choices: ["T1", "T2", "T3", "T4", "T5"]
+    default: "T5"
+    help: "Nmap timing template"
+
+execution:
+  commands:
+    - name: "nmap_vnc_enumeration"
+      command: "nmap {nmap_extra} -{timing_template} --min-rate={min_rate} --max-rate={max_rate} -sV -p {port} --script=\"banner,(vnc* or realvnc* or ssl*) and not (brute or broadcast or dos or external or fuzzer)\" --script-args=\"unsafe=1\" -oN \"{scandir}/{protocol}_{port}_vnc_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_vnc_nmap.xml\" {address}"
+      timeout: 600
+      output_file: "{protocol}_{port}_vnc_nmap.txt"
+
+  manual_commands:
+    - description: "(nmap) VNC enumeration with comprehensive scripts"
+      command: "nmap -sV -p {port} --script=\"vnc*\" {address}"
+    - description: "(nmap) VNC authentication and info gathering"
+      command: "nmap -p {port} --script vnc-info,vnc-title {address}"
+    - description: "(vncviewer) Connect to VNC service"
+      command: "vncviewer {address}:{port}"
+
+output:
+  patterns:
+    # VNC Version Detection
+    - pattern: "(?i)vnc.*version[:\\s]*([^\\n\\r]+)"
+      description: "VNC Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)protocol.*version[:\\s]*([^\\n\\r]+)"
+      description: "VNC Protocol Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    # VNC Desktop Information
+    - pattern: "(?i)vnc.*title[:\\s]*([^\\n\\r]+)"
+      description: "VNC Desktop Title: {match1}"
+      severity: "info"
+      category: "desktop"
+    
+    - pattern: "(?i)desktop.*name[:\\s]*([^\\n\\r]+)"
+      description: "VNC Desktop Name: {match1}"
+      severity: "info"
+      category: "desktop"
+    
+    - pattern: "(?i)framebuffer.*width[:\\s]*([^\\s]+)"
+      description: "VNC Framebuffer Width: {match1}"
+      severity: "info"
+      category: "desktop"
+    
+    - pattern: "(?i)framebuffer.*height[:\\s]*([^\\s]+)"
+      description: "VNC Framebuffer Height: {match1}"
+      severity: "info"
+      category: "desktop"
+    
+    - pattern: "(?i)bits.*per.*pixel[:\\s]*([^\\s]+)"
+      description: "VNC Color Depth: {match1} bits per pixel"
+      severity: "info"
+      category: "desktop"
+    
+    # Authentication Analysis
+    - pattern: "(?i)password.*required"
+      description: "VNC password authentication enabled"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)no.*authentication"
+      description: "CRITICAL: VNC authentication disabled - open access"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)authentication.*none"
+      description: "CRITICAL: VNC no authentication - direct access possible"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)authentication.*methods[:\\s]*([^\\n\\r]+)"
+      description: "VNC Authentication Methods: {match1}"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)vnc.*auth.*([^\\n\\r]+)"
+      description: "VNC Authentication: {match1}"
+      severity: "info"
+      category: "authentication"
+    
+    # Security Features
+    - pattern: "(?i)encryption.*enabled"
+      description: "VNC encryption enabled"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)encryption.*disabled"
+      description: "WARNING: VNC encryption disabled - traffic sent in plaintext"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)security.*type[:\\s]*([^\\n\\r]+)"
+      description: "VNC Security Type: {match1}"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)tight.*security"
+      description: "VNC TightVNC security features detected"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)ultra.*security"
+      description: "VNC UltraVNC security features detected"
+      severity: "info"
+      category: "security"
+    
+    # VNC Server Information
+    - pattern: "(?i)server.*name[:\\s]*([^\\n\\r]+)"
+      description: "VNC Server Name: {match1}"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i)server.*version[:\\s]*([^\\n\\r]+)"
+      description: "VNC Server Version: {match1}"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i)tightvnc.*([\\d\\.]+)"
+      description: "TightVNC Server v{match1} detected"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i)realvnc.*([\\d\\.]+)"
+      description: "RealVNC Server v{match1} detected"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i)ultravnc.*([\\d\\.]+)"
+      description: "UltraVNC Server v{match1} detected"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i)tigervnc.*([\\d\\.]+)"
+      description: "TigerVNC Server v{match1} detected"
+      severity: "info"
+      category: "server"
+    
+    # Connection Information
+    - pattern: "(?i)connection.*established"
+      description: "VNC connection established successfully"
+      severity: "info"
+      category: "connection"
+    
+    - pattern: "(?i)connection.*refused"
+      description: "VNC connection refused"
+      severity: "info"
+      category: "connection"
+    
+    - pattern: "(?i)connection.*timeout"
+      description: "VNC connection timeout"
+      severity: "info"
+      category: "connection"
+    
+    # Display and Resolution
+    - pattern: "(?i)display.*([\\d]+x[\\d]+)"
+      description: "VNC Display Resolution: {match1}"
+      severity: "info"
+      category: "desktop"
+    
+    - pattern: "(?i)screen.*resolution[:\\s]*([^\\n\\r]+)"
+      description: "VNC Screen Resolution: {match1}"
+      severity: "info"
+      category: "desktop"
+    
+    # VNC Specific Vulnerabilities
+    - pattern: "(?i)weak.*password"
+      description: "WARNING: VNC weak password detected"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)default.*password"
+      description: "CRITICAL: VNC default password detected"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)blank.*password"
+      description: "CRITICAL: VNC blank password detected"
+      severity: "critical"
+      category: "security"
+    
+    # Protocol Specific Information
+    - pattern: "(?i)rfb.*protocol.*([\\d\\.]+)"
+      description: "RFB Protocol Version: {match1}"
+      severity: "info"
+      category: "protocol"
+    
+    - pattern: "(?i)pixel.*format[:\\s]*([^\\n\\r]+)"
+      description: "VNC Pixel Format: {match1}"
+      severity: "info"
+      category: "desktop"
+    
+    # Error Conditions
+    - pattern: "(?i)handshake.*failed"
+      description: "VNC handshake failed"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)protocol.*error"
+      description: "VNC protocol error"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)authentication.*failed"
+      description: "VNC authentication failed"
+      severity: "info"
+      category: "error"
+    
+    # Banner Information
+    - pattern: "(?i)banner[:\\s]*([^\\n\\r]+)"
+      description: "VNC Banner: {match1}"
+      severity: "info"
+      category: "banner"
+
+  technology_detection:
+    - pattern: "(?i)tightvnc\\s+([\\d\\.]+)"
+      technology: "TightVNC"
+      version_group: 1
+    
+    - pattern: "(?i)realvnc\\s+([\\d\\.]+)"
+      technology: "RealVNC"
+      version_group: 1
+    
+    - pattern: "(?i)ultravnc\\s+([\\d\\.]+)"
+      technology: "UltraVNC"
+      version_group: 1
+    
+    - pattern: "(?i)tigervnc\\s+([\\d\\.]+)"
+      technology: "TigerVNC"
+      version_group: 1
+    
+    - pattern: "(?i)vnc\\s+([\\d\\.]+)"
+      technology: "VNC"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

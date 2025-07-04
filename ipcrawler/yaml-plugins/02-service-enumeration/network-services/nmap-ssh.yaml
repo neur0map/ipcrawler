@@ -1,0 +1,223 @@
+metadata:
+  name: "Nmap SSH Enumeration"
+  description: "SSH service enumeration using comprehensive nmap scripts"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^ssh"]
+
+options:
+  - name: "min_rate"
+    type: "integer"
+    default: 5000
+    help: "Minimum packet rate per second"
+  - name: "max_rate"
+    type: "integer"
+    default: 10000
+    help: "Maximum packet rate per second"
+  - name: "timing_template"
+    type: "choice"
+    choices: ["T1", "T2", "T3", "T4", "T5"]
+    default: "T5"
+    help: "Nmap timing template"
+
+execution:
+  commands:
+    - name: "nmap_ssh_enumeration"
+      command: "nmap {nmap_extra} -{timing_template} --min-rate={min_rate} --max-rate={max_rate} -sV -p {port} --script=\"banner,ssh2-enum-algos,ssh-hostkey,ssh-auth-methods\" -oN \"{scandir}/{protocol}_{port}_ssh_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_ssh_nmap.xml\" {address}"
+      timeout: 600
+      output_file: "{protocol}_{port}_ssh_nmap.txt"
+
+  manual_commands:
+    - description: "(nmap) SSH enumeration with scripts"
+      command: "nmap -T5 -sV -p {port} --script=\"ssh*\" {address}"
+    - description: "(nmap) SSH host key and algorithms"
+      command: "nmap -p {port} --script ssh-hostkey,ssh2-enum-algos {address}"
+
+output:
+  patterns:
+    # SSH Version Detection
+    - pattern: "(?i)ssh.*version[:\\s]*([^\\n\\r]+)"
+      description: "SSH Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)openssh[_\\s]*([\\d\\.]+)"
+      description: "OpenSSH v{match1} detected - check for known vulnerabilities"
+      severity: "info"
+      category: "technology"
+    
+    # SSH Host Key Information
+    - pattern: "(?i)host.*key[:\\s]*([^\\n\\r]+)"
+      description: "SSH Host Key: {match1}"
+      severity: "info"
+      category: "host_key"
+    
+    - pattern: "(?i)rsa.*key[:\\s]*([a-fA-F0-9:]+)"
+      description: "SSH RSA Host Key Fingerprint: {match1}"
+      severity: "info"
+      category: "host_key"
+    
+    - pattern: "(?i)ecdsa.*key[:\\s]*([a-fA-F0-9:]+)"
+      description: "SSH ECDSA Host Key Fingerprint: {match1}"
+      severity: "info"
+      category: "host_key"
+    
+    - pattern: "(?i)ed25519.*key[:\\s]*([a-fA-F0-9:]+)"
+      description: "SSH Ed25519 Host Key Fingerprint: {match1}"
+      severity: "info"
+      category: "host_key"
+    
+    # Authentication Methods
+    - pattern: "(?i)authentication.*methods[:\\s]*([^\\n\\r]+)"
+      description: "SSH Auth Methods: {match1}"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)password.*authentication.*disabled"
+      description: "SSH password authentication disabled - key-based only"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)password.*authentication.*enabled"
+      description: "SSH password authentication enabled - potential brute force target"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)root.*login.*enabled"
+      description: "CRITICAL: SSH root login enabled"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)root.*login.*disabled"
+      description: "SSH root login disabled - good security practice"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)publickey.*authentication.*enabled"
+      description: "SSH public key authentication enabled"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)keyboard-interactive.*enabled"
+      description: "SSH keyboard-interactive authentication enabled"
+      severity: "info"
+      category: "authentication"
+    
+    # Encryption Algorithms
+    - pattern: "(?i)kex.*algorithms[:\\s]*([^\\n\\r]+)"
+      description: "SSH Key Exchange Algorithms: {match1}"
+      severity: "info"
+      category: "encryption"
+    
+    - pattern: "(?i)server.*host.*key.*algorithms[:\\s]*([^\\n\\r]+)"
+      description: "SSH Host Key Algorithms: {match1}"
+      severity: "info"
+      category: "encryption"
+    
+    - pattern: "(?i)encryption.*algorithms[:\\s]*([^\\n\\r]+)"
+      description: "SSH Encryption Algorithms: {match1}"
+      severity: "info"
+      category: "encryption"
+    
+    - pattern: "(?i)mac.*algorithms[:\\s]*([^\\n\\r]+)"
+      description: "SSH MAC Algorithms: {match1}"
+      severity: "info"
+      category: "encryption"
+    
+    - pattern: "(?i)compression.*algorithms[:\\s]*([^\\n\\r]+)"
+      description: "SSH Compression Algorithms: {match1}"
+      severity: "info"
+      category: "encryption"
+    
+    # Weak Algorithms Detection
+    - pattern: "(?i)diffie-hellman-group1-sha1"
+      description: "CRITICAL: Weak SSH key exchange algorithm detected - DH Group 1 SHA1"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)diffie-hellman-group14-sha1"
+      description: "WARNING: Weak SSH key exchange algorithm - DH Group 14 SHA1"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)3des-cbc"
+      description: "WARNING: Weak SSH encryption algorithm - 3DES-CBC"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)aes128-cbc|aes192-cbc|aes256-cbc"
+      description: "WARNING: CBC mode encryption detected - potential padding oracle attacks"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)hmac-md5|hmac-sha1-96"
+      description: "WARNING: Weak SSH MAC algorithm detected"
+      severity: "medium"
+      category: "security"
+    
+    # SSH Banner and Version Information
+    - pattern: "(?i)banner[:\\s]*([^\\n\\r]+)"
+      description: "SSH Banner: {match1}"
+      severity: "info"
+      category: "banner"
+    
+    - pattern: "(?i)protocol.*version[:\\s]*([^\\n\\r]+)"
+      description: "SSH Protocol Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    # SSH-1 Protocol Warning
+    - pattern: "(?i)protocol.*1\\."
+      description: "CRITICAL: SSH Protocol 1.x detected - deprecated and insecure"
+      severity: "critical"
+      category: "security"
+    
+    # SSH Configuration Issues
+    - pattern: "(?i)permit.*empty.*passwords.*yes"
+      description: "CRITICAL: SSH permits empty passwords"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)challenge.*response.*authentication.*enabled"
+      description: "SSH challenge-response authentication enabled"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)x11.*forwarding.*enabled"
+      description: "SSH X11 forwarding enabled - potential security risk"
+      severity: "low"
+      category: "security"
+    
+    - pattern: "(?i)agent.*forwarding.*enabled"
+      description: "SSH agent forwarding enabled - potential security risk"
+      severity: "low"
+      category: "security"
+
+  technology_detection:
+    - pattern: "(?i)openssh[_\\s]*([\\d\\.]+)"
+      technology: "OpenSSH"
+      version_group: 1
+    
+    - pattern: "(?i)dropbear[_\\s]*([\\d\\.]+)"
+      technology: "Dropbear SSH"
+      version_group: 1
+    
+    - pattern: "(?i)ssh.*([\\d\\.]+)"
+      technology: "SSH"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

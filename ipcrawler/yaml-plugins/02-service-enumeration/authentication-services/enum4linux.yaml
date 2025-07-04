@@ -1,0 +1,343 @@
+metadata:
+  name: "Enum4Linux SMB/CIFS Enumeration"
+  description: "SMB/CIFS enumeration for Windows and Linux systems using enum4linux tools"
+  type: "servicescan"
+  priority: 6
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^ldap", "^smb", "^microsoft-ds", "^netbios"]
+  ports:
+    tcp: [139, 389, 445]
+    udp: [137]
+  run_once: true
+  ipv4_only: true
+
+options:
+  - name: "tool"
+    type: "choice"
+    choices: ["enum4linux-ng", "enum4linux", "nmap-smb"]
+    default: "enum4linux-ng"
+    help: "Tool to use for SMB/CIFS enumeration"
+  - name: "detailed_scan"
+    type: "boolean"
+    default: true
+    help: "Perform detailed enumeration including users, groups, and policies"
+
+execution:
+  commands:
+    - name: "enum4linux_ng_scan"
+      command: "enum4linux-ng -A -d -v {address} 2>&1"
+      timeout: 300
+      output_file: "enum4linux-ng.txt"
+      condition: "tool == 'enum4linux-ng'"
+    
+    - name: "enum4linux_scan"
+      command: "enum4linux -a -M -l -d {address} 2>&1"
+      timeout: 300
+      output_file: "enum4linux.txt"
+      condition: "tool == 'enum4linux'"
+    
+    - name: "nmap_smb_enum"
+      command: "nmap -T5 --min-rate=5000 --max-rate=10000 -sS -O -p {port} --script smb-enum-users,smb-enum-shares,smb-os-discovery,smb-security-mode {address} 2>&1"
+      timeout: 180
+      output_file: "nmap_smb_enum.txt"
+      condition: "tool == 'nmap-smb'"
+    
+    - name: "nmap_smb_vulns"
+      command: "nmap -T5 --min-rate=5000 --max-rate=10000 -p {port} --script smb-vuln-* {address} 2>&1"
+      timeout: 180
+      output_file: "nmap_smb_vulns.txt"
+      condition: "tool == 'nmap-smb'"
+    
+    - name: "nmap_netbios"
+      command: "nmap -T5 --min-rate=5000 --max-rate=10000 -sU -p 137 --script nbstat {address} 2>&1"
+      timeout: 120
+      output_file: "nmap_netbios.txt"
+      condition: "tool == 'nmap-smb' and port in [137, 139]"
+
+  manual_commands:
+    - description: "(enum4linux-ng) Full enumeration"
+      command: "enum4linux-ng -A {address}"
+    - description: "(enum4linux) Legacy full enumeration"
+      command: "enum4linux -a {address}"
+    - description: "(nmap) SMB user enumeration"
+      command: "nmap -p 445 --script smb-enum-users {address}"
+    - description: "(rpcclient) RPC null session"
+      command: "rpcclient -U '' -N {address}"
+
+output:
+  patterns:
+    # Target and Session Information
+    - pattern: "(?i)target.*name[:\\s]*([^\\n\\r]+)"
+      description: "Target Name: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)target.*ip[:\\s]*([^\\n\\r]+)"
+      description: "Target IP: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)null.*session.*supported"
+      description: "CRITICAL: SMB null session supported - anonymous access possible"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)guest.*session.*supported"
+      description: "HIGH: SMB guest session supported - weak authentication"
+      severity: "high"
+      category: "security"
+    
+    # Domain and Workgroup Information
+    - pattern: "(?i)domain.*name[:\\s]*([^\\n\\r]+)"
+      description: "Domain Name: {match1}"
+      severity: "info"
+      category: "domain"
+    
+    - pattern: "(?i)workgroup[:\\s]*([^\\n\\r]+)"
+      description: "Workgroup: {match1}"
+      severity: "info"
+      category: "domain"
+    
+    - pattern: "(?i)domain.*sid[:\\s]*([^\\n\\r]+)"
+      description: "Domain SID: {match1}"
+      severity: "medium"
+      category: "identification"
+    
+    - pattern: "(?i)forest.*name[:\\s]*([^\\n\\r]+)"
+      description: "Active Directory Forest: {match1}"
+      severity: "info"
+      category: "domain"
+    
+    # Operating System Detection
+    - pattern: "(?i)os[:\\s]*([^\\n\\r]+)"
+      description: "Operating System: {match1}"
+      severity: "info"
+      category: "os_detection"
+    
+    - pattern: "(?i)server.*string[:\\s]*([^\\n\\r]+)"
+      description: "Server String: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)windows.*version[:\\s]*([^\\n\\r]+)"
+      description: "Windows Version: {match1}"
+      severity: "info"
+      category: "os_detection"
+    
+    # User Enumeration
+    - pattern: "(?i)user.*account[s]?.*found[:\\s]*([0-9]+)"
+      description: "Found {match1} user accounts"
+      severity: "high"
+      category: "enumeration"
+    
+    - pattern: "(?i)user[:\\s]*([^\\n\\r]+?)\\s*(?:rid|RID)[:\\s]*([0-9x]+)"
+      description: "User Account: {match1} (RID: {match2})"
+      severity: "high"
+      category: "users"
+    
+    - pattern: "(?i)Administrator.*account.*found"
+      description: "CRITICAL: Administrator account found"
+      severity: "critical"
+      category: "users"
+    
+    - pattern: "(?i)Guest.*account.*enabled"
+      description: "HIGH: Guest account enabled"
+      severity: "high"
+      category: "security"
+    
+    # Group Enumeration
+    - pattern: "(?i)group[s]?.*found[:\\s]*([0-9]+)"
+      description: "Found {match1} groups"
+      severity: "medium"
+      category: "enumeration"
+    
+    - pattern: "(?i)group[:\\s]*([^\\n\\r]+?)\\s*(?:rid|RID)[:\\s]*([0-9x]+)"
+      description: "Group: {match1} (RID: {match2})"
+      severity: "medium"
+      category: "groups"
+    
+    - pattern: "(?i)domain.*admins"
+      description: "Domain Admins group detected"
+      severity: "high"
+      category: "groups"
+    
+    - pattern: "(?i)enterprise.*admins"
+      description: "Enterprise Admins group detected"
+      severity: "high"
+      category: "groups"
+    
+    # Share Enumeration
+    - pattern: "(?i)share[s]?.*found[:\\s]*([0-9]+)"
+      description: "Found {match1} SMB shares"
+      severity: "medium"
+      category: "enumeration"
+    
+    - pattern: "(?i)\\[\\+\\].*share[:\\s]*([^\\n\\r]+)"
+      description: "SMB Share: {match1}"
+      severity: "medium"
+      category: "shares"
+    
+    - pattern: "(?i)ADMIN\\$.*accessible"
+      description: "CRITICAL: ADMIN$ share accessible"
+      severity: "critical"
+      category: "shares"
+    
+    - pattern: "(?i)C\\$.*accessible"
+      description: "CRITICAL: C$ drive share accessible"
+      severity: "critical"
+      category: "shares"
+    
+    # Password Policy Information
+    - pattern: "(?i)password.*policy.*information"
+      description: "Password policy information disclosed"
+      severity: "medium"
+      category: "policy"
+    
+    - pattern: "(?i)minimum.*password.*length[:\\s]*([0-9]+)"
+      description: "Minimum password length: {match1} characters"
+      severity: "info"
+      category: "policy"
+    
+    - pattern: "(?i)maximum.*password.*age[:\\s]*([^\\n\\r]+)"
+      description: "Maximum password age: {match1}"
+      severity: "info"
+      category: "policy"
+    
+    - pattern: "(?i)lockout.*threshold[:\\s]*([0-9]+)"
+      description: "Account lockout threshold: {match1} failed attempts"
+      severity: "info"
+      category: "policy"
+    
+    - pattern: "(?i)lockout.*duration[:\\s]*([^\\n\\r]+)"
+      description: "Account lockout duration: {match1}"
+      severity: "info"
+      category: "policy"
+    
+    # Security Findings
+    - pattern: "(?i)signing.*disabled"
+      description: "CRITICAL: SMB signing disabled - relay attacks possible"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)smb1.*enabled"
+      description: "HIGH: SMBv1 enabled - deprecated and vulnerable protocol"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)anonymous.*access.*allowed"
+      description: "CRITICAL: Anonymous access allowed"
+      severity: "critical"
+      category: "security"
+    
+    # Printer Information
+    - pattern: "(?i)printer[s]?.*found[:\\s]*([0-9]+)"
+      description: "Found {match1} network printers"
+      severity: "info"
+      category: "enumeration"
+    
+    - pattern: "(?i)printer[:\\s]*([^\\n\\r]+)"
+      description: "Network Printer: {match1}"
+      severity: "info"
+      category: "printers"
+    
+    # NetBIOS Information
+    - pattern: "(?i)netbios.*name[:\\s]*([^\\n\\r]+)"
+      description: "NetBIOS Name: {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)mac.*address[:\\s]*([a-fA-F0-9:]+)"
+      description: "MAC Address: {match1}"
+      severity: "info"
+      category: "network"
+    
+    # RPC Information
+    - pattern: "(?i)rpc.*endpoint.*mapper"
+      description: "RPC endpoint mapper accessible"
+      severity: "medium"
+      category: "rpc"
+    
+    - pattern: "(?i)rpc.*service[s]?.*found[:\\s]*([0-9]+)"
+      description: "Found {match1} RPC services"
+      severity: "medium"
+      category: "enumeration"
+    
+    # Vulnerability Indicators
+    - pattern: "(?i)ms08-067.*vulnerable"
+      description: "CRITICAL: MS08-067 vulnerability detected"
+      severity: "critical"
+      category: "vulnerability"
+    
+    - pattern: "(?i)ms17-010.*vulnerable"
+      description: "CRITICAL: MS17-010 (EternalBlue) vulnerability detected"
+      severity: "critical"
+      category: "vulnerability"
+    
+    - pattern: "(?i)vulnerable.*to.*([^\\n\\r]+)"
+      description: "Vulnerability: {match1}"
+      severity: "high"
+      category: "vulnerability"
+    
+    # Error Handling
+    - pattern: "(?i)access.*denied"
+      description: "Access denied - authentication may be required"
+      severity: "info"
+      category: "access_control"
+    
+    - pattern: "(?i)connection.*refused"
+      description: "Connection refused - service may be filtered"
+      severity: "low"
+      category: "connectivity"
+    
+    - pattern: "(?i)timeout.*occurred"
+      description: "Connection timeout - service may be slow or filtered"
+      severity: "low"
+      category: "connectivity"
+    
+    # Tool-specific Success Indicators
+    - pattern: "(?i)enum4linux.*complete"
+      description: "Enumeration completed successfully"
+      severity: "info"
+      category: "status"
+    
+    - pattern: "(?i)scanning.*completed"
+      description: "Scanning process completed"
+      severity: "info"
+      category: "status"
+
+  technology_detection:
+    - pattern: "(?i)samba.*([0-9]+\\.[0-9]+)"
+      technology: "Samba"
+      version_group: 1
+    
+    - pattern: "(?i)windows.*server.*([0-9]{4})"
+      technology: "Windows Server"
+      version_group: 1
+    
+    - pattern: "(?i)windows.*(XP|Vista|7|8|10|11)"
+      technology: "Windows Desktop"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "enum4linux-ng"
+      check_command: "enum4linux-ng --version"
+      install_hint: "pip3 install enum4linux-ng"
+      preferred: true
+    - name: "enum4linux"
+      check_command: "enum4linux"
+      install_hint: "apt-get install enum4linux"
+      fallback: true
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+      required: true
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

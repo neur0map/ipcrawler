@@ -1,0 +1,333 @@
+metadata:
+  name: "Nmap LDAP Enumeration"
+  description: "LDAP directory service enumeration using comprehensive nmap scripts"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^ldap"]
+
+options:
+  - name: "min_rate"
+    type: "integer"
+    default: 5000
+    help: "Minimum packet rate per second"
+  - name: "max_rate"
+    type: "integer"
+    default: 10000
+    help: "Maximum packet rate per second"
+  - name: "timing_template"
+    type: "choice"
+    choices: ["T1", "T2", "T3", "T4", "T5"]
+    default: "T5"
+    help: "Nmap timing template"
+
+execution:
+  commands:
+    - name: "nmap_ldap_enumeration"
+      command: "nmap {nmap_extra} -{timing_template} --min-rate={min_rate} --max-rate={max_rate} -sV -p {port} --script=\"banner,(ldap* or ssl*) and not (brute or broadcast or dos or external or fuzzer)\" -oN \"{scandir}/{protocol}_{port}_ldap_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_ldap_nmap.xml\" {address}"
+      timeout: 600
+      output_file: "{protocol}_{port}_ldap_nmap.txt"
+
+  manual_commands:
+    - description: "(nmap) LDAP enumeration with scripts"
+      command: "nmap -T5 -sV -p {port} --script=\"ldap*\" {address}"
+    - description: "(nmap) LDAP rootDSE information"
+      command: "nmap -p {port} --script ldap-rootdse {address}"
+    - description: "(ldapsearch) Anonymous base DN search"
+      command: "ldapsearch -x -h {address} -p {port} -s base"
+    - description: "(ldapsearch) Search all entries"
+      command: "ldapsearch -x -h {address} -p {port} -b \"<base_dn>\" \"(objectClass=*)\""
+
+output:
+  patterns:
+    # LDAP Service Information
+    - pattern: "(?i)ldap.*version[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)ldap.*server[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Server: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    # Base DN and Naming Context
+    - pattern: "(?i)base.*dn[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Base DN: {match1}"
+      severity: "medium"
+      category: "structure"
+    
+    - pattern: "(?i)naming.*context[s]?[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Naming Context: {match1}"
+      severity: "medium"
+      category: "structure"
+    
+    - pattern: "(?i)default.*naming.*context[:\\s]*([^\\n\\r]+)"
+      description: "Default Naming Context: {match1}"
+      severity: "medium"
+      category: "structure"
+    
+    - pattern: "(?i)root.*domain.*naming.*context[:\\s]*([^\\n\\r]+)"
+      description: "Root Domain Naming Context: {match1}"
+      severity: "medium"
+      category: "structure"
+    
+    - pattern: "(?i)configuration.*naming.*context[:\\s]*([^\\n\\r]+)"
+      description: "Configuration Naming Context: {match1}"
+      severity: "info"
+      category: "structure"
+    
+    - pattern: "(?i)schema.*naming.*context[:\\s]*([^\\n\\r]+)"
+      description: "Schema Naming Context: {match1}"
+      severity: "info"
+      category: "structure"
+    
+    # Domain Components and Organization
+    - pattern: "(?i)domain.*component[s]?[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Domain Components: {match1}"
+      severity: "medium"
+      category: "domain"
+    
+    - pattern: "(?i)organization[:\\s]*([^\\n\\r]+)"
+      description: "Organization: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)organizational.*unit[:\\s]*([^\\n\\r]+)"
+      description: "Organizational Unit: {match1}"
+      severity: "info"
+      category: "structure"
+    
+    # Server and Directory Information
+    - pattern: "(?i)server.*name[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Server Name: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)dns.*host.*name[:\\s]*([^\\n\\r]+)"
+      description: "DNS Hostname: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)forest.*functionality.*level[:\\s]*([^\\n\\r]+)"
+      description: "Forest Functionality Level: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    - pattern: "(?i)domain.*functionality.*level[:\\s]*([^\\n\\r]+)"
+      description: "Domain Functionality Level: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    # Authentication and Security
+    - pattern: "(?i)anonymous.*bind.*enabled"
+      description: "CRITICAL: Anonymous LDAP bind enabled - information disclosure risk"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)anonymous.*bind.*disabled"
+      description: "Anonymous LDAP bind disabled - good security practice"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)simple.*authentication.*enabled"
+      description: "LDAP simple authentication enabled"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)sasl.*mechanisms[:\\s]*([^\\n\\r]+)"
+      description: "SASL Authentication Mechanisms: {match1}"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)supported.*controls[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Supported Controls: {match1}"
+      severity: "info"
+      category: "capabilities"
+    
+    # SSL/TLS Support
+    - pattern: "(?i)startTLS.*supported"
+      description: "LDAP StartTLS supported - encrypted communication available"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)ldaps.*supported"
+      description: "LDAPS (LDAP over SSL) supported"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)ssl.*encryption.*enabled"
+      description: "LDAP SSL encryption enabled"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)tls.*encryption.*enabled"
+      description: "LDAP TLS encryption enabled"
+      severity: "info"
+      category: "security"
+    
+    # Directory Service Type
+    - pattern: "(?i)active.*directory"
+      description: "Microsoft Active Directory detected"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)openldap.*([\\d\\.]+)"
+      description: "OpenLDAP v{match1} detected"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)apache.*directory.*server"
+      description: "Apache Directory Server detected"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)novell.*edirectory"
+      description: "Novell eDirectory detected"
+      severity: "info"
+      category: "technology"
+    
+    # User and Group Information
+    - pattern: "(?i)users.*container[:\\s]*([^\\n\\r]+)"
+      description: "Users Container: {match1}"
+      severity: "medium"
+      category: "structure"
+    
+    - pattern: "(?i)groups.*container[:\\s]*([^\\n\\r]+)"
+      description: "Groups Container: {match1}"
+      severity: "medium"
+      category: "structure"
+    
+    - pattern: "(?i)computer[s]?.*container[:\\s]*([^\\n\\r]+)"
+      description: "Computers Container: {match1}"
+      severity: "medium"
+      category: "structure"
+    
+    # Schema Information
+    - pattern: "(?i)schema.*version[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Schema Version: {match1}"
+      severity: "info"
+      category: "schema"
+    
+    - pattern: "(?i)supported.*ldap.*version[s]?[:\\s]*([^\\n\\r]+)"
+      description: "Supported LDAP Versions: {match1}"
+      severity: "info"
+      category: "capabilities"
+    
+    - pattern: "(?i)supported.*extensions[:\\s]*([^\\n\\r]+)"
+      description: "LDAP Extensions: {match1}"
+      severity: "info"
+      category: "capabilities"
+    
+    # Global Catalog and Replication
+    - pattern: "(?i)global.*catalog.*port[:\\s]*([0-9]+)"
+      description: "Global Catalog Port: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    - pattern: "(?i)replication.*enabled"
+      description: "LDAP replication enabled"
+      severity: "info"
+      category: "configuration"
+    
+    # Time and Synchronization
+    - pattern: "(?i)current.*time[:\\s]*([^\\n\\r]+)"
+      description: "Server Current Time: {match1}"
+      severity: "info"
+      category: "time"
+    
+    - pattern: "(?i)domain.*controller.*functionality[:\\s]*([^\\n\\r]+)"
+      description: "Domain Controller Functionality: {match1}"
+      severity: "info"
+      category: "configuration"
+    
+    # Policy Information
+    - pattern: "(?i)password.*policy[:\\s]*([^\\n\\r]+)"
+      description: "Password Policy: {match1}"
+      severity: "medium"
+      category: "policy"
+    
+    - pattern: "(?i)lockout.*policy[:\\s]*([^\\n\\r]+)"
+      description: "Account Lockout Policy: {match1}"
+      severity: "medium"
+      category: "policy"
+    
+    # Error Messages and Access Control
+    - pattern: "(?i)insufficient.*access.*rights"
+      description: "LDAP access denied - authentication required"
+      severity: "info"
+      category: "access_control"
+    
+    - pattern: "(?i)invalid.*credentials"
+      description: "LDAP invalid credentials"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)bind.*failed"
+      description: "LDAP bind operation failed"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)search.*result.*exceeded"
+      description: "LDAP search size limit exceeded"
+      severity: "info"
+      category: "limits"
+    
+    # Vulnerability Indicators
+    - pattern: "(?i)ldap.*injection.*possible"
+      description: "CRITICAL: LDAP injection vulnerability detected"
+      severity: "critical"
+      category: "vulnerability"
+    
+    - pattern: "(?i)null.*base.*search.*allowed"
+      description: "HIGH: Null base search allowed - information disclosure"
+      severity: "high"
+      category: "security"
+    
+    # Service Status
+    - pattern: "(?i)service.*unavailable"
+      description: "LDAP service unavailable"
+      severity: "low"
+      category: "availability"
+    
+    - pattern: "(?i)timeout.*exceeded"
+      description: "LDAP operation timeout"
+      severity: "low"
+      category: "availability"
+    
+    - pattern: "(?i)connection.*refused"
+      description: "LDAP connection refused"
+      severity: "low"
+      category: "connectivity"
+
+  technology_detection:
+    - pattern: "(?i)openldap.*([\\d\\.]+)"
+      technology: "OpenLDAP"
+      version_group: 1
+    
+    - pattern: "(?i)active.*directory"
+      technology: "Microsoft Active Directory"
+    
+    - pattern: "(?i)apache.*directory.*server"
+      technology: "Apache Directory Server"
+    
+    - pattern: "(?i)novell.*edirectory"
+      technology: "Novell eDirectory"
+    
+    - pattern: "(?i)389.*directory.*server"
+      technology: "389 Directory Server"
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

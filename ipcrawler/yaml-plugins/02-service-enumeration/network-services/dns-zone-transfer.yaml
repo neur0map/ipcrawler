@@ -1,0 +1,296 @@
+metadata:
+  name: "DNS Zone Transfer"
+  description: "DNS zone transfer enumeration using dig for domain information disclosure"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^domain"]
+
+options:
+  - name: "domain"
+    type: "string"
+    default: ""
+    help: "Target domain name for zone transfer"
+  - name: "timeout"
+    type: "integer"
+    default: 30
+    help: "Timeout for DNS queries in seconds"
+
+execution:
+  commands:
+    - name: "dns_zone_transfer_domain"
+      command: "dig AXFR -p {port} @{address} {domain}"
+      timeout: "{timeout}"
+      output_file: "{protocol}_{port}_dns_zone-transfer-domain.txt"
+      condition: "domain != ''"
+    
+    - name: "dns_zone_transfer_hostname"
+      command: "dig AXFR -p {port} @{address} {address}"
+      timeout: "{timeout}"
+      output_file: "{protocol}_{port}_dns_zone-transfer-hostname.txt"
+      condition: "target_type == 'hostname'"
+    
+    - name: "dns_zone_transfer_default"
+      command: "dig AXFR -p {port} @{address}"
+      timeout: "{timeout}"
+      output_file: "{protocol}_{port}_dns_zone-transfer.txt"
+
+  manual_commands:
+    - description: "DNS zone transfer for specific domain"
+      command: "dig AXFR -p {port} @{address} <DOMAIN-NAME>"
+    - description: "DNS zone transfer with specific record types"
+      command: "dig -t AXFR -p {port} @{address} <DOMAIN-NAME>"
+    - description: "DNS zone transfer with verbose output"
+      command: "dig +trace AXFR -p {port} @{address} <DOMAIN-NAME>"
+
+output:
+  patterns:
+    # Successful Zone Transfer
+    - pattern: "(?i);.*XFR.*size:\\s*(\\d+).*records"
+      description: "DNS Zone Transfer successful - {match1} records disclosed"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i);.*Transfer.*completed"
+      description: "CRITICAL: DNS Zone Transfer completed - domain information disclosed"
+      severity: "critical"
+      category: "security"
+    
+    # Zone Transfer Denied
+    - pattern: "(?i);.*Transfer.*failed"
+      description: "DNS Zone Transfer failed - properly secured"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i);.*refused"
+      description: "DNS Zone Transfer refused - access denied"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)connection.*refused"
+      description: "DNS connection refused"
+      severity: "info"
+      category: "connection"
+    
+    # DNS Record Types in Zone Transfer
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+A\\s+([^\\s]+)"
+      description: "DNS A Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+AAAA\\s+([^\\s]+)"
+      description: "DNS AAAA Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+CNAME\\s+([^\\s]+)"
+      description: "DNS CNAME Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+MX\\s+\\d+\\s+([^\\s]+)"
+      description: "DNS MX Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+NS\\s+([^\\s]+)"
+      description: "DNS NS Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+PTR\\s+([^\\s]+)"
+      description: "DNS PTR Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+TXT\\s+\"([^\"]+)\""
+      description: "DNS TXT Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+SRV\\s+([^\\n\\r]+)"
+      description: "DNS SRV Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    # SOA Record Analysis
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+SOA\\s+([^\\s]+)\\s+([^\\s]+)\\s+([^\\n\\r]+)"
+      description: "DNS SOA Record: {match1} - Primary: {match2}, Admin: {match3}"
+      severity: "info"
+      category: "dns_record"
+    
+    # Zone Transfer Statistics
+    - pattern: "(?i);.*Query.*time:\\s*(\\d+)\\s*msec"
+      description: "DNS Query Time: {match1} milliseconds"
+      severity: "info"
+      category: "performance"
+    
+    - pattern: "(?i);.*WHEN:\\s*([^\\n\\r]+)"
+      description: "DNS Query Timestamp: {match1}"
+      severity: "info"
+      category: "metadata"
+    
+    - pattern: "(?i);.*MSG.*SIZE\\s*rcvd:\\s*(\\d+)"
+      description: "DNS Message Size: {match1} bytes"
+      severity: "info"
+      category: "metadata"
+    
+    # Server Information
+    - pattern: "(?i);.*SERVER:\\s*([^\\n\\r]+)"
+      description: "DNS Server: {match1}"
+      severity: "info"
+      category: "server"
+    
+    - pattern: "(?i);.*ADDITIONAL:\\s*(\\d+)"
+      description: "DNS Additional Records: {match1}"
+      severity: "info"
+      category: "metadata"
+    
+    - pattern: "(?i);.*ANSWER:\\s*(\\d+)"
+      description: "DNS Answer Records: {match1}"
+      severity: "info"
+      category: "metadata"
+    
+    - pattern: "(?i);.*AUTHORITY:\\s*(\\d+)"
+      description: "DNS Authority Records: {match1}"
+      severity: "info"
+      category: "metadata"
+    
+    # Special DNS Records
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+DNAME\\s+([^\\s]+)"
+      description: "DNS DNAME Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+SSHFP\\s+([^\\n\\r]+)"
+      description: "DNS SSHFP Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+TLSA\\s+([^\\n\\r]+)"
+      description: "DNS TLSA Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    # DNS Security Extensions (DNSSEC)
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+RRSIG\\s+([^\\n\\r]+)"
+      description: "DNSSEC RRSIG Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dnssec"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+DNSKEY\\s+([^\\n\\r]+)"
+      description: "DNSSEC DNSKEY Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dnssec"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+DS\\s+([^\\n\\r]+)"
+      description: "DNSSEC DS Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dnssec"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+NSEC\\s+([^\\n\\r]+)"
+      description: "DNSSEC NSEC Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dnssec"
+    
+    # Infrastructure Records
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+CAA\\s+([^\\n\\r]+)"
+      description: "DNS CAA Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+SPF\\s+([^\\n\\r]+)"
+      description: "DNS SPF Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    - pattern: "(?i)^([^\\s]+)\\s+\\d+\\s+IN\\s+DMARC\\s+([^\\n\\r]+)"
+      description: "DNS DMARC Record: {match1} -> {match2}"
+      severity: "info"
+      category: "dns_record"
+    
+    # Error Conditions
+    - pattern: "(?i)NXDOMAIN"
+      description: "DNS domain does not exist"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)SERVFAIL"
+      description: "DNS server failure"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)REFUSED"
+      description: "DNS query refused"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)TIMEOUT"
+      description: "DNS query timeout"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)FORMERR"
+      description: "DNS format error"
+      severity: "info"
+      category: "error"
+    
+    - pattern: "(?i)NOTIMPL"
+      description: "DNS operation not implemented"
+      severity: "info"
+      category: "error"
+    
+    # Interesting Hostnames
+    - pattern: "(?i)^(admin|administrator|root|mail|ftp|www|web|test|dev|stage|staging|prod|production|backup|db|database|ldap|ad|dc|dns|ns\\d*)\\."
+      description: "Interesting hostname discovered: {match1}"
+      severity: "medium"
+      category: "enumeration"
+    
+    # Internal IP Addresses
+    - pattern: "(?i)\\b(10\\.\\d+\\.\\d+\\.\\d+|172\\.[1-3]\\d\\.\\d+\\.\\d+|192\\.168\\.\\d+\\.\\d+)\\b"
+      description: "Internal IP address disclosed: {match1}"
+      severity: "medium"
+      category: "information_disclosure"
+    
+    # IPv6 Addresses
+    - pattern: "(?i)\\b([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\\b"
+      description: "IPv6 address disclosed: {match}"
+      severity: "info"
+      category: "information_disclosure"
+
+  technology_detection:
+    - pattern: "(?i)bind\\s+([\\d\\.]+)"
+      technology: "BIND"
+      version_group: 1
+    
+    - pattern: "(?i)microsoft\\s+dns\\s+([\\d\\.]+)"
+      technology: "Microsoft DNS"
+      version_group: 1
+    
+    - pattern: "(?i)powerdns\\s+([\\d\\.]+)"
+      technology: "PowerDNS"
+      version_group: 1
+    
+    - pattern: "(?i)unbound\\s+([\\d\\.]+)"
+      technology: "Unbound"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "dig"
+      check_command: "dig -v"
+      install_hint: "apt-get install dnsutils"
+  
+  global_options:
+    - name: "domain"
+      description: "Target domain name for zone transfer"
+      required: false
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

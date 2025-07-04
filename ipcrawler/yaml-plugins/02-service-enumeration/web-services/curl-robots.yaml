@@ -1,0 +1,225 @@
+metadata:
+  name: "Curl Robots.txt"
+  description: "Retrieves and analyzes robots.txt files for hidden directories and security information"
+  type: "servicescan"
+  priority: 15
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^http", "ssl/http", "^https"]
+    exclude: ["^nacn_http$"]
+  protocols:
+    include: ["tcp"]
+
+options:
+  - name: "timeout"
+    type: "integer"
+    default: 10
+    help: "HTTP request timeout in seconds"
+  - name: "follow_redirects"
+    type: "boolean"
+    default: false
+    help: "Follow HTTP redirects when fetching robots.txt"
+
+execution:
+  commands:
+    - name: "fetch_robots_txt"
+      command: "curl -sSi{follow_flag} --max-time {timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/robots.txt"
+      timeout: 30
+      output_file: "{protocol}_{port}_{http_scheme}_curl-robots_{hostname_clean}.txt"
+      environment:
+        follow_flag: "{% if follow_redirects %}L{% endif %}"
+        hostname_clean: "{{ hostname | replace('.', '_') | replace(':', '_') }}"
+
+  manual_commands:
+    - description: "(curl) Fetch robots.txt file"
+      command: "curl -sSi {http_scheme}://{hostname}:{port}/robots.txt"
+    - description: "(curl) Fetch robots.txt with redirects"
+      command: "curl -sSiL {http_scheme}://{hostname}:{port}/robots.txt"
+
+output:
+  patterns:
+    # Robots.txt directives
+    - pattern: "(?i)^Disallow:\\s*([^\\s]+)"
+      description: "Disallowed Path: {match1}"
+      severity: "info"
+      category: "robots_directive"
+    
+    - pattern: "(?i)^Allow:\\s*([^\\s]+)"
+      description: "Explicitly Allowed Path: {match1}"
+      severity: "info"
+      category: "robots_directive"
+    
+    - pattern: "(?i)^Sitemap:\\s*([^\\s]+)"
+      description: "Sitemap URL: {match1}"
+      severity: "info"
+      category: "sitemap"
+    
+    - pattern: "(?i)^Crawl-delay:\\s*([0-9]+)"
+      description: "Crawl Delay: {match1} seconds"
+      severity: "info"
+      category: "robots_directive"
+    
+    - pattern: "(?i)^User-agent:\\s*([^\\s]+)"
+      description: "User-Agent Rule: {match1}"
+      severity: "info"
+      category: "robots_directive"
+    
+    # Interesting paths and directories
+    - pattern: "(?i)/admin|/administrator|/wp-admin|/management"
+      description: "Administrative Path Found: Check for admin interfaces"
+      severity: "medium"
+      category: "admin_path"
+    
+    - pattern: "(?i)/backup|/backups|\\.bak|\\.backup|\\.old"
+      description: "Backup Path Found: Potential sensitive data exposure"
+      severity: "high"
+      category: "backup_path"
+    
+    - pattern: "(?i)/config|/configuration|\\.conf|\\.config"
+      description: "Configuration Path Found: Check for sensitive configuration files"
+      severity: "high"
+      category: "config_path"
+    
+    - pattern: "(?i)/upload|/uploads|/files|/documents"
+      description: "Upload Directory Found: Check for file upload functionality"
+      severity: "medium"
+      category: "upload_path"
+    
+    - pattern: "(?i)/api|/rest|/graphql|/v1|/v2"
+      description: "API Endpoint Found: Check for API documentation and testing"
+      severity: "medium"
+      category: "api_path"
+    
+    - pattern: "(?i)/test|/testing|/dev|/development|/staging"
+      description: "Development Path Found: Potential debug/development interface"
+      severity: "medium"
+      category: "dev_path"
+    
+    - pattern: "(?i)/private|/internal|/restricted"
+      description: "Private Path Found: Restricted area indicated"
+      severity: "medium"
+      category: "private_path"
+    
+    - pattern: "(?i)/\\.git|/\\.svn|/\\.hg"
+      description: "Version Control Directory Found: Source code disclosure risk"
+      severity: "critical"
+      category: "vcs_path"
+    
+    - pattern: "(?i)/database|/db|/mysql|/postgres|/mongo"
+      description: "Database Path Found: Database interface or dumps possible"
+      severity: "high"
+      category: "database_path"
+    
+    - pattern: "(?i)/log|/logs|/logging"
+      description: "Log Directory Found: Check for log file access"
+      severity: "medium"
+      category: "log_path"
+    
+    - pattern: "(?i)/temp|/tmp|/temporary"
+      description: "Temporary Directory Found: Check for temporary file access"
+      severity: "low"
+      category: "temp_path"
+    
+    # Security-sensitive patterns
+    - pattern: "(?i)/\\.env|/\\.htaccess|/\\.htpasswd"
+      description: "Sensitive File Found: Environment/access control file"
+      severity: "critical"
+      category: "sensitive_file"
+    
+    - pattern: "(?i)/phpinfo|/info\\.php|/test\\.php"
+      description: "PHP Info File Found: Information disclosure risk"
+      severity: "high"
+      category: "info_disclosure"
+    
+    - pattern: "(?i)/server-status|/server-info|/status"
+      description: "Server Status Page Found: Server information disclosure"
+      severity: "medium"
+      category: "server_status"
+    
+    # CMS and Framework paths
+    - pattern: "(?i)/wp-content|/wp-includes|/wp-json"
+      description: "WordPress Path Found: WordPress CMS detected"
+      severity: "info"
+      category: "cms_path"
+    
+    - pattern: "(?i)/joomla|/administrator|/components"
+      description: "Joomla Path Found: Joomla CMS detected"
+      severity: "info"
+      category: "cms_path"
+    
+    - pattern: "(?i)/drupal|/sites/default|/modules"
+      description: "Drupal Path Found: Drupal CMS detected"
+      severity: "info"
+      category: "cms_path"
+    
+    - pattern: "(?i)/laravel|/vendor|/artisan"
+      description: "Laravel Path Found: Laravel framework detected"
+      severity: "info"
+      category: "framework_path"
+    
+    - pattern: "(?i)/django|/static|/media"
+      description: "Django Path Found: Django framework detected"
+      severity: "info"
+      category: "framework_path"
+    
+    # HTTP response analysis
+    - pattern: "(?i)HTTP/[12]\\.[01]\\s+200"
+      description: "Robots.txt file found and accessible"
+      severity: "info"
+      category: "http_status"
+    
+    - pattern: "(?i)HTTP/[12]\\.[01]\\s+404"
+      description: "No robots.txt file found (404 Not Found)"
+      severity: "info"
+      category: "http_status"
+    
+    - pattern: "(?i)HTTP/[12]\\.[01]\\s+403"
+      description: "Robots.txt access forbidden (403 Forbidden)"
+      severity: "low"
+      category: "http_status"
+    
+    - pattern: "(?i)Content-Length:\\s*0"
+      description: "Empty robots.txt file found"
+      severity: "info"
+      category: "file_info"
+    
+    # Wildcard and pattern detection
+    - pattern: "(?i)Disallow:\\s*/\\*"
+      description: "Wildcard Disallow: Site may be blocking all crawlers"
+      severity: "info"
+      category: "robots_pattern"
+    
+    - pattern: "(?i)Disallow:\\s*/$"
+      description: "Root Directory Disallowed: Unusual robots.txt configuration"
+      severity: "low"
+      category: "robots_pattern"
+
+  technology_detection:
+    - pattern: "(?i)/wp-content|/wp-includes|/wp-json"
+      technology: "WordPress"
+    
+    - pattern: "(?i)/joomla|/administrator|/components"
+      technology: "Joomla"
+    
+    - pattern: "(?i)/drupal|/sites/default|/modules"
+      technology: "Drupal"
+    
+    - pattern: "(?i)/laravel|/vendor|/artisan"
+      technology: "Laravel"
+    
+    - pattern: "(?i)/django|/static|/media"
+      technology: "Django"
+
+requirements:
+  tools:
+    - name: "curl"
+      check_command: "curl --version"
+      install_hint: "apt-get install curl"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

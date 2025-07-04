@@ -1,0 +1,103 @@
+metadata:
+  name: "All TCP Ports"
+  description: "Performs an optimized Nmap scan of all TCP ports with rate limiting"
+  type: "portscan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  targets:
+    timeout: 7200  # 2 hours timeout for full scan
+
+options:
+  - name: "min_rate"
+    type: "integer"
+    default: 5000
+    help: "Minimum packet rate per second"
+  - name: "max_rate"
+    type: "integer"
+    default: 10000
+    help: "Maximum packet rate per second"
+  - name: "timing_template"
+    type: "choice"
+    choices: ["T1", "T2", "T3", "T4", "T5"]
+    default: "T5"
+    help: "Nmap timing template"
+
+execution:
+  commands:
+    - name: "full_tcp_scan_custom_ports"
+      condition: "target.ports and target.ports.tcp"
+      command: "nmap {nmap_extra}{service_opts} {timing_opts} -p {target_ports_tcp} -oN \"{scandir}/_full_tcp_nmap.txt\" -oX \"{scandir}/xml/_full_tcp_nmap.xml\" {address}"
+      timeout: 7200
+      environment:
+        service_opts: "{% if config.proxychains %} -sV{% else %} -sV -sC{% endif %}"
+        timing_opts: "{% if config.proxychains %} -T4 --min-rate=1000 --max-rate=3000{% else %} -{timing_template} --min-rate={min_rate} --max-rate={max_rate}{% endif %}"
+        target_ports_tcp: "{target.ports.tcp}"
+    
+    - name: "full_tcp_scan_all_ports"
+      condition: "not target.ports or not target.ports.tcp"
+      command: "nmap {nmap_extra}{service_opts} {timing_opts} -p- -oN \"{scandir}/_full_tcp_nmap.txt\" -oX \"{scandir}/xml/_full_tcp_nmap.xml\" {address}"
+      timeout: 7200
+      environment:
+        service_opts: "{% if config.proxychains %} -sV{% else %} -sV -sC{% endif %}"
+        timing_opts: "{% if config.proxychains %} -T4 --min-rate=1000 --max-rate=3000{% else %} -{timing_template} --min-rate={min_rate} --max-rate={max_rate}{% endif %}"
+
+  manual_commands:
+    - description: "(nmap) Full TCP port scan"
+      command: "nmap -T5 --min-rate=5000 -sV -sC -p- {address}"
+    - description: "(nmap) Full TCP scan with custom ports"
+      command: "nmap -T5 --min-rate=5000 -sV -sC -p {custom_ports} {address}"
+      condition: "target.ports"
+
+output:
+  service_detection:
+    - pattern: "^(\\d+)/(tcp|udp)\\s+open\\s+(\\S+)"
+      service_name: "{match3}"
+    # Special WinRM detection for ports 5985/5986
+    - pattern: "^(5985|5986)/tcp\\s+open\\s+http"
+      service_name: "wsman"
+
+  patterns:
+    - pattern: "(?i)Nmap scan report for ([^\\s]+)"
+      description: "Scan Target: {match1}"
+      severity: "info"
+      category: "discovery"
+    
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+open\\s+(\\S+)\\s+(.+)"
+      description: "Open Port: {match1}/{match2} - {match3} ({match4})"
+      severity: "info"
+      category: "ports"
+    
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+filtered\\s+(\\S+)"
+      description: "Filtered Port: {match1}/{match2} - {match3}"
+      severity: "info"
+      category: "ports"
+    
+    - pattern: "(?i)OS details: (.+)"
+      description: "Operating System: {match1}"
+      severity: "info"
+      category: "os_detection"
+    
+    - pattern: "(?i)Service Info: (.+)"
+      description: "Service Information: {match1}"
+      severity: "info"
+      category: "service_info"
+    
+    # Performance metrics
+    - pattern: "(?i)Nmap done: .+ scanned in ([\\d\\.]+) seconds"
+      description: "Scan completed in {match1} seconds"
+      severity: "info"
+      category: "performance"
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+
+debug:
+  log_level: "info"
+  trace_decisions: true
+  show_command_output: false

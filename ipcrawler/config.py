@@ -34,7 +34,11 @@ configurable_keys = [
 	'verbose',
 	'debug',
 	'smart_wordlists',
-	'smart_wordlists_confidence'
+	'smart_wordlists_confidence',
+	'enable_yaml_plugins',
+	'yaml_plugins_dir',
+	'debug_yaml_plugins',
+	'yaml_plugins_only'
 ]
 
 configurable_boolean_keys = [
@@ -46,7 +50,10 @@ configurable_boolean_keys = [
 	'ignore_plugin_checks',
 	'accessible',
 	'debug',
-	'smart_wordlists'
+	'smart_wordlists',
+	'enable_yaml_plugins',
+	'debug_yaml_plugins',
+	'yaml_plugins_only'
 ]
 
 config = {
@@ -85,5 +92,9 @@ config = {
 	'verbose': 0,
 	'debug': False,
 	'smart_wordlists': False,
-	'smart_wordlists_confidence': 0.7
+	'smart_wordlists_confidence': 0.7,
+	'enable_yaml_plugins': False,
+	'yaml_plugins_dir': os.path.join(os.path.dirname(os.path.realpath(__file__)), 'yaml-plugins'),
+	'debug_yaml_plugins': False,
+	'yaml_plugins_only': False
 }

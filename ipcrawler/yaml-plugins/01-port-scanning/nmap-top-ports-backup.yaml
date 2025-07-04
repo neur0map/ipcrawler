@@ -1,0 +1,130 @@
+metadata:
+  name: "Top TCP Port Scanner"
+  description: "Scans top TCP ports using nmap with service detection"
+  type: "portscan"
+  priority: 0
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  when:
+    custom_condition: "not target.ports"  # Only if no custom ports specified
+  targets:
+    timeout: 1800  # 30 minutes max
+    run_once: true
+
+options:
+  - name: "top_ports"
+    type: "integer"
+    default: 1000
+    help: "Number of top ports to scan"
+  - name: "scan_type"
+    type: "choice"
+    default: "SYN"
+    choices: ["SYN", "TCP", "UDP"]
+    help: "Type of scan to perform"
+  - name: "timing"
+    type: "choice"
+    default: "T4"
+    choices: ["T1", "T2", "T3", "T4", "T5"]
+    help: "Nmap timing template"
+
+execution:
+  commands:
+    - name: "nmap_top_ports"
+      command: "nmap {nmap_extra} -{timing} --min-rate=1000 --max-rate=5000 --host-timeout=300s --script-timeout=60s --top-ports {top_ports} -sV -sC -oN \"{scandir}/_quick_tcp_nmap.txt\" -oX \"{scandir}/xml/_quick_tcp_nmap.xml\" {address}"
+      timeout: 1800
+      background: false
+      output_file: "_quick_tcp_nmap.txt"
+
+  manual_commands:
+    - description: "(nmap) Top TCP port scan with service detection"
+      command: "nmap -T4 --top-ports {top_ports} -sV -sC {address}"
+    - description: "(nmap) Aggressive scan of top ports"
+      command: "nmap -A --top-ports {top_ports} {address}"
+
+output:
+  patterns:
+    # Open port detection
+    - pattern: "^(\\d+)/(tcp|udp)\\s+open\\s+(\\S+)"
+      description: "Open Port: {match1}/{match2} - Service: {match3}"
+      severity: "info"
+      category: "discovery"
+    
+    # Service version detection
+    - pattern: "(\\d+)/(tcp|udp)\\s+open\\s+(\\S+)\\s+(.+)"
+      description: "Service Details: Port {match1}/{match2} - {match3} - {match4}"
+      severity: "info"
+      category: "service"
+    
+    # Interesting service detection
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+open\\s+(ssh|ftp|telnet|smtp|pop3|imap|http|https|smb|rdp|vnc)"
+      description: "Interesting Service: {match3} on port {match1}/{match2}"
+      severity: "medium"
+      category: "interesting"
+    
+    # Potential vulnerabilities
+    - pattern: "(?i)vulnerable|vuln"
+      description: "Potential vulnerability detected: {match0}"
+      severity: "high"
+      category: "vulnerability"
+    
+    # OS Detection
+    - pattern: "(?i)running:?\\s*([^\\n\\r]+)"
+      description: "Operating System: {match1}"
+      severity: "info"
+      category: "os"
+    
+    # MAC Address
+    - pattern: "MAC Address: ([A-Fa-f0-9:]{17}) \\(([^)]+)\\)"
+      description: "MAC Address: {match1} - Vendor: {match2}"
+      severity: "info"
+      category: "network"
+
+  service_detection:
+    - pattern: "^(\\d+)/(tcp|udp)\\s+open\\s+(\\S+)"
+      service_name: "{match3}"
+      # Note: Port number is extracted from match1, protocol from match2
+
+  technology_detection:
+    # Web servers
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+open\\s+http.*apache"
+      technology: "Apache"
+      version_group: 0
+    
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+open\\s+http.*nginx"
+      technology: "Nginx"
+      version_group: 0
+    
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+open\\s+http.*iis"
+      technology: "IIS"
+      version_group: 0
+    
+    # Database services
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+open\\s+mysql"
+      technology: "MySQL"
+      version_group: 0
+    
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+open\\s+postgresql"
+      technology: "PostgreSQL"
+      version_group: 0
+    
+    - pattern: "(?i)(\\d+)/(tcp|udp)\\s+open\\s+ms-sql"
+      technology: "Microsoft SQL Server"
+      version_group: 0
+    
+    # Operating Systems
+    - pattern: "(?i)running:?\\s*.*(windows|linux|unix|freebsd|openbsd)"
+      technology: "{match1}"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+
+debug:
+  log_level: "info"
+  trace_decisions: true  # Enable decision tracing for port scans
+  show_command_output: false 

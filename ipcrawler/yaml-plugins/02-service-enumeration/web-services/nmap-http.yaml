@@ -1,0 +1,354 @@
+metadata:
+  name: "Nmap HTTP Enumeration"
+  description: "HTTP service enumeration using comprehensive nmap scripts"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^http", "ssl/http", "^https"]
+    exclude: ["^nacn_http$"]
+
+options:
+  - name: "min_rate"
+    type: "integer"
+    default: 5000
+    help: "Minimum packet rate per second"
+  - name: "max_rate"
+    type: "integer"
+    default: 10000
+    help: "Maximum packet rate per second"
+  - name: "timing_template"
+    type: "choice"
+    choices: ["T1", "T2", "T3", "T4", "T5"]
+    default: "T5"
+    help: "Nmap timing template"
+
+execution:
+  commands:
+    - name: "nmap_http_enumeration"
+      command: "nmap {nmap_extra} -{timing_template} --min-rate={min_rate} --max-rate={max_rate} -sV -p {port} --script=\"banner,(http* or ssl*) and not (brute or broadcast or dos or external or http-slowloris* or fuzzer)\" -oN \"{scandir}/{protocol}_{port}_{http_scheme}_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_{http_scheme}_nmap.xml\" {address}"
+      timeout: 900
+      output_file: "{protocol}_{port}_{http_scheme}_nmap.txt"
+
+  manual_commands:
+    - description: "(nmap) HTTP enumeration with scripts"
+      command: "nmap -T5 -sV -p {port} --script=\"http*\" {address}"
+    - description: "(nmap) HTTP banner and headers"
+      command: "nmap -p {port} --script http-headers,http-server-header {address}"
+
+output:
+  patterns:
+    # Web Server Detection
+    - pattern: "Server:\\s*nginx[/\\s]*([\\d\\.]+)?"
+      description: "Nginx Web Server v{match1} detected - reverse proxy/load balancer"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*Apache[/\\s]*([\\d\\.]+)?"
+      description: "Apache HTTP Server v{match1} detected - web server"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*Microsoft-IIS[/\\s]*([\\d\\.]+)?"
+      description: "Microsoft IIS v{match1} detected - Windows web server"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*cloudflare"
+      description: "Cloudflare CDN detected - traffic routing through Cloudflare infrastructure"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*LiteSpeed[/\\s]*([\\d\\.]+)?"
+      description: "LiteSpeed Web Server v{match1} detected - high-performance web server"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*Caddy[/\\s]*([\\d\\.]+)?"
+      description: "Caddy Web Server v{match1} detected - automatic HTTPS server"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*Jetty[/\\s]*([\\d\\.]+)?"
+      description: "Eclipse Jetty v{match1} detected - Java HTTP server"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*Tomcat[/\\s]*([\\d\\.]+)?"
+      description: "Apache Tomcat v{match1} detected - Java servlet container"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*Kestrel"
+      description: "Microsoft Kestrel detected - .NET Core web server"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*gunicorn[/\\s]*([\\d\\.]+)?"
+      description: "Gunicorn v{match1} detected - Python WSGI HTTP server"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*uvicorn[/\\s]*([\\d\\.]+)?"
+      description: "Uvicorn v{match1} detected - Python ASGI server (FastAPI/Starlette)"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "Server:\\s*([^\\n\\r]+)"
+      description: "HTTP Server detected: {match1} - investigate for version vulnerabilities"
+      severity: "info"
+      category: "technology"
+    
+    # Security Headers Analysis
+    - pattern: "X-Powered-By:\\s*([^\\n\\r]+)"
+      description: "Technology Stack disclosed via X-Powered-By: {match1}"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "X-AspNet-Version:\\s*([^\\n\\r]+)"
+      description: "ASP.NET Version disclosed: {match1} - check for known vulnerabilities"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "X-Frame-Options:\\s*([^\\n\\r]+)"
+      description: "X-Frame-Options header present: {match1} - clickjacking protection"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "Content-Security-Policy:\\s*([^\\n\\r]+)"
+      description: "Content Security Policy detected - XSS protection enabled"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "Strict-Transport-Security:\\s*([^\\n\\r]+)"
+      description: "HSTS header present: {match1} - HTTPS enforcement"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "X-Content-Type-Options:\\s*nosniff"
+      description: "X-Content-Type-Options: nosniff - MIME type sniffing protection"
+      severity: "info"
+      category: "security"
+    
+    # WebDAV and File Access
+    - pattern: "WebDAV is ENABLED"
+      description: "WebDAV enabled - file upload/download capabilities may be accessible"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "Allow:\\s*([^\\n\\r]*(?:PUT|DELETE|PROPFIND|MKCOL)[^\\n\\r]*)"
+      description: "HTTP methods enabled: {match1} - potential file manipulation"
+      severity: "medium"
+      category: "security"
+    
+    # Authentication and Session Management
+    - pattern: "WWW-Authenticate:\\s*([^\\n\\r]+)"
+      description: "Authentication required: {match1} - credential testing opportunity"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "Set-Cookie:\\s*([^\\n\\r]*session[^\\n\\r]*)"
+      description: "Session cookie detected: {match1} - session management analysis"
+      severity: "info"
+      category: "session"
+    
+    # Cloud and CDN Detection
+    - pattern: "CF-RAY:\\s*([a-f0-9\\-]+)"
+      description: "Cloudflare Ray ID: {match1} - traffic routed through Cloudflare"
+      severity: "info"
+      category: "infrastructure"
+    
+    - pattern: "X-Amz-"
+      description: "Amazon AWS infrastructure detected - cloud-hosted application"
+      severity: "info"
+      category: "infrastructure"
+    
+    - pattern: "X-Azure-"
+      description: "Microsoft Azure infrastructure detected - cloud-hosted application"
+      severity: "info"
+      category: "infrastructure"
+    
+    - pattern: "X-Goog-"
+      description: "Google Cloud Platform detected - cloud-hosted application"
+      severity: "info"
+      category: "infrastructure"
+    
+    # Application Framework Detection
+    - pattern: "X-Django-Version:\\s*([^\\n\\r]+)"
+      description: "Django Framework v{match1} detected - Python web framework"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "X-Rails-Version:\\s*([^\\n\\r]+)"
+      description: "Ruby on Rails v{match1} detected - Ruby web framework"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "X-Laravel-Version:\\s*([^\\n\\r]+)"
+      description: "Laravel Framework v{match1} detected - PHP web framework"
+      severity: "info"
+      category: "technology"
+    
+    # HTB/CTF Common Patterns
+    - pattern: "(?i)robots\\.txt"
+      description: "Robots.txt file detected - check for hidden directories and files"
+      severity: "info"
+      category: "discovery"
+    
+    - pattern: "(?i)sitemap\\.xml"
+      description: "Sitemap.xml detected - check for additional endpoints"
+      severity: "info"
+      category: "discovery"
+    
+    - pattern: "(?i)backup|\\.bak|\\.old|\\.backup"
+      description: "Backup files detected - potential sensitive data exposure"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)\\.env|environment|config\\."
+      description: "Configuration files detected - check for credentials and secrets"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)admin|administrator|management|dashboard"
+      description: "Administrative interface detected - check for default credentials"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)login|signin|auth|authenticate"
+      description: "Authentication endpoint detected - test for bypass techniques"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)upload|file-upload|uploader"
+      description: "File upload functionality detected - test for unrestricted file upload"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)search|query|q="
+      description: "Search functionality detected - test for SQL injection, NoSQL injection"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)debug|trace|test|dev"
+      description: "Debug/Development endpoints detected - potential information disclosure"
+      severity: "medium"
+      category: "security"
+    
+    # Database Detection
+    - pattern: "(?i)mysql|mariadb"
+      description: "MySQL/MariaDB database detected"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)postgresql|postgres"
+      description: "PostgreSQL database detected"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)mongodb|mongo"
+      description: "MongoDB NoSQL database detected"
+      severity: "info"
+      category: "technology"
+    
+    - pattern: "(?i)elasticsearch|elastic"
+      description: "Elasticsearch search engine detected"
+      severity: "info"
+      category: "technology"
+    
+    # Security Misconfigurations
+    - pattern: "(?i)directory.listing|index.of"
+      description: "Directory listing enabled - potential information disclosure"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)403.forbidden|access.denied"
+      description: "Access denied responses - potential hidden content"
+      severity: "info"
+      category: "access_control"
+    
+    - pattern: "(?i)500.internal.server.error"
+      description: "Internal server errors detected - potential debug information"
+      severity: "low"
+      category: "error"
+    
+    # Session Analysis
+    - pattern: "PHPSESSID=([A-Za-z0-9]+)"
+      description: "PHP Session ID detected: {match1} - session management analysis"
+      severity: "info"
+      category: "session"
+    
+    - pattern: "JSESSIONID=([A-F0-9]+)"
+      description: "Java Session ID detected: {match1} - session management analysis"
+      severity: "info"
+      category: "session"
+    
+    - pattern: "ASP\\.NET_SessionId=([A-Za-z0-9]+)"
+      description: "ASP.NET Session ID detected: {match1} - session management analysis"
+      severity: "info"
+      category: "session"
+    
+    - pattern: "(?i)secure;\\s*httponly"
+      description: "Secure session cookies detected - good security practice"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)samesite="
+      description: "SameSite cookie attribute detected - CSRF protection"
+      severity: "info"
+      category: "security"
+    
+    # Error Messages and Information Disclosure
+    - pattern: "(?i)stack.trace|exception|error"
+      description: "Error messages detected - potential information disclosure"
+      severity: "low"
+      category: "error"
+    
+    - pattern: "(?i)sql.syntax|mysql.error|ora-[0-9]+"
+      description: "Database error messages detected - potential SQL injection"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)path.disclosure|file.not.found"
+      description: "Path disclosure detected - filesystem information exposed"
+      severity: "low"
+      category: "information_disclosure"
+    
+    - pattern: "(?i)version.information|server.version"
+      description: "Version information disclosed - check for known vulnerabilities"
+      severity: "low"
+      category: "information_disclosure"
+
+  technology_detection:
+    - pattern: "Server:\\s*nginx[/\\s]*([\\d\\.]+)?"
+      technology: "Nginx"
+      version_group: 1
+    
+    - pattern: "Server:\\s*Apache[/\\s]*([\\d\\.]+)?"
+      technology: "Apache"
+      version_group: 1
+    
+    - pattern: "Server:\\s*Microsoft-IIS[/\\s]*([\\d\\.]+)?"
+      technology: "IIS"
+      version_group: 1
+    
+    - pattern: "X-Powered-By:\\s*PHP/([\\d\\.]+)"
+      technology: "PHP"
+      version_group: 1
+    
+    - pattern: "X-Powered-By:\\s*ASP\\.NET"
+      technology: "ASP.NET"
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

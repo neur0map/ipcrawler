@@ -1,0 +1,305 @@
+metadata:
+  name: "Nmap NFS Enumeration"
+  description: "Comprehensive NFS enumeration using nmap scripts for version detection and security analysis"
+  type: "servicescan"
+  priority: 5
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^nfs", "^rpcbind"]
+
+options:
+  - name: "min_rate"
+    type: "integer"
+    default: 5000
+    help: "Minimum packet rate per second"
+  - name: "max_rate"
+    type: "integer"
+    default: 10000
+    help: "Maximum packet rate per second"
+  - name: "timing_template"
+    type: "choice"
+    choices: ["T1", "T2", "T3", "T4", "T5"]
+    default: "T5"
+    help: "Nmap timing template"
+
+execution:
+  commands:
+    - name: "nmap_nfs_enumeration"
+      command: "nmap {nmap_extra} -{timing_template} --min-rate={min_rate} --max-rate={max_rate} -sV -p {port} --script=\"banner,(rpcinfo or nfs*) and not (brute or broadcast or dos or external or fuzzer)\" -oN \"{scandir}/{protocol}_{port}_nfs_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_nfs_nmap.xml\" {address}"
+      timeout: 600
+      output_file: "{protocol}_{port}_nfs_nmap.txt"
+
+  manual_commands:
+    - description: "(nmap) NFS enumeration with all scripts"
+      command: "nmap -p {port} --script=\"nfs*\" {address}"
+    - description: "(nmap) NFS export enumeration"
+      command: "nmap -p {port} --script=nfs-showmount {address}"
+    - description: "(nmap) NFS statistics"
+      command: "nmap -p {port} --script=nfs-statfs {address}"
+    - description: "(nmap) RPC service enumeration"
+      command: "nmap -p {port} --script=rpcinfo {address}"
+    - description: "(nmap) NFS version detection"
+      command: "nmap -p {port} --script=nfs-ls {address}"
+
+output:
+  patterns:
+    # NFS Version Detection
+    - pattern: "(?i)nfs.*version[:\\s]*([^\\n\\r]+)"
+      description: "NFS Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)nfs.*v([0-9]+)"
+      description: "NFS Version: v{match1}"
+      severity: "info"
+      category: "version"
+    
+    - pattern: "(?i)version.*([0-9]+\\.[0-9]+)"
+      description: "NFS Version: {match1}"
+      severity: "info"
+      category: "version"
+    
+    # NFS Export Detection
+    - pattern: "(?i)exports[:\\s]*([^\\n\\r]+)"
+      description: "NFS Exports: {match1}"
+      severity: "info"
+      category: "nfs_exports"
+    
+    - pattern: "(?i)nfs-showmount[:\\s]*([^\\n\\r]+)"
+      description: "NFS Showmount Results: {match1}"
+      severity: "info"
+      category: "nfs_exports"
+    
+    - pattern: "(?i)(/[^\\s]+)\\s+.*\\*"
+      description: "CRITICAL: World-readable NFS export: {match1}"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)world.*readable"
+      description: "CRITICAL: NFS world-readable exports detected"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)(/[^\\s]+)\\s+.*everyone"
+      description: "CRITICAL: NFS export accessible to everyone: {match1}"
+      severity: "critical"
+      category: "security"
+    
+    # RPC Program Detection
+    - pattern: "(?i)rpc.*programs[:\\s]*([^\\n\\r]+)"
+      description: "RPC Programs: {match1}"
+      severity: "info"
+      category: "rpc"
+    
+    - pattern: "(?i)rpcinfo[:\\s]*([^\\n\\r]+)"
+      description: "RPC Service Information: {match1}"
+      severity: "info"
+      category: "rpc"
+    
+    - pattern: "(?i)program.*([0-9]+).*version.*([0-9]+)"
+      description: "RPC Program: {match1} Version: {match2}"
+      severity: "info"
+      category: "rpc"
+    
+    # NFS Service Detection
+    - pattern: "(?i)nfs.*service.*([^\\n\\r]+)"
+      description: "NFS Service: {match1}"
+      severity: "info"
+      category: "service"
+    
+    - pattern: "(?i)mountd.*service.*([^\\n\\r]+)"
+      description: "Mount Daemon Service: {match1}"
+      severity: "info"
+      category: "service"
+    
+    - pattern: "(?i)portmapper.*service.*([^\\n\\r]+)"
+      description: "Portmapper Service: {match1}"
+      severity: "info"
+      category: "service"
+    
+    # File System Information
+    - pattern: "(?i)nfs-statfs[:\\s]*([^\\n\\r]+)"
+      description: "NFS Filesystem Statistics: {match1}"
+      severity: "info"
+      category: "filesystem"
+    
+    - pattern: "(?i)total.*space[:\\s]*([^\\n\\r]+)"
+      description: "NFS Total Space: {match1}"
+      severity: "info"
+      category: "filesystem"
+    
+    - pattern: "(?i)available.*space[:\\s]*([^\\n\\r]+)"
+      description: "NFS Available Space: {match1}"
+      severity: "info"
+      category: "filesystem"
+    
+    - pattern: "(?i)block.*size[:\\s]*([^\\n\\r]+)"
+      description: "NFS Block Size: {match1}"
+      severity: "info"
+      category: "filesystem"
+    
+    # Directory Listing
+    - pattern: "(?i)nfs-ls[:\\s]*([^\\n\\r]+)"
+      description: "NFS Directory Listing: {match1}"
+      severity: "info"
+      category: "enumeration"
+    
+    - pattern: "(?i)files.*found[:\\s]*([^\\n\\r]+)"
+      description: "NFS Files Found: {match1}"
+      severity: "info"
+      category: "enumeration"
+    
+    - pattern: "(?i)directories.*found[:\\s]*([^\\n\\r]+)"
+      description: "NFS Directories Found: {match1}"
+      severity: "info"
+      category: "enumeration"
+    
+    # Security-related patterns
+    - pattern: "(?i)no_root_squash"
+      description: "CRITICAL: NFS no_root_squash option detected - root access possible"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)root_squash"
+      description: "NFS root_squash enabled - good security practice"
+      severity: "info"
+      category: "security"
+    
+    - pattern: "(?i)all_squash"
+      description: "NFS all_squash enabled - enhanced security"
+      severity: "info"
+      category: "security"
+    
+    # Access Control
+    - pattern: "(?i)access.*denied"
+      description: "NFS access denied"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)permission.*denied"
+      description: "NFS permission denied"
+      severity: "info"
+      category: "authentication"
+    
+    - pattern: "(?i)authentication.*required"
+      description: "NFS authentication required"
+      severity: "info"
+      category: "authentication"
+    
+    # Protocol and Transport
+    - pattern: "(?i)tcp.*nfs"
+      description: "NFS over TCP transport"
+      severity: "info"
+      category: "transport"
+    
+    - pattern: "(?i)udp.*nfs"
+      description: "NFS over UDP transport"
+      severity: "info"
+      category: "transport"
+    
+    - pattern: "(?i)port.*([0-9]+).*nfs"
+      description: "NFS running on port: {match1}"
+      severity: "info"
+      category: "network"
+    
+    # Error Patterns
+    - pattern: "(?i)connection.*refused"
+      description: "NFS connection refused"
+      severity: "info"
+      category: "connectivity"
+    
+    - pattern: "(?i)timeout"
+      description: "NFS connection timeout"
+      severity: "info"
+      category: "connectivity"
+    
+    - pattern: "(?i)host.*unreachable"
+      description: "NFS host unreachable"
+      severity: "info"
+      category: "connectivity"
+    
+    - pattern: "(?i)service.*unavailable"
+      description: "NFS service unavailable"
+      severity: "info"
+      category: "connectivity"
+    
+    # Legacy NFS Version Warnings
+    - pattern: "(?i)nfs.*version.*[12]\\."
+      description: "WARNING: Legacy NFS version detected - security risks"
+      severity: "medium"
+      category: "security"
+    
+    - pattern: "(?i)nfs.*v[12]"
+      description: "WARNING: Legacy NFS version detected - security risks"
+      severity: "medium"
+      category: "security"
+    
+    # Sensitive Directory Exports
+    - pattern: "(?i)(/home[/\\s])"
+      description: "WARNING: Home directory NFS export detected"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)(/root[/\\s])"
+      description: "CRITICAL: Root directory NFS export detected"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)(/etc[/\\s])"
+      description: "HIGH: System configuration directory NFS export"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)(/var[/\\s])"
+      description: "MEDIUM: Variable data directory NFS export"
+      severity: "medium"
+      category: "security"
+    
+    # Mount Information
+    - pattern: "(?i)mounted.*by.*([^\\n\\r]+)"
+      description: "NFS mounted by: {match1}"
+      severity: "info"
+      category: "nfs_clients"
+    
+    - pattern: "(?i)mount.*point[:\\s]*([^\\n\\r]+)"
+      description: "NFS Mount Point: {match1}"
+      severity: "info"
+      category: "nfs_exports"
+
+  technology_detection:
+    - pattern: "(?i)nfs.*version.*([0-9]+\\.[0-9]+)"
+      technology: "NFS"
+      version_group: 1
+    
+    - pattern: "(?i)nfs.*v([0-9]+)"
+      technology: "NFS"
+      version_group: 1
+    
+    - pattern: "(?i)linux"
+      technology: "Linux NFS Server"
+    
+    - pattern: "(?i)solaris"
+      technology: "Solaris NFS Server"
+    
+    - pattern: "(?i)freebsd"
+      technology: "FreeBSD NFS Server"
+    
+    - pattern: "(?i)netapp"
+      technology: "NetApp NFS Server"
+    
+    - pattern: "(?i)emc"
+      technology: "EMC NFS Server"
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false

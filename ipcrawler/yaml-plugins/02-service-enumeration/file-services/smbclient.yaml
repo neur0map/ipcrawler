@@ -1,0 +1,277 @@
+metadata:
+  name: "SMBClient Share Enumeration"
+  description: "SMB share enumeration and access testing using smbclient"
+  type: "servicescan"
+  priority: 6
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  services:
+    include: ["^smb", "^microsoft-ds", "^netbios"]
+  ports:
+    tcp: [139, 445]
+  run_once: true
+
+options:
+  - name: "timeout"
+    type: "integer"
+    default: 30
+    help: "Connection timeout in seconds"
+  - name: "null_session"
+    type: "boolean"
+    default: true
+    help: "Attempt null session authentication"
+
+execution:
+  commands:
+    - name: "smbclient_share_enumeration"
+      command: "smbclient -L //{address} -N -I {address} 2>&1"
+      timeout: 60
+      output_file: "smbclient.txt"
+    
+    - name: "smbclient_with_user"
+      command: "smbclient -L //{address} -U guest -I {address} 2>&1"
+      timeout: 60
+      output_file: "smbclient_guest.txt"
+
+  manual_commands:
+    - description: "(smbclient) List shares with null session"
+      command: "smbclient -L //{address} -N"
+    - description: "(smbclient) List shares with guest user"
+      command: "smbclient -L //{address} -U guest"
+    - description: "(smbclient) Connect to specific share"
+      command: "smbclient //{address}/<sharename> -N"
+    - description: "(smbmap) Alternative share enumeration"
+      command: "smbmap -H {address}"
+
+output:
+  patterns:
+    # Share Detection and Access
+    - pattern: "(?i)sharename.*type.*comment"
+      description: "SMB shares listing detected - analyzing share information"
+      severity: "info"
+      category: "enumeration"
+    
+    - pattern: "(?i)([A-Za-z0-9$_-]+)\\s+Disk\\s*([^\\n\\r]*)"
+      description: "SMB Disk Share: {match1} - {match2}"
+      severity: "medium"
+      category: "shares"
+    
+    - pattern: "(?i)([A-Za-z0-9$_-]+)\\s+Printer\\s*([^\\n\\r]*)"
+      description: "SMB Printer Share: {match1} - {match2}"
+      severity: "info"
+      category: "shares"
+    
+    - pattern: "(?i)([A-Za-z0-9$_-]+)\\s+IPC\\s*([^\\n\\r]*)"
+      description: "SMB IPC Share: {match1} - {match2}"
+      severity: "info"
+      category: "shares"
+    
+    # Administrative and System Shares
+    - pattern: "(?i)ADMIN\\$"
+      description: "CRITICAL: Administrative share ADMIN$ detected - system access possible"
+      severity: "critical"
+      category: "shares"
+    
+    - pattern: "(?i)C\\$"
+      description: "CRITICAL: System drive share C$ detected - file system access"
+      severity: "critical"
+      category: "shares"
+    
+    - pattern: "(?i)D\\$|E\\$|F\\$"
+      description: "HIGH: Additional drive shares detected - extended file system access"
+      severity: "high"
+      category: "shares"
+    
+    - pattern: "(?i)IPC\\$"
+      description: "IPC share detected - inter-process communication channel"
+      severity: "info"
+      category: "shares"
+    
+    # Common Sensitive Shares
+    - pattern: "(?i)\\bshare\\b.*backup|backup.*share"
+      description: "Backup share detected - potential sensitive data exposure"
+      severity: "high"
+      category: "shares"
+    
+    - pattern: "(?i)\\bshare\\b.*users?|users?.*share"
+      description: "User share detected - potential personal data access"
+      severity: "medium"
+      category: "shares"
+    
+    - pattern: "(?i)\\bshare\\b.*public|public.*share"
+      description: "Public share detected - check for sensitive information"
+      severity: "medium"
+      category: "shares"
+    
+    - pattern: "(?i)\\bshare\\b.*temp|temp.*share"
+      description: "Temporary share detected - check for residual data"
+      severity: "medium"
+      category: "shares"
+    
+    - pattern: "(?i)\\bshare\\b.*data|data.*share"
+      description: "Data share detected - potential business information"
+      severity: "medium"
+      category: "shares"
+    
+    # Authentication and Access Control
+    - pattern: "(?i)anonymous.*login.*successful"
+      description: "CRITICAL: Anonymous SMB access successful - no authentication required"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)guest.*login.*successful"
+      description: "HIGH: Guest SMB access successful - weak authentication"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)null.*session.*successful"
+      description: "CRITICAL: SMB null session successful - authentication bypass"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)access.*denied"
+      description: "SMB access denied - authentication required"
+      severity: "info"
+      category: "access_control"
+    
+    - pattern: "(?i)logon.*failure"
+      description: "SMB logon failure - credentials required"
+      severity: "info"
+      category: "authentication"
+    
+    # Server Information
+    - pattern: "(?i)server.*comment[:\\s]*([^\\n\\r]+)"
+      description: "SMB Server Comment: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)workgroup[:\\s]*([^\\n\\r]+)"
+      description: "SMB Workgroup: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)domain[:\\s]*([^\\n\\r]+)"
+      description: "SMB Domain: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    - pattern: "(?i)server.*string[:\\s]*([^\\n\\r]+)"
+      description: "SMB Server String: {match1}"
+      severity: "info"
+      category: "identification"
+    
+    # Connection and Protocol Information
+    - pattern: "(?i)protocol.*negotiate.*successful"
+      description: "SMB protocol negotiation successful"
+      severity: "info"
+      category: "protocol"
+    
+    - pattern: "(?i)smb1.*protocol.*detected"
+      description: "WARNING: SMBv1 protocol detected - deprecated and vulnerable"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)smb2.*protocol.*detected"
+      description: "SMBv2 protocol detected - secure protocol version"
+      severity: "info"
+      category: "protocol"
+    
+    - pattern: "(?i)smb3.*protocol.*detected"
+      description: "SMBv3 protocol detected - latest secure protocol version"
+      severity: "info"
+      category: "protocol"
+    
+    # Error Messages and Status
+    - pattern: "(?i)connection.*refused"
+      description: "SMB connection refused - service may be filtered or down"
+      severity: "low"
+      category: "connectivity"
+    
+    - pattern: "(?i)host.*unreachable"
+      description: "SMB host unreachable - network connectivity issue"
+      severity: "low"
+      category: "connectivity"
+    
+    - pattern: "(?i)timeout.*occurred"
+      description: "SMB connection timeout - service may be slow or filtered"
+      severity: "low"
+      category: "connectivity"
+    
+    - pattern: "(?i)session.*setup.*failed"
+      description: "SMB session setup failed - authentication or protocol issue"
+      severity: "info"
+      category: "authentication"
+    
+    # Security Assessment Patterns
+    - pattern: "(?i)signing.*disabled"
+      description: "CRITICAL: SMB signing disabled - man-in-the-middle attacks possible"
+      severity: "critical"
+      category: "security"
+    
+    - pattern: "(?i)signing.*not.*required"
+      description: "HIGH: SMB signing not required - security risk"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)guest.*account.*enabled"
+      description: "MEDIUM: SMB guest account enabled - potential unauthorized access"
+      severity: "medium"
+      category: "security"
+    
+    # File and Directory Enumeration
+    - pattern: "(?i)browseable.*yes"
+      description: "Share is browseable - directory listing possible"
+      severity: "info"
+      category: "access"
+    
+    - pattern: "(?i)writable.*yes"
+      description: "HIGH: Writable share detected - file upload possible"
+      severity: "high"
+      category: "security"
+    
+    - pattern: "(?i)readonly.*no"
+      description: "Share allows write access - potential data modification"
+      severity: "medium"
+      category: "access"
+    
+    # NetBIOS Information
+    - pattern: "(?i)netbios.*name[:\\s]*([^\\n\\r]+)"
+      description: "NetBIOS Name: {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)calling.*name[:\\s]*([^\\n\\r]+)"
+      description: "NetBIOS Calling Name: {match1}"
+      severity: "info"
+      category: "netbios"
+    
+    - pattern: "(?i)called.*name[:\\s]*([^\\n\\r]+)"
+      description: "NetBIOS Called Name: {match1}"
+      severity: "info"
+      category: "netbios"
+
+  technology_detection:
+    - pattern: "(?i)samba.*([0-9]+\\.[0-9]+)"
+      technology: "Samba"
+      version_group: 1
+    
+    - pattern: "(?i)windows.*server.*([0-9]{4})"
+      technology: "Windows Server"
+      version_group: 1
+    
+    - pattern: "(?i)windows.*(7|8|10|11)"
+      technology: "Windows Desktop"
+      version_group: 1
+
+requirements:
+  tools:
+    - name: "smbclient"
+      check_command: "smbclient --version"
+      install_hint: "apt-get install smbclient"
+
+debug:
+  log_level: "info"
+  trace_decisions: false
+  show_command_output: false
