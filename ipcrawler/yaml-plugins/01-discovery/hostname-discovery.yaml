@@ -1,0 +1,62 @@
+metadata:
+  name: "Hostname Discovery"
+  description: "Discovers hostnames and virtual hosts for target IP addresses using DNS lookups and nmap"
+  type: "portscan"
+  priority: 0
+  version: "1.0"
+  author: "IPCrawler YAML Plugin System"
+
+conditions:
+  targets:
+    run_once: true
+    max_instances: 1
+  when:
+    ip_version: ["IPv4", "IPv6"]
+
+execution:
+  commands:
+    - name: "nmap_hostname_discovery"
+      command: "nmap -sL {address}"
+      timeout: 30
+      
+    - name: "reverse_dns_lookup"  
+      command: "nslookup {address}"
+      timeout: 20
+      
+    - name: "dig_reverse_lookup"
+      command: "dig -x {address}"
+      timeout: 20
+
+output:
+  patterns:
+    - pattern: "Nmap scan report for (.+) \\({address}\\)"
+      description: "Hostname from nmap scan report"
+      category: "hostname"
+      severity: "info"
+      
+    - pattern: "name = (.+)\\."
+      description: "Hostname from nslookup"  
+      category: "hostname"
+      severity: "info"
+      
+    - pattern: "PTR\\s+(.+)\\."
+      description: "Hostname from dig reverse lookup"
+      category: "hostname" 
+      severity: "info"
+      
+    - pattern: "({address})\\s+(.+)"
+      description: "IP to hostname mapping"
+      category: "ip_hostname_mapping"
+      severity: "info"
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "Install nmap: apt-get install nmap"
+    - name: "nslookup" 
+      check_command: "nslookup -version"
+      install_hint: "Install dnsutils: apt-get install dnsutils"
+    - name: "dig"
+      check_command: "dig -v" 
+      install_hint: "Install dnsutils: apt-get install dnsutils"
