@@ -1271,21 +1271,7 @@ async def run(initial_args):
 		elif key == 'add-plugins-dir' and args_dict['add_plugins_dir'] is not None:
 			config['add_plugins_dir'] = args_dict['add_plugins_dir']
 
-	if not config['plugins_dir']:
-		unknown_help()
-		fail('Error: Could not find plugins directory in the git repository.')
-
-	if not os.path.isdir(config['plugins_dir']):
-		unknown_help()
-		fail('Error: Specified plugins directory "' + config['plugins_dir'] + '" does not exist.')
-
-	if config['add_plugins_dir'] and not os.path.isdir(config['add_plugins_dir']):
-		unknown_help()
-		fail('Error: Specified additional plugins directory "' + config['add_plugins_dir'] + '" does not exist.')
-
-	plugins_dirs = [config['plugins_dir']]
-	if config['add_plugins_dir']:
-		plugins_dirs.append(config['add_plugins_dir'])
+	# Plugin directory validation moved to after configuration loading
 
 	def load_plugins_from_directory(plugins_dir):
 		"""Recursively load plugins from directory and subdirectories"""
@@ -1338,7 +1324,7 @@ async def run(initial_args):
 				print(ex)
 				sys.exit(1)
 
-	for plugins_dir in plugins_dirs:
+	for plugins_dir in config.get('plugins_dirs', []):
 		load_plugins_from_directory(plugins_dir)
 
 	for plugin in ipcrawler.plugins.values():
@@ -1348,9 +1334,9 @@ async def run(initial_args):
 		# Add plugin slug to tags.
 		plugin.tags += [plugin.slug]
 
-	if len(ipcrawler.plugin_types['port']) == 0:
+	if len(ipcrawler.plugin_types['port']) == 0 and not config.get('yaml_plugins_only', False):
 		unknown_help()
-		fail('Error: There are no valid PortScan plugins in the plugins directory "' + config['plugins_dir'] + '".')
+		fail('Error: There are no valid PortScan plugins in the plugins directory "' + str(config['plugins_dir']) + '".')
 
 	# Sort plugins by priority.
 	ipcrawler.plugin_types['port'].sort(key=lambda x: x.priority)
@@ -1505,6 +1491,31 @@ async def run(initial_args):
 				continue
 			config[key] = args_dict[key]
 	ipcrawler.args = args
+
+	# Validate plugin directories after configuration loading
+	# Skip Python plugin directory validation when using YAML plugins only
+	if not config.get('yaml_plugins_only', False):
+		if not config['plugins_dir']:
+			unknown_help()
+			fail('Error: Could not find plugins directory in the git repository.')
+
+		if not os.path.isdir(config['plugins_dir']):
+			unknown_help()
+			fail('Error: Specified plugins directory "' + config['plugins_dir'] + '" does not exist.')
+
+		if config['add_plugins_dir'] and not os.path.isdir(config['add_plugins_dir']):
+			unknown_help()
+			fail('Error: Specified additional plugins directory "' + config['add_plugins_dir'] + '" does not exist.')
+
+		plugins_dirs = [config['plugins_dir']] if config['plugins_dir'] else []
+		if config['add_plugins_dir']:
+			plugins_dirs.append(config['add_plugins_dir'])
+	else:
+		# When using YAML plugins only, don't load Python plugins
+		plugins_dirs = []
+	
+	# Make plugins_dirs available to run function
+	config['plugins_dirs'] = plugins_dirs
 
 	# Initialize WordlistManager and perform auto-detection on first run
 	wordlist_manager = init_wordlist_manager(config['config_dir'])

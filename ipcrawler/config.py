@@ -73,7 +73,7 @@ config = {
 	'port_scans': None,
 	'service_scans': None,
 	'reports': None,
-	'plugins_dir': os.path.join(os.path.dirname(os.path.realpath(__file__)), 'default-plugins-OBSOLETE-BACKUP'),
+	'plugins_dir': None,  # Python plugins disabled, using YAML plugins only
 	'add_plugins_dir': None,
 	'output': 'results',
 	'single_target': False,
