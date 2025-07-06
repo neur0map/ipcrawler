@@ -1188,29 +1188,18 @@ async def run(initial_args):
 	parser.add_argument('-mpgi', '--max-plugin-global-instances', action='store', nargs='+', metavar='PLUGIN:NUMBER', help='A space separated list of plugin slugs with the max number of global instances in the following style: nmap-http:2 dirbuster:1. Default: %(default)s')
 	parser.add_argument('--accessible', action='store_true', help='Attempts to make ipcrawler output more accessible to screenreaders. Default: %(default)s')
 	
-	# Wordlist management arguments
-	wordlist_group = parser.add_argument_group('wordlist management', 'Options for customizing wordlist paths')
-	wordlist_group.add_argument('--wordlist-usernames', action='store', metavar='PATH', help='Override the usernames wordlist path')
-	wordlist_group.add_argument('--wordlist-passwords', action='store', metavar='PATH', help='Override the passwords wordlist path')
-	wordlist_group.add_argument('--wordlist-web-directories', action='store', metavar='PATH', help='Override the web directories wordlist path')
-	wordlist_group.add_argument('--wordlist-web-files', action='store', metavar='PATH', help='Override the web files wordlist path')
-	wordlist_group.add_argument('--wordlist-subdomains', action='store', metavar='PATH', help='Override the subdomains wordlist path')
-	wordlist_group.add_argument('--wordlist-snmp-communities', action='store', metavar='PATH', help='Override the SNMP community strings wordlist path')
-	wordlist_group.add_argument('--wordlist-dns-servers', action='store', metavar='PATH', help='Override the DNS servers wordlist path')
-	parser.add_argument('--wordlist-vhosts', action='store', metavar='PATH', help='Override the virtual hosts wordlist path')
 	
 	# Scan speed and scenario arguments
 	scan_group = parser.add_argument_group('scan scenarios', 'Predefined scan configurations for different scenarios')
 	scan_speed_group = scan_group.add_mutually_exclusive_group()
-	scan_speed_group.add_argument('--fast', action='store_true', help='Fast scan mode using smaller wordlists (5-15 min per service). Great for initial reconnaissance.')
-	scan_speed_group.add_argument('--comprehensive', action='store_true', help='Comprehensive scan mode using large wordlists (30-120 min per service). Best for thorough enumeration.')
-	scan_speed_group.add_argument('--wordlist-size', choices=['fast', 'default', 'comprehensive'], metavar='SIZE', help='Set wordlist size preference: fast, default, or comprehensive')
+	scan_speed_group.add_argument('--fast', action='store_true', help='Fast scan mode for quick reconnaissance (5-15 min per service).')
+	scan_speed_group.add_argument('--comprehensive', action='store_true', help='Comprehensive scan mode for thorough enumeration (30-120 min per service).')
 	
 	# Scenario-based scan presets
 	scenario_group = scan_group.add_mutually_exclusive_group()
-	scenario_group.add_argument('--ctf', action='store_true', help='CTF/lab mode: balanced wordlists with higher threads for practice environments')
-	scenario_group.add_argument('--pentest', action='store_true', help='Penetration testing mode: comprehensive wordlists optimized for real-world assessment')
-	scenario_group.add_argument('--recon', action='store_true', help='Quick reconnaissance mode: fast wordlists for initial target discovery')
+	scenario_group.add_argument('--ctf', action='store_true', help='CTF/lab mode: balanced scanning with higher threads for practice environments')
+	scenario_group.add_argument('--pentest', action='store_true', help='Penetration testing mode: comprehensive scanning optimized for real-world assessment')
+	scenario_group.add_argument('--recon', action='store_true', help='Quick reconnaissance mode: fast scanning for initial target discovery')
 	scenario_group.add_argument('--stealth', action='store_true', help='Stealth mode: slower scans with reduced threads to avoid detection')
 	parser.add_argument('-r', '--report-target', type=str, metavar='TARGET', help='Consolidate results for specific target only')
 	
@@ -1257,6 +1246,11 @@ async def run(initial_args):
 					config['plugins_dir'] = val
 				elif key == 'add-plugins-dir':
 					config['add_plugins_dir'] = val
+				else:
+					# Convert hyphens to underscores for configurable keys
+					config_key = key.replace('-', '_')
+					if config_key in configurable_keys:
+						config[config_key] = val
 		except toml.decoder.TomlDecodeError:
 			unknown_help()
 			fail('Error: Couldn\'t parse ' + args.config_file + ' config file. Check syntax.')
@@ -1324,6 +1318,31 @@ async def run(initial_args):
 				print(ex)
 				sys.exit(1)
 
+	# Configure plugin directories based on yaml_plugins_only setting
+	# Skip Python plugin directory validation when using YAML plugins only
+	if not config.get('yaml_plugins_only', False):
+		if not config['plugins_dir']:
+			unknown_help()
+			fail('Error: Could not find plugins directory in the git repository.')
+
+		if not os.path.isdir(config['plugins_dir']):
+			unknown_help()
+			fail('Error: Specified plugins directory "' + config['plugins_dir'] + '" does not exist.')
+
+		if config['add_plugins_dir'] and not os.path.isdir(config['add_plugins_dir']):
+			unknown_help()
+			fail('Error: Specified additional plugins directory "' + config['add_plugins_dir'] + '" does not exist.')
+
+		plugins_dirs = [config['plugins_dir']] if config['plugins_dir'] else []
+		if config['add_plugins_dir']:
+			plugins_dirs.append(config['add_plugins_dir'])
+	else:
+		# When using YAML plugins only, don't load Python plugins
+		plugins_dirs = []
+	
+	# Make plugins_dirs available to run function
+	config['plugins_dirs'] = plugins_dirs
+
 	for plugins_dir in config.get('plugins_dirs', []):
 		load_plugins_from_directory(plugins_dir)
 
@@ -1334,15 +1353,6 @@ async def run(initial_args):
 		# Add plugin slug to tags.
 		plugin.tags += [plugin.slug]
 
-	if len(ipcrawler.plugin_types['port']) == 0 and not config.get('yaml_plugins_only', False):
-		unknown_help()
-		fail('Error: There are no valid PortScan plugins in the plugins directory "' + str(config['plugins_dir']) + '".')
-
-	# Sort plugins by priority.
-	ipcrawler.plugin_types['port'].sort(key=lambda x: x.priority)
-	ipcrawler.plugin_types['service'].sort(key=lambda x: x.priority)
-	ipcrawler.plugin_types['report'].sort(key=lambda x: x.priority)
-
 	# Initialize YAML plugin system
 	from ipcrawler.yaml_integration import initialize_yaml_plugins
 	yaml_initialized = initialize_yaml_plugins()
@@ -1350,6 +1360,17 @@ async def run(initial_args):
 		info('✅ YAML plugin system initialized successfully', verbosity=1)
 	else:
 		debug('YAML plugin system not enabled or failed to initialize', verbosity=2)
+
+	# Check if we have any plugins loaded (after YAML plugin initialization)
+	# Skip this check if using YAML plugins only, as they use a different loading mechanism
+	if not config.get('yaml_plugins_only', False) and len(ipcrawler.plugin_types['port']) == 0:
+		unknown_help()
+		fail('Error: There are no valid PortScan plugins in the plugins directory "' + str(config['plugins_dir']) + '".')
+
+	# Sort plugins by priority.
+	ipcrawler.plugin_types['port'].sort(key=lambda x: x.priority)
+	ipcrawler.plugin_types['service'].sort(key=lambda x: x.priority)
+	ipcrawler.plugin_types['report'].sort(key=lambda x: x.priority)
 
 	# Validate tool availability before proceeding with plugin checks
 	from ipcrawler.tool_validator import validate_tools
@@ -1492,30 +1513,6 @@ async def run(initial_args):
 			config[key] = args_dict[key]
 	ipcrawler.args = args
 
-	# Validate plugin directories after configuration loading
-	# Skip Python plugin directory validation when using YAML plugins only
-	if not config.get('yaml_plugins_only', False):
-		if not config['plugins_dir']:
-			unknown_help()
-			fail('Error: Could not find plugins directory in the git repository.')
-
-		if not os.path.isdir(config['plugins_dir']):
-			unknown_help()
-			fail('Error: Specified plugins directory "' + config['plugins_dir'] + '" does not exist.')
-
-		if config['add_plugins_dir'] and not os.path.isdir(config['add_plugins_dir']):
-			unknown_help()
-			fail('Error: Specified additional plugins directory "' + config['add_plugins_dir'] + '" does not exist.')
-
-		plugins_dirs = [config['plugins_dir']] if config['plugins_dir'] else []
-		if config['add_plugins_dir']:
-			plugins_dirs.append(config['add_plugins_dir'])
-	else:
-		# When using YAML plugins only, don't load Python plugins
-		plugins_dirs = []
-	
-	# Make plugins_dirs available to run function
-	config['plugins_dirs'] = plugins_dirs
 
 	# Initialize WordlistManager and perform auto-detection on first run
 	wordlist_manager = init_wordlist_manager(config['config_dir'])
@@ -1542,50 +1539,22 @@ async def run(initial_args):
 	else:
 		debug('🤖 Smart Wordlist Selector: DISABLED - Using standard wordlist selection only')
 	
-	# Process wordlist CLI overrides
-	wordlist_overrides = {
-		'usernames': getattr(args, 'wordlist_usernames', None),
-		'passwords': getattr(args, 'wordlist_passwords', None),
-		'web_directories': getattr(args, 'wordlist_web_directories', None),
-		'web_files': getattr(args, 'wordlist_web_files', None),
-		'subdomains': getattr(args, 'wordlist_subdomains', None),
-		'snmp_communities': getattr(args, 'wordlist_snmp_communities', None),
-		'dns_servers': getattr(args, 'wordlist_dns_servers', None),
-		'vhosts': getattr(args, 'wordlist_vhosts', None)
-	}
-	
-	for category, path in wordlist_overrides.items():
-		if path:
-			if not wordlist_manager.validate_wordlist_path(path):
-				fail(f'Error: Wordlist path for {category} does not exist or is not readable: {path}')
-			wordlist_manager.set_cli_override(category, path)
-			debug(f'CLI override set for {category}: {path}')
-	
 	# Process scan scenario flags
 	if args.fast:
-		wordlist_manager.set_wordlist_size('fast')
-		info('⚡ Fast scan mode: using smaller wordlists for quicker scans', verbosity=1)
+		info('⚡ Fast scan mode: optimized for quick reconnaissance', verbosity=1)
 	elif args.comprehensive:
-		wordlist_manager.set_wordlist_size('comprehensive')
-		info('🔍 Comprehensive scan mode: using large wordlists for thorough enumeration', verbosity=1)
-	elif getattr(args, 'wordlist_size', None):
-		wordlist_manager.set_wordlist_size(args.wordlist_size)
-		info(f'📝 Wordlist size: {args.wordlist_size}', verbosity=1)
+		info('🔍 Comprehensive scan mode: optimized for thorough enumeration', verbosity=1)
 	
 	# Process scenario presets
 	if args.ctf:
-		wordlist_manager.set_wordlist_size('default')
 		config['max_scans'] = config.get('max_scans', 20) + 10  # Higher concurrency
-		info('CTF mode enabled: balanced wordlists with higher concurrency for lab environments.')
+		info('CTF mode enabled: balanced scanning with higher concurrency for lab environments.')
 	elif args.pentest:
-		wordlist_manager.set_wordlist_size('comprehensive')
-		info('Penetration testing mode enabled: comprehensive wordlists for real-world assessment.')
+		info('Penetration testing mode enabled: comprehensive scanning for real-world assessment.')
 	elif args.recon:
-		wordlist_manager.set_wordlist_size('fast')
 		config['tags'] = 'default+safe'  # Focus on safe, quick scans
-		info('Quick reconnaissance mode enabled: fast wordlists for initial target discovery.')
+		info('Quick reconnaissance mode enabled: fast scanning for initial target discovery.')
 	elif args.stealth:
-		wordlist_manager.set_wordlist_size('default')
 		# Reduce thread counts for stealth (will be applied to individual plugins)
 		config['stealth_mode'] = True
 		info('Stealth mode enabled: slower scans with reduced threads to avoid detection.')

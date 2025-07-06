@@ -41,7 +41,6 @@ smart-wordlists-confidence = 0.7   # Technology detection confidence threshold (
 # HTB Space Optimization
 # ----------------------
 htb-mode = true                    # Enable HTB space-optimized mode
-wordlist-size = "fast"             # Use smallest wordlists for space constraints
 
 # Network Settings  
 # ----------------

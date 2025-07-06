@@ -516,10 +516,9 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 	
 	# Scan scenarios
 	speed_options = [
-		("--fast", "Quick scans with small wordlists", "5-15 min/service"),
-		("--comprehensive", "Thorough scans with large wordlists", "30-120 min/service"),
-		("--wordlist-size SIZE", "Manual wordlist size selection", "fast|default|comprehensive"),
-		("(default)", "Medium wordlists when no flags used", "15-45 min/service")
+		("--fast", "Quick reconnaissance scans", "5-15 min/service"),
+		("--comprehensive", "Thorough enumeration scans", "30-120 min/service"),
+		("(default)", "Balanced scanning when no flags used", "15-45 min/service")
 	]
 	
 	speed_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
@@ -555,9 +554,9 @@ def show_modern_help(version: str = "0.1.0-alpha"):
 	
 	# Default behavior explanation
 	default_info = [
-		("🔸 Without flags", "Uses medium-sized wordlists and balanced settings"),
+		("🔸 Without flags", "Uses balanced settings for moderate coverage"),
 		("🔸 Plugin selection", "Runs 'default' tagged plugins (most common tools)"),
-		("🔸 Wordlist sources", "Auto-detects SecLists or falls back to built-in lists"),
+		("🔸 Wordlist sources", "Auto-detects SecLists for intelligent enumeration"),
 		("🔸 Time estimate", "~15-45 minutes per service depending on findings")
 	]
 	

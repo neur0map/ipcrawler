@@ -428,10 +428,10 @@ web_directories = "/custom/web-dirs.txt"
 usernames = "/custom/users.txt"
 ```
 
-**Command line overrides:**
+**Automatic wordlist management:**
 ```bash
-python3 ipcrawler.py --wordlist-web-directories /custom/dirs.txt target.com
-python3 ipcrawler.py --wordlist-usernames /custom/users.txt target.com
+# Smart wordlists are automatically detected and used
+python3 ipcrawler.py target.com  # Uses technology-based wordlist selection
 ```
 
 ### 🎨 **Report Customization**
