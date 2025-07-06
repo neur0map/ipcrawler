@@ -185,9 +185,7 @@ class YamlPluginLoader:
     """Loads and manages YAML plugins"""
     
     def __init__(self, plugin_directories: List[str] = None):
-        self.plugin_directories = plugin_directories or [
-            "ipcrawler/yaml-plugins"
-        ]
+        self.plugin_directories = plugin_directories or []
         self.plugins: Dict[str, YamlPlugin] = {}
         self.validation_errors: Dict[str, List[str]] = {}
     
@@ -201,8 +199,12 @@ class YamlPluginLoader:
                 logger.warning(f"Plugin directory does not exist: {directory}")
                 continue
             
-            # Ensure we only search within our plugin directories
-            if not str(plugin_dir).endswith(('yaml-plugins', 'plugins')):
+            # Ensure we only search within legitimate plugin directories
+            # Accept template directories and plugins directories
+            dir_name = str(plugin_dir)
+            if not (dir_name.endswith('plugins') or 
+                    'templates' in dir_name or 
+                    'template' in plugin_dir.name):
                 logger.warning(f"Skipping non-plugin directory: {directory}")
                 continue
             

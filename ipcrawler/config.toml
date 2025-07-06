@@ -52,6 +52,11 @@ enable-yaml-plugins = true        # Enable YAML-based plugins
 debug-yaml-plugins = false        # Disable debugging for production performance
 yaml-plugins-only = true          # Use only YAML plugins (Python plugins obsoleted)
 
+# Template System
+# ---------------
+[templates]
+default = "default-template"       # Default template to use when --template not specified
+
 # Accessibility
 # -------------
 # accessible = true              # Screen reader friendly output

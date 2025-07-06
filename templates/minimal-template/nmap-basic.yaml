@@ -1,0 +1,34 @@
+metadata:
+  name: "Basic Nmap Port Scan"
+  description: "Simple TCP port scan using nmap"
+  type: "portscan"
+  priority: 1
+  version: "1.0"
+  author: "IPCrawler Template System"
+  tags: ["default", "safe", "fast"]
+
+conditions:
+  services:
+    include: []  # No service filtering for port scan
+  ports:
+    include: []  # Scan all ports
+
+execution:
+  commands:
+    - name: "tcp_scan"
+      command: "nmap -sS -T4 --top-ports 1000 {address}"
+      timeout: 300
+      description: "TCP SYN scan of top 1000 ports"
+
+output:
+  patterns:
+    - pattern: "(\\d+)/tcp\\s+open\\s+(\\S+)"
+      description: "Open TCP port: {match1} service: {match2}"
+      severity: "info"
+      category: "port_discovery"
+
+requirements:
+  tools:
+    - name: "nmap"
+      check_command: "nmap --version"
+      install_hint: "apt-get install nmap"

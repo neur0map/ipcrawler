@@ -14,6 +14,7 @@ configurable_keys = [
 	'reports',
 	'plugins_dir',
 	'add_plugins-dir',
+	'template',
 	'output',
 	'single_target',
 	'only_scans_dir',
@@ -75,6 +76,7 @@ config = {
 	'reports': None,
 	'plugins_dir': None,  # Python plugins disabled, using YAML plugins only
 	'add_plugins_dir': None,
+	'template': None,  # Will be set from config.toml or CLI
 	'output': 'results',
 	'single_target': False,
 	'only_scans_dir': False,
@@ -97,7 +99,7 @@ config = {
 	'smart_wordlists': False,
 	'smart_wordlists_confidence': 0.7,
 	'enable_yaml_plugins': False,
-	'yaml_plugins_dir': os.path.join(os.path.dirname(os.path.realpath(__file__)), 'yaml-plugins'),
+	'yaml_plugins_dir': None,  # Legacy: replaced by template system
 	'debug_yaml_plugins': False,
 	'yaml_plugins_only': False,
 	'yaml_dry_run': False,

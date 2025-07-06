@@ -60,19 +60,33 @@ class YamlPluginManager:
         start_time = time.time()
         
         try:
-            # Initialize YAML plugin loader
-            yaml_plugins_dir = config.get('yaml_plugins_dir')
-            if not yaml_plugins_dir or not Path(yaml_plugins_dir).exists():
-                logger.warning(f"YAML plugins directory not found: {yaml_plugins_dir}")
+            # Initialize YAML plugin loader with template directory
+            template_dir = config.get('template_dir')
+            if not template_dir or not Path(template_dir).exists():
+                logger.warning(f"Template directory not found: {template_dir}")
                 return False
             
-            self.loader = YamlPluginLoader([yaml_plugins_dir])
+            logger.debug(f"Loading YAML plugins from: {template_dir}")
+            self.loader = YamlPluginLoader([template_dir])
             
             # Load YAML plugins
             load_result = self.loader.load_plugins()
             if not load_result:
                 logger.error(f"Failed to load YAML plugins: No plugins loaded")
                 return False
+            
+            # Check for validation errors in strict mode
+            if self.loader.validation_errors:
+                # In template mode, validation errors should cause failure
+                if config.get('template_dir'):
+                    error_count = len(self.loader.validation_errors)
+                    logger.error(f"Template validation failed: {error_count} plugins have validation errors")
+                    for plugin_file, errors in self.loader.validation_errors.items():
+                        logger.error(f"  {plugin_file}: {errors}")
+                    return False
+                else:
+                    # In legacy mode, just log warnings
+                    logger.warning(f"YAML plugin validation warnings: {len(self.loader.validation_errors)} plugins have issues")
             
             # Initialize debugger if debug mode is enabled
             if config.get('debug_yaml_plugins', False):

@@ -260,9 +260,10 @@ class YamlPluginExecutor:
                 substituted_command = self._substitute_variables(command, env_vars)
                 commands_executed.append(substituted_command)
                 
-                # Execute command
+                # Execute command with timeout from YAML
                 try:
-                    result = await self._execute_command(substituted_command, target.scandir)
+                    command_timeout = getattr(command_config, 'timeout', None)
+                    result = await self._execute_command(substituted_command, target.scandir, timeout=command_timeout)
                     all_output += result.stdout + result.stderr
                 except Exception as e:
                     logger.error(f"Command execution failed: {e}")
@@ -371,9 +372,10 @@ class YamlPluginExecutor:
                 substituted_command = self._substitute_variables(command, env_vars)
                 commands_executed.append(substituted_command)
                 
-                # Execute command
+                # Execute command with timeout from YAML
                 try:
-                    result = await self._execute_command(substituted_command, scandir)
+                    command_timeout = getattr(command_config, 'timeout', None)
+                    result = await self._execute_command(substituted_command, scandir, timeout=command_timeout)
                     all_output += result.stdout + result.stderr
                 except Exception as e:
                     logger.error(f"Command execution failed: {e}")
@@ -511,13 +513,14 @@ class YamlPluginExecutor:
         
         return command
     
-    async def _execute_command(self, command: str, working_dir: str) -> subprocess.CompletedProcess:
+    async def _execute_command(self, command: str, working_dir: str, timeout: Optional[int] = None) -> subprocess.CompletedProcess:
         """
-        Execute a command asynchronously.
+        Execute a command asynchronously with optional timeout.
         
         Args:
             command: Command to execute
             working_dir: Working directory for command execution
+            timeout: Optional timeout in seconds
             
         Returns:
             Completed process result
@@ -525,7 +528,7 @@ class YamlPluginExecutor:
         # Create the working directory if it doesn't exist
         os.makedirs(working_dir, exist_ok=True)
         
-        # Execute the command
+        # Execute the command with timeout
         process = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -533,7 +536,16 @@ class YamlPluginExecutor:
             cwd=working_dir
         )
         
-        stdout, stderr = await process.communicate()
+        try:
+            if timeout:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+            else:
+                stdout, stderr = await process.communicate()
+        except asyncio.TimeoutError:
+            # Kill the process if it times out
+            process.kill()
+            await process.wait()
+            raise Exception(f"Command timed out after {timeout} seconds: {command}")
         
         # Create a result object similar to subprocess.CompletedProcess
         class AsyncResult:

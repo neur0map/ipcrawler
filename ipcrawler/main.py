@@ -1161,6 +1161,7 @@ async def run(initial_args):
 	parser.add_argument('-mp', '--max-port-scans', action='store', type=int, help='The maximum number of concurrent port scans to run. Default: 10 (approx 20%% of max-scans unless specified)')
 	parser.add_argument('-c', '--config', action='store', type=str, default=config_file, dest='config_file', help='Location of ipcrawler\'s config file. Default: %(default)s')
 	parser.add_argument('-g', '--global-file', action='store', type=str, help='Location of ipcrawler\'s global file. Default: %(default)s')
+	parser.add_argument('--template', action='store', type=str, metavar='NAME', help='Template to use for plugin selection. Templates are located in templates/ directory. Default: %(default)s')
 	parser.add_argument('--tags', action='store', type=str, default='default', help='Tags to determine which plugins should be included. Separate tags by a plus symbol (+) to group tags together. Separate groups with a comma (,) to create multiple groups. For a plugin to be included, it must have all the tags specified in at least one group. Default: %(default)s')
 	parser.add_argument('--exclude-tags', action='store', type=str, default='', metavar='TAGS', help='Tags to determine which plugins should be excluded. Separate tags by a plus symbol (+) to group tags together. Separate groups with a comma (,) to create multiple groups. For a plugin to be excluded, it must have all the tags specified in at least one group. Default: %(default)s')
 	parser.add_argument('--port-scans', action='store', type=str, metavar='PLUGINS', help='Override --tags / --exclude-tags for the listed PortScan plugins (comma separated). Default: %(default)s')
@@ -1246,6 +1247,10 @@ async def run(initial_args):
 					config['plugins_dir'] = val
 				elif key == 'add-plugins-dir':
 					config['add_plugins_dir'] = val
+				elif key == 'templates' and isinstance(val, dict):
+					# Handle templates section
+					if 'default' in val:
+						config['default_template'] = val['default']
 				else:
 					# Convert hyphens to underscores for configurable keys
 					config_key = key.replace('-', '_')
@@ -1264,6 +1269,24 @@ async def run(initial_args):
 			config['plugins_dir'] = args_dict['plugins_dir']
 		elif key == 'add-plugins-dir' and args_dict['add_plugins_dir'] is not None:
 			config['add_plugins_dir'] = args_dict['add_plugins_dir']
+		elif key == 'template' and args_dict['template'] is not None:
+			config['template'] = args_dict['template']
+
+	# Template validation and setup
+	if config.get('template') is None:
+		# Use default template from config.toml
+		config['template'] = config.get('default_template', 'default-template')
+	
+	# Validate template directory exists
+	templates_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'templates')
+	template_dir = os.path.join(templates_dir, config['template'])
+	
+	if not os.path.isdir(template_dir):
+		unknown_help()
+		fail(f'Error: Template "{config["template"]}" does not exist. Expected directory: {template_dir}')
+	
+	config['template_dir'] = template_dir
+	debug(f'Using template: {config["template"]} from {template_dir}')
 
 	# Plugin directory validation moved to after configuration loading
 
@@ -1359,7 +1382,11 @@ async def run(initial_args):
 	if yaml_initialized:
 		info('✅ YAML plugin system initialized successfully', verbosity=1)
 	else:
-		debug('YAML plugin system not enabled or failed to initialize', verbosity=2)
+		if config.get('yaml_plugins_only', False):
+			unknown_help()
+			fail('Error: YAML plugin system failed to initialize. In YAML-only mode, this is required.')
+		else:
+			debug('YAML plugin system not enabled or failed to initialize', verbosity=2)
 
 	# Check if we have any plugins loaded (after YAML plugin initialization)
 	# Skip this check if using YAML plugins only, as they use a different loading mechanism
@@ -1373,11 +1400,15 @@ async def run(initial_args):
 	ipcrawler.plugin_types['report'].sort(key=lambda x: x.priority)
 
 	# Validate tool availability before proceeding with plugin checks
-	from ipcrawler.tool_validator import validate_tools
-	debug_verbosity = 2 if config.get('debug', False) else 1
-	if not validate_tools(verbosity=debug_verbosity):
-		error("Tool validation failed. Cannot proceed with scan.")
-		sys.exit(1)
+	# Skip tool validation in template mode - assume YAML plugins handle tool checks
+	if not config.get('template_dir'):
+		from ipcrawler.tool_validator import validate_tools
+		debug_verbosity = 2 if config.get('debug', False) else 1
+		if not validate_tools(verbosity=debug_verbosity):
+			error("Tool validation failed. Cannot proceed with scan.")
+			sys.exit(1)
+	else:
+		debug('Skipping tool validation in template mode - YAML plugins handle tool requirements')
 
 	if not config['global_file']:
 		unknown_help()
@@ -1928,26 +1959,33 @@ async def run(initial_args):
 
 	if not config['force_services']:
 		port_scan_plugin_count = 0
-		for plugin in ipcrawler.plugin_types['port']:
-			if config['port_scans'] and plugin.slug in config['port_scans']:
-				matching_tags = True
-				excluded_tags = False
-			else:
-				matching_tags = False
-				for tag_group in ipcrawler.tags:
-					if set(tag_group).issubset(set(plugin.tags)):
-						matching_tags = True
-						break
+		
+		# Count Python plugins if not in YAML-only mode
+		if not config.get('yaml_plugins_only', False):
+			for plugin in ipcrawler.plugin_types['port']:
+				if config['port_scans'] and plugin.slug in config['port_scans']:
+					matching_tags = True
+					excluded_tags = False
+				else:
+					matching_tags = False
+					for tag_group in ipcrawler.tags:
+						if set(tag_group).issubset(set(plugin.tags)):
+							matching_tags = True
+							break
 
-				excluded_tags = False
-				for tag_group in ipcrawler.excluded_tags:
-					if set(tag_group).issubset(set(plugin.tags)):
-						excluded_tags = True
-						break
+					excluded_tags = False
+					for tag_group in ipcrawler.excluded_tags:
+						if set(tag_group).issubset(set(plugin.tags)):
+							excluded_tags = True
+							break
 
-			if matching_tags and not excluded_tags:
-				port_scan_plugin_count += 1
-
+				if matching_tags and not excluded_tags:
+					port_scan_plugin_count += 1
+		
+		# In YAML-only mode, assume YAML plugins exist (validated during initialization)
+		if config.get('yaml_plugins_only', False):
+			port_scan_plugin_count = 1  # Assume at least one YAML plugin exists
+		
 		if port_scan_plugin_count == 0:
 			error('There are no port scan plugins that match the tags specified.')
 			errors = True
