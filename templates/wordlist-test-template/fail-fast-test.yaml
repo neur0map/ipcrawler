@@ -1,0 +1,37 @@
+metadata:
+  name: "Fail Fast Wordlist Test"
+  description: "Test plugin with missing wordlist to verify fail-fast behavior"
+  type: "servicescan"
+  priority: 15
+  version: "1.0"
+  author: "IPCrawler Test Suite"
+
+conditions:
+  services:
+    include: ["^http", "ssl/http", "^https"]
+
+options:
+  - name: "wordlist"
+    type: "string"
+    default: "nonexistent/missing-wordlist.txt"
+    help: "This wordlist should not exist to test fail-fast behavior"
+
+execution:
+  commands:
+    - name: "fail_fast_test"
+      command: "echo 'This should not execute: {resolved_wordlist}'"
+      timeout: 30
+      description: "Test fail-fast on missing wordlist"
+
+output:
+  patterns:
+    - pattern: "This should not execute: (.+)"
+      description: "Missing wordlist: {match1}"
+      severity: "critical"
+      category: "wordlist_test"
+
+requirements:
+  tools:
+    - name: "echo"
+      check_command: "echo --version"
+      install_hint: "Built-in command"

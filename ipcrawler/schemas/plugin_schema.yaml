@@ -48,6 +48,13 @@ plugin_schema:
       help: "string"                # Help text for option
       choices: ["string"]           # Valid choices (for choice type)
       required: "boolean"           # Is this option required?
+    
+    # Special wordlist option pattern for plugins that use wordlists
+    - name: "wordlist"              # Standard wordlist option name
+      type: "string"                # Can be "auto" or file path
+      default: "auto"               # Default to auto-selection
+      help: "Wordlist to use. 'auto' uses intelligent selection, or specify custom path"
+      validation: "auto|file_path"  # Must be 'auto' or valid file path
   
   # === COMMAND EXECUTION ===
   execution:
@@ -200,4 +207,47 @@ example_plugins:
       tools:
         - name: "nmap"
           check_command: "nmap --version"
-          install_hint: "apt-get install nmap" 
+          install_hint: "apt-get install nmap"
+
+  # === WORDLIST EXAMPLE ===
+  directory_bruteforce:
+    metadata:
+      name: "Directory Brute Force"
+      description: "Directory enumeration with intelligent wordlist selection"
+      type: "servicescan"
+      priority: 5
+    
+    conditions:
+      services:
+        include: ["^http", "ssl/http", "^https"]
+    
+    options:
+      - name: "wordlist"
+        type: "string"
+        default: "auto"
+        help: "Wordlist to use. 'auto' for intelligent selection, or path to custom wordlist"
+      - name: "threads"
+        type: "integer"
+        default: 10
+        help: "Number of threads to use"
+    
+    execution:
+      commands:
+        - name: "directory_scan"
+          # When wordlist="auto", the orchestrator will resolve to appropriate SecLists path
+          # When wordlist="/path/to/custom.txt", the orchestrator will validate and use that path
+          command: "feroxbuster -u {http_scheme}://{hostname}:{port}/ -w {resolved_wordlist} -t {threads}"
+          timeout: 3600
+    
+    output:
+      patterns:
+        - pattern: "200\\s+\\d+l\\s+\\d+w\\s+\\d+c\\s+(.*)"
+          description: "Directory found: {match1}"
+          severity: "info"
+          category: "directory_enumeration"
+    
+    requirements:
+      tools:
+        - name: "feroxbuster"
+          check_command: "feroxbuster --version"
+          install_hint: "cargo install feroxbuster" 

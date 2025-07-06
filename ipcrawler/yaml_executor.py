@@ -18,6 +18,8 @@ import logging
 from ipcrawler.config import config
 from ipcrawler.yaml_plugins import YamlPluginLoader, YamlPlugin, PluginType
 from ipcrawler.plugin_debugger import PluginDebugger
+from ipcrawler.targets import Service
+from ipcrawler.user_display import user_display
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +243,9 @@ class YamlPluginExecutor:
         import time
         start_time = time.time()
         
+        # Show plugin start message
+        user_display.plugin_start(target.address, plugin.metadata.name)
+        
         try:
             # Prepare execution environment
             env_vars = self._prepare_target_environment(plugin, target)
@@ -291,16 +296,71 @@ class YamlPluginExecutor:
                 matches = re.findall(pattern_regex, all_output, re.MULTILINE | re.IGNORECASE)
                 patterns_matched[pattern_name] = matches
                 
-                # For port scan plugins, extract services from matches
-                if plugin.metadata.type == PluginType.PORTSCAN:
-                    # Note: service detection logic would need to be adapted for YAML plugins
-                    if matches:
-                        for match in matches:
-                            # Parse service information from match - simplified for now
-                            service_info = {'match': match, 'pattern': pattern_name}
-                            services_found.append(service_info)
+                # For port scan plugins, patterns are for information only
+                # Service detection is handled separately below
+            
+            # Process service detection patterns for port scan plugins
+            if plugin.metadata.type == PluginType.PORTSCAN and plugin.service_detection:
+                for service_det in plugin.service_detection:
+                    pattern_regex = service_det.pattern
+                    service_name_template = service_det.service_name
+                    port_override = service_det.port_override
+                    
+                    if not pattern_regex:
+                        continue
+                    
+                    matches = re.findall(pattern_regex, all_output, re.MULTILINE | re.IGNORECASE)
+                    
+                    for match in matches:
+                        try:
+                            # Handle both tuple and string matches
+                            if isinstance(match, tuple):
+                                # For regex groups like (port, protocol, service)
+                                if len(match) >= 3:
+                                    port_str, protocol, detected_service = match[0], match[1], match[2]
+                                else:
+                                    continue
+                            else:
+                                # Single match - need to parse differently
+                                continue
+                            
+                            # Use port override if specified, otherwise extract from match
+                            port = int(port_override) if port_override else int(port_str)
+                            
+                            # Resolve service name template with match groups
+                            service_name = service_name_template
+                            for i, group in enumerate(match):
+                                service_name = service_name.replace(f"{{match{i+1}}}", str(group))
+                            
+                            # Special case: if service_name still has template vars, use detected_service
+                            if "{match" in service_name:
+                                service_name = detected_service
+                                
+                            # Determine if service is secure
+                            secure = 'ssl' in detected_service.lower() or 'tls' in detected_service.lower() or 'https' in detected_service.lower()
+                            
+                            # Clean service name (remove ssl/ prefix if present)
+                            if service_name.startswith('ssl/'):
+                                service_name = service_name[4:]
+                            elif service_name.startswith('tls/'):
+                                service_name = service_name[4:]
+                            
+                            # Create Service object
+                            service_obj = Service(protocol.lower(), port, service_name, secure)
+                            # Set target reference (will be set properly by main.py)
+                            service_obj.target = target
+                            
+                            services_found.append(service_obj)
+                            
+                        except (ValueError, IndexError) as e:
+                            logger.debug(f"Failed to parse service from match {match}: {e}")
+                            continue
             
             execution_time = time.time() - start_time
+            
+            # Show plugin completion message
+            duration = f"{execution_time:.1f}s"
+            user_display.plugin_complete(target.address, plugin.metadata.name, duration, success=True)
             
             # Update execution stats
             self.execution_stats['total_executions'] += 1
@@ -319,6 +379,11 @@ class YamlPluginExecutor:
             
         except Exception as e:
             execution_time = time.time() - start_time
+            
+            # Show plugin failure message
+            duration = f"{execution_time:.1f}s"
+            user_display.plugin_complete(target.address, plugin.metadata.name, duration, success=False)
+            
             self.execution_stats['total_executions'] += 1
             self.execution_stats['failed_executions'] += 1
             self.execution_stats['total_execution_time'] += execution_time
@@ -345,6 +410,10 @@ class YamlPluginExecutor:
         """
         import time
         start_time = time.time()
+        
+        # Show plugin start message
+        target_service = f"{service.target.address}:{service.port}"
+        user_display.plugin_start(target_service, plugin.metadata.name)
         
         try:
             # Prepare execution environment
@@ -417,6 +486,11 @@ class YamlPluginExecutor:
             
             execution_time = time.time() - start_time
             
+            # Show plugin completion message
+            target_service = f"{service.target.address}:{service.port}"
+            duration = f"{execution_time:.1f}s"
+            user_display.plugin_complete(target_service, plugin.metadata.name, duration, success=True)
+            
             # Update execution stats
             self.execution_stats['total_executions'] += 1
             self.execution_stats['successful_executions'] += 1
@@ -434,6 +508,12 @@ class YamlPluginExecutor:
             
         except Exception as e:
             execution_time = time.time() - start_time
+            
+            # Show plugin failure message
+            target_service = f"{service.target.address}:{service.port}"
+            duration = f"{execution_time:.1f}s"
+            user_display.plugin_complete(target_service, plugin.metadata.name, duration, success=False)
+            
             self.execution_stats['total_executions'] += 1
             self.execution_stats['failed_executions'] += 1
             self.execution_stats['total_execution_time'] += execution_time
@@ -466,8 +546,8 @@ class YamlPluginExecutor:
             'ipversion': getattr(target, 'ipversion', 'IPv4'),
             'plugin_slug': plugin.metadata.name,
             'plugin_name': plugin.metadata.name,
-            'ports_tcp': config.get('ports', {}).get('tcp', ''),
-            'ports_udp': config.get('ports', {}).get('udp', ''),
+            'ports_tcp': (config.get('ports') or {}).get('tcp', ''),
+            'ports_udp': (config.get('ports') or {}).get('udp', ''),
         }
     
     def _prepare_service_environment(self, plugin: YamlPlugin, service) -> Dict[str, str]:
@@ -493,6 +573,10 @@ class YamlPluginExecutor:
             'http_scheme': 'https' if ('https' in service.name or service.secure) else 'http',
             'url': f"{'https' if ('https' in service.name or service.secure) else 'http'}://{service.target.address}:{service.port}",
         })
+        
+        # Add wordlist resolution logic
+        resolved_wordlists = self._resolve_wordlists(plugin, service)
+        env_vars.update(resolved_wordlists)
         
         return env_vars
     
@@ -599,6 +683,134 @@ class YamlPluginExecutor:
             findings.append(finding)
         
         return findings
+    
+    def _resolve_wordlists(self, plugin: YamlPlugin, service) -> Dict[str, str]:
+        """
+        Resolve wordlist paths for a plugin based on auto-selection or custom paths.
+        
+        Args:
+            plugin: YAML plugin that may have wordlist options
+            service: Service object for context
+            
+        Returns:
+            Dictionary of resolved wordlist variables for command substitution
+        """
+        wordlist_vars = {}
+        
+        # Check if plugin has wordlist options
+        wordlist_option = None
+        for option in plugin.options:
+            if option.name == "wordlist":
+                wordlist_option = option
+                break
+        
+        if not wordlist_option:
+            # No wordlist option defined, return empty
+            return wordlist_vars
+        
+        # Get the wordlist value from plugin configuration (default to 'auto' if not specified)
+        # In the future, this could be overridden by user configuration or template options
+        wordlist_value = getattr(wordlist_option, 'default', 'auto')
+        
+        if wordlist_value == "auto":
+            # Use intelligent wordlist selection
+            resolved_path = self._auto_select_wordlist(service)
+            if resolved_path:
+                wordlist_vars['resolved_wordlist'] = resolved_path
+                wordlist_vars['wordlist'] = resolved_path  # Backward compatibility
+        else:
+            # Custom wordlist path specified
+            resolved_path = self._validate_custom_wordlist(wordlist_value)
+            if resolved_path:
+                wordlist_vars['resolved_wordlist'] = resolved_path
+                wordlist_vars['wordlist'] = resolved_path  # Backward compatibility
+            else:
+                # Fail fast on missing custom wordlist
+                raise Exception(f"Custom wordlist not found or invalid: {wordlist_value}")
+        
+        return wordlist_vars
+    
+    def _auto_select_wordlist(self, service) -> Optional[str]:
+        """
+        Auto-select appropriate wordlist using Smart Wordlist Selector.
+        
+        Args:
+            service: Service object for context
+            
+        Returns:
+            Path to selected wordlist or None
+        """
+        try:
+            from ipcrawler.smart_wordlist_selector import SmartWordlistSelector
+            from ipcrawler.wordlists import init_wordlist_manager
+            from ipcrawler.config import config
+            
+            # Initialize wordlist manager to detect SecLists
+            wordlist_manager = init_wordlist_manager(config['config_dir'])
+            seclists_path = wordlist_manager.detect_seclists_installation()
+            
+            if not seclists_path:
+                logger.warning("SecLists not found - auto wordlist selection unavailable")
+                return None
+            
+            # Initialize smart selector
+            selector = SmartWordlistSelector(seclists_path)
+            
+            # Determine category based on service type
+            if 'http' in service.name.lower():
+                category = 'directories'  # Most common web enumeration
+            else:
+                category = 'generic'
+            
+            # For now, use empty technology set - in future this could be enhanced
+            # to detect technologies from previous scan results
+            detected_technologies = set()
+            
+            # Select wordlist
+            selected_path = selector.select_wordlist(category, detected_technologies)
+            
+            if selected_path and os.path.exists(selected_path):
+                logger.debug(f"Auto-selected wordlist: {selected_path}")
+                return selected_path
+            else:
+                logger.warning(f"Auto-selected wordlist not found: {selected_path}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Auto wordlist selection failed: {e}")
+            return None
+    
+    def _validate_custom_wordlist(self, wordlist_path: str) -> Optional[str]:
+        """
+        Validate custom wordlist path.
+        
+        Args:
+            wordlist_path: Path to custom wordlist file
+            
+        Returns:
+            Absolute path to wordlist if valid, None otherwise
+        """
+        import os
+        
+        # Convert to absolute path
+        if not os.path.isabs(wordlist_path):
+            # Relative to current working directory
+            wordlist_path = os.path.abspath(wordlist_path)
+        
+        # Check if file exists and is readable
+        if os.path.exists(wordlist_path) and os.path.isfile(wordlist_path):
+            try:
+                with open(wordlist_path, 'r') as f:
+                    # Just check if we can read the first line
+                    f.readline()
+                logger.debug(f"Custom wordlist validated: {wordlist_path}")
+                return wordlist_path
+            except Exception as e:
+                logger.error(f"Custom wordlist not readable: {wordlist_path} - {e}")
+                return None
+        else:
+            logger.error(f"Custom wordlist not found: {wordlist_path}")
+            return None
     
     def get_execution_stats(self) -> Dict[str, Any]:
         """Get execution statistics."""

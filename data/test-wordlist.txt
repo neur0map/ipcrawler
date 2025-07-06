@@ -1,0 +1,10 @@
+admin
+test
+login
+config
+backup
+index
+api
+dashboard
+status
+health

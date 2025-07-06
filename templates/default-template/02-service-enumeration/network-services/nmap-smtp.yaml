@@ -1,9 +1,8 @@
-name: "SMTP Service Enumeration"
-description: "Comprehensive SMTP service enumeration including user enumeration, relay testing, and vulnerability detection"
-author: "IPCrawler YAML Plugin System"
-version: "1.0.0"
-
 metadata:
+  name: "SMTP Service Enumeration"
+  description: "Comprehensive SMTP service enumeration including user enumeration, relay testing, and vulnerability detection"
+  author: "IPCrawler YAML Plugin System"
+  version: "1.0.0"
   type: "servicescan"
   slug: "nmap-smtp"
   priority: 4

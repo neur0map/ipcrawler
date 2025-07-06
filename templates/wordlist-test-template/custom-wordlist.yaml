@@ -1,0 +1,41 @@
+metadata:
+  name: "Custom Wordlist Directory Scan"
+  description: "Test plugin using custom wordlist path"
+  type: "servicescan"
+  priority: 20
+  version: "1.0"
+  author: "IPCrawler Test Suite"
+
+conditions:
+  services:
+    include: ["^http", "ssl/http", "^https"]
+
+options:
+  - name: "wordlist"
+    type: "string"
+    default: "data/wordlists/spring-boot-actuator.txt"
+    help: "Custom wordlist path for testing (using existing spring-boot wordlist)"
+  - name: "threads"
+    type: "integer"
+    default: 5
+    help: "Number of threads to use"
+
+execution:
+  commands:
+    - name: "directory_scan_custom"
+      command: "echo 'Custom wordlist test: {resolved_wordlist}' && ls -la '{resolved_wordlist}' 2>/dev/null | head -3"
+      timeout: 30
+      description: "Test custom wordlist resolution"
+
+output:
+  patterns:
+    - pattern: "Custom wordlist test: (.+)"
+      description: "Custom wordlist: {match1}"
+      severity: "info"
+      category: "wordlist_test"
+
+requirements:
+  tools:
+    - name: "echo"
+      check_command: "echo --version"
+      install_hint: "Built-in command"
