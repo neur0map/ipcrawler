@@ -2,7 +2,7 @@ import asyncio, inspect, os, re
 from typing import final
 from ipcrawler.config import config
 from ipcrawler.io import e, info, warn, error
-from ipcrawler.loading import start_tool_loading, stop_tool_loading, update_tool_progress, scan_status
+from ipcrawler.user_display import user_display
 from ipcrawler.logger import setup_unified_logging
 
 class Target:
@@ -191,43 +191,20 @@ class Target:
 		return await self.ipcrawler.extract_services(stream, regex)
 
 	@final
-	def info(self, msg, verbosity=0):
+	def info(self, msg):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		info(f'🎯 [{self.address}/{plugin.slug}] {msg}', verbosity=verbosity)
+		info(f'🎯 [{self.address}/{plugin.slug}] {msg}')
 
 	@final
-	def warn(self, msg, verbosity=0):
+	def warn(self, msg):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		warn(f'⚠️ [{self.address}/{plugin.slug}] {msg}', verbosity=verbosity)
+		warn(f'⚠️ [{self.address}/{plugin.slug}] {msg}')
 
 	@final
-	def error(self, msg, verbosity=0):
+	def error(self, msg):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		error(f'❌ [{self.address}/{plugin.slug}] {msg}', verbosity=verbosity)
+		error(f'❌ [{self.address}/{plugin.slug}] {msg}')
 		
-	def _estimate_port_scan_time(self, plugin_name: str) -> int:
-		"""Estimate port scan time based on plugin characteristics"""
-		plugin_lower = plugin_name.lower()
-		
-		# Fast scans (1-3 minutes)
-		if any(fast in plugin_lower for fast in ['top-100', 'top-1000', 'guess']):
-			return 2
-		
-		# Medium scans (3-8 minutes)
-		elif any(medium in plugin_lower for medium in ['top', 'common']):
-			return 4
-		
-		# Slow scans (8+ minutes)
-		elif any(slow in plugin_lower for slow in ['all', 'full', '-p-']):
-			return 10
-		
-		# UDP scans are generally slower
-		elif 'udp' in plugin_lower:
-			return 8
-		
-		# Default estimate
-		else:
-			return 3
 
 	async def execute(self, cmd, blocking=True, outfile=None, errfile=None, future_outfile=None):
 		target = self
@@ -261,14 +238,10 @@ class Target:
 		cmd = e(cmd)
 		tag = plugin.slug
 
-		# Start loading interface for port scan with intelligent estimates (only in non-unified mode)
+		# Show live command execution without hardcoded estimates
 		if not hasattr(target, '_unified_logger'):
-			estimated_time = self._estimate_port_scan_time(plugin.name)
-			start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
-			
-			# Show beautiful command execution details (only in verbose mode)
-			if config['verbose'] >= 2:
-				scan_status.show_command_execution(address, plugin.name, cmd, config['verbose'])
+			# Show beautiful command execution details
+			user_display.show_command_execution(address, plugin.name, cmd, show_details=True)
 
 		if outfile is not None:
 			outfile = os.path.join(target.scandir, e(outfile))
@@ -295,9 +268,10 @@ class Target:
 				await asyncio.sleep(0.1)
 			await process.wait()
 			
-			# Stop loading interface and show completion
+			# Show completion status (live tracking handles this now)
 			success = process.returncode == 0
-			stop_tool_loading(success, f"Exit code: {process.returncode}")
+			status = "✅" if success else "❌"
+			user_display.status_info(f"{status} Process completed - Exit code: {process.returncode}")
 
 		return process, stdout, stderr
 
@@ -334,43 +308,20 @@ class Service:
 		self.add_manual_commands(description, command)
 
 	@final
-	def info(self, msg, verbosity=0):
+	def info(self, msg):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		info(f'🎯 [{self.target.address}:{self.port}/{plugin.slug}] {msg}', verbosity=verbosity)
+		info(f'🎯 [{self.target.address}:{self.port}/{plugin.slug}] {msg}')
 
 	@final
-	def warn(self, msg, verbosity=0):
+	def warn(self, msg):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		warn(f'⚠️ [{self.target.address}:{self.port}/{plugin.slug}] {msg}', verbosity=verbosity)
+		warn(f'⚠️ [{self.target.address}:{self.port}/{plugin.slug}] {msg}')
 
 	@final
-	def error(self, msg, verbosity=0):
+	def error(self, msg):
 		plugin = inspect.currentframe().f_back.f_locals['self']
-		error(f'❌ [{self.target.address}:{self.port}/{plugin.slug}] {msg}', verbosity=verbosity)
+		error(f'❌ [{self.target.address}:{self.port}/{plugin.slug}] {msg}')
 
-	def _estimate_service_scan_time(self, plugin_name: str) -> int:
-		"""Estimate scan time based on plugin characteristics"""
-		plugin_lower = plugin_name.lower()
-		
-		# Fast tools (1-3 minutes)
-		if any(fast in plugin_lower for fast in ['nmap', 'curl', 'whatweb', 'sslscan']):
-			return 2
-		
-		# Medium tools (3-8 minutes)  
-		elif any(medium in plugin_lower for medium in ['nikto', 'enum4linux', 'smbclient', 'showmount']):
-			return 5
-		
-		# Slow tools (8-15 minutes)
-		elif any(slow in plugin_lower for slow in ['dirbuster', 'dirb', 'gobuster', 'wfuzz']):
-			return 10
-		
-		# Very slow tools (15+ minutes)
-		elif any(very_slow in plugin_lower for very_slow in ['hydra', 'medusa', 'john', 'hashcat']):
-			return 20
-		
-		# Default estimate
-		else:
-			return 5
 
 	@final
 	async def execute(self, cmd, blocking=True, outfile=None, errfile=None, future_outfile=None):
@@ -417,14 +368,10 @@ class Service:
 		if plugin.run_once_boolean:
 			plugin_tag = plugin.slug
 
-		# Start loading interface for service scan with intelligent estimates (only in non-unified mode)
+		# Show live command execution without hardcoded estimates
 		if not hasattr(target, '_unified_logger'):
-			estimated_time = self._estimate_service_scan_time(plugin.name)
-			start_tool_loading(plugin.name, address, cmd, estimated_minutes=estimated_time)
-			
-			# Show beautiful command execution details (only in verbose mode)
-			if config['verbose'] >= 2:
-				scan_status.show_command_execution(f"{self.target.address}:{self.port}", plugin.name, cmd, config['verbose'])
+			# Show beautiful command execution details
+			user_display.show_command_execution(f"{self.target.address}:{self.port}", plugin.name, cmd, show_details=True)
 
 		if outfile is not None:
 			outfile = os.path.join(scandir, e(outfile))
@@ -451,8 +398,9 @@ class Service:
 				await asyncio.sleep(0.1)
 			await process.wait()
 			
-			# Stop loading interface and show completion
+			# Show completion status (live tracking handles this now)
 			success = process.returncode == 0
-			stop_tool_loading(success, f"Exit code: {process.returncode}")
+			status = "✅" if success else "❌"
+			user_display.status_info(f"{status} Process completed - Exit code: {process.returncode}")
 
 		return process, stdout, stderr

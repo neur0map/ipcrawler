@@ -1,0 +1,182 @@
+metadata:
+  name: "Quick HTTP Curl Scanner"
+  description: "Fast HTTP enumeration using curl for headers, robots.txt, and basic page analysis"
+  type: "servicescan"
+  priority: 10
+  version: "1.0"
+  author: "IPCrawler Quick Test Template"
+  tags:
+    - quick
+    - http
+    - curl
+    - web
+
+conditions:
+  services:
+    include: ["http", "https", "ssl/http", "http/", "https/", "http/insecure", "http/secure", "httpd", "http-proxy", "ssl/https", "https-alt", "http-alt"]
+    exclude: ["^nacn_http$"]
+
+options:
+  - name: "timeout"
+    type: "integer"
+    default: 30
+    help: "Request timeout in seconds"
+  - name: "user_agent"
+    type: "string"
+    default: "Mozilla/5.0 (compatible; IPCrawler-QuickTest/1.0)"
+    help: "User agent string for requests"
+  - name: "follow_redirects"
+    type: "boolean"
+    default: true
+    help: "Follow HTTP redirects"
+  - name: "check_robots"
+    type: "boolean"
+    default: true
+    help: "Check for robots.txt file"
+
+execution:
+  commands:
+    - name: "http_headers"
+      command: "curl -I -s -k --max-time {timeout} -A \"{user_agent}\" -L {http_scheme}://{address}:{port}/ 2>/dev/null || echo 'HTTP request failed for {http_scheme}://{address}:{port}/'"
+      timeout: 45
+      output_file: "{protocol}_{port}_{http_scheme}_headers.txt"
+    
+    - name: "index_page"
+      command: "curl -s -k --max-time {timeout} -A \"{user_agent}\" -L {http_scheme}://{address}:{port}/ 2>/dev/null | head -100 || echo 'Failed to retrieve index page'"
+      timeout: 45
+      output_file: "{protocol}_{port}_{http_scheme}_index.txt"
+    
+    - name: "robots_txt"
+      command: "curl -s -k --max-time {timeout} -A \"{user_agent}\" {http_scheme}://{address}:{port}/robots.txt 2>/dev/null | head -50 || echo 'No robots.txt found or accessible'"
+      timeout: 30
+      output_file: "{protocol}_{port}_{http_scheme}_robots.txt"
+    
+    - name: "security_headers"
+      command: "echo 'Security Headers Analysis:' && curl -I -s -k --max-time {timeout} {http_scheme}://{address}:{port}/ 2>/dev/null | grep -i -E '(x-frame|x-xss|x-content|strict-transport|content-security|x-powered)' || echo 'No security headers detected'"
+      timeout: 30
+      output_file: "{protocol}_{port}_{http_scheme}_security.txt"
+
+output:
+  patterns:
+    - pattern: "(?i)server:\\s*([^\\r\\n]+)"
+      description: "Web Server: {match1}"
+      severity: "info"
+      category: "server_identification"
+    
+    - pattern: "(?i)x-powered-by:\\s*([^\\r\\n]+)"
+      description: "Technology: Powered by {match1}"
+      severity: "info"
+      category: "technology_detection"
+    
+    - pattern: "(?i)<title>([^<]+)</title>"
+      description: "Page Title: {match1}"
+      severity: "info"
+      category: "content_discovery"
+    
+    - pattern: "(?i)http/1\\.[01]\\s+(\\d{3})\\s*([^\\r\\n]*)"
+      description: "HTTP Response: {match1} {match2}"
+      severity: "info"
+      category: "http_response"
+    
+    - pattern: "(?i)location:\\s*([^\\r\\n]+)"
+      description: "Redirect to: {match1}"
+      severity: "info"
+      category: "redirect_discovery"
+    
+    - pattern: "(?i)set-cookie:\\s*([^\\r\\n]+)"
+      description: "Cookie Set: {match1}"
+      severity: "info"
+      category: "cookie_analysis"
+    
+    - pattern: "(?i)www-authenticate:\\s*([^\\r\\n]+)"
+      description: "Authentication Required: {match1}"
+      severity: "medium"
+      category: "authentication"
+    
+    - pattern: "(?i)(disallow|allow):\\s*([^\\r\\n]+)"
+      description: "Robots.txt entry: {match1}: {match2}"
+      severity: "info"
+      category: "robots_analysis"
+    
+    - pattern: "(?i)sitemap:\\s*([^\\r\\n]+)"
+      description: "Sitemap found: {match1}"
+      severity: "info"
+      category: "sitemap_discovery"
+    
+    # Security header analysis
+    - pattern: "(?i)x-frame-options:\\s*([^\\r\\n]+)"
+      description: "X-Frame-Options: {match1}"
+      severity: "info"
+      category: "security_headers"
+    
+    - pattern: "(?i)x-xss-protection:\\s*([^\\r\\n]+)"
+      description: "XSS Protection: {match1}"
+      severity: "info"
+      category: "security_headers"
+    
+    - pattern: "(?i)strict-transport-security:\\s*([^\\r\\n]+)"
+      description: "HSTS Enabled: {match1}"
+      severity: "info"
+      category: "security_headers"
+    
+    - pattern: "(?i)content-security-policy:\\s*([^\\r\\n]+)"
+      description: "CSP Policy: {match1}"
+      severity: "info"
+      category: "security_headers"
+    
+    # Common technologies
+    - pattern: "(?i)wordpress|wp-content|wp-includes"
+      description: "WordPress detected"
+      severity: "info"
+      category: "cms_detection"
+    
+    - pattern: "(?i)joomla|joomla!"
+      description: "Joomla detected"
+      severity: "info"
+      category: "cms_detection"
+    
+    - pattern: "(?i)drupal"
+      description: "Drupal detected"
+      severity: "info"
+      category: "cms_detection"
+    
+    # Error conditions
+    - pattern: "(?i)http request failed|failed to retrieve"
+      description: "HTTP request failed - service may be filtered or down"
+      severity: "low"
+      category: "connectivity_issues"
+
+  technology_detection:
+    - pattern: "(?i)server:\\s*apache"
+      technology: "Apache"
+    - pattern: "(?i)server:\\s*nginx"
+      technology: "Nginx"
+    - pattern: "(?i)server:\\s*iis"
+      technology: "IIS"
+    - pattern: "(?i)x-powered-by:\\s*php"
+      technology: "PHP"
+    - pattern: "(?i)x-powered-by:\\s*asp\\.net"
+      technology: "ASP.NET"
+    - pattern: "(?i)wordpress|wp-content"
+      technology: "WordPress"
+    - pattern: "(?i)joomla"
+      technology: "Joomla"
+    - pattern: "(?i)drupal"
+      technology: "Drupal"
+
+requirements:
+  tools:
+    - name: "curl"
+      check_command: "curl --version"
+      install_hint: "apt-get install curl"
+
+debug:
+  log_level: "info"
+  trace_decisions: true
+  show_command_output: false
+
+variables:
+  timeout: 30
+  user_agent: "Mozilla/5.0 (compatible; IPCrawler-QuickTest/1.0)"
+  follow_redirects: true
+  check_robots: true

@@ -21,6 +21,14 @@ from ipcrawler.config import config
 # Set up basic logging for the YAML plugin system
 logger = logging.getLogger(__name__)
 
+# Add audit logging
+audit_logger = logging.getLogger('yaml_audit')
+audit_logger.setLevel(logging.DEBUG)
+if not audit_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('🔍 AUDIT: %(message)s'))
+    audit_logger.addHandler(handler)
+
 
 class PluginType(str, Enum):
     """Plugin types supported by the system"""
@@ -168,6 +176,7 @@ class YamlPlugin:
     metadata: YamlPluginMetadata
     conditions: YamlPluginConditions = field(default_factory=YamlPluginConditions)
     options: List[YamlPluginOption] = field(default_factory=list)
+    variables: Dict[str, str] = field(default_factory=dict)  # Plugin-specific variables
     commands: List[YamlPluginCommand] = field(default_factory=list)
     manual_commands: List[YamlPluginManualCommand] = field(default_factory=list)
     patterns: List[YamlPluginPattern] = field(default_factory=list)
@@ -302,7 +311,30 @@ class YamlPluginLoader:
         """Parse a single YAML plugin file"""
         try:
             with open(plugin_file, 'r', encoding='utf-8') as f:
-                plugin_data = yaml.safe_load(f)
+                raw_content = f.read()
+                
+            # AUDIT LOG 1: Raw template text
+            audit_logger.debug(f"📄 STAGE 1 - Raw YAML Template for {plugin_file.name}:")
+            audit_logger.debug(f"   First 200 chars: {repr(raw_content[:200])}")
+            if '{min_rate}' in raw_content:
+                audit_logger.debug(f"   ✅ Contains {{min_rate}} variable")
+            if '{% if config.proxychains %}' in raw_content:
+                audit_logger.debug(f"   ✅ Contains Jinja2 conditional")
+            
+            # Parse the raw YAML (no rendering yet)
+            plugin_data = yaml.safe_load(raw_content)
+            
+            # AUDIT LOG 2: Post-YAML-parse structure  
+            audit_logger.debug(f"📊 STAGE 2 - Parsed YAML Structure:")
+            if 'execution' in plugin_data and 'commands' in plugin_data['execution']:
+                for i, cmd in enumerate(plugin_data['execution']['commands']):
+                    if 'command' in cmd:
+                        cmd_str = cmd['command']
+                        audit_logger.debug(f"   Command {i}: {repr(cmd_str[:100])}")
+                        if '{min_rate}' in cmd_str:
+                            audit_logger.debug(f"   ❌ Command {i} STILL contains {{min_rate}} after YAML parse")
+                        if '{% if' in cmd_str:
+                            audit_logger.debug(f"   ❌ Command {i} STILL contains Jinja2 after YAML parse")
             
             if not plugin_data:
                 logger.warning(f"Empty plugin file: {plugin_file}")
@@ -357,6 +389,9 @@ class YamlPluginLoader:
                     required=opt_data.get('required', False)
                 )
                 options.append(option)
+            
+            # Parse variables
+            variables = plugin_data.get('variables', {})
             
             # Parse commands
             commands = []
@@ -451,6 +486,7 @@ class YamlPluginLoader:
                 metadata=metadata,
                 conditions=conditions,
                 options=options,
+                variables=variables,
                 commands=commands,
                 manual_commands=manual_commands,
                 patterns=patterns,

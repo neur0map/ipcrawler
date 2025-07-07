@@ -173,16 +173,16 @@ class Plugin(object):
 			fail('Error: The pattern "' + pattern + '" in the plugin "' + self.name + '" is invalid regex.')
 
 	@final
-	def info(self, msg, verbosity=0):
-		info(f'🔧 [{self.slug}] {msg}', verbosity=1)
+	def info(self, msg):
+		info(f'🔧 [{self.slug}] {msg}')
 
 	@final
-	def warn(self, msg, verbosity=0):
-		warn(f'⚠️ [{self.slug}] {msg}', verbosity=verbosity)
+	def warn(self, msg):
+		warn(f'⚠️ [{self.slug}] {msg}')
 
 	@final
-	def error(self, msg, verbosity=0):
-		error(f'❌ [{self.slug}] {msg}', verbosity=verbosity)
+	def error(self, msg):
+		error(f'❌ [{self.slug}] {msg}')
 
 class PortScan(Plugin):
 
@@ -490,9 +490,9 @@ class ipcrawler(object):
 		# Execute with comprehensive unified logging - this replaces the original system
 		enhanced_env = self._get_enhanced_env()
 		
-		# Check verbosity - only suppress output in quiet mode (verbosity 0)
+		# Suppress output is now consistent - handled by unified logging system
 		from ipcrawler.config import config
-		suppress_output = config.get('verbose', 0) == 0
+		suppress_output = True  # Always use unified logging system
 		
 		# Use configured timeout (convert from minutes to seconds)
 		configured_timeout = config.get('timeout', 120) * 60  # Default 2 hours in seconds

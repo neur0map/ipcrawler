@@ -105,8 +105,7 @@ class YamlPluginManager:
             logger.info(f"YAML plugin system initialized - loaded {len(self.loader.plugins)} plugins in {self.performance_stats['initialization_time']:.2f}s")
             
             # Log available plugins by type
-            if config.get('verbose', 0) >= 1:
-                self._log_loaded_plugins()
+            self._log_loaded_plugins()
             
             return True
             

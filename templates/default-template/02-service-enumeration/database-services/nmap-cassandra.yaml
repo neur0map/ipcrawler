@@ -1,357 +1,296 @@
 metadata:
-  name: "Nmap Cassandra Database Enumeration"
-  description: "Cassandra database enumeration using comprehensive nmap scripts"
-  type: "servicescan"
+  name: Nmap Cassandra Database Enumeration
+  description: Cassandra database enumeration using comprehensive nmap scripts
+  type: servicescan
   priority: 5
-  version: "1.0"
-  author: "IPCrawler YAML Plugin System"
-  tags: ["default", "safe", "cassandra"]
-
+  version: '1.0'
+  author: IPCrawler YAML Plugin System
+  tags:
+  - default
+  - safe
+  - cassandra
 conditions:
   services:
-    include: ["^apani1"]
-
+    include:
+    - ^apani1
 options:
-  - name: "min_rate"
-    type: "integer"
-    default: 5000
-    help: "Minimum packet rate per second"
-  - name: "max_rate"
-    type: "integer"
-    default: 10000
-    help: "Maximum packet rate per second"
-  - name: "timing_template"
-    type: "choice"
-    choices: ["T1", "T2", "T3", "T4", "T5"]
-    default: "T5"
-    help: "Nmap timing template"
-
+- name: min_rate
+  type: integer
+  default: 5000
+  help: Minimum packet rate per second
+- name: max_rate
+  type: integer
+  default: 10000
+  help: Maximum packet rate per second
+- name: timing_template
+  type: choice
+  choices:
+  - T1
+  - T2
+  - T3
+  - T4
+  - T5
+  default: T5
+  help: Nmap timing template
 execution:
   commands:
-    - name: "nmap_cassandra_enumeration"
-      command: "nmap {nmap_extra} -{timing_template} --min-rate={min_rate} --max-rate={max_rate} -sV -p {port} --script=\"banner,(cassandra* or ssl*) and not (brute or broadcast or dos or external or fuzzer)\" -oN \"{scandir}/{protocol}_{port}_cassandra_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_cassandra_nmap.xml\" {address}"
-      timeout: 600
-      output_file: "{protocol}_{port}_cassandra_nmap.txt"
-
+  - name: nmap_cassandra_enumeration
+    command: nmap -{timing_template} --min-rate={min_rate} --max-rate={max_rate}
+      -sV -p {port} --script="banner,(cassandra* or ssl*) and not (brute or broadcast
+      or dos or external or fuzzer)" -oN "{scandir}/{protocol}_{port}_cassandra_nmap.txt"
+      -oX "{scandir}/xml/{protocol}_{port}_cassandra_nmap.xml" {address}
+    timeout: 600
+    output_file: '{protocol}_{port}_cassandra_nmap.txt'
   manual_commands:
-    - description: "(nmap) Cassandra enumeration with scripts"
-      command: "nmap -T5 -sV -p {port} --script=\"cassandra*\" {address}"
-    - description: "(nmap) Cassandra info and keyspaces"
-      command: "nmap -p {port} --script cassandra-info,cassandra-brute {address}"
-    - description: "(cqlsh) Cassandra CQL shell client"
-      command: "cqlsh {address} {port}"
-    - description: "(nodetool) Cassandra node tool"
-      command: "nodetool -h {address} -p {port} status"
-    - description: "(cassandra-cli) Cassandra CLI (legacy)"
-      command: "cassandra-cli -h {address} -p {port}"
-
+  - description: (nmap) Cassandra enumeration with scripts
+    command: nmap -T5 -sV -p {port} --script="cassandra*" {address}
+  - description: (nmap) Cassandra info and keyspaces
+    command: nmap -p {port} --script cassandra-info,cassandra-brute {address}
+  - description: (cqlsh) Cassandra CQL shell client
+    command: cqlsh {address} {port}
+  - description: (nodetool) Cassandra node tool
+    command: nodetool -h {address} -p {port} status
+  - description: (cassandra-cli) Cassandra CLI (legacy)
+    command: cassandra-cli -h {address} -p {port}
 output:
   patterns:
-    # Cassandra Version Detection
-    - pattern: "(?i)cassandra.*version[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Version: {match1}"
-      severity: "info"
-      category: "version"
-    
-    - pattern: "(?i)cassandra.*([\\d\\.]+)"
-      description: "Apache Cassandra v{match1} detected"
-      severity: "info"
-      category: "technology"
-    
-    - pattern: "(?i)apache.*cassandra.*([\\d\\.]+)"
-      description: "Apache Cassandra v{match1} detected"
-      severity: "info"
-      category: "technology"
-    
-    # Cluster Information
-    - pattern: "(?i)cluster.*name[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Cluster: {match1}"
-      severity: "medium"
-      category: "enumeration"
-    
-    - pattern: "(?i)datacenter[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Datacenter: {match1}"
-      severity: "info"
-      category: "configuration"
-    
-    - pattern: "(?i)rack[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Rack: {match1}"
-      severity: "info"
-      category: "configuration"
-    
-    - pattern: "(?i)token.*range[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Token Range: {match1}"
-      severity: "info"
-      category: "configuration"
-    
-    # Keyspace Information
-    - pattern: "(?i)keyspace[s]?[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Keyspaces: {match1}"
-      severity: "medium"
-      category: "enumeration"
-    
-    - pattern: "(?i)column.*famil(y|ies)[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Column Families: {match1}"
-      severity: "medium"
-      category: "enumeration"
-    
-    - pattern: "(?i)table[s]?[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Tables: {match1}"
-      severity: "medium"
-      category: "enumeration"
-    
-    # Authentication and Security
-    - pattern: "(?i)authentication.*disabled"
-      description: "CRITICAL: Cassandra authentication disabled"
-      severity: "critical"
-      category: "security"
-    
-    - pattern: "(?i)authentication.*enabled"
-      description: "Cassandra authentication enabled"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)authorization.*enabled"
-      description: "Cassandra authorization enabled"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)default.*credentials.*found"
-      description: "CRITICAL: Cassandra default credentials detected"
-      severity: "critical"
-      category: "security"
-    
-    - pattern: "(?i)empty.*password.*detected"
-      description: "CRITICAL: Cassandra empty password detected"
-      severity: "critical"
-      category: "security"
-    
-    - pattern: "(?i)cassandra.*cassandra.*login"
-      description: "CRITICAL: Cassandra default cassandra/cassandra credentials"
-      severity: "critical"
-      category: "security"
-    
-    # SSL/TLS Configuration
-    - pattern: "(?i)ssl.*enabled"
-      description: "Cassandra SSL/TLS enabled - encrypted connections supported"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)ssl.*disabled"
-      description: "WARNING: Cassandra SSL/TLS disabled - unencrypted connections"
-      severity: "medium"
-      category: "security"
-    
-    - pattern: "(?i)client.*encryption.*enabled"
-      description: "Cassandra client encryption enabled"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)internode.*encryption.*enabled"
-      description: "Cassandra internode encryption enabled"
-      severity: "info"
-      category: "security"
-    
-    # Configuration Information
-    - pattern: "(?i)listen.*address[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Listen Address: {match1}"
-      severity: "info"
-      category: "network"
-    
-    - pattern: "(?i)rpc.*address[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra RPC Address: {match1}"
-      severity: "info"
-      category: "network"
-    
-    - pattern: "(?i)native.*transport.*port[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Native Transport Port: {match1}"
-      severity: "info"
-      category: "network"
-    
-    - pattern: "(?i)thrift.*port[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Thrift Port: {match1}"
-      severity: "info"
-      category: "network"
-    
-    - pattern: "(?i)jmx.*port[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra JMX Port: {match1}"
-      severity: "info"
-      category: "network"
-    
-    # Node and Ring Information
-    - pattern: "(?i)node.*id[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Node ID: {match1}"
-      severity: "info"
-      category: "identification"
-    
-    - pattern: "(?i)host.*id[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Host ID: {match1}"
-      severity: "info"
-      category: "identification"
-    
-    - pattern: "(?i)ring.*status[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Ring Status: {match1}"
-      severity: "info"
-      category: "status"
-    
-    - pattern: "(?i)seeds[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Seed Nodes: {match1}"
-      severity: "info"
-      category: "configuration"
-    
-    # Performance and Statistics
-    - pattern: "(?i)uptime[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Uptime: {match1}"
-      severity: "info"
-      category: "statistics"
-    
-    - pattern: "(?i)load[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Load: {match1}"
-      severity: "info"
-      category: "statistics"
-    
-    - pattern: "(?i)read.*operations[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Read Operations: {match1}"
-      severity: "info"
-      category: "statistics"
-    
-    - pattern: "(?i)write.*operations[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Write Operations: {match1}"
-      severity: "info"
-      category: "statistics"
-    
-    - pattern: "(?i)heap.*memory[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Heap Memory: {match1}"
-      severity: "info"
-      category: "performance"
-    
-    # Vulnerability Patterns
-    - pattern: "(?i)cassandra.*[12]\\.[0-2]\\."
-      description: "CRITICAL: Cassandra 1.x-2.2 detected - multiple known vulnerabilities"
-      severity: "critical"
-      category: "vulnerability"
-    
-    - pattern: "(?i)cassandra.*3\\.[0-9]\\."
-      description: "MEDIUM: Cassandra 3.x detected - check for patches"
-      severity: "medium"
-      category: "vulnerability"
-    
-    - pattern: "(?i)jmx.*authentication.*disabled"
-      description: "CRITICAL: Cassandra JMX authentication disabled"
-      severity: "critical"
-      category: "security"
-    
-    - pattern: "(?i)jmx.*ssl.*disabled"
-      description: "HIGH: Cassandra JMX SSL disabled - unencrypted management"
-      severity: "high"
-      category: "security"
-    
-    # Error Messages and Status
-    - pattern: "(?i)connection.*refused"
-      description: "Cassandra connection refused"
-      severity: "info"
-      category: "network"
-    
-    - pattern: "(?i)authentication.*failed"
-      description: "Cassandra authentication failed"
-      severity: "info"
-      category: "authentication"
-    
-    - pattern: "(?i)unauthorized"
-      description: "Cassandra unauthorized access attempt"
-      severity: "info"
-      category: "authentication"
-    
-    - pattern: "(?i)timeout.*error"
-      description: "Cassandra timeout error"
-      severity: "info"
-      category: "error"
-    
-    - pattern: "(?i)node.*down"
-      description: "Cassandra node down"
-      severity: "medium"
-      category: "availability"
-    
-    - pattern: "(?i)node.*up"
-      description: "Cassandra node up"
-      severity: "info"
-      category: "availability"
-    
-    # Consistency and Replication
-    - pattern: "(?i)replication.*factor[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Replication Factor: {match1}"
-      severity: "info"
-      category: "configuration"
-    
-    - pattern: "(?i)consistency.*level[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Consistency Level: {match1}"
-      severity: "info"
-      category: "configuration"
-    
-    - pattern: "(?i)quorum.*required"
-      description: "Cassandra quorum required for operations"
-      severity: "info"
-      category: "configuration"
-    
-    # Backup and Repair
-    - pattern: "(?i)snapshot.*found"
-      description: "Cassandra snapshot detected"
-      severity: "medium"
-      category: "backup"
-    
-    - pattern: "(?i)repair.*in.*progress"
-      description: "Cassandra repair in progress"
-      severity: "info"
-      category: "maintenance"
-    
-    - pattern: "(?i)compaction.*in.*progress"
-      description: "Cassandra compaction in progress"
-      severity: "info"
-      category: "maintenance"
-    
-    # Storage and Disk Information
-    - pattern: "(?i)data.*directory[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Data Directory: {match1}"
-      severity: "low"
-      category: "configuration"
-    
-    - pattern: "(?i)commitlog.*directory[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Commitlog Directory: {match1}"
-      severity: "low"
-      category: "configuration"
-    
-    - pattern: "(?i)disk.*usage[:\\s]*([^\\n\\r]+)"
-      description: "Cassandra Disk Usage: {match1}"
-      severity: "info"
-      category: "statistics"
-    
-    # Network and Binding
-    - pattern: "(?i)listening.*on.*0\\.0\\.0\\.0"
-      description: "WARNING: Cassandra listening on all interfaces"
-      severity: "medium"
-      category: "security"
-    
-    - pattern: "(?i)listening.*on.*127\\.0\\.0\\.1"
-      description: "Cassandra listening on localhost only"
-      severity: "info"
-      category: "security"
-
+  - pattern: (?i)cassandra.*version[:\s]*([^\n\r]+)
+    description: 'Cassandra Version: {match1}'
+    severity: info
+    category: version
+  - pattern: (?i)cassandra.*([\d\.]+)
+    description: Apache Cassandra v{match1} detected
+    severity: info
+    category: technology
+  - pattern: (?i)apache.*cassandra.*([\d\.]+)
+    description: Apache Cassandra v{match1} detected
+    severity: info
+    category: technology
+  - pattern: (?i)cluster.*name[:\s]*([^\n\r]+)
+    description: 'Cassandra Cluster: {match1}'
+    severity: medium
+    category: enumeration
+  - pattern: (?i)datacenter[:\s]*([^\n\r]+)
+    description: 'Cassandra Datacenter: {match1}'
+    severity: info
+    category: configuration
+  - pattern: (?i)rack[:\s]*([^\n\r]+)
+    description: 'Cassandra Rack: {match1}'
+    severity: info
+    category: configuration
+  - pattern: (?i)token.*range[:\s]*([^\n\r]+)
+    description: 'Cassandra Token Range: {match1}'
+    severity: info
+    category: configuration
+  - pattern: (?i)keyspace[s]?[:\s]*([^\n\r]+)
+    description: 'Cassandra Keyspaces: {match1}'
+    severity: medium
+    category: enumeration
+  - pattern: (?i)column.*famil(y|ies)[:\s]*([^\n\r]+)
+    description: 'Cassandra Column Families: {match1}'
+    severity: medium
+    category: enumeration
+  - pattern: (?i)table[s]?[:\s]*([^\n\r]+)
+    description: 'Cassandra Tables: {match1}'
+    severity: medium
+    category: enumeration
+  - pattern: (?i)authentication.*disabled
+    description: 'CRITICAL: Cassandra authentication disabled'
+    severity: critical
+    category: security
+  - pattern: (?i)authentication.*enabled
+    description: Cassandra authentication enabled
+    severity: info
+    category: security
+  - pattern: (?i)authorization.*enabled
+    description: Cassandra authorization enabled
+    severity: info
+    category: security
+  - pattern: (?i)default.*credentials.*found
+    description: 'CRITICAL: Cassandra default credentials detected'
+    severity: critical
+    category: security
+  - pattern: (?i)empty.*password.*detected
+    description: 'CRITICAL: Cassandra empty password detected'
+    severity: critical
+    category: security
+  - pattern: (?i)cassandra.*cassandra.*login
+    description: 'CRITICAL: Cassandra default cassandra/cassandra credentials'
+    severity: critical
+    category: security
+  - pattern: (?i)ssl.*enabled
+    description: Cassandra SSL/TLS enabled - encrypted connections supported
+    severity: info
+    category: security
+  - pattern: (?i)ssl.*disabled
+    description: 'WARNING: Cassandra SSL/TLS disabled - unencrypted connections'
+    severity: medium
+    category: security
+  - pattern: (?i)client.*encryption.*enabled
+    description: Cassandra client encryption enabled
+    severity: info
+    category: security
+  - pattern: (?i)internode.*encryption.*enabled
+    description: Cassandra internode encryption enabled
+    severity: info
+    category: security
+  - pattern: (?i)listen.*address[:\s]*([^\n\r]+)
+    description: 'Cassandra Listen Address: {match1}'
+    severity: info
+    category: network
+  - pattern: (?i)rpc.*address[:\s]*([^\n\r]+)
+    description: 'Cassandra RPC Address: {match1}'
+    severity: info
+    category: network
+  - pattern: (?i)native.*transport.*port[:\s]*([^\n\r]+)
+    description: 'Cassandra Native Transport Port: {match1}'
+    severity: info
+    category: network
+  - pattern: (?i)thrift.*port[:\s]*([^\n\r]+)
+    description: 'Cassandra Thrift Port: {match1}'
+    severity: info
+    category: network
+  - pattern: (?i)jmx.*port[:\s]*([^\n\r]+)
+    description: 'Cassandra JMX Port: {match1}'
+    severity: info
+    category: network
+  - pattern: (?i)node.*id[:\s]*([^\n\r]+)
+    description: 'Cassandra Node ID: {match1}'
+    severity: info
+    category: identification
+  - pattern: (?i)host.*id[:\s]*([^\n\r]+)
+    description: 'Cassandra Host ID: {match1}'
+    severity: info
+    category: identification
+  - pattern: (?i)ring.*status[:\s]*([^\n\r]+)
+    description: 'Cassandra Ring Status: {match1}'
+    severity: info
+    category: status
+  - pattern: (?i)seeds[:\s]*([^\n\r]+)
+    description: 'Cassandra Seed Nodes: {match1}'
+    severity: info
+    category: configuration
+  - pattern: (?i)uptime[:\s]*([^\n\r]+)
+    description: 'Cassandra Uptime: {match1}'
+    severity: info
+    category: statistics
+  - pattern: (?i)load[:\s]*([^\n\r]+)
+    description: 'Cassandra Load: {match1}'
+    severity: info
+    category: statistics
+  - pattern: (?i)read.*operations[:\s]*([^\n\r]+)
+    description: 'Cassandra Read Operations: {match1}'
+    severity: info
+    category: statistics
+  - pattern: (?i)write.*operations[:\s]*([^\n\r]+)
+    description: 'Cassandra Write Operations: {match1}'
+    severity: info
+    category: statistics
+  - pattern: (?i)heap.*memory[:\s]*([^\n\r]+)
+    description: 'Cassandra Heap Memory: {match1}'
+    severity: info
+    category: performance
+  - pattern: (?i)cassandra.*[12]\.[0-2]\.
+    description: 'CRITICAL: Cassandra 1.x-2.2 detected - multiple known vulnerabilities'
+    severity: critical
+    category: vulnerability
+  - pattern: (?i)cassandra.*3\.[0-9]\.
+    description: 'MEDIUM: Cassandra 3.x detected - check for patches'
+    severity: medium
+    category: vulnerability
+  - pattern: (?i)jmx.*authentication.*disabled
+    description: 'CRITICAL: Cassandra JMX authentication disabled'
+    severity: critical
+    category: security
+  - pattern: (?i)jmx.*ssl.*disabled
+    description: 'HIGH: Cassandra JMX SSL disabled - unencrypted management'
+    severity: high
+    category: security
+  - pattern: (?i)connection.*refused
+    description: Cassandra connection refused
+    severity: info
+    category: network
+  - pattern: (?i)authentication.*failed
+    description: Cassandra authentication failed
+    severity: info
+    category: authentication
+  - pattern: (?i)unauthorized
+    description: Cassandra unauthorized access attempt
+    severity: info
+    category: authentication
+  - pattern: (?i)timeout.*error
+    description: Cassandra timeout error
+    severity: info
+    category: error
+  - pattern: (?i)node.*down
+    description: Cassandra node down
+    severity: medium
+    category: availability
+  - pattern: (?i)node.*up
+    description: Cassandra node up
+    severity: info
+    category: availability
+  - pattern: (?i)replication.*factor[:\s]*([^\n\r]+)
+    description: 'Cassandra Replication Factor: {match1}'
+    severity: info
+    category: configuration
+  - pattern: (?i)consistency.*level[:\s]*([^\n\r]+)
+    description: 'Cassandra Consistency Level: {match1}'
+    severity: info
+    category: configuration
+  - pattern: (?i)quorum.*required
+    description: Cassandra quorum required for operations
+    severity: info
+    category: configuration
+  - pattern: (?i)snapshot.*found
+    description: Cassandra snapshot detected
+    severity: medium
+    category: backup
+  - pattern: (?i)repair.*in.*progress
+    description: Cassandra repair in progress
+    severity: info
+    category: maintenance
+  - pattern: (?i)compaction.*in.*progress
+    description: Cassandra compaction in progress
+    severity: info
+    category: maintenance
+  - pattern: (?i)data.*directory[:\s]*([^\n\r]+)
+    description: 'Cassandra Data Directory: {match1}'
+    severity: low
+    category: configuration
+  - pattern: (?i)commitlog.*directory[:\s]*([^\n\r]+)
+    description: 'Cassandra Commitlog Directory: {match1}'
+    severity: low
+    category: configuration
+  - pattern: (?i)disk.*usage[:\s]*([^\n\r]+)
+    description: 'Cassandra Disk Usage: {match1}'
+    severity: info
+    category: statistics
+  - pattern: (?i)listening.*on.*0\.0\.0\.0
+    description: 'WARNING: Cassandra listening on all interfaces'
+    severity: medium
+    category: security
+  - pattern: (?i)listening.*on.*127\.0\.0\.1
+    description: Cassandra listening on localhost only
+    severity: info
+    category: security
   technology_detection:
-    - pattern: "(?i)cassandra.*([\\d\\.]+)"
-      technology: "Apache Cassandra"
-      version_group: 1
-    
-    - pattern: "(?i)apache.*cassandra.*([\\d\\.]+)"
-      technology: "Apache Cassandra"
-      version_group: 1
-
+  - pattern: (?i)cassandra.*([\d\.]+)
+    technology: Apache Cassandra
+    version_group: 1
+  - pattern: (?i)apache.*cassandra.*([\d\.]+)
+    technology: Apache Cassandra
+    version_group: 1
 requirements:
   tools:
-    - name: "nmap"
-      check_command: "nmap --version"
-      install_hint: "apt-get install nmap"
-
+  - name: nmap
+    check_command: nmap --version
+    install_hint: apt-get install nmap
 debug:
-  log_level: "info"
+  log_level: info
   trace_decisions: false
   show_command_output: false
+variables:
+  min_rate: 1000
+  max_rate: 5000
+  timing_template: T4

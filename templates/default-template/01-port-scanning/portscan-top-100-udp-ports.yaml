@@ -1,96 +1,87 @@
 metadata:
-  name: "Top 100 UDP Ports"
-  description: "Performs an Nmap scan of the top 100 UDP ports"
-  type: "portscan"
+  name: Top 100 UDP Ports
+  description: Performs an Nmap scan of the top 100 UDP ports
+  type: portscan
   priority: 10
-  version: "1.0"
-  author: "IPCrawler YAML Plugin System"
-
+  version: '1.0'
+  author: IPCrawler YAML Plugin System
 conditions:
   when:
-    custom_condition: "config.get('enable_udp_scan', False)"  # Only if UDP scanning enabled
+    custom_condition: config.get('enable_udp_scan', False)
   targets:
-    timeout: 3600  # 1 hour timeout for UDP scan
-
+    timeout: 3600
 options:
-  - name: "top_ports"
-    type: "integer"
-    default: 100
-    help: "Number of top UDP ports to scan"
-  - name: "min_rate"
-    type: "integer"
-    default: 5000
-    help: "Minimum packet rate per second"
-  - name: "max_rate"
-    type: "integer"
-    default: 10000
-    help: "Maximum packet rate per second"
-
+- name: top_ports
+  type: integer
+  default: 100
+  help: Number of top UDP ports to scan
+- name: min_rate
+  type: integer
+  default: 5000
+  help: Minimum packet rate per second
+- name: max_rate
+  type: integer
+  default: 10000
+  help: Maximum packet rate per second
 execution:
   commands:
-    - name: "udp_scan_custom_ports"
-      condition: "target.ports and target.ports.udp"
-      command: "nmap {nmap_extra} -T5 --min-rate={min_rate} --max-rate={max_rate} -sU -A --osscan-guess -p {target_ports_udp} -oN \"{scandir}/_custom_ports_udp_nmap.txt\" -oX \"{scandir}/xml/_custom_ports_udp_nmap.xml\" {address}"
-      timeout: 3600
-      environment:
-        target_ports_udp: "{target.ports.udp}"
-    
-    - name: "udp_scan_top_ports"
-      condition: "not target.ports or not target.ports.udp"
-      command: "nmap {nmap_extra} -T5 --min-rate={min_rate} --max-rate={max_rate} -sU -A --top-ports {top_ports} -oN \"{scandir}/_top_100_udp_nmap.txt\" -oX \"{scandir}/xml/_top_100_udp_nmap.xml\" {address}"
-      timeout: 3600
-
+  - name: udp_scan_custom_ports
+    condition: target.ports and target.ports.udp
+    command: nmap -T5 --min-rate={min_rate} --max-rate={max_rate} -sU -A --osscan-guess
+      -p {target_ports_udp} -oN "{scandir}/_custom_ports_udp_nmap.txt" -oX "{scandir}/xml/_custom_ports_udp_nmap.xml"
+      {address}
+    timeout: 3600
+  - name: udp_scan_top_ports
+    condition: not target.ports or not target.ports.udp
+    command: nmap -T5 --min-rate={min_rate} --max-rate={max_rate} -sU -A --top-ports
+      {top_ports} -oN "{scandir}/_top_100_udp_nmap.txt" -oX "{scandir}/xml/_top_100_udp_nmap.xml"
+      {address}
+    timeout: 3600
   manual_commands:
-    - description: "(nmap) Top 100 UDP port scan"
-      command: "sudo nmap -T5 -sU --top-ports 100 {address}"
-    - description: "(nmap) UDP scan with custom ports"
-      command: "sudo nmap -T5 -sU -p {custom_ports} {address}"
-      condition: "target.ports"
-
+  - description: (nmap) Top 100 UDP port scan (requires sudo)
+    command: nmap -T5 -sU --top-ports 100 {address}
+  - description: (nmap) UDP scan with custom ports (requires sudo)
+    command: nmap -T5 -sU -p {custom_ports} {address}
+    condition: target.ports
 output:
   service_detection:
-    - pattern: "^(\\d+)/(udp)\\s+open\\s+(\\S+)"
-      service_name: "{match3}"
-    - pattern: "^(\\d+)/(udp)\\s+open\\|filtered\\s+(\\S+)"
-      service_name: "{match3}"
-
+  - pattern: ^(\d+)/(udp)\s+open\s+(\S+)
+    service_name: '{match3}'
+  - pattern: ^(\d+)/(udp)\s+open\|filtered\s+(\S+)
+    service_name: '{match3}'
   patterns:
-    - pattern: "(?i)Discovered open port ([0-9]+)/udp"
-      description: "Discovered UDP Port: {match1}/udp"
-      severity: "info"
-      category: "discovery"
-    
-    - pattern: "(?i)(\\d+)/(udp)\\s+open\\s+(\\S+)\\s+(.+)"
-      description: "Open UDP Port: {match1}/{match2} - {match3} ({match4})"
-      severity: "info"
-      category: "ports"
-    
-    - pattern: "(?i)(\\d+)/(udp)\\s+open\\|filtered\\s+(\\S+)"
-      description: "Open|Filtered UDP Port: {match1}/{match2} - {match3}"
-      severity: "info"
-      category: "ports"
-    
-    - pattern: "(?i)(\\d+)/(udp)\\s+filtered\\s+(\\S+)"
-      description: "Filtered UDP Port: {match1}/{match2} - {match3}"
-      severity: "info"
-      category: "ports"
-    
-    - pattern: "(?i)OS details: (.+)"
-      description: "Operating System: {match1}"
-      severity: "info"
-      category: "os_detection"
-
+  - pattern: (?i)Discovered open port ([0-9]+)/udp
+    description: 'Discovered UDP Port: {match1}/udp'
+    severity: info
+    category: discovery
+  - pattern: (?i)(\d+)/(udp)\s+open\s+(\S+)\s+(.+)
+    description: 'Open UDP Port: {match1}/{match2} - {match3} ({match4})'
+    severity: info
+    category: ports
+  - pattern: (?i)(\d+)/(udp)\s+open\|filtered\s+(\S+)
+    description: 'Open|Filtered UDP Port: {match1}/{match2} - {match3}'
+    severity: info
+    category: ports
+  - pattern: (?i)(\d+)/(udp)\s+filtered\s+(\S+)
+    description: 'Filtered UDP Port: {match1}/{match2} - {match3}'
+    severity: info
+    category: ports
+  - pattern: '(?i)OS details: (.+)'
+    description: 'Operating System: {match1}'
+    severity: info
+    category: os_detection
 requirements:
   tools:
-    - name: "nmap"
-      check_command: "nmap --version"
-      install_hint: "apt-get install nmap"
-  
+  - name: nmap
+    check_command: nmap --version
+    install_hint: apt-get install nmap
   permissions:
-    - type: "root"
-      description: "UDP scanning requires root privileges for raw socket access"
-
+  - type: root
+    description: UDP scanning requires root privileges for raw socket access
 debug:
-  log_level: "info"
+  log_level: info
   trace_decisions: true
   show_command_output: false
+variables:
+  min_rate: 1000
+  max_rate: 5000

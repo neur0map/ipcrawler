@@ -123,7 +123,7 @@ class ToolValidator:
         
         return True
     
-    def get_tool_report(self, verbosity: int = 1) -> Dict[str, any]:
+    def get_tool_report(self) -> Dict[str, any]:
         """Generate a comprehensive tool availability report."""
         report = {
             "platform": self.system,
@@ -134,8 +134,7 @@ class ToolValidator:
             "success": True
         }
         
-        if verbosity >= 1:
-            info(f"🔧 Tool validation for {self.system} platform", verbosity=verbosity)
+        info(f"🔧 Tool validation for {self.system} platform")
         
         for category, tools in TOOL_CATEGORIES.items():
             for tool in tools:
@@ -150,18 +149,16 @@ class ToolValidator:
                         report["critical_missing"].append(tool)
                         report["success"] = False
                     
-                    if verbosity >= 2:
-                        warn(f"❌ {tool}: not found in PATH", verbosity=verbosity)
+                    warn(f"❌ {tool}: not found in PATH")
                 else:
                     report["found_tools"][tool] = actual_path
                     is_expected, location_info = self.validate_tool_location(tool, actual_path)
                     
                     if not is_expected:
                         report["unexpected_locations"][tool] = actual_path
-                        if verbosity >= 2:
-                            warn(f"⚠️  {tool}: found at {actual_path} (unexpected location)", verbosity=verbosity)
-                    elif verbosity >= 2:
-                        info(f"✅ {tool}: {actual_path} ({location_info})", verbosity=verbosity)
+                        warn(f"⚠️  {tool}: found at {actual_path} (unexpected location)")
+                    else:
+                        info(f"✅ {tool}: {actual_path} ({location_info})")
         
         if report["critical_missing"]:
             error(f"Critical tools missing: {', '.join(report['critical_missing'])}")
@@ -188,7 +185,7 @@ class ToolValidator:
         
         return True
 
-def validate_tools(verbosity: int = 1) -> bool:
+def validate_tools() -> bool:
     """Main tool validation function."""
     validator = ToolValidator()
     
@@ -197,7 +194,7 @@ def validate_tools(verbosity: int = 1) -> bool:
         return False
     
     # Generate detailed report
-    report = validator.get_tool_report(verbosity)
+    report = validator.get_tool_report()
     
     # Validate subprocess environment
     validator.validate_subprocess_environment()

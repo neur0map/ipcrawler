@@ -1,202 +1,164 @@
 metadata:
-  name: "Nikto Web Scanner"
-  description: "Web server vulnerability scanner for common security issues"
-  type: "servicescan"
+  name: Nikto Web Scanner
+  description: Web server vulnerability scanner for common security issues
+  type: servicescan
   priority: 20
-  version: "1.0"
-  author: "IPCrawler YAML Plugin System"
-
+  version: '1.0'
+  author: IPCrawler YAML Plugin System
 conditions:
   services:
-    include: ["^http", "ssl/http", "^https"]
-    exclude: ["^nacn_http$"]
+    include:
+    - ^http
+    - ssl/http
+    - ^https
+    exclude:
+    - ^nacn_http$
   when:
-    ip_version: ["IPv4"]
+    ip_version:
+    - IPv4
   targets:
-    timeout: 1800  # 30 minutes max for nikto
-    max_instances: 2  # Max 2 nikto scans per target
-
+    timeout: 1800
+    max_instances: 2
 options:
-  - name: "timeout"
-    type: "integer"
-    default: 1800
-    help: "Maximum time in seconds for nikto scan (default: 30 minutes)"
-  - name: "tuning"
-    type: "choice"
-    default: "default"
-    choices: ["default", "quick", "comprehensive", "custom"]
-    help: "Nikto tuning level"
-  - name: "custom_tuning"
-    type: "string"
-    default: ""
-    help: "Custom tuning options (when tuning=custom)"
-
+- name: timeout
+  type: integer
+  default: 1800
+  help: 'Maximum time in seconds for nikto scan (default: 30 minutes)'
+- name: tuning
+  type: choice
+  default: default
+  choices:
+  - default
+  - quick
+  - comprehensive
+  - custom
+  help: Nikto tuning level
+- name: custom_tuning
+  type: string
+  default: ''
+  help: Custom tuning options (when tuning=custom)
 execution:
   commands:
-    - name: "nikto_scan"
-      condition: "hostname_available"  # Only run if we have a valid hostname
-      command: "timeout {timeout} nikto -ask=no -nointeractive -host {http_scheme}://{hostname}:{port} -output {scandir}/{protocol}_{port}_{http_scheme}_nikto_{hostname_label}.txt"
-      timeout: 1800
-      output_file: "{protocol}_{port}_{http_scheme}_nikto_{hostname_label}.txt"
-    
-    - name: "nikto_scan_ip_fallback"
-      condition: "not hostname_available"  # Fallback to IP if no hostname
-      command: "timeout {timeout} nikto -ask=no -nointeractive -host {http_scheme}://{address}:{port} -output {scandir}/{protocol}_{port}_{http_scheme}_nikto_ip.txt"
-      timeout: 1800
-      output_file: "{protocol}_{port}_{http_scheme}_nikto_ip.txt"
-
+  - name: nikto_scan
+    condition: hostname_available
+    command: timeout {timeout} nikto -ask=no -nointeractive -host {http_scheme}://{hostname}:{port}
+      -output {scandir}/{protocol}_{port}_{http_scheme}_nikto_{hostname_label}.txt
+    timeout: 1800
+    output_file: '{protocol}_{port}_{http_scheme}_nikto_{hostname_label}.txt'
+  - name: nikto_scan_ip_fallback
+    condition: not hostname_available
+    command: timeout {timeout} nikto -ask=no -nointeractive -host {http_scheme}://{address}:{port}
+      -output {scandir}/{protocol}_{port}_{http_scheme}_nikto_ip.txt
+    timeout: 1800
+    output_file: '{protocol}_{port}_{http_scheme}_nikto_ip.txt'
   manual_commands:
-    - description: "(nikto) Web server vulnerability scan"
-      command: "nikto -ask=no -nointeractive -h {http_scheme}://{hostname}:{port}"
-      condition: "hostname_available"
-    - description: "(nikto) Web server vulnerability scan (IP)"
-      command: "nikto -ask=no -nointeractive -h {http_scheme}://{address}:{port}"
-      condition: "not hostname_available"
-
+  - description: (nikto) Web server vulnerability scan
+    command: nikto -ask=no -nointeractive -h {http_scheme}://{hostname}:{port}
+    condition: hostname_available
+  - description: (nikto) Web server vulnerability scan (IP)
+    command: nikto -ask=no -nointeractive -h {http_scheme}://{address}:{port}
+    condition: not hostname_available
 output:
   patterns:
-    # OSVDB Vulnerabilities
-    - pattern: "(?i)osvdb-([0-9]+)"
-      description: "OSVDB vulnerability identified: {match0}"
-      severity: "high"
-      category: "vulnerability"
-    
-    # Server information
-    - pattern: "(?i)server.*banner[:\\s]*([^\\n\\r]+)"
-      description: "Server Banner: {match1}"
-      severity: "info"
-      category: "information"
-    
-    # Critical vulnerabilities
-    - pattern: "(?i)vulnerable.*to[:\\s]*([^\\n\\r]+)"
-      description: "CRITICAL: Vulnerability detected: {match1}"
-      severity: "critical"
-      category: "vulnerability"
-    
-    # Default files
-    - pattern: "(?i)default.*file.*found[:\\s]*([^\\n\\r]+)"
-      description: "Default file found: {match1}"
-      severity: "medium"
-      category: "configuration"
-    
-    # Directory indexing
-    - pattern: "(?i)directory.*indexing.*enabled"
-      description: "CRITICAL: Directory indexing enabled - information disclosure"
-      severity: "critical"
-      category: "security"
-    
-    # Backup files
-    - pattern: "(?i)backup.*file.*found[:\\s]*([^\\n\\r]+)"
-      description: "Backup file found: {match1}"
-      severity: "high"
-      category: "security"
-    
-    # CGI scripts
-    - pattern: "(?i)cgi.*script.*found[:\\s]*([^\\n\\r]+)"
-      description: "CGI script found: {match1}"
-      severity: "medium"
-      category: "discovery"
-    
-    # Admin interfaces
-    - pattern: "(?i)(admin|administrator|management).*interface.*found"
-      description: "Administrative interface detected: {match0}"
-      severity: "high"
-      category: "interesting"
-    
-    # Outdated software
-    - pattern: "(?i)outdated.*version.*of[:\\s]*([^\\n\\r]+)"
-      description: "Outdated software version: {match1}"
-      severity: "medium"
-      category: "vulnerability"
-    
-    # SSL/TLS issues
-    - pattern: "(?i)ssl.*certificate.*([^\\n\\r]+)"
-      description: "SSL Certificate issue: {match1}"
-      severity: "medium"
-      category: "security"
-    
-    # Information disclosure
-    - pattern: "(?i)information.*disclosure[:\\s]*([^\\n\\r]+)"
-      description: "Information disclosure: {match1}"
-      severity: "medium"
-      category: "security"
-    
-    # Cross-site scripting
-    - pattern: "(?i)cross.site.*scripting|xss"
-      description: "Potential XSS vulnerability detected"
-      severity: "high"
-      category: "vulnerability"
-    
-    # SQL injection
-    - pattern: "(?i)sql.*injection"
-      description: "Potential SQL injection vulnerability detected"
-      severity: "critical"
-      category: "vulnerability"
-    
-    # File inclusion
-    - pattern: "(?i)file.*inclusion"
-      description: "Potential file inclusion vulnerability detected"
-      severity: "high"
-      category: "vulnerability"
-    
-    # Authentication bypass
-    - pattern: "(?i)authentication.*bypass"
-      description: "Authentication bypass vulnerability detected"
-      severity: "critical"
-      category: "vulnerability"
-    
-    # HTTP methods
-    - pattern: "(?i)http.*method.*([A-Z]+).*allowed"
-      description: "HTTP method {match1} allowed"
-      severity: "low"
-      category: "configuration"
-    
-    # Debug information
-    - pattern: "(?i)debug.*information.*disclosed"
-      description: "Debug information disclosed"
-      severity: "medium"
-      category: "security"
-    
-    # Nikto scan summary
-    - pattern: "(?i)\\+ ([0-9]+) host\\(s\\) tested"
-      description: "Nikto scan completed - {match1} host(s) tested"
-      severity: "info"
-      category: "summary"
-
+  - pattern: (?i)osvdb-([0-9]+)
+    description: 'OSVDB vulnerability identified: {match0}'
+    severity: high
+    category: vulnerability
+  - pattern: (?i)server.*banner[:\s]*([^\n\r]+)
+    description: 'Server Banner: {match1}'
+    severity: info
+    category: information
+  - pattern: (?i)vulnerable.*to[:\s]*([^\n\r]+)
+    description: 'CRITICAL: Vulnerability detected: {match1}'
+    severity: critical
+    category: vulnerability
+  - pattern: (?i)default.*file.*found[:\s]*([^\n\r]+)
+    description: 'Default file found: {match1}'
+    severity: medium
+    category: configuration
+  - pattern: (?i)directory.*indexing.*enabled
+    description: 'CRITICAL: Directory indexing enabled - information disclosure'
+    severity: critical
+    category: security
+  - pattern: (?i)backup.*file.*found[:\s]*([^\n\r]+)
+    description: 'Backup file found: {match1}'
+    severity: high
+    category: security
+  - pattern: (?i)cgi.*script.*found[:\s]*([^\n\r]+)
+    description: 'CGI script found: {match1}'
+    severity: medium
+    category: discovery
+  - pattern: (?i)(admin|administrator|management).*interface.*found
+    description: 'Administrative interface detected: {match0}'
+    severity: high
+    category: interesting
+  - pattern: (?i)outdated.*version.*of[:\s]*([^\n\r]+)
+    description: 'Outdated software version: {match1}'
+    severity: medium
+    category: vulnerability
+  - pattern: (?i)ssl.*certificate.*([^\n\r]+)
+    description: 'SSL Certificate issue: {match1}'
+    severity: medium
+    category: security
+  - pattern: (?i)information.*disclosure[:\s]*([^\n\r]+)
+    description: 'Information disclosure: {match1}'
+    severity: medium
+    category: security
+  - pattern: (?i)cross.site.*scripting|xss
+    description: Potential XSS vulnerability detected
+    severity: high
+    category: vulnerability
+  - pattern: (?i)sql.*injection
+    description: Potential SQL injection vulnerability detected
+    severity: critical
+    category: vulnerability
+  - pattern: (?i)file.*inclusion
+    description: Potential file inclusion vulnerability detected
+    severity: high
+    category: vulnerability
+  - pattern: (?i)authentication.*bypass
+    description: Authentication bypass vulnerability detected
+    severity: critical
+    category: vulnerability
+  - pattern: (?i)http.*method.*([A-Z]+).*allowed
+    description: HTTP method {match1} allowed
+    severity: low
+    category: configuration
+  - pattern: (?i)debug.*information.*disclosed
+    description: Debug information disclosed
+    severity: medium
+    category: security
+  - pattern: (?i)\+ ([0-9]+) host\(s\) tested
+    description: Nikto scan completed - {match1} host(s) tested
+    severity: info
+    category: summary
   technology_detection:
-    # Web server detection from nikto output
-    - pattern: "(?i)server[:\\s]*apache[/\\s]*([\\d\\.]+)"
-      technology: "Apache"
-      version_group: 1
-    
-    - pattern: "(?i)server[:\\s]*nginx[/\\s]*([\\d\\.]+)"
-      technology: "Nginx"
-      version_group: 1
-    
-    - pattern: "(?i)server[:\\s]*iis[/\\s]*([\\d\\.]+)"
-      technology: "IIS"
-      version_group: 1
-    
-    # PHP detection
-    - pattern: "(?i)x-powered-by[:\\s]*php[/\\s]*([\\d\\.]+)"
-      technology: "PHP"
-      version_group: 1
-    
-    # Application frameworks
-    - pattern: "(?i)x-powered-by[:\\s]*([^\\n\\r]+)"
-      technology: "{match1}"
-      version_group: 0
-
+  - pattern: (?i)server[:\s]*apache[/\s]*([\d\.]+)
+    technology: Apache
+    version_group: 1
+  - pattern: (?i)server[:\s]*nginx[/\s]*([\d\.]+)
+    technology: Nginx
+    version_group: 1
+  - pattern: (?i)server[:\s]*iis[/\s]*([\d\.]+)
+    technology: IIS
+    version_group: 1
+  - pattern: (?i)x-powered-by[:\s]*php[/\s]*([\d\.]+)
+    technology: PHP
+    version_group: 1
+  - pattern: (?i)x-powered-by[:\s]*([^\n\r]+)
+    technology: '{match1}'
+    version_group: 0
 requirements:
   tools:
-    - name: "nikto"
-      check_command: "nikto -Version"
-      install_hint: "apt-get install nikto"
-    - name: "timeout"
-      check_command: "timeout --version"
-      install_hint: "Built-in command on most systems"
-
+  - name: nikto
+    check_command: nikto -Version
+    install_hint: apt-get install nikto
+  - name: timeout
+    check_command: timeout --version
+    install_hint: Built-in command on most systems
 debug:
-  log_level: "info"
+  log_level: info
   trace_decisions: true
-  show_command_output: false 
+  show_command_output: false
+variables:
+  timeout: 300

@@ -1,7 +1,6 @@
 import asyncio, colorama, os, re, string, sys, unidecode
 from colorama import Fore, Style
 from ipcrawler.config import config
-from ipcrawler.loading import scan_status, is_loading_active, record_tool_activity
 
 # Import UserDisplay but handle circular import
 try:
@@ -19,18 +18,9 @@ try:
 except ImportError:
 	PYFIGLET_AVAILABLE = False
 
-# Modern UI imports
+# Rich availability check (for basic fallbacks only)
 try:
-	from typing import List, Dict, Any
 	from rich.console import Console
-	from rich.table import Table
-	from rich.panel import Panel
-	from rich.text import Text
-	from rich.align import Align
-	from rich import box
-	
-	# Create rich console for modern UI features
-	console = Console()
 	RICH_AVAILABLE = True
 except ImportError:
 	RICH_AVAILABLE = False
@@ -52,9 +42,7 @@ def e(*args, frame_index=1, **kvargs):
 def fformat(s):
 	return e(s, frame_index=3)
 
-def cprint(*args, color=Fore.RESET, char='*', sep=' ', end='\n', frame_index=1, file=sys.stdout, printmsg=True, verbosity=0, **kvargs):
-	if printmsg and verbosity > config['verbose']:
-		return ''
+def cprint(*args, color=Fore.RESET, char='*', sep=' ', end='\n', frame_index=1, file=sys.stdout, printmsg=True, **kvargs):
 	frame = sys._getframe(frame_index)
 
 	vals = {
@@ -112,21 +100,17 @@ def debug(*args, color=Fore.GREEN, sep=' ', end='\n', file=sys.stdout, **kvargs)
 		user_display.status_debug(message)
 	else:
 		# Fallback to old system
-		if config['verbose'] >= 2:
-			if config['accessible']:
-				args = ('Debug:',) + args
-			cprint(*args, color=color, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
+		if config['accessible']:
+			args = ('Debug:',) + args
+		cprint(*args, color=color, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
 
 def info(*args, sep=' ', end='\n', file=sys.stdout, **kvargs):
 	# Format the message
 	message = sep.join(str(arg) for arg in args)
 	
-	# Get verbosity from kwargs or use default
-	verbosity = kvargs.get('verbosity', 0)
-	
 	# Use new UserDisplay if available
 	if USER_DISPLAY_AVAILABLE and user_display:
-		user_display.status_info(message, verbosity)
+		user_display.status_info(message)
 	else:
 		# Fallback to old system
 		cprint(*args, color=Fore.BLUE, char=None, sep=sep, end=end, file=file, frame_index=2, **kvargs)
@@ -135,12 +119,9 @@ def warn(*args, sep=' ', end='\n', file=sys.stderr,**kvargs):
 	# Format the message
 	message = sep.join(str(arg) for arg in args)
 	
-	# Get verbosity from kwargs or use default
-	verbosity = kvargs.get('verbosity', 0)
-	
 	# Use new UserDisplay if available
 	if USER_DISPLAY_AVAILABLE and user_display:
-		user_display.status_warning(message, verbosity)
+		user_display.status_warning(message)
 	else:
 		# Fallback to old system
 		if config['accessible']:
@@ -151,12 +132,9 @@ def error(*args, sep=' ', end='\n', file=sys.stderr, **kvargs):
 	# Format the message
 	message = sep.join(str(arg) for arg in args)
 	
-	# Get verbosity from kwargs or use default
-	verbosity = kvargs.get('verbosity', 0)
-	
 	# Use new UserDisplay if available
 	if USER_DISPLAY_AVAILABLE and user_display:
-		user_display.status_error(message, verbosity)
+		user_display.status_error(message)
 	else:
 		# Fallback to old system
 		if config['accessible']:
@@ -296,15 +274,16 @@ class CommandStreamReader(object):
 					timing_console.print(timing_text)
 				else:
 					# Record activity for loading interface
-					if is_loading_active():
-						record_tool_activity("output")
-						# Only show command output for tools that don't have pattern matching
-						# or for debugging when explicitly requested
-						if not self.patterns or config.get('show_all_output', False):
-							scan_status.show_command_output(self.target.address, self.tag, line.strip(), config['verbose'])
+					if USER_DISPLAY_AVAILABLE and user_display:
+						if user_display.is_loading_active():
+							user_display.record_activity("output")
+							# Only show command output for tools that don't have pattern matching
+							# or for debugging when explicitly requested
+							if not self.patterns or config.get('show_all_output', False):
+								user_display.show_command_output(self.target.address, self.tag, line.strip())
 					else:
 						# Use Rich console for consistency (only when explicitly requested)
-						if config['verbose'] >= 3 and config.get('show_all_output', False):
+						if config.get('show_all_output', False):
 							from rich.console import Console
 							Console().print(f"📝 [{self.target.address}/{self.tag}] {line.strip()}", style="dim white")
 
@@ -340,11 +319,10 @@ class CommandStreamReader(object):
 							async with self.target.lock:
 								with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
 									# Record pattern match activity and use modern status display
-									if is_loading_active():
-										record_tool_activity("pattern_match")
-										scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
-									else:
-										scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description, config['verbose'])
+									if USER_DISPLAY_AVAILABLE and user_display:
+										if user_display.is_loading_active():
+											user_display.record_activity("pattern_match")
+										user_display.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, description)
 									file.writelines(description + '\n\n')
 						else:
 							# Pattern already seen - increment counter if needed
@@ -376,11 +354,10 @@ class CommandStreamReader(object):
 						if pattern_key not in self.target._seen_patterns:
 							self.target._seen_patterns.add(pattern_key)
 							
-							if is_loading_active():
-								record_tool_activity("pattern_match")
-								scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
-							else:
-								scan_status.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text, config['verbose'])
+							if USER_DISPLAY_AVAILABLE and user_display:
+								if user_display.is_loading_active():
+									user_display.record_activity("pattern_match")
+								user_display.show_pattern_match(self.target.address, self.tag, p.pattern.pattern, match_text)
 							async with self.target.lock:
 								with open(os.path.join(self.target.scandir, '_patterns.log'), 'a') as file:
 									file.writelines('Matched Pattern: ' + match_text + '\n\n')
@@ -413,350 +390,8 @@ class CommandStreamReader(object):
 				break
 		return lines
 
-# Modern UI Functions (requires rich library)
-def show_modern_help(version: str = "0.1.0-alpha"):
-	"""Display modern help interface using rich"""
-	if not RICH_AVAILABLE:
-		print("ipcrawler help - install rich library for enhanced interface")
-		return
-		
-	# Spider theme colors
-	theme_color = "cyan"
-	accent_color = "bright_magenta"
-	success_color = "green"
-	
-	# Banner
-	banner_text = Text()
-	banner_text.append("🕷️  ipcrawler", style=f"bold {theme_color}")
-	banner_text.append("  🕸️", style=f"dim {accent_color}")
-	subtitle = Text("Smart Network Reconnaissance Made Simple", style=f"italic {accent_color}")
-	
-	console.print(Panel(
-		Align.center(Text.assemble(banner_text, "\n", subtitle)),
-		box=box.DOUBLE, border_style=theme_color, padding=(1, 2)
-	))
-	console.print()
-	
-	# Usage
-	usage_text = Text.assemble(
-		("Usage: ", "bold white"), ("ipcrawler ", f"bold {theme_color}"),
-		("[OPTIONS] ", f"{accent_color}"), ("TARGET(S)", f"bold {success_color}")
-	)
-	console.print(Panel(usage_text, title="🎯 Usage", border_style=theme_color, box=box.ROUNDED))
-	console.print()
-	
-	# Examples
-	examples = [
-		("Single target", "ipcrawler 192.168.1.100"),
-		("CIDR range", "ipcrawler 192.168.1.0/24"),
-		("Multiple targets", "ipcrawler 10.0.0.1 10.0.0.2 target.com"),
-		("From file", "ipcrawler -t targets.txt"),
-		("Custom ports", "ipcrawler -p 80,443,8080 target.com"),
-		("Verbose scan", "ipcrawler -vv target.com"),
-		("Fast scan", "ipcrawler --fast target.com"),
-		("CTF mode", "ipcrawler --ctf target.com"),
-		("Stealth scan", "ipcrawler --stealth target.com")
-	]
-	
-	examples_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
-	examples_table.add_column("Description", style=f"{accent_color}")
-	examples_table.add_column("Command", style=f"bold {theme_color}")
-	
-	for desc, cmd in examples:
-		examples_table.add_row(f"🔸 {desc}", cmd)
-	
-	console.print(Panel(examples_table, title="⚡ Quick Examples", border_style=theme_color, box=box.ROUNDED))
-	console.print()
-	
-	# Core options
-	core_options = [
-		("-t, --target-file", "Read targets from file", "FILE"),
-		("-p, --ports", "Custom ports to scan", "PORTS"),
-		("-o, --output", "Output directory for results", "DIR"),
-		("-m, --max-scans", "Max concurrent scans", "NUM"),
-		("-v, --verbose", "Verbose output (repeat for more)", ""),
-		("-l, --list", "List available plugins", "[TYPE]"),
-		("--tags", "Include plugins with tags", "TAGS"),
-		("--exclude-tags", "Exclude plugins with tags", "TAGS"),
-		("--timeout", "Max scan time in minutes", "MIN"),
-		("--target-timeout", "Max time per target in minutes", "MIN"),
-		("--heartbeat", "Status update interval in seconds", "SEC"),
-		("--proxychains", "Run through proxychains", ""),
-		("--accessible", "Screenreader-friendly output", ""),
-		("--version", "Show version and exit", ""),
-		("-h, --help", "Show this help message", "")
-	]
-	
-	options_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
-	options_table.add_column("Option", style=f"bold {theme_color}", width=22)
-	options_table.add_column("Description", style="white", width=35)
-	options_table.add_column("Value", style=f"dim {accent_color}", width=8)
-	
-	for option, desc, value in core_options:
-		options_table.add_row(option, desc, value)
-	
-	console.print(Panel(options_table, title="🛠️  Core Options", border_style=theme_color, box=box.ROUNDED))
-	console.print()
-	
-	# Reporting options
-	reporting_options = [
-		("-r, --report-target", "Report for specific target only", "TARGET")
-	]
-	
-	reporting_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
-	reporting_table.add_column("Option", style=f"bold {success_color}", width=22)
-	reporting_table.add_column("Description", style="white", width=35)
-	reporting_table.add_column("Value", style=f"dim {accent_color}", width=8)
-	
-	for option, desc, value in reporting_options:
-		reporting_table.add_row(option, desc, value)
-	
-	console.print(Panel(reporting_table, title="📊 Reporting", border_style=success_color, box=box.ROUNDED))
-	console.print()
-	
-	# Scan scenarios
-	speed_options = [
-		("--fast", "Quick reconnaissance scans", "5-15 min/service"),
-		("--comprehensive", "Thorough enumeration scans", "30-120 min/service"),
-		("(default)", "Balanced scanning when no flags used", "15-45 min/service")
-	]
-	
-	speed_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
-	speed_table.add_column("Option", style=f"bold {success_color}", width=22)
-	speed_table.add_column("Description", style="white", width=35)
-	speed_table.add_column("Time", style=f"dim {accent_color}", width=20)
-	
-	for option, desc, time in speed_options:
-		speed_table.add_row(option, desc, time)
-	
-	console.print(Panel(speed_table, title="⚡ Speed Control", border_style=success_color, box=box.ROUNDED))
-	console.print()
-	
-	# Scenario presets
-	scenario_options = [
-		("--ctf", "CTF/lab mode: balanced + high threads", "Practice environments"),
-		("--pentest", "Penetration testing mode", "Real-world assessments"),
-		("--recon", "Quick reconnaissance mode", "Initial discovery"),
-		("--stealth", "Stealth mode: reduced threads", "Evasive scanning"),
-		("(default)", "Standard scan with default plugins", "Balanced approach")
-	]
-	
-	scenario_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
-	scenario_table.add_column("Option", style=f"bold {accent_color}", width=22)
-	scenario_table.add_column("Description", style="white", width=35)
-	scenario_table.add_column("Use Case", style=f"dim {success_color}", width=20)
-	
-	for option, desc, use_case in scenario_options:
-		scenario_table.add_row(option, desc, use_case)
-	
-	console.print(Panel(scenario_table, title="🎯 Scan Scenarios", border_style=accent_color, box=box.ROUNDED))
-	console.print()
-	
-	# Default behavior explanation
-	default_info = [
-		("🔸 Without flags", "Uses balanced settings for moderate coverage"),
-		("🔸 Plugin selection", "Runs 'default' tagged plugins (most common tools)"),
-		("🔸 Wordlist sources", "Auto-detects SecLists for intelligent enumeration"),
-		("🔸 Time estimate", "~15-45 minutes per service depending on findings")
-	]
-	
-	default_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
-	default_table.add_column("Behavior", style=f"{success_color}", width=20)
-	default_table.add_column("Description", style="dim white", width=45)
-	
-	for behavior, desc in default_info:
-		default_table.add_row(behavior, desc)
-	
-	console.print(Panel(default_table, title="ℹ️  Default Behavior", border_style=f"dim {success_color}", box=box.ROUNDED))
-	console.print()
-	
-	# Footer
-	footer_text = Text.assemble(
-		(f"ipcrawler v{version}", f"bold {theme_color}"),
-		(" | Built for the cybersecurity community ", "dim white"),
-		("🕷️", f"{accent_color}")
-	)
-	console.print(Panel(Align.center(footer_text), border_style=f"dim {accent_color}", box=box.SIMPLE))
+# Modern UI functions moved to user_display.py to avoid duplication
 
-def show_ascii_art():
-	"""Display clean ASCII art for ipcrawler - uses single consistent design"""
-	if PYFIGLET_AVAILABLE and RICH_AVAILABLE:
-		# Create modern ASCII art with pyfiglet and rich styling
-		ascii_text = pyfiglet.figlet_format("IPCRAWLER", font="slant")
-		
-		console.print("═" * 75, style="dim cyan")
-		console.print()
-		
-		# Split lines and apply gradient colors
-		lines = ascii_text.split('\n')
-		colors = ['red', 'yellow', 'green', 'cyan', 'blue', 'magenta']
-		
-		for i, line in enumerate(lines):
-			if line.strip():
-				color = colors[i % len(colors)]
-				console.print(line, style=f"bold {color}")
-			else:
-				console.print(line)
-		
-		console.print()
-		console.print("    🕷️  Multi-threaded Network Reconnaissance & Service Crawler  🕷️", style="bold bright_magenta")
-		console.print()
-		console.print("═" * 75, style="dim cyan")
-		console.print()
-		
-	elif PYFIGLET_AVAILABLE:
-		# Fallback to basic pyfiglet with termcolor if rich not available
-		ascii_text = pyfiglet.figlet_format("IPCRAWLER", font="slant")
-		
-		print(colored("═" * 75, 'cyan'))
-		print()
-		
-		lines = ascii_text.split('\n')
-		colors = ['red', 'yellow', 'green', 'cyan', 'magenta', 'white']
-		
-		for i, line in enumerate(lines):
-			if line.strip():
-				color = colors[i % len(colors)]
-				print(colored(line, color, attrs=['bold']))
-			else:
-				print(line)
-		
-		print()
-		print(colored("    🕷️  Multi-threaded Network Reconnaissance & Service Crawler  🕷️", 'magenta', attrs=['bold']))
-		print()
-		print(colored("═" * 75, 'cyan'))
-		print()
-		
-	else:
-		# Final fallback - simple text banner
-		banner = """
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                                                                              ║
-║  ██╗██████╗  ██████╗██████╗  █████╗ ██╗    ██╗██╗     ███████╗██████╗        ║
-║  ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██║    ██║██║     ██╔════╝██╔══██╗       ║
-║  ██║██████╔╝██║     ██████╔╝███████║██║ █╗ ██║██║     █████╗  ██████╔╝       ║
-║  ██║██╔═══╝ ██║     ██╔══██╗██╔══██║██║███╗██║██║     ██╔══╝  ██╔══██╗       ║
-║  ██║██║     ╚██████╗██║  ██║██║  ██║╚███╔███╔╝███████╗███████╗██║  ██║       ║
-║  ╚═╝╚═╝      ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝  ╚═╝       ║
-║                                                                              ║
-║       🕷️  Multi-threaded Network Reconnaissance & Service Crawler  🕷️        ║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-"""
-		if RICH_AVAILABLE:
-			console.print(banner, style="bold cyan")
-		else:
-			print(banner)
+# ASCII art functions moved to user_display.py to avoid duplication
 
-def show_modern_version(version: str = "0.1.0-alpha"):
-	"""Display modern version using rich (includes ASCII art)"""
-	show_ascii_art()
-	print()
-	
-	if not RICH_AVAILABLE:
-		print(f"ipcrawler v{version}")
-		return
-		
-	version_text = Text.assemble(
-		("🕷️  ", "cyan"), ("ipcrawler ", "bold cyan"),
-		(f"v{version}", "bold green"), ("  🕸️", "dim bright_magenta")
-	)
-	console.print(Panel(Align.center(version_text), border_style="cyan", box=box.DOUBLE, padding=(1, 2)))
-
-def show_version_only(version: str = "0.1.0-alpha"):
-	"""Display just version info without ASCII art"""
-	if not RICH_AVAILABLE:
-		print(f"ipcrawler v{version}")
-		return
-		
-	version_text = Text.assemble(
-		("🕷️  ", "cyan"), ("ipcrawler ", "bold cyan"),
-		(f"v{version}", "bold green"), ("  🕸️", "dim bright_magenta")
-	)
-	console.print(Panel(Align.center(version_text), border_style="cyan", box=box.DOUBLE, padding=(1, 2)))
-
-def show_modern_plugin_list(plugin_types: Dict[str, List[Any]], list_type: str = "plugins"):
-	"""Display modern plugin listing using rich"""
-	if not RICH_AVAILABLE:
-		print("Plugin list - install rich library for enhanced interface")
-		return
-		
-	theme_color = "cyan"
-	accent_color = "bright_magenta"
-	
-	# Banner
-	banner_text = Text()
-	banner_text.append("🕷️  ipcrawler", style=f"bold {theme_color}")
-	banner_text.append("  🕸️", style=f"dim {accent_color}")
-	subtitle = Text("Smart Network Reconnaissance Made Simple", style=f"italic {accent_color}")
-	
-	console.print(Panel(
-		Align.center(Text.assemble(banner_text, "\n", subtitle)),
-		box=box.DOUBLE, border_style=theme_color, padding=(1, 2)
-	))
-	console.print()
-	
-	# Determine what to show
-	type_lower = list_type.lower()
-	show_port = type_lower in ['plugin', 'plugins', 'port', 'ports', 'portscan', 'portscans']
-	show_service = type_lower in ['plugin', 'plugins', 'service', 'services', 'servicescan', 'servicescans']
-	show_report = type_lower in ['plugin', 'plugins', 'report', 'reports', 'reporting']
-	
-	# Port scan plugins
-	if show_port and 'port' in plugin_types:
-		port_table = Table(box=box.ROUNDED, show_header=True, header_style=f"bold {theme_color}")
-		port_table.add_column("🎯 Plugin Name", style="bold white", width=25)
-		port_table.add_column("Slug", style=f"{accent_color}", width=20)
-		port_table.add_column("Description", style="dim white", width=50)
-		
-		for plugin in plugin_types['port']:
-			description = plugin.description if hasattr(plugin, 'description') and plugin.description else "No description available"
-			port_table.add_row(plugin.name, plugin.slug, description)
-		
-		console.print(Panel(port_table, title="🔍 Port Scan Plugins", border_style=theme_color, box=box.DOUBLE))
-		console.print()
-	
-	# Service scan plugins
-	if show_service and 'service' in plugin_types:
-		service_table = Table(box=box.ROUNDED, show_header=True, header_style=f"bold {theme_color}")
-		service_table.add_column("🎯 Plugin Name", style="bold white", width=25)
-		service_table.add_column("Slug", style=f"{accent_color}", width=20)
-		service_table.add_column("Description", style="dim white", width=50)
-		
-		for plugin in plugin_types['service']:
-			description = plugin.description if hasattr(plugin, 'description') and plugin.description else "No description available"
-			service_table.add_row(plugin.name, plugin.slug, description)
-		
-		console.print(Panel(service_table, title="🛠️  Service Scan Plugins", border_style=theme_color, box=box.DOUBLE))
-		console.print()
-	
-	# Report plugins
-	if show_report and 'report' in plugin_types:
-		report_table = Table(box=box.ROUNDED, show_header=True, header_style=f"bold {theme_color}")
-		report_table.add_column("🎯 Plugin Name", style="bold white", width=25)
-		report_table.add_column("Slug", style=f"{accent_color}", width=20)
-		report_table.add_column("Description", style="dim white", width=50)
-		
-		for plugin in plugin_types['report']:
-			description = plugin.description if hasattr(plugin, 'description') and plugin.description else "No description available"
-			report_table.add_row(plugin.name, plugin.slug, description)
-		
-		console.print(Panel(report_table, title="📋 Report Plugins", border_style=theme_color, box=box.DOUBLE))
-		console.print()
-	
-	# Usage tips
-	tips = [
-		("🔸 Use tags to filter:", "--tags safe,web"),
-		("🔸 Exclude specific types:", "--exclude-tags slow"),
-		("🔸 Override plugin selection:", "--service-scans dirbuster,nikto"),
-		("🔸 List specific types:", "-l service, -l port, -l report")
-	]
-	
-	tips_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
-	tips_table.add_column("Tip", style=f"{accent_color}", width=25)
-	tips_table.add_column("Example", style=f"bold {theme_color}", width=35)
-	
-	for tip, example in tips:
-		tips_table.add_row(tip, example)
-	
-	console.print(Panel(tips_table, title="💡 Plugin Usage Tips", border_style=f"dim {accent_color}", box=box.ROUNDED))
+# Version and plugin list functions moved to user_display.py to avoid duplication

@@ -1,253 +1,213 @@
 metadata:
-  name: "Nmap FTP Enumeration"
-  description: "FTP service enumeration using comprehensive nmap scripts"
-  type: "servicescan"
+  name: Nmap FTP Enumeration
+  description: FTP service enumeration using comprehensive nmap scripts
+  type: servicescan
   priority: 5
-  version: "1.0"
-  author: "IPCrawler YAML Plugin System"
-
+  version: '1.0'
+  author: IPCrawler YAML Plugin System
 conditions:
   services:
-    include: ["^ftp", "^ftp-data"]
-
+    include:
+    - ^ftp
+    - ^ftp-data
 options:
-  - name: "min_rate"
-    type: "integer"
-    default: 5000
-    help: "Minimum packet rate per second"
-  - name: "max_rate"
-    type: "integer"
-    default: 10000
-    help: "Maximum packet rate per second"
-  - name: "timing_template"
-    type: "choice"
-    choices: ["T1", "T2", "T3", "T4", "T5"]
-    default: "T5"
-    help: "Nmap timing template"
-
+- name: min_rate
+  type: integer
+  default: 5000
+  help: Minimum packet rate per second
+- name: max_rate
+  type: integer
+  default: 10000
+  help: Maximum packet rate per second
+- name: timing_template
+  type: choice
+  choices:
+  - T1
+  - T2
+  - T3
+  - T4
+  - T5
+  default: T5
+  help: Nmap timing template
 execution:
   commands:
-    - name: "nmap_ftp_enumeration"
-      command: "nmap {nmap_extra} -{timing_template} --min-rate={min_rate} --max-rate={max_rate} -sV -p {port} --script=\"banner,(ftp* or ssl*) and not (brute or broadcast or dos or external or fuzzer)\" -oN \"{scandir}/{protocol}_{port}_ftp_nmap.txt\" -oX \"{scandir}/xml/{protocol}_{port}_ftp_nmap.xml\" {address}"
-      timeout: 600
-      output_file: "{protocol}_{port}_ftp_nmap.txt"
-
+  - name: nmap_ftp_enumeration
+    command: nmap -{timing_template} --min-rate={min_rate} --max-rate={max_rate}
+      -sV -p {port} --script="banner,(ftp* or ssl*) and not (brute or broadcast or
+      dos or external or fuzzer)" -oN "{scandir}/{protocol}_{port}_ftp_nmap.txt" -oX
+      "{scandir}/xml/{protocol}_{port}_ftp_nmap.xml" {address}
+    timeout: 600
+    output_file: '{protocol}_{port}_ftp_nmap.txt'
   manual_commands:
-    - description: "(nmap) FTP enumeration with scripts"
-      command: "nmap -T5 -sV -p {port} --script=\"ftp*\" {address}"
-    - description: "(nmap) FTP anonymous access test"
-      command: "nmap -p {port} --script ftp-anon {address}"
-    - description: "(ftp) Interactive FTP session"
-      command: "ftp {address} {port}"
-
+  - description: (nmap) FTP enumeration with scripts
+    command: nmap -T5 -sV -p {port} --script="ftp*" {address}
+  - description: (nmap) FTP anonymous access test
+    command: nmap -p {port} --script ftp-anon {address}
+  - description: (ftp) Interactive FTP session
+    command: ftp {address} {port}
 output:
   patterns:
-    # FTP Version Detection
-    - pattern: "(?i)ftp.*version[:\\s]*([^\\n\\r]+)"
-      description: "FTP Version: {match1}"
-      severity: "info"
-      category: "version"
-    
-    - pattern: "(?i)vsftpd[\\s]*([\\d\\.]+)"
-      description: "vsftpd v{match1} detected - Very Secure FTP Daemon"
-      severity: "info"
-      category: "technology"
-    
-    - pattern: "(?i)proftp[d]?[\\s]*([\\d\\.]+)"
-      description: "ProFTPD v{match1} detected - check for known vulnerabilities"
-      severity: "info"
-      category: "technology"
-    
-    - pattern: "(?i)pureftpd[\\s]*([\\d\\.]+)"
-      description: "Pure-FTPd v{match1} detected"
-      severity: "info"
-      category: "technology"
-    
-    - pattern: "(?i)filezilla.*server[\\s]*([\\d\\.]+)"
-      description: "FileZilla Server v{match1} detected"
-      severity: "info"
-      category: "technology"
-    
-    # Anonymous Access Detection
-    - pattern: "(?i)anonymous.*ftp.*allowed"
-      description: "CRITICAL: Anonymous FTP access enabled"
-      severity: "critical"
-      category: "security"
-    
-    - pattern: "(?i)anonymous.*login.*accepted"
-      description: "CRITICAL: Anonymous FTP login accepted"
-      severity: "critical"
-      category: "security"
-    
-    - pattern: "(?i)anonymous.*access.*denied"
-      description: "Anonymous FTP access denied - good security practice"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)user.*anonymous.*allowed"
-      description: "CRITICAL: Anonymous user access allowed"
-      severity: "critical"
-      category: "security"
-    
-    # FTP Security Issues
-    - pattern: "(?i)ftp.*bounce.*enabled"
-      description: "CRITICAL: FTP bounce attack possible"
-      severity: "critical"
-      category: "security"
-    
-    - pattern: "(?i)ftp.*bounce.*attack.*possible"
-      description: "CRITICAL: FTP bounce attack vulnerability detected"
-      severity: "critical"
-      category: "security"
-    
-    - pattern: "(?i)ssl.*tls.*enabled"
-      description: "FTP SSL/TLS (FTPS) enabled - encrypted transfers supported"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)ftps.*supported"
-      description: "FTPS (FTP over SSL/TLS) supported"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)auth.*tls.*supported"
-      description: "FTP AUTH TLS supported - secure authentication available"
-      severity: "info"
-      category: "security"
-    
-    # Directory and File Information
-    - pattern: "(?i)banner[:\\s]*([^\\n\\r]+)"
-      description: "FTP Banner: {match1}"
-      severity: "info"
-      category: "banner"
-    
-    - pattern: "(?i)directory.*listing[:\\s]*([^\\n\\r]+)"
-      description: "FTP Directory Listing: {match1}"
-      severity: "info"
-      category: "directory"
-    
-    - pattern: "(?i)writable.*directory[:\\s]*([^\\n\\r]+)"
-      description: "Writable FTP Directory: {match1} - potential upload location"
-      severity: "medium"
-      category: "security"
-    
-    - pattern: "(?i)readable.*files[:\\s]*([^\\n\\r]+)"
-      description: "Readable FTP Files: {match1}"
-      severity: "info"
-      category: "files"
-    
-    # FTP Commands and Features
-    - pattern: "(?i)passive.*mode.*enabled"
-      description: "FTP passive mode enabled"
-      severity: "info"
-      category: "configuration"
-    
-    - pattern: "(?i)active.*mode.*enabled"
-      description: "FTP active mode enabled"
-      severity: "info"
-      category: "configuration"
-    
-    - pattern: "(?i)upload.*allowed"
-      description: "FTP uploads allowed - potential security risk"
-      severity: "medium"
-      category: "security"
-    
-    - pattern: "(?i)download.*allowed"
-      description: "FTP downloads allowed"
-      severity: "info"
-      category: "access"
-    
-    # User and Authentication
-    - pattern: "(?i)user.*login.*required"
-      description: "FTP user login required"
-      severity: "info"
-      category: "authentication"
-    
-    - pattern: "(?i)guest.*access.*enabled"
-      description: "WARNING: FTP guest access enabled"
-      severity: "medium"
-      category: "security"
-    
-    - pattern: "(?i)weak.*password.*detected"
-      description: "WARNING: Weak FTP password detected"
-      severity: "high"
-      category: "security"
-    
-    # FTP Service Information
-    - pattern: "(?i)max.*connections[:\\s]*([0-9]+)"
-      description: "FTP Max Connections: {match1}"
-      severity: "info"
-      category: "configuration"
-    
-    - pattern: "(?i)timeout[:\\s]*([0-9]+)"
-      description: "FTP Session Timeout: {match1} seconds"
-      severity: "info"
-      category: "configuration"
-    
-    - pattern: "(?i)welcome.*message[:\\s]*([^\\n\\r]+)"
-      description: "FTP Welcome Message: {match1}"
-      severity: "info"
-      category: "banner"
-    
-    # Error Messages and Status
-    - pattern: "(?i)530.*not.*logged.*in"
-      description: "FTP authentication required"
-      severity: "info"
-      category: "authentication"
-    
-    - pattern: "(?i)550.*permission.*denied"
-      description: "FTP permission denied - access control in place"
-      severity: "info"
-      category: "access_control"
-    
-    - pattern: "(?i)421.*service.*not.*available"
-      description: "FTP service temporarily unavailable"
-      severity: "low"
-      category: "availability"
-    
-    # Vulnerability Patterns
-    - pattern: "(?i)vsftpd.*2\\.3\\.4"
-      description: "CRITICAL: vsftpd 2.3.4 detected - known backdoor vulnerability"
-      severity: "critical"
-      category: "vulnerability"
-    
-    - pattern: "(?i)proftpd.*1\\.3\\.[0-3]"
-      description: "HIGH: ProFTPD 1.3.0-1.3.3 detected - multiple known vulnerabilities"
-      severity: "high"
-      category: "vulnerability"
-    
-    - pattern: "(?i)filezilla.*server.*0\\."
-      description: "WARNING: Old FileZilla Server version - check for vulnerabilities"
-      severity: "medium"
-      category: "vulnerability"
-
+  - pattern: (?i)ftp.*version[:\s]*([^\n\r]+)
+    description: 'FTP Version: {match1}'
+    severity: info
+    category: version
+  - pattern: (?i)vsftpd[\s]*([\d\.]+)
+    description: vsftpd v{match1} detected - Very Secure FTP Daemon
+    severity: info
+    category: technology
+  - pattern: (?i)proftp[d]?[\s]*([\d\.]+)
+    description: ProFTPD v{match1} detected - check for known vulnerabilities
+    severity: info
+    category: technology
+  - pattern: (?i)pureftpd[\s]*([\d\.]+)
+    description: Pure-FTPd v{match1} detected
+    severity: info
+    category: technology
+  - pattern: (?i)filezilla.*server[\s]*([\d\.]+)
+    description: FileZilla Server v{match1} detected
+    severity: info
+    category: technology
+  - pattern: (?i)anonymous.*ftp.*allowed
+    description: 'CRITICAL: Anonymous FTP access enabled'
+    severity: critical
+    category: security
+  - pattern: (?i)anonymous.*login.*accepted
+    description: 'CRITICAL: Anonymous FTP login accepted'
+    severity: critical
+    category: security
+  - pattern: (?i)anonymous.*access.*denied
+    description: Anonymous FTP access denied - good security practice
+    severity: info
+    category: security
+  - pattern: (?i)user.*anonymous.*allowed
+    description: 'CRITICAL: Anonymous user access allowed'
+    severity: critical
+    category: security
+  - pattern: (?i)ftp.*bounce.*enabled
+    description: 'CRITICAL: FTP bounce attack possible'
+    severity: critical
+    category: security
+  - pattern: (?i)ftp.*bounce.*attack.*possible
+    description: 'CRITICAL: FTP bounce attack vulnerability detected'
+    severity: critical
+    category: security
+  - pattern: (?i)ssl.*tls.*enabled
+    description: FTP SSL/TLS (FTPS) enabled - encrypted transfers supported
+    severity: info
+    category: security
+  - pattern: (?i)ftps.*supported
+    description: FTPS (FTP over SSL/TLS) supported
+    severity: info
+    category: security
+  - pattern: (?i)auth.*tls.*supported
+    description: FTP AUTH TLS supported - secure authentication available
+    severity: info
+    category: security
+  - pattern: (?i)banner[:\s]*([^\n\r]+)
+    description: 'FTP Banner: {match1}'
+    severity: info
+    category: banner
+  - pattern: (?i)directory.*listing[:\s]*([^\n\r]+)
+    description: 'FTP Directory Listing: {match1}'
+    severity: info
+    category: directory
+  - pattern: (?i)writable.*directory[:\s]*([^\n\r]+)
+    description: 'Writable FTP Directory: {match1} - potential upload location'
+    severity: medium
+    category: security
+  - pattern: (?i)readable.*files[:\s]*([^\n\r]+)
+    description: 'Readable FTP Files: {match1}'
+    severity: info
+    category: files
+  - pattern: (?i)passive.*mode.*enabled
+    description: FTP passive mode enabled
+    severity: info
+    category: configuration
+  - pattern: (?i)active.*mode.*enabled
+    description: FTP active mode enabled
+    severity: info
+    category: configuration
+  - pattern: (?i)upload.*allowed
+    description: FTP uploads allowed - potential security risk
+    severity: medium
+    category: security
+  - pattern: (?i)download.*allowed
+    description: FTP downloads allowed
+    severity: info
+    category: access
+  - pattern: (?i)user.*login.*required
+    description: FTP user login required
+    severity: info
+    category: authentication
+  - pattern: (?i)guest.*access.*enabled
+    description: 'WARNING: FTP guest access enabled'
+    severity: medium
+    category: security
+  - pattern: (?i)weak.*password.*detected
+    description: 'WARNING: Weak FTP password detected'
+    severity: high
+    category: security
+  - pattern: (?i)max.*connections[:\s]*([0-9]+)
+    description: 'FTP Max Connections: {match1}'
+    severity: info
+    category: configuration
+  - pattern: (?i)timeout[:\s]*([0-9]+)
+    description: 'FTP Session Timeout: {match1} seconds'
+    severity: info
+    category: configuration
+  - pattern: (?i)welcome.*message[:\s]*([^\n\r]+)
+    description: 'FTP Welcome Message: {match1}'
+    severity: info
+    category: banner
+  - pattern: (?i)530.*not.*logged.*in
+    description: FTP authentication required
+    severity: info
+    category: authentication
+  - pattern: (?i)550.*permission.*denied
+    description: FTP permission denied - access control in place
+    severity: info
+    category: access_control
+  - pattern: (?i)421.*service.*not.*available
+    description: FTP service temporarily unavailable
+    severity: low
+    category: availability
+  - pattern: (?i)vsftpd.*2\.3\.4
+    description: 'CRITICAL: vsftpd 2.3.4 detected - known backdoor vulnerability'
+    severity: critical
+    category: vulnerability
+  - pattern: (?i)proftpd.*1\.3\.[0-3]
+    description: 'HIGH: ProFTPD 1.3.0-1.3.3 detected - multiple known vulnerabilities'
+    severity: high
+    category: vulnerability
+  - pattern: (?i)filezilla.*server.*0\.
+    description: 'WARNING: Old FileZilla Server version - check for vulnerabilities'
+    severity: medium
+    category: vulnerability
   technology_detection:
-    - pattern: "(?i)vsftpd[\\s]*([\\d\\.]+)"
-      technology: "vsftpd"
-      version_group: 1
-    
-    - pattern: "(?i)proftp[d]?[\\s]*([\\d\\.]+)"
-      technology: "ProFTPD"
-      version_group: 1
-    
-    - pattern: "(?i)pureftpd[\\s]*([\\d\\.]+)"
-      technology: "Pure-FTPd"
-      version_group: 1
-    
-    - pattern: "(?i)filezilla.*server[\\s]*([\\d\\.]+)"
-      technology: "FileZilla Server"
-      version_group: 1
-    
-    - pattern: "(?i)microsoft.*ftp"
-      technology: "Microsoft FTP Service"
-
+  - pattern: (?i)vsftpd[\s]*([\d\.]+)
+    technology: vsftpd
+    version_group: 1
+  - pattern: (?i)proftp[d]?[\s]*([\d\.]+)
+    technology: ProFTPD
+    version_group: 1
+  - pattern: (?i)pureftpd[\s]*([\d\.]+)
+    technology: Pure-FTPd
+    version_group: 1
+  - pattern: (?i)filezilla.*server[\s]*([\d\.]+)
+    technology: FileZilla Server
+    version_group: 1
+  - pattern: (?i)microsoft.*ftp
+    technology: Microsoft FTP Service
 requirements:
   tools:
-    - name: "nmap"
-      check_command: "nmap --version"
-      install_hint: "apt-get install nmap"
-
+  - name: nmap
+    check_command: nmap --version
+    install_hint: apt-get install nmap
 debug:
-  log_level: "info"
+  log_level: info
   trace_decisions: false
   show_command_output: false
+variables:
+  min_rate: 1000
+  max_rate: 5000
+  timing_template: T4

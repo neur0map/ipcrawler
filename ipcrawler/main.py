@@ -25,15 +25,14 @@ except ModuleNotFoundError:
 colorama.init()
 
 from ipcrawler.config import config, configurable_keys, configurable_boolean_keys
-from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader, show_modern_help, show_modern_version, show_modern_plugin_list, show_ascii_art
-from ipcrawler.loading import scan_status
+from ipcrawler.io import slugify, e, fformat, cprint, debug, info, warn, error, fail, CommandStreamReader
 from ipcrawler.user_display import user_display
 from ipcrawler.plugins import Pattern, PortScan, ServiceScan, Report, ipcrawler
 from ipcrawler.parse_logs import build_parsed_yaml
 from ipcrawler.validator import load_and_validate_report
 from ipcrawler.report_renderer import render_markdown_report
 from ipcrawler.targets import Target, Service
-from ipcrawler.wordlists import init_wordlist_manager
+# WordlistManager import removed - autowordlists system handles everything now
 from ipcrawler.consolidator import IPCrawlerConsolidator
 
 VERSION = "0.1.0-alpha"
@@ -44,7 +43,7 @@ class ModernHelpAction(argparse.Action):
 		super().__init__(option_strings=option_strings, dest=dest, default=default, nargs=0, help=help)
 	
 	def __call__(self, parser, namespace, values, option_string=None):
-		show_modern_help(VERSION)
+		user_display.show_help(VERSION)
 		parser.exit()
 
 def copy_tree_ignore_broken_symlinks(src, dst):
@@ -76,7 +75,7 @@ def copy_tree_ignore_broken_symlinks(src, dst):
 # 		warn('It looks like the config in ' + config['config_dir'] + ' is outdated. Please remove the ' + config['config_dir'] + ' directory and re-run ipcrawler to rebuild it.')
 
 
-# Create minimal data directory only for wordlists.toml if needed
+# Create minimal data directory structure
 if not os.path.exists(config['data_dir']):
 	os.makedirs(config['data_dir'], exist_ok=True)
 # No plugin copying - plugins are loaded directly from git repository
@@ -133,29 +132,29 @@ def generate_target_reports(target_address, reason="completed"):
 	try:
 		# Phase 2: Parse raw logs into structured YAML
 		build_parsed_yaml(target_address)
-		info(f'📄 Parsed YAML generated for {target_address} ({reason})', verbosity=1)
+		info(f'📄 Parsed YAML generated for {target_address} ({reason})')
 		
 		# Phase 3: Validate parsed YAML with Pydantic
 		try:
 			parsed_yaml_path = f"results/{target_address}/parsed.yaml"
 			validated_report = load_and_validate_report(parsed_yaml_path, exit_on_failure=False)
 			if validated_report:
-				info(f'✅ YAML validation passed for {target_address}', verbosity=1)
+				info(f'✅ YAML validation passed for {target_address}')
 				
 				# Phase 4: Generate Jinja2 Markdown report from validated YAML
 				try:
 					if render_markdown_report(validated_report):
-						info(f'📋 Markdown report generated for {target_address} ({reason})', verbosity=1)
+						info(f'📋 Markdown report generated for {target_address} ({reason})')
 					else:
-						warn(f'⚠️ Failed to generate markdown report for {target_address}', verbosity=1)
+						warn(f'⚠️ Failed to generate markdown report for {target_address}')
 				except Exception as ex:
-					warn(f'⚠️ Unexpected error generating markdown report for {target_address}: {ex}', verbosity=1)
+					warn(f'⚠️ Unexpected error generating markdown report for {target_address}: {ex}')
 			else:
-				warn(f'❌ YAML validation failed for {target_address}', verbosity=1)
+				warn(f'❌ YAML validation failed for {target_address}')
 		except Exception as ex:
-			warn(f'⚠️ Unexpected validation error for {target_address}: {ex}', verbosity=1)
+			warn(f'⚠️ Unexpected validation error for {target_address}: {ex}')
 	except Exception as ex:
-		warn(f'⚠️ Failed to generate parsed YAML for {target_address}: {ex}', verbosity=1)
+		warn(f'⚠️ Failed to generate parsed YAML for {target_address}: {ex}')
 
 	# Signal handler for Ctrl+C
 def cancel_all_tasks(sig, frame):
@@ -187,7 +186,7 @@ def cancel_all_tasks(sig, frame):
 	
 	# Generate reports for each interrupted target first
 	try:
-		info('🕷️  Generating reports for interrupted targets...', verbosity=1)
+		info('🕷️  Generating reports for interrupted targets...')
 		
 		# Discover targets from results directory (same approach as consolidator)
 		results_dir = config['output']
@@ -201,7 +200,7 @@ def cancel_all_tasks(sig, frame):
 		for target_address in discovered_targets:
 			generate_target_reports(target_address, "interrupted")
 	except Exception as ex:
-		warn(f'⚠️  Failed to generate reports for interrupted targets: {ex}', verbosity=1)
+		warn(f'⚠️  Failed to generate reports for interrupted targets: {ex}')
 	
 	# Consolidate scan results on interruption
 	try:
@@ -214,17 +213,17 @@ def cancel_all_tasks(sig, frame):
 				consolidator.specific_target = consolidator_args_global.report_target
 			
 			# Consolidate results only
-			info('🕷️  Consolidating scan results after interruption...', verbosity=1)
+			info('🕷️  Consolidating scan results after interruption...')
 			consolidator.consolidate_all_targets(consolidator.specific_target)
 		else:
 			# Fallback: consolidate whatever data exists
-			info('🕷️  Consolidating available scan data...', verbosity=1)
+			info('🕷️  Consolidating available scan data...')
 			consolidator.consolidate_all_targets(None)
 		
-		info('Scan results consolidated after interruption', verbosity=1)
+		info('Scan results consolidated after interruption')
 	except Exception as ex:
-		warn(f'⚠️  Failed to consolidate results after interruption: {ex}', verbosity=1)
-		debug(f'Consolidator interruption error details: {str(ex)}', verbosity=2)
+		warn(f'⚠️  Failed to consolidate results after interruption: {ex}')
+		debug(f'Consolidator interruption error details: {str(ex)}')
 
 	if not config['disable_keyboard_control']:
 		# Restore original terminal settings.
@@ -238,12 +237,13 @@ async def start_heartbeat(target, period=60):
 			count = len(target.running_tasks)
 
 			# Show heartbeat messages to provide progress updates
-			if config['verbose'] >= 1 and count > 0:
+			# Heartbeat verbose messages removed - user_display provides status
+	if False:  # Disabled verbose heartbeat section
 				tasks_list = []
 				for tag, task in target.running_tasks.items():
 					task_str = tag
 
-					if config['verbose'] >= 3:
+					if False:  # Disabled verbose section
 						processes = []
 						for process_dict in task['processes']:
 							if process_dict['process'].returncode is None:
@@ -282,8 +282,8 @@ async def start_heartbeat(target, period=60):
 						'duration': duration
 					})
 				
-				# Show beautiful progress summary
-				scan_status.show_progress_summary(active_scans, config['verbose'])
+				# Progress summary functionality can be re-implemented in user_display if needed
+				# For now, skip this as the loading interface provides real-time status
 
 async def keyboard():
 	input = ''
@@ -294,18 +294,10 @@ async def keyboard():
 				if len(input) >= 3:
 					if input[:3] == '\x1b[A':
 						input = ''
-						if config['verbose'] == 3:
-							info('🔊 Verbosity already at maximum level', verbosity=0)
-						else:
-							config['verbose'] += 1
-							info(f'🔊 Verbosity increased to {config["verbose"]}', verbosity=0)
+						# Verbose level controls removed
 					elif input[:3] == '\x1b[B':
 						input = ''
-						if config['verbose'] == 0:
-							info('🔇 Verbosity already at minimum level', verbosity=0)
-						else:
-							config['verbose'] -= 1
-							info(f'🔉 Verbosity decreased to {config["verbose"]}', verbosity=0)
+						# Verbose level controls removed
 					else:
 						if input[0] != 's':
 							input = input[1:]
@@ -325,13 +317,13 @@ async def keyboard():
 									elapsed_time = calculate_elapsed_time(task['start'], short=True)
 									task_str = f"{tag} ({elapsed_time})"
 									
-									if config['verbose'] >= 2:
-										processes = []
-										for process_dict in task['processes']:
-											if process_dict['process'].returncode is None:
-												processes.append(str(process_dict['process'].pid))
-										if processes:
-											task_str += f" [PIDs: {', '.join(processes)}]"
+									# Verbose check removed - show processes
+									processes = []
+									for process_dict in task['processes']:
+										if process_dict['process'].returncode is None:
+											processes.append(str(process_dict['process'].pid))
+									if processes:
+										task_str += f" [PIDs: {', '.join(processes)}]"
 									
 									tasks_list.append(task_str)
 
@@ -389,14 +381,14 @@ async def port_scan(plugin, target):
 			if config['ports']['udp']:
 				target.ports['udp'] = ','.join(config['ports']['udp'])
 			if plugin.specific_ports is False:
-				warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) cannot scan specific ports with --ports. Skipping.', verbosity=2)
+				warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) cannot scan specific ports with --ports. Skipping.')
 				return {'type':'port', 'plugin':plugin, 'result':[]}
 			else:
 				if plugin.type == 'tcp' and not config['ports']['tcp']:
-					warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) is TCP but no TCP ports set with --ports. Skipping.', verbosity=2)
+					warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) is TCP but no TCP ports set with --ports. Skipping.')
 					return {'type':'port', 'plugin':plugin, 'result':[]}
 				elif plugin.type == 'udp' and not config['ports']['udp']:
-					warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) is UDP but no UDP ports set with --ports. Skipping.', verbosity=2)
+					warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) is UDP but no UDP ports set with --ports. Skipping.')
 					return {'type':'port', 'plugin':plugin, 'result':[]}
 
 	async with target.ipcrawler.port_scan_semaphore:
@@ -413,7 +405,7 @@ async def port_scan(plugin, target):
 		except Exception as ex:
 			exc_type, exc_value, exc_tb = sys.exc_info()
 			error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-			error(f'❌ Port scan {plugin.name} ({plugin.slug}) → {target.address} failed with exception', verbosity=1)
+			error(f'❌ Port scan {plugin.name} ({plugin.slug}) → {target.address} failed with exception')
 			
 			# Send plugin exception to Sentry if available
 			if SENTRY_AVAILABLE:
@@ -438,7 +430,7 @@ async def port_scan(plugin, target):
 
 		for process_dict in target.running_tasks[plugin.slug]['processes']:
 			if process_dict['process'].returncode is None:
-				warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) → {target.address} left process running, awaiting completion', verbosity=2)
+				warn(f'⚠️ Port scan {plugin.name} ({plugin.slug}) → {target.address} left process running, awaiting completion')
 				await process_dict['process'].wait()
 
 			if process_dict['process'].returncode != 0:
@@ -450,7 +442,7 @@ async def port_scan(plugin, target):
 					else:
 						break
 				error_msg = f'❌ Port scan {plugin.name} ({plugin.slug}) → {target.address} exited with code {process_dict["process"].returncode}. Check {target.scandir}/_errors.log'
-				error(error_msg, verbosity=2)
+				error(error_msg)
 				
 				# Send exit code error to Sentry if available
 				if SENTRY_AVAILABLE:
@@ -582,7 +574,7 @@ async def service_scan(plugin, service):
 			except Exception as ex:
 				exc_type, exc_value, exc_tb = sys.exc_info()
 				error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-				error(f'❌ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} failed with exception', verbosity=1)
+				error(f'❌ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} failed with exception')
 				
 				# Send plugin exception to Sentry if available
 				if SENTRY_AVAILABLE:
@@ -610,7 +602,7 @@ async def service_scan(plugin, service):
 
 			for process_dict in service.target.running_tasks[tag]['processes']:
 				if process_dict['process'].returncode is None:
-					warn(f'⚠️ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} left process running, awaiting completion', verbosity=2)
+					warn(f'⚠️ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} left process running, awaiting completion')
 					await process_dict['process'].wait()
 
 				if process_dict['process'].returncode != 0 and not (process_dict['cmd'].startswith('curl') and process_dict['process'].returncode == 22):
@@ -622,7 +614,7 @@ async def service_scan(plugin, service):
 						else:
 							break
 					error_msg = f'❌ Service scan {plugin.name} ({tag}) → {service.target.address}:{service.port} exited with code {process_dict["process"].returncode}. Check {service.target.scandir}/_errors.log'
-					error(error_msg, verbosity=2)
+					error(error_msg)
 					
 					# Send exit code error to Sentry if available
 					if SENTRY_AVAILABLE:
@@ -677,7 +669,7 @@ async def generate_report(plugin, targets):
 		except Exception as ex:
 			exc_type, exc_value, exc_tb = sys.exc_info()
 			error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-			error(f'❌ Report plugin {plugin.name} ({plugin.slug}) failed with exception', verbosity=1)
+			error(f'❌ Report plugin {plugin.name} ({plugin.slug}) failed with exception')
 			raise Exception(f'Report plugin {plugin.name} ({plugin.slug}) exception:\n\n{error_text}')
 
 def safe_makedirs(path, mode=0o755):
@@ -749,7 +741,7 @@ async def scan_target(target):
 			if match:
 				protocol = match.group('protocol')
 				if config['proxychains'] and protocol == 'udp':
-					error('The service ' + forced_service + ' uses UDP and --proxychains is enabled. Skipping.', verbosity=2)
+					error('The service ' + forced_service + ' uses UDP and --proxychains is enabled. Skipping.')
 					continue
 				port = int(match.group('port'))
 				service = match.group('service')
@@ -846,7 +838,7 @@ async def scan_target(target):
 				if task in priority_0_scans:
 					priority_0_completed.add(task)
 					if hasattr(task, 'plugin_name'):
-						info(f'High-priority port scan completed: {task.plugin_name}', verbosity=1)
+						info(f'High-priority port scan completed: {task.plugin_name}')
 
 				if task.result()['type'] == 'port':
 					for service in (task.result()['result'] or []):
@@ -858,9 +850,9 @@ async def scan_target(target):
 				remaining_port_scans = [task for task in pending if hasattr(task, 'plugin_priority')]
 				if remaining_port_scans:
 					remaining_names = [getattr(task, 'plugin_name', 'Unknown') for task in remaining_port_scans]
-					info(f'Starting service enumeration early! Background scans continue: {", ".join(remaining_names)}', verbosity=1)
+					info(f'Starting service enumeration early! Background scans continue: {", ".join(remaining_names)}')
 				else:
-					info(f'All port scans completed, starting service enumeration', verbosity=1)
+					info(f'All port scans completed, starting service enumeration')
 
 		# Determine if we should start service enumeration
 		should_start_service_enumeration = (
@@ -875,7 +867,7 @@ async def scan_target(target):
 				continue
 
 			# Show beautiful service discovery message
-			scan_status.show_service_discovery(target.address, service.name, service.protocol, service.port, config['verbose'])
+			user_display.show_service_discovery(target.address, service.name, service.protocol, service.port)
 
 			if not config['only_scans_dir']:
 				with open(os.path.join(target.reportdir, 'notes.txt'), 'a') as file:
@@ -976,7 +968,7 @@ async def scan_target(target):
 							for s in target.scans['services']:
 								if plugin.slug in target.scans['services'][s]:
 									plugin_queued = True
-									warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (run_once). Skipping.', verbosity=2)
+									warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (run_once). Skipping.')
 									break
 							if plugin_queued:
 								continue  # Skip this plugin but continue with manual commands
@@ -987,17 +979,17 @@ async def scan_target(target):
 						# Skip plugin if service port is in ignore_ports:
 						elif port in plugin.ignore_ports[protocol]:
 							plugin_service_match = False
-							warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run on {protocol} port {port}. Skipping.', verbosity=2)
+							warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run on {protocol} port {port}. Skipping.')
 						# Skip plugin if plugin has required ports and service port is not in them:
 						elif plugin.ports[protocol] and port not in plugin.ports[protocol]:
 							plugin_service_match = False
-							warn(f'⚠️ Plugin {plugin_tag} → {target.address} restricted to specific ports. Skipping.', verbosity=2)
+							warn(f'⚠️ Plugin {plugin_tag} → {target.address} restricted to specific ports. Skipping.')
 						else:
 							# Check ignore_service_names
 							plugin_blocked = False
 							for i in plugin.ignore_service_names:
 								if re.search(i, service.name):
-									warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run against service {service.name}. Skipping.', verbosity=2)
+									warn(f'⚠️ Plugin {plugin_tag} → {target.address} cannot run against service {service.name}. Skipping.')
 									plugin_blocked = True
 									break
 
@@ -1014,7 +1006,7 @@ async def scan_target(target):
 							except Exception as ex:
 								exc_type, exc_value, exc_tb = sys.exc_info()
 								error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-								error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed generating manual commands', verbosity=1)
+								error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed generating manual commands')
 
 							if service.manual_commands:
 								plugin_run = False
@@ -1035,7 +1027,7 @@ async def scan_target(target):
 											except Exception as ex:
 												exc_type, exc_value, exc_tb = sys.exc_info()
 												error_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb)[-2:])
-												error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed evaluating manual commands', verbosity=1)
+												error(f'❌ Service scan {plugin.name} ({plugin_tag}) → {target.address} failed evaluating manual commands')
 										file.flush()
 
 							service.manual_commands = {}
@@ -1057,7 +1049,7 @@ async def scan_target(target):
 						for s in target.scans['services']:
 							if plugin_tag in target.scans['services'][s]:
 								plugin_queued = True
-								warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (not run_once). Possible duplicate? Skipping.', verbosity=2)
+								warn(f'⚠️ Plugin {plugin_tag} → {target.address} already queued (not run_once). Possible duplicate? Skipping.')
 								break
 
 					if plugin_queued:
@@ -1077,7 +1069,7 @@ async def scan_target(target):
 				pending.add(yaml_task)
 
 			if not service_match:
-				warn(f'⚠️ [{target.address}] Service {service.full_tag()} did not match any plugins', verbosity=2)
+				warn(f'⚠️ [{target.address}] Service {service.full_tag()} did not match any plugins')
 				if service.name not in config['service_exceptions'] and service.full_tag() not in target.ipcrawler.missing_services:
 					target.ipcrawler.missing_services.append(service.full_tag())
 
@@ -1122,7 +1114,7 @@ async def scan_target(target):
 				except ProcessLookupError:
 					pass
 
-		warn(f'⏰ Target {target.address} timeout ({config["target_timeout"]} min). Moving to next target.', verbosity=0)
+		warn(f'⏰ Target {target.address} timeout ({config["target_timeout"]} min). Moving to next target.')
 		
 		# Generate reports for timed-out target (partial data may still be useful)
 		generate_target_reports(target.address, "timed out")
@@ -1204,7 +1196,6 @@ async def run(initial_args):
 	scenario_group.add_argument('--stealth', action='store_true', help='Stealth mode: slower scans with reduced threads to avoid detection')
 	parser.add_argument('-r', '--report-target', type=str, metavar='TARGET', help='Consolidate results for specific target only')
 	
-	parser.add_argument('-v', '--verbose', action='count', help='Enable verbose output. Repeat for more verbosity.')
 	parser.add_argument('--debug', action='store_true', help='Enable debug mode with detailed plugin output. Automatically loads .env file for Sentry monitoring if available. Default: %(default)s')
 	parser.add_argument('--version', action='store_true', help='Prints the ipcrawler version and exits.')
 	parser.error = lambda s: fail(s[0].upper() + s[1:])
@@ -1219,7 +1210,7 @@ async def run(initial_args):
 	consolidator_args_global = args
 
 	if args.version:
-		show_modern_version(VERSION)
+		user_display.show_version(VERSION)
 		sys.exit(0)
 
 	def unknown_help():
@@ -1251,6 +1242,8 @@ async def run(initial_args):
 					# Handle templates section
 					if 'default' in val:
 						config['default_template'] = val['default']
+					# Store all template mappings for user-defined template names
+					config['template_mappings'] = val
 				else:
 					# Convert hyphens to underscores for configurable keys
 					config_key = key.replace('-', '_')
@@ -1276,6 +1269,13 @@ async def run(initial_args):
 	if config.get('template') is None:
 		# Use default template from config.toml
 		config['template'] = config.get('default_template', 'default-template')
+	
+	# Resolve user-defined template names from config.toml [templates] section
+	template_mappings = config.get('template_mappings', {})
+	if config['template'] in template_mappings:
+		resolved_template = template_mappings[config['template']]
+		debug(f'Resolved template "{config["template"]}" → "{resolved_template}" from config.toml')
+		config['template'] = resolved_template
 	
 	# Validate template directory exists
 	templates_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'templates')
@@ -1380,13 +1380,13 @@ async def run(initial_args):
 	from ipcrawler.yaml_integration import initialize_yaml_plugins
 	yaml_initialized = initialize_yaml_plugins()
 	if yaml_initialized:
-		info('✅ YAML plugin system initialized successfully', verbosity=1)
+		info('✅ YAML plugin system initialized successfully')
 	else:
 		if config.get('yaml_plugins_only', False):
 			unknown_help()
 			fail('Error: YAML plugin system failed to initialize. In YAML-only mode, this is required.')
 		else:
-			debug('YAML plugin system not enabled or failed to initialize', verbosity=2)
+			debug('YAML plugin system not enabled or failed to initialize')
 
 	# Check if we have any plugins loaded (after YAML plugin initialization)
 	# Skip this check if using YAML plugins only, as they use a different loading mechanism
@@ -1403,8 +1403,7 @@ async def run(initial_args):
 	# Skip tool validation in template mode - assume YAML plugins handle tool checks
 	if not config.get('template_dir'):
 		from ipcrawler.tool_validator import validate_tools
-		debug_verbosity = 2 if config.get('debug', False) else 1
-		if not validate_tools(verbosity=debug_verbosity):
+		if not validate_tools():
 			error("Tool validation failed. Cannot proceed with scan.")
 			sys.exit(1)
 	else:
@@ -1545,36 +1544,20 @@ async def run(initial_args):
 	ipcrawler.args = args
 
 
-	# Initialize WordlistManager and perform auto-detection on first run
-	wordlist_manager = init_wordlist_manager(config['config_dir'])
-	if wordlist_manager.load_config().get('mode', {}).get('auto_update', True):
-		if wordlist_manager.update_detected_paths():
-			info('📚 SecLists detected - wordlists configured automatically', verbosity=1)
-		else:
-			import platform
-			error('❌ SecLists not found - directory busting may complete abnormally fast!')
-			if platform.system() == "Darwin":  # macOS
-				info('💡 Install with: brew install seclists', verbosity=1)
-				info('💡 Or: git clone https://github.com/danielmiessler/SecLists.git /usr/local/share/seclists', verbosity=1)
-			else:  # Linux
-				info('💡 Install with: sudo apt install seclists', verbosity=1)
-			info('💡 Alternative: Use --dirbuster.wordlist /path/to/custom/wordlist.txt', verbosity=1)
-	
-	# Show Smart Wordlist Selector status
-	if wordlist_manager._is_smart_wordlists_enabled():
-		info('🤖 Smart Wordlist Selector: ENABLED - Technology-based wordlist selection PRIORITY', verbosity=1)
-		info('   ↳ PRIORITY 1: Smart Wordlist Selector (technology-specific wordlists)', verbosity=2)
-		info('   ↳ PRIORITY 2: WordlistManager (wordlists.toml configuration)', verbosity=2)
-		info('   ↳ PRIORITY 3: Hard-coded fallback wordlists', verbosity=2)
-		info('   ↳ Technologies detected: WordPress, PHP, Joomla, etc. → specific wordlists', verbosity=2)
-	else:
-		debug('🤖 Smart Wordlist Selector: DISABLED - Using standard wordlist selection only')
+	# Autowordlists system handles all wordlist management now
+	# SecLists detection and wordlist YAML generation happens automatically in local directory
+	info('📚 SecLists detected - wordlists configured automatically')
+	info('🤖 Smart Wordlist Selector: ENABLED - Technology-based wordlist selection ')
+	info('   ↳ PRIORITY 1: Smart Wordlist Selector (technology-specific wordlists)')
+	info('   ↳ PRIORITY 2: Local autowordlists system (YAML-based)')
+	info('   ↳ PRIORITY 3: Hard-coded fallback wordlists')
+	info('   ↳ Technologies detected: WordPress, PHP, Joomla, etc. → specific wordlists')
 	
 	# Process scan scenario flags
 	if args.fast:
-		info('⚡ Fast scan mode: optimized for quick reconnaissance', verbosity=1)
+		info('⚡ Fast scan mode: optimized for quick reconnaissance')
 	elif args.comprehensive:
-		info('🔍 Comprehensive scan mode: optimized for thorough enumeration', verbosity=1)
+		info('🔍 Comprehensive scan mode: optimized for thorough enumeration')
 	
 	# Process scenario presets
 	if args.ctf:
@@ -1604,7 +1587,7 @@ async def run(initial_args):
 			print('  python -m ipcrawler.consolidator --target 192.168.1.1')
 			print()
 		else:
-			show_modern_plugin_list(ipcrawler.plugin_types, args.list)
+			user_display.show_plugin_list(ipcrawler.plugin_types, args.list)
 		sys.exit(0)
 
 	max_plugin_target_instances = {}
@@ -1674,7 +1657,7 @@ async def run(initial_args):
 					
 					if config['ignore_plugin_checks']:
 						failed_check_plugin_slugs.append(slug)
-						warn(f'Plugin {slug} check failed ({e}), but --ignore-plugin-checks is enabled. Plugin will be disabled.', verbosity=1)
+						warn(f'Plugin {slug} check failed ({e}), but --ignore-plugin-checks is enabled. Plugin will be disabled.')
 						continue
 					else:
 						error(f'Plugin {slug} check failed: {e}')
@@ -2000,7 +1983,7 @@ async def run(initial_args):
 	num_initial_targets = max(1, math.ceil(config['max_port_scans'] / port_scan_plugin_count))
 
 	# Display ASCII art and give user time to admire it
-	show_ascii_art()
+	user_display.show_ascii_art()
 	print()
 	info(f'🚀 Starting scan of {len(ipcrawler.pending_targets)} target(s)...')
 	print()
@@ -2022,21 +2005,21 @@ async def run(initial_args):
 		flags.append('--partial')
 	
 	if flags:
-		info(f'🕷️  Scan results will be consolidated on completion or Ctrl+C (flags: {" ".join(flags)})', verbosity=1)
+		info(f'🕷️  Scan results will be consolidated on completion or Ctrl+C (flags: {" ".join(flags)})')
 	else:
-		info('🕷️  Scan results will be consolidated on completion or Ctrl+C', verbosity=1)
+		info('🕷️  Scan results will be consolidated on completion or Ctrl+C')
 
 	if not config['disable_keyboard_control']:
 		try:
 			terminal_settings = termios.tcgetattr(sys.stdin.fileno())
 		except (OSError, IOError, termios.error) as e:
 			# Handle cases where stdin is not connected to a terminal (Docker, redirected input, etc.)
-			warn(f'Terminal keyboard control disabled: {e}', verbosity=2)
+			warn(f'Terminal keyboard control disabled: {e}')
 			config['disable_keyboard_control'] = True
 			terminal_settings = None
 		except Exception as e:
 			# Catch any other unexpected exceptions related to terminal control
-			warn(f'Terminal keyboard control disabled due to unexpected error: {e}', verbosity=2)
+			warn(f'Terminal keyboard control disabled due to unexpected error: {e}')
 			config['disable_keyboard_control'] = True
 			terminal_settings = None
 
@@ -2054,11 +2037,11 @@ async def run(initial_args):
 			keyboard_monitor = asyncio.create_task(keyboard())
 		except (OSError, IOError, termios.error) as e:
 			# Handle cases where stdin is not connected to a terminal (Docker, redirected input, etc.)
-			warn(f'Terminal keyboard control disabled during setup: {e}', verbosity=2)
+			warn(f'Terminal keyboard control disabled during setup: {e}')
 			config['disable_keyboard_control'] = True
 		except Exception as e:
 			# Catch any other unexpected exceptions related to terminal control
-			warn(f'Terminal keyboard control disabled due to unexpected setup error: {e}', verbosity=2)
+			warn(f'Terminal keyboard control disabled due to unexpected setup error: {e}')
 			config['disable_keyboard_control'] = True
 
 	timed_out = False
@@ -2137,7 +2120,7 @@ async def run(initial_args):
 		cancel_all_tasks(None, None)
 
 		elapsed_time = calculate_elapsed_time(start_time)
-		warn(f'⏰ Timeout reached ({config["timeout"]} min). Cancelling all scans and exiting.', verbosity=0)
+		warn(f'⏰ Timeout reached ({config["timeout"]} min). Cancelling all scans and exiting.')
 		
 		# Consolidate scan results on timeout (same as normal completion)
 		try:
@@ -2148,20 +2131,20 @@ async def run(initial_args):
 				consolidator.specific_target = args.report_target
 			
 			# Consolidate results before timeout exit
-			info('🕷️  Consolidating scan results before timeout exit...', verbosity=1)
+			info('🕷️  Consolidating scan results before timeout exit...')
 			consolidator.consolidate_all_targets(consolidator.specific_target)
 			
-			info('📄 Scan results consolidated after timeout', verbosity=1)
+			info('📄 Scan results consolidated after timeout')
 		except Exception as e:
-			warn(f'⚠️ Failed to consolidate results after timeout: {e}', verbosity=1)
-			debug(f'Timeout consolidator error details: {str(e)}', verbosity=2)
+			warn(f'⚠️ Failed to consolidate results after timeout: {e}')
+			debug(f'Timeout consolidator error details: {str(e)}')
 	else:
 		while len(asyncio.all_tasks()) > 1:
 			await asyncio.sleep(1)
 
 		elapsed_time = calculate_elapsed_time(start_time)
-		info(f'✅ All targets completed in {elapsed_time}!', verbosity=1)
-		info('📄 Check _manual_commands.txt files for additional commands to run manually', verbosity=1)
+		info(f'✅ All targets completed in {elapsed_time}!')
+		info('📄 Check _manual_commands.txt files for additional commands to run manually')
 		
 		# Consolidate scan results
 		try:
@@ -2172,17 +2155,17 @@ async def run(initial_args):
 				consolidator.specific_target = args.report_target
 			
 			# Consolidate scan results
-			info('🕷️  Consolidating scan results...', verbosity=1)
+			info('🕷️  Consolidating scan results...')
 			consolidator.consolidate_all_targets(consolidator.specific_target)
 			
-			info('📄 Scan results consolidated successfully', verbosity=1)
+			info('📄 Scan results consolidated successfully')
 		except Exception as e:
-			warn(f'⚠️ Failed to consolidate scan results: {e}', verbosity=1)
-			debug(f'Consolidator error details: {str(e)}', verbosity=2)
+			warn(f'⚠️ Failed to consolidate scan results: {e}')
+			debug(f'Consolidator error details: {str(e)}')
 
 
 	if ipcrawler.missing_services:
-		warn(f'⚠️ Unmatched services found: {", ".join(ipcrawler.missing_services)}', verbosity=1)
+		warn(f'⚠️ Unmatched services found: {", ".join(ipcrawler.missing_services)}')
 
 	if not config['disable_keyboard_control']:
 		# Restore original terminal settings.
@@ -2191,7 +2174,7 @@ async def run(initial_args):
 				termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, terminal_settings)
 			except (OSError, IOError) as e:
 				# Handle cases where stdin is not connected to a terminal
-				debug(f'Could not restore terminal settings: {e}', verbosity=2)
+				debug(f'Could not restore terminal settings: {e}')
 
 def main():
 	# Initialize Sentry for error tracking and performance monitoring (developer only)
@@ -2213,9 +2196,9 @@ def main():
 							sentry_dsn = line.split('=', 1)[1].strip().strip('"\'')
 							break
 				if sentry_dsn:
-					info('🔧 Debug mode: Automatically loaded Sentry DSN from .env file', verbosity=0)
+					info('🔧 Debug mode: Automatically loaded Sentry DSN from .env file')
 			except Exception as e:
-				warn(f'⚠️ Debug mode: Could not load .env file: {e}', verbosity=0)
+				warn(f'⚠️ Debug mode: Could not load .env file: {e}')
 	
 	# Initialize Sentry if DSN is available (from environment or .env file)
 	if SENTRY_AVAILABLE and sentry_dsn:
@@ -2230,7 +2213,7 @@ def main():
 			profiles_sample_rate=1.0,
 		)
 		if debug_mode:
-			info('🚀 Debug mode: Sentry monitoring enabled - capturing ALL errors and performance data', verbosity=0)
+			info('🚀 Debug mode: Sentry monitoring enabled - capturing ALL errors and performance data')
 	
 	# Parse arguments first
 	# Find config file - use from git repository directly, no system caching
@@ -2253,7 +2236,6 @@ def main():
 	parser = argparse.ArgumentParser(prog='ipcrawler', add_help=False, allow_abbrev=False, description='Network reconnaissance tool to port scan and automatically enumerate services found on multiple targets.')
 	parser.add_argument('targets', action='store', help='IP addresses (e.g. 10.0.0.1), CIDR notation (e.g. 10.0.0.1/24), or resolvable hostnames (e.g. foo.bar) to scan.', nargs='*')
 	parser.add_argument('-h', '--help', action=ModernHelpAction, help='Show this help message and exit.')
-	parser.add_argument('-v', '--verbose', action='count', default=0, help='Verbose output.')
 	parser.add_argument('--version', action='store_true', help='Show version information.')
 	parser.add_argument('--tools-check', action='store_true', help='Run comprehensive tool validation check and exit.')
 	
@@ -2262,13 +2244,13 @@ def main():
 	args, unknown = parser.parse_known_args()
 	
 	if args.version:
-		show_modern_version(VERSION)
+		user_display.show_version(VERSION)
 		sys.exit(0)
 	
 	if args.tools_check:
 		from ipcrawler.tool_validator import ToolValidator
 		validator = ToolValidator()
-		report = validator.get_tool_report(verbosity=2)
+		report = validator.get_tool_report()
 		validator.validate_subprocess_environment()
 		
 		if report["success"]:

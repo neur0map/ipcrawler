@@ -13,6 +13,8 @@ local/
 ipcrawler/data/seclists_catalog.yaml
 seclists_catalog.yaml
 unified_wordlists_catalog.yaml
+.coverage
+
 
 # Environment files (never commit these)
 .env

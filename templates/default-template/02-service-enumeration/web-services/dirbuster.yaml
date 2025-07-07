@@ -1,602 +1,447 @@
 metadata:
-  name: "Advanced Directory Buster"
-  description: "Intelligent directory and file discovery with smart wordlist selection and multi-hostname support"
-  type: "servicescan"
+  name: Advanced Directory Buster
+  description: Intelligent directory and file discovery with smart wordlist selection
+    and multi-hostname support
+  type: servicescan
   priority: 0
-  version: "1.0"
-  author: "IPCrawler YAML Plugin System"
-  tags: ["default", "safe", "long", "http"]
-
+  version: '1.0'
+  author: IPCrawler YAML Plugin System
+  tags:
+  - default
+  - safe
+  - long
+  - http
 conditions:
   services:
-    include: ["^http", "ssl/http", "^https"]
-    exclude: ["^nacn_http$"]
-
+    include:
+    - ^http
+    - ssl/http
+    - ^https
+    exclude:
+    - ^nacn_http$
 options:
-  - name: "tool"
-    type: "choice"
-    choices: ["feroxbuster", "gobuster", "dirsearch", "ffuf", "dirb"]
-    default: "feroxbuster"
-    help: "The tool to use for directory busting"
-  - name: "wordlist"
-    type: "string"
-    default: "auto"
-    help: "Wordlist(s) to use. Use 'auto' for automatic SecLists detection"
-  - name: "threads"
-    type: "integer"
-    default: 10
-    help: "Number of threads to use for directory busting"
-  - name: "ext"
-    type: "string"
-    default: "php,html,txt"
-    help: "File extensions to fuzz (no dot, comma separated)"
-  - name: "recursive"
-    type: "boolean"
-    default: false
-    help: "Enable recursive searching (may increase scan times significantly)"
-  - name: "status_codes"
-    type: "string"
-    default: "200,301,302,303,307,308,403,401,405"
-    help: "HTTP status codes to include in results (comma-separated)"
-  - name: "extras"
-    type: "string"
-    default: ""
-    help: "Extra options to pass to the tool"
-  - name: "timeout"
-    type: "integer"
-    default: 3600
-    help: "Maximum time in seconds for directory busting scan (1 hour)"
-  - name: "vhost_mode"
-    type: "choice"
-    choices: ["all", "best", "smart"]
-    default: "smart"
-    help: "How to handle multiple hostnames: all=scan all, best=scan best only, smart=scan best + unique domains"
-
+- name: tool
+  type: choice
+  choices:
+  - feroxbuster
+  - gobuster
+  - dirsearch
+  - ffuf
+  - dirb
+  default: feroxbuster
+  help: The tool to use for directory busting
+- name: wordlist
+  type: string
+  default: auto
+  help: Wordlist(s) to use. Use 'auto' for automatic SecLists detection
+- name: threads
+  type: integer
+  default: 10
+  help: Number of threads to use for directory busting
+- name: ext
+  type: string
+  default: php,html,txt
+  help: File extensions to fuzz (no dot, comma separated)
+- name: recursive
+  type: boolean
+  default: false
+  help: Enable recursive searching (may increase scan times significantly)
+- name: status_codes
+  type: string
+  default: 200,301,302,303,307,308,403,401,405
+  help: HTTP status codes to include in results (comma-separated)
+- name: extras
+  type: string
+  default: ''
+  help: Extra options to pass to the tool
+- name: timeout
+  type: integer
+  default: 3600
+  help: Maximum time in seconds for directory busting scan (1 hour)
+- name: vhost_mode
+  type: choice
+  choices:
+  - all
+  - best
+  - smart
+  default: smart
+  help: 'How to handle multiple hostnames: all=scan all, best=scan best only, smart=scan
+    best + unique domains'
 execution:
   commands:
-    # Hostname discovery and validation
-    - name: "hostname_discovery"
-      condition: "true"
-      command: |
-        echo "=== Hostname Discovery and Validation ===" &&
-        echo "Target type: {target_type}" &&
-        echo "Target address: {address}" &&
-        echo "All hostnames: {all_hostnames}" &&
-        echo "Best hostname: {best_hostname}" &&
-        # Validate hostnames are available
-        if [ -z "{all_hostnames}" ]; then
-          echo "❌ CRITICAL: No hostnames available! Using IP fallback: {address}"
-          echo "FINAL_HOSTNAMES={address}"
-        else
-          case "{vhost_mode}" in
-            "best")
-              echo "🌐 Using best hostname only: {best_hostname}"
-              echo "FINAL_HOSTNAMES={best_hostname}"
-              ;;
-            "smart")
-              echo "🌐 Using smart hostname selection"
-              # This would be handled by the YAML executor's hostname logic
-              echo "FINAL_HOSTNAMES={smart_hostnames}"
-              ;;
-            "all")
-              echo "🌐 Using all hostnames: {all_hostnames}"
-              echo "FINAL_HOSTNAMES={all_hostnames}"
-              ;;
-          esac
-        fi
-      timeout: 30
-      output_file: "{protocol}_{port}_{http_scheme}_hostname_discovery.txt"
-    
-    # Wordlist resolution and validation
-    - name: "wordlist_resolution"
-      condition: "true"
-      command: |
-        echo "=== Wordlist Resolution and Validation ===" &&
-        wordlist_option="{wordlist}" &&
-        if [ "$wordlist_option" = "auto" ]; then
-          echo "🔍 Auto-detecting wordlists..." &&
-          # Try to detect technologies from previous scans
-          detected_tech="" &&
-          if [ -d "{scandir}" ]; then
-            # Look for technology indicators in existing scan files
-            if find "{scandir}" -name "*.txt" -exec grep -l -i "apache\\|nginx\\|php\\|wordpress\\|drupal\\|joomla" {} \; 2>/dev/null | head -1 > /dev/null; then
-              detected_tech=$(find "{scandir}" -name "*.txt" -exec grep -h -i -o "apache\\|nginx\\|php\\|wordpress\\|drupal\\|joomla" {} \; 2>/dev/null | head -1)
-              echo "🤖 Detected technology: $detected_tech"
-            fi
-          fi &&
-          # Try SecLists paths in order of preference
-          wordlist_paths=() &&
-          seclists_paths=(
-            "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
-            "/usr/share/wordlists/dirb/common.txt" 
-            "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"
-            "/opt/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
-          ) &&
-          for path in "${seclists_paths[@]}"; do
-            if [ -f "$path" ]; then
-              wordlist_paths+=("$path")
-              echo "✅ Found wordlist: $path"
-              break
-            fi
-          done &&
-          if [ ${#wordlist_paths[@]} -eq 0 ]; then
-            echo "❌ No SecLists wordlists found!"
-            echo "💡 Install SecLists: apt install seclists OR brew install seclists"
-            echo "💡 Or specify custom: --dirbuster.wordlist /path/to/wordlist.txt"
-            echo "WORDLIST_ERROR=no_wordlists_found"
-            exit 1
-          fi &&
-          echo "RESOLVED_WORDLISTS=${wordlist_paths[*]}"
-        else
-          echo "✅ Using custom wordlist: $wordlist_option"
-          if [ ! -f "$wordlist_option" ]; then
-            echo "❌ Custom wordlist file does not exist: $wordlist_option"
-            echo "WORDLIST_ERROR=custom_wordlist_missing"
-            exit 1
-          fi
-          # Check if wordlist is empty
-          if [ ! -s "$wordlist_option" ]; then
-            echo "❌ Wordlist is empty: $wordlist_option"
-            echo "WORDLIST_ERROR=wordlist_empty"
-            exit 1
-          fi
-          echo "RESOLVED_WORDLISTS=$wordlist_option"
-        fi
-      timeout: 60
-      output_file: "{protocol}_{port}_{http_scheme}_wordlist_resolution.txt"
-    
-    # Feroxbuster execution
-    - name: "feroxbuster_scan"
-      condition: "tool == 'feroxbuster'"
-      command: |
-        echo "=== Feroxbuster Directory Enumeration ===" &&
-        # Parse resolved wordlists from previous step
-        wordlist_file="{scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt" &&
-        if [ -f "$wordlist_file" ] && grep -q "WORDLIST_ERROR" "$wordlist_file"; then
-          echo "❌ Skipping feroxbuster due to wordlist resolution errors"
-          exit 1
-        fi &&
-        resolved_wordlists=$(grep "RESOLVED_WORDLISTS=" "$wordlist_file" 2>/dev/null | cut -d'=' -f2-) &&
-        final_hostnames=$(grep "FINAL_HOSTNAMES=" "{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt" 2>/dev/null | cut -d'=' -f2-) &&
-        if [ -z "$resolved_wordlists" ]; then
-          echo "❌ No resolved wordlists available"
-          exit 1
-        fi &&
-        if [ -z "$final_hostnames" ]; then
-          final_hostnames="{address}"
-        fi &&
-        echo "🚀 Starting feroxbuster with wordlists: $resolved_wordlists" &&
-        echo "🌐 Scanning hostnames: $final_hostnames" &&
-        for hostname in $final_hostnames; do
-          hostname_label=$(echo "$hostname" | tr '.:' '__') &&
-          for wordlist in $resolved_wordlists; do
-            wordlist_name=$(basename "$wordlist" .txt) &&
-            echo "=== Scanning $hostname with $wordlist_name ===" &&
-            # Handle IPv6 brackets if needed
-            scan_hostname="$hostname" &&
-            if [[ "$hostname" == *":"* && "$hostname" != "["* ]]; then
-              scan_hostname="[$hostname]"
-            fi &&
-            start_time=$(date +%s) &&
-            echo "🔧 Command: timeout {timeout} feroxbuster -u {http_scheme}://$scan_hostname:{port}/ -t {threads} -w $wordlist -x \"{ext}\" -s {status_codes} -v -k {recursive_flag} -q -e -r" &&
-            timeout {timeout} feroxbuster \
-              -u {http_scheme}://$scan_hostname:{port}/ \
-              -t {threads} \
-              -w "$wordlist" \
-              -x "{ext}" \
-              -s {status_codes} \
-              -v -k {recursive_flag} -q -e -r \
-              -o "{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_${hostname_label}_${wordlist_name}.txt" \
-              {extras} &&
-            end_time=$(date +%s) &&
-            duration=$((end_time - start_time)) &&
-            echo "⏱️ Scan completed in ${duration}s" &&
-            if [ $duration -lt 10 ]; then
-              echo "🚨 SUSPICIOUS: feroxbuster completed in ${duration}s - this is abnormally fast!"
-              echo "💡 Possible causes:"
-              echo "   • Target not responding to HTTP requests"
-              echo "   • Wordlist file missing or empty"
-              echo "   • Network connectivity issues"
-              echo "   • Target returning identical responses (rate limiting)"
-              echo "💡 Test manually: curl -I {http_scheme}://$scan_hostname:{port}/"
-            fi
-          done
-        done
-      timeout: 4000
-      output_file: "{protocol}_{port}_{http_scheme}_feroxbuster_execution.txt"
-    
-    # Gobuster execution  
-    - name: "gobuster_scan"
-      condition: "tool == 'gobuster'"
-      command: |
-        echo "=== Gobuster Directory Enumeration ===" &&
-        wordlist_file="{scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt" &&
-        if [ -f "$wordlist_file" ] && grep -q "WORDLIST_ERROR" "$wordlist_file"; then
-          echo "❌ Skipping gobuster due to wordlist resolution errors"
-          exit 1
-        fi &&
-        resolved_wordlists=$(grep "RESOLVED_WORDLISTS=" "$wordlist_file" 2>/dev/null | cut -d'=' -f2-) &&
-        final_hostnames=$(grep "FINAL_HOSTNAMES=" "{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt" 2>/dev/null | cut -d'=' -f2-) &&
-        if [ -z "$final_hostnames" ]; then
-          final_hostnames="{address}"
-        fi &&
-        for hostname in $final_hostnames; do
-          hostname_label=$(echo "$hostname" | tr '.:' '__') &&
-          for wordlist in $resolved_wordlists; do
-            wordlist_name=$(basename "$wordlist" .txt) &&
-            scan_hostname="$hostname" &&
-            if [[ "$hostname" == *":"* && "$hostname" != "["* ]]; then
-              scan_hostname="[$hostname]"
-            fi &&
-            echo "=== Gobuster: $hostname with $wordlist_name ===" &&
-            gobuster dir \
-              -u {http_scheme}://$scan_hostname:{port}/ \
-              -t {threads} \
-              -w "$wordlist" \
-              -s {status_codes} \
-              -e -k \
-              -x "{ext}" \
-              -z -r \
-              -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_${hostname_label}_${wordlist_name}.txt" \
-              {extras}
-          done
-        done
-      timeout: 4000
-      output_file: "{protocol}_{port}_{http_scheme}_gobuster_execution.txt"
-    
-    # Dirsearch execution
-    - name: "dirsearch_scan" 
-      condition: "tool == 'dirsearch'"
-      command: |
-        echo "=== Dirsearch Directory Enumeration ===" &&
-        wordlist_file="{scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt" &&
-        if [ -f "$wordlist_file" ] && grep -q "WORDLIST_ERROR" "$wordlist_file"; then
-          echo "❌ Skipping dirsearch due to wordlist resolution errors"
-          exit 1
-        fi &&
-        resolved_wordlists=$(grep "RESOLVED_WORDLISTS=" "$wordlist_file" 2>/dev/null | cut -d'=' -f2-) &&
-        final_hostnames=$(grep "FINAL_HOSTNAMES=" "{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt" 2>/dev/null | cut -d'=' -f2-) &&
-        if [ -z "$final_hostnames" ]; then
-          final_hostnames="{address}"
-        fi &&
-        for hostname in $final_hostnames; do
-          # Skip IPv6 addresses for dirsearch
-          if [[ "$hostname" == *":"* ]]; then
-            echo "⚠️ Skipping IPv6 hostname $hostname (dirsearch doesn't support IPv6)"
-            continue
-          fi &&
-          hostname_label=$(echo "$hostname" | tr '.:' '__') &&
-          for wordlist in $resolved_wordlists; do
-            wordlist_name=$(basename "$wordlist" .txt) &&
-            echo "=== Dirsearch: $hostname with $wordlist_name ===" &&
-            dirsearch \
-              -u {http_scheme}://$hostname:{port}/ \
-              -t {threads} \
-              -e "{ext}" \
-              --include-status={status_codes} \
-              -f -q -F {recursive_flag} \
-              -w "$wordlist" \
-              --format=plain \
-              -o "{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_${hostname_label}_${wordlist_name}.txt" \
-              {extras}
-          done
-        done
-      timeout: 4000
-      output_file: "{protocol}_{port}_{http_scheme}_dirsearch_execution.txt"
-    
-    # FFUF execution
-    - name: "ffuf_scan"
-      condition: "tool == 'ffuf'" 
-      command: |
-        echo "=== FFUF Directory Enumeration ===" &&
-        wordlist_file="{scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt" &&
-        if [ -f "$wordlist_file" ] && grep -q "WORDLIST_ERROR" "$wordlist_file"; then
-          echo "❌ Skipping ffuf due to wordlist resolution errors"
-          exit 1
-        fi &&
-        resolved_wordlists=$(grep "RESOLVED_WORDLISTS=" "$wordlist_file" 2>/dev/null | cut -d'=' -f2-) &&
-        final_hostnames=$(grep "FINAL_HOSTNAMES=" "{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt" 2>/dev/null | cut -d'=' -f2-) &&
-        if [ -z "$final_hostnames" ]; then
-          final_hostnames="{address}"
-        fi &&
-        dot_extensions=$(echo "{ext}" | sed 's/,/,./g' | sed 's/^/./' ) &&
-        for hostname in $final_hostnames; do
-          hostname_label=$(echo "$hostname" | tr '.:' '__') &&
-          for wordlist in $resolved_wordlists; do
-            wordlist_name=$(basename "$wordlist" .txt) &&
-            scan_hostname="$hostname" &&
-            if [[ "$hostname" == *":"* && "$hostname" != "["* ]]; then
-              scan_hostname="[$hostname]"
-            fi &&
-            echo "=== FFUF: $hostname with $wordlist_name ===" &&
-            ffuf \
-              -u {http_scheme}://$scan_hostname:{port}/FUZZ \
-              -t {threads} \
-              -w "$wordlist" \
-              -e "$dot_extensions" \
-              -mc {status_codes} \
-              -v -r {recursive_flag} \
-              -noninteractive \
-              {extras} | tee "{scandir}/{protocol}_{port}_{http_scheme}_ffuf_${hostname_label}_${wordlist_name}.txt"
-          done
-        done
-      timeout: 4000
-      output_file: "{protocol}_{port}_{http_scheme}_ffuf_execution.txt"
-    
-    # Dirb execution
-    - name: "dirb_scan"
-      condition: "tool == 'dirb'"
-      command: |
-        echo "=== Dirb Directory Enumeration ===" &&
-        echo "⚠️ dirb doesn't support status code filtering - use feroxbuster or gobuster for cleaner output" &&
-        wordlist_file="{scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt" &&
-        if [ -f "$wordlist_file" ] && grep -q "WORDLIST_ERROR" "$wordlist_file"; then
-          echo "❌ Skipping dirb due to wordlist resolution errors"
-          exit 1
-        fi &&
-        resolved_wordlists=$(grep "RESOLVED_WORDLISTS=" "$wordlist_file" 2>/dev/null | cut -d'=' -f2-) &&
-        final_hostnames=$(grep "FINAL_HOSTNAMES=" "{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt" 2>/dev/null | cut -d'=' -f2-) &&
-        if [ -z "$final_hostnames" ]; then
-          final_hostnames="{address}"
-        fi &&
-        dot_extensions=$(echo "{ext}" | sed 's/,/,./g' | sed 's/^/./' ) &&
-        for hostname in $final_hostnames; do
-          hostname_label=$(echo "$hostname" | tr '.:' '__') &&
-          for wordlist in $resolved_wordlists; do
-            wordlist_name=$(basename "$wordlist" .txt) &&
-            scan_hostname="$hostname" &&
-            if [[ "$hostname" == *":"* && "$hostname" != "["* ]]; then
-              scan_hostname="[$hostname]"
-            fi &&
-            echo "=== Dirb: $hostname with $wordlist_name ===" &&
-            dirb {http_scheme}://$scan_hostname:{port}/ "$wordlist" \
-              -l {recursive_flag} -S \
-              -X ",$dot_extensions" \
-              -f \
-              -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_${hostname_label}_${wordlist_name}.txt" \
-              {extras}
-          done
-        done
-      timeout: 4000
-      output_file: "{protocol}_{port}_{http_scheme}_dirb_execution.txt"
-
+  - name: hostname_discovery
+    condition: 'true'
+    command: "echo \"=== Hostname Discovery and Validation ===\" &&\necho \"Target\
+      \ type: {target_type}\" &&\necho \"Target address: {address}\" &&\necho \"All\
+      \ hostnames: {all_hostnames}\" &&\necho \"Best hostname: {best_hostname}\" &&\n\
+      # Validate hostnames are available\nif [ -z \"{all_hostnames}\" ]; then\n  echo\
+      \ \"❌ CRITICAL: No hostnames available! Using IP fallback: {address}\"\n  echo\
+      \ \"FINAL_HOSTNAMES={address}\"\nelse\n  case \"{vhost_mode}\" in\n    \"best\"\
+      )\n      echo \"\U0001F310 Using best hostname only: {best_hostname}\"\n   \
+      \   echo \"FINAL_HOSTNAMES={best_hostname}\"\n      ;;\n    \"smart\")\n   \
+      \   echo \"\U0001F310 Using smart hostname selection\"\n      # This would be\
+      \ handled by the YAML executor's hostname logic\n      echo \"FINAL_HOSTNAMES={smart_hostnames}\"\
+      \n      ;;\n    \"all\")\n      echo \"\U0001F310 Using all hostnames: {all_hostnames}\"\
+      \n      echo \"FINAL_HOSTNAMES={all_hostnames}\"\n      ;;\n  esac\nfi\n"
+    timeout: 30
+    output_file: '{protocol}_{port}_{http_scheme}_hostname_discovery.txt'
+  - name: wordlist_resolution
+    condition: 'true'
+    command: "echo \"=== Wordlist Resolution and Validation ===\" &&\nwordlist_option=\"\
+      {wordlist}\" &&\nif [ \"$wordlist_option\" = \"auto\" ]; then\n  echo \"\U0001F50D\
+      \ Auto-detecting wordlists...\" &&\n  # Try to detect technologies from previous\
+      \ scans\n  detected_tech=\"\" &&\n  if [ -d \"{scandir}\" ]; then\n    # Look\
+      \ for technology indicators in existing scan files\n    if find \"{scandir}\"\
+      \ -name \"*.txt\" -exec grep -l -i \"apache\\\\|nginx\\\\|php\\\\|wordpress\\\
+      \\|drupal\\\\|joomla\" {} \\; 2>/dev/null | head -1 > /dev/null; then\n    \
+      \  detected_tech=$(find \"{scandir}\" -name \"*.txt\" -exec grep -h -i -o \"\
+      apache\\\\|nginx\\\\|php\\\\|wordpress\\\\|drupal\\\\|joomla\" {} \\; 2>/dev/null\
+      \ | head -1)\n      echo \"\U0001F916 Detected technology: $detected_tech\"\n\
+      \    fi\n  fi &&\n  # Try SecLists paths in order of preference\n  wordlist_paths=()\
+      \ &&\n  seclists_paths=(\n    \"/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt\"\
+      \n    \"/usr/share/wordlists/dirb/common.txt\" \n    \"/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt\"\
+      \n    \"/opt/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt\"\n\
+      \  ) &&\n  for path in \"${seclists_paths[@]}\"; do\n    if [ -f \"$path\" ];\
+      \ then\n      wordlist_paths+=(\"$path\")\n      echo \"✅ Found wordlist: $path\"\
+      \n      break\n    fi\n  done &&\n  if [ ${#wordlist_paths[@]} -eq 0 ]; then\n\
+      \    echo \"❌ No SecLists wordlists found!\"\n    echo \"\U0001F4A1 Install\
+      \ SecLists: apt install seclists OR brew install seclists\"\n    echo \"\U0001F4A1\
+      \ Or specify custom: --dirbuster.wordlist /path/to/wordlist.txt\"\n    echo\
+      \ \"WORDLIST_ERROR=no_wordlists_found\"\n    exit 1\n  fi &&\n  echo \"RESOLVED_WORDLISTS=${wordlist_paths[*]}\"\
+      \nelse\n  echo \"✅ Using custom wordlist: $wordlist_option\"\n  if [ ! -f \"\
+      $wordlist_option\" ]; then\n    echo \"❌ Custom wordlist file does not exist:\
+      \ $wordlist_option\"\n    echo \"WORDLIST_ERROR=custom_wordlist_missing\"\n\
+      \    exit 1\n  fi\n  # Check if wordlist is empty\n  if [ ! -s \"$wordlist_option\"\
+      \ ]; then\n    echo \"❌ Wordlist is empty: $wordlist_option\"\n    echo \"WORDLIST_ERROR=wordlist_empty\"\
+      \n    exit 1\n  fi\n  echo \"RESOLVED_WORDLISTS=$wordlist_option\"\nfi\n"
+    timeout: 60
+    output_file: '{protocol}_{port}_{http_scheme}_wordlist_resolution.txt'
+  - name: feroxbuster_scan
+    condition: tool == 'feroxbuster'
+    command: "echo \"=== Feroxbuster Directory Enumeration ===\" &&\n# Parse resolved\
+      \ wordlists from previous step\nwordlist_file=\"{scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt\"\
+      \ &&\nif [ -f \"$wordlist_file\" ] && grep -q \"WORDLIST_ERROR\" \"$wordlist_file\"\
+      ; then\n  echo \"❌ Skipping feroxbuster due to wordlist resolution errors\"\n\
+      \  exit 1\nfi &&\nresolved_wordlists=$(grep \"RESOLVED_WORDLISTS=\" \"$wordlist_file\"\
+      \ 2>/dev/null | cut -d'=' -f2-) &&\nfinal_hostnames=$(grep \"FINAL_HOSTNAMES=\"\
+      \ \"{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt\" 2>/dev/null\
+      \ | cut -d'=' -f2-) &&\nif [ -z \"$resolved_wordlists\" ]; then\n  echo \"❌\
+      \ No resolved wordlists available\"\n  exit 1\nfi &&\nif [ -z \"$final_hostnames\"\
+      \ ]; then\n  final_hostnames=\"{address}\"\nfi &&\necho \"\U0001F680 Starting\
+      \ feroxbuster with wordlists: $resolved_wordlists\" &&\necho \"\U0001F310 Scanning\
+      \ hostnames: $final_hostnames\" &&\nfor hostname in $final_hostnames; do\n \
+      \ hostname_label=$(echo \"$hostname\" | tr '.:' '__') &&\n  for wordlist in\
+      \ $resolved_wordlists; do\n    wordlist_name=$(basename \"$wordlist\" .txt)\
+      \ &&\n    echo \"=== Scanning $hostname with $wordlist_name ===\" &&\n    #\
+      \ Handle IPv6 brackets if needed\n    scan_hostname=\"$hostname\" &&\n    if\
+      \ [[ \"$hostname\" == *\":\"* && \"$hostname\" != \"[\"* ]]; then\n      scan_hostname=\"\
+      [$hostname]\"\n    fi &&\n    start_time=$(date +%s) &&\n    echo \"\U0001F527\
+      \ Command: timeout {timeout} feroxbuster -u {http_scheme}://$scan_hostname:{port}/\
+      \ -t {threads} -w $wordlist -x \\\"{ext}\\\" -s {status_codes} -v -k {recursive_flag}\
+      \ -q -e -r\" &&\n    timeout {timeout} feroxbuster \\\n      -u {http_scheme}://$scan_hostname:{port}/\
+      \ \\\n      -t {threads} \\\n      -w \"$wordlist\" \\\n      -x \"{ext}\" \\\
+      \n      -s {status_codes} \\\n      -v -k {recursive_flag} -q -e -r \\\n   \
+      \   -o \"{scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_${hostname_label}_${wordlist_name}.txt\"\
+      \ \\\n      {extras} &&\n    end_time=$(date +%s) &&\n    duration=$((end_time\
+      \ - start_time)) &&\n    echo \"⏱️ Scan completed in ${duration}s\" &&\n   \
+      \ if [ $duration -lt 10 ]; then\n      echo \"\U0001F6A8 SUSPICIOUS: feroxbuster\
+      \ completed in ${duration}s - this is abnormally fast!\"\n      echo \"\U0001F4A1\
+      \ Possible causes:\"\n      echo \"   • Target not responding to HTTP requests\"\
+      \n      echo \"   • Wordlist file missing or empty\"\n      echo \"   • Network\
+      \ connectivity issues\"\n      echo \"   • Target returning identical responses\
+      \ (rate limiting)\"\n      echo \"\U0001F4A1 Test manually: curl -I {http_scheme}://$scan_hostname:{port}/\"\
+      \n    fi\n  done\ndone\n"
+    timeout: 4000
+    output_file: '{protocol}_{port}_{http_scheme}_feroxbuster_execution.txt'
+  - name: gobuster_scan
+    condition: tool == 'gobuster'
+    command: "echo \"=== Gobuster Directory Enumeration ===\" &&\nwordlist_file=\"\
+      {scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt\" &&\nif [\
+      \ -f \"$wordlist_file\" ] && grep -q \"WORDLIST_ERROR\" \"$wordlist_file\";\
+      \ then\n  echo \"❌ Skipping gobuster due to wordlist resolution errors\"\n \
+      \ exit 1\nfi &&\nresolved_wordlists=$(grep \"RESOLVED_WORDLISTS=\" \"$wordlist_file\"\
+      \ 2>/dev/null | cut -d'=' -f2-) &&\nfinal_hostnames=$(grep \"FINAL_HOSTNAMES=\"\
+      \ \"{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt\" 2>/dev/null\
+      \ | cut -d'=' -f2-) &&\nif [ -z \"$final_hostnames\" ]; then\n  final_hostnames=\"\
+      {address}\"\nfi &&\nfor hostname in $final_hostnames; do\n  hostname_label=$(echo\
+      \ \"$hostname\" | tr '.:' '__') &&\n  for wordlist in $resolved_wordlists; do\n\
+      \    wordlist_name=$(basename \"$wordlist\" .txt) &&\n    scan_hostname=\"$hostname\"\
+      \ &&\n    if [[ \"$hostname\" == *\":\"* && \"$hostname\" != \"[\"* ]]; then\n\
+      \      scan_hostname=\"[$hostname]\"\n    fi &&\n    echo \"=== Gobuster: $hostname\
+      \ with $wordlist_name ===\" &&\n    gobuster dir \\\n      -u {http_scheme}://$scan_hostname:{port}/\
+      \ \\\n      -t {threads} \\\n      -w \"$wordlist\" \\\n      -s {status_codes}\
+      \ \\\n      -e -k \\\n      -x \"{ext}\" \\\n      -z -r \\\n      -o \"{scandir}/{protocol}_{port}_{http_scheme}_gobuster_${hostname_label}_${wordlist_name}.txt\"\
+      \ \\\n      {extras}\n  done\ndone\n"
+    timeout: 4000
+    output_file: '{protocol}_{port}_{http_scheme}_gobuster_execution.txt'
+  - name: dirsearch_scan
+    condition: tool == 'dirsearch'
+    command: "echo \"=== Dirsearch Directory Enumeration ===\" &&\nwordlist_file=\"\
+      {scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt\" &&\nif [\
+      \ -f \"$wordlist_file\" ] && grep -q \"WORDLIST_ERROR\" \"$wordlist_file\";\
+      \ then\n  echo \"❌ Skipping dirsearch due to wordlist resolution errors\"\n\
+      \  exit 1\nfi &&\nresolved_wordlists=$(grep \"RESOLVED_WORDLISTS=\" \"$wordlist_file\"\
+      \ 2>/dev/null | cut -d'=' -f2-) &&\nfinal_hostnames=$(grep \"FINAL_HOSTNAMES=\"\
+      \ \"{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt\" 2>/dev/null\
+      \ | cut -d'=' -f2-) &&\nif [ -z \"$final_hostnames\" ]; then\n  final_hostnames=\"\
+      {address}\"\nfi &&\nfor hostname in $final_hostnames; do\n  # Skip IPv6 addresses\
+      \ for dirsearch\n  if [[ \"$hostname\" == *\":\"* ]]; then\n    echo \"⚠️ Skipping\
+      \ IPv6 hostname $hostname (dirsearch doesn't support IPv6)\"\n    continue\n\
+      \  fi &&\n  hostname_label=$(echo \"$hostname\" | tr '.:' '__') &&\n  for wordlist\
+      \ in $resolved_wordlists; do\n    wordlist_name=$(basename \"$wordlist\" .txt)\
+      \ &&\n    echo \"=== Dirsearch: $hostname with $wordlist_name ===\" &&\n   \
+      \ dirsearch \\\n      -u {http_scheme}://$hostname:{port}/ \\\n      -t {threads}\
+      \ \\\n      -e \"{ext}\" \\\n      --include-status={status_codes} \\\n    \
+      \  -f -q -F {recursive_flag} \\\n      -w \"$wordlist\" \\\n      --format=plain\
+      \ \\\n      -o \"{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_${hostname_label}_${wordlist_name}.txt\"\
+      \ \\\n      {extras}\n  done\ndone\n"
+    timeout: 4000
+    output_file: '{protocol}_{port}_{http_scheme}_dirsearch_execution.txt'
+  - name: ffuf_scan
+    condition: tool == 'ffuf'
+    command: "echo \"=== FFUF Directory Enumeration ===\" &&\nwordlist_file=\"{scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt\"\
+      \ &&\nif [ -f \"$wordlist_file\" ] && grep -q \"WORDLIST_ERROR\" \"$wordlist_file\"\
+      ; then\n  echo \"❌ Skipping ffuf due to wordlist resolution errors\"\n  exit\
+      \ 1\nfi &&\nresolved_wordlists=$(grep \"RESOLVED_WORDLISTS=\" \"$wordlist_file\"\
+      \ 2>/dev/null | cut -d'=' -f2-) &&\nfinal_hostnames=$(grep \"FINAL_HOSTNAMES=\"\
+      \ \"{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt\" 2>/dev/null\
+      \ | cut -d'=' -f2-) &&\nif [ -z \"$final_hostnames\" ]; then\n  final_hostnames=\"\
+      {address}\"\nfi &&\ndot_extensions=$(echo \"{ext}\" | sed 's/,/,./g' | sed 's/^/./'\
+      \ ) &&\nfor hostname in $final_hostnames; do\n  hostname_label=$(echo \"$hostname\"\
+      \ | tr '.:' '__') &&\n  for wordlist in $resolved_wordlists; do\n    wordlist_name=$(basename\
+      \ \"$wordlist\" .txt) &&\n    scan_hostname=\"$hostname\" &&\n    if [[ \"$hostname\"\
+      \ == *\":\"* && \"$hostname\" != \"[\"* ]]; then\n      scan_hostname=\"[$hostname]\"\
+      \n    fi &&\n    echo \"=== FFUF: $hostname with $wordlist_name ===\" &&\n \
+      \   ffuf \\\n      -u {http_scheme}://$scan_hostname:{port}/FUZZ \\\n      -t\
+      \ {threads} \\\n      -w \"$wordlist\" \\\n      -e \"$dot_extensions\" \\\n\
+      \      -mc {status_codes} \\\n      -v -r {recursive_flag} \\\n      -noninteractive\
+      \ \\\n      {extras} | tee \"{scandir}/{protocol}_{port}_{http_scheme}_ffuf_${hostname_label}_${wordlist_name}.txt\"\
+      \n  done\ndone\n"
+    timeout: 4000
+    output_file: '{protocol}_{port}_{http_scheme}_ffuf_execution.txt'
+  - name: dirb_scan
+    condition: tool == 'dirb'
+    command: "echo \"=== Dirb Directory Enumeration ===\" &&\necho \"⚠️ dirb doesn't\
+      \ support status code filtering - use feroxbuster or gobuster for cleaner output\"\
+      \ &&\nwordlist_file=\"{scandir}/{protocol}_{port}_{http_scheme}_wordlist_resolution.txt\"\
+      \ &&\nif [ -f \"$wordlist_file\" ] && grep -q \"WORDLIST_ERROR\" \"$wordlist_file\"\
+      ; then\n  echo \"❌ Skipping dirb due to wordlist resolution errors\"\n  exit\
+      \ 1\nfi &&\nresolved_wordlists=$(grep \"RESOLVED_WORDLISTS=\" \"$wordlist_file\"\
+      \ 2>/dev/null | cut -d'=' -f2-) &&\nfinal_hostnames=$(grep \"FINAL_HOSTNAMES=\"\
+      \ \"{scandir}/{protocol}_{port}_{http_scheme}_hostname_discovery.txt\" 2>/dev/null\
+      \ | cut -d'=' -f2-) &&\nif [ -z \"$final_hostnames\" ]; then\n  final_hostnames=\"\
+      {address}\"\nfi &&\ndot_extensions=$(echo \"{ext}\" | sed 's/,/,./g' | sed 's/^/./'\
+      \ ) &&\nfor hostname in $final_hostnames; do\n  hostname_label=$(echo \"$hostname\"\
+      \ | tr '.:' '__') &&\n  for wordlist in $resolved_wordlists; do\n    wordlist_name=$(basename\
+      \ \"$wordlist\" .txt) &&\n    scan_hostname=\"$hostname\" &&\n    if [[ \"$hostname\"\
+      \ == *\":\"* && \"$hostname\" != \"[\"* ]]; then\n      scan_hostname=\"[$hostname]\"\
+      \n    fi &&\n    echo \"=== Dirb: $hostname with $wordlist_name ===\" &&\n \
+      \   dirb {http_scheme}://$scan_hostname:{port}/ \"$wordlist\" \\\n      -l {recursive_flag}\
+      \ -S \\\n      -X \",$dot_extensions\" \\\n      -f \\\n      -o \"{scandir}/{protocol}_{port}_{http_scheme}_dirb_${hostname_label}_${wordlist_name}.txt\"\
+      \ \\\n      {extras}\n  done\ndone\n"
+    timeout: 4000
+    output_file: '{protocol}_{port}_{http_scheme}_dirb_execution.txt'
   manual_commands:
-    # Feroxbuster manual commands
-    - description: "(feroxbuster) Multi-threaded directory/file enumeration"
-      command: "feroxbuster -u {http_scheme}://{hostname}:{port} -t {threads} -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -x \"{ext}\" -s {status_codes} -v -k {recursive_flag} -e -r -o {scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_manual.txt {extras}"
-      condition: "tool == 'feroxbuster'"
-    
-    # Gobuster manual commands  
-    - description: "(gobuster) Multi-threaded directory/file enumeration"
-      command: "gobuster dir -u {http_scheme}://{hostname}:{port}/ -t {threads} -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -s {status_codes} -e -k -x \"{ext}\" -r -o \"{scandir}/{protocol}_{port}_{http_scheme}_gobuster_manual.txt\" {extras}"
-      condition: "tool == 'gobuster'"
-    
-    # Dirsearch manual commands
-    - description: "(dirsearch) Multi-threaded directory/file enumeration"
-      command: "dirsearch -u {http_scheme}://{hostname}:{port}/ -t {threads} -e \"{ext}\" --include-status={status_codes} -f -F {recursive_flag} -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt --format=plain --output=\"{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_manual.txt\" {extras}"
-      condition: "tool == 'dirsearch' and not ipv6"
-    
-    # FFUF manual commands
-    - description: "(ffuf) Multi-threaded directory/file enumeration"
-      command: "ffuf -u {http_scheme}://{hostname}:{port}/FUZZ -t {threads} -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -e \".{ext}\" -mc {status_codes} -v -r {recursive_flag} -noninteractive {extras} | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_manual.txt"
-      condition: "tool == 'ffuf'"
-    
-    # Dirb manual commands
-    - description: "(dirb) Directory/file enumeration"
-      command: "dirb {http_scheme}://{hostname}:{port}/ /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -l {recursive_flag} -X \",.{ext}\" -f -o \"{scandir}/{protocol}_{port}_{http_scheme}_dirb_manual.txt\" {extras}"
-      condition: "tool == 'dirb'"
-    
-    # Technology-specific wordlist suggestions
-    - description: "(wordlists) Install SecLists for comprehensive wordlists"
-      command: |
-        # Install SecLists
-        sudo apt install seclists ||
-        brew install seclists ||
-        git clone https://github.com/danielmiessler/SecLists.git /usr/local/share/seclists
-    
-    - description: "(wordlists) Check available wordlists"
-      command: "ls -la /usr/share/seclists/Discovery/Web-Content/ | head -20"
+  - description: (feroxbuster) Multi-threaded directory/file enumeration
+    command: feroxbuster -u {http_scheme}://{hostname}:{port} -t {threads} -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+      -x "{ext}" -s {status_codes} -v -k {recursive_flag} -e -r -o {scandir}/{protocol}_{port}_{http_scheme}_feroxbuster_manual.txt
+      {extras}
+    condition: tool == 'feroxbuster'
+  - description: (gobuster) Multi-threaded directory/file enumeration
+    command: gobuster dir -u {http_scheme}://{hostname}:{port}/ -t {threads} -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+      -s {status_codes} -e -k -x "{ext}" -r -o "{scandir}/{protocol}_{port}_{http_scheme}_gobuster_manual.txt"
+      {extras}
+    condition: tool == 'gobuster'
+  - description: (dirsearch) Multi-threaded directory/file enumeration
+    command: dirsearch -u {http_scheme}://{hostname}:{port}/ -t {threads} -e "{ext}"
+      --include-status={status_codes} -f -F {recursive_flag} -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+      --format=plain --output="{scandir}/{protocol}_{port}_{http_scheme}_dirsearch_manual.txt"
+      {extras}
+    condition: tool == 'dirsearch' and not ipv6
+  - description: (ffuf) Multi-threaded directory/file enumeration
+    command: ffuf -u {http_scheme}://{hostname}:{port}/FUZZ -t {threads} -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+      -e ".{ext}" -mc {status_codes} -v -r {recursive_flag} -noninteractive {extras}
+      | tee {scandir}/{protocol}_{port}_{http_scheme}_ffuf_manual.txt
+    condition: tool == 'ffuf'
+  - description: (dirb) Directory/file enumeration
+    command: dirb {http_scheme}://{hostname}:{port}/ /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+      -l {recursive_flag} -X ",.{ext}" -f -o "{scandir}/{protocol}_{port}_{http_scheme}_dirb_manual.txt"
+      {extras}
+    condition: tool == 'dirb'
+  - description: (wordlists) Install SecLists for comprehensive wordlists
+    command: '# Install SecLists
 
+      sudo apt install seclists ||
+
+      brew install seclists ||
+
+      git clone https://github.com/danielmiessler/SecLists.git /usr/local/share/seclists
+
+      '
+  - description: (wordlists) Check available wordlists
+    command: ls -la /usr/share/seclists/Discovery/Web-Content/ | head -20
 output:
   patterns:
-    # Directory and file discovery patterns
-    - pattern: "(?i)200\\s+\\d+\\w?\\s+([^\\s]+)"
-      description: "Directory/File Found (200): {match1}"
-      severity: "info"
-      category: "discovery"
-    
-    - pattern: "(?i)30[1-8]\\s+\\d+\\w?\\s+([^\\s]+)"
-      description: "Redirect Found (30x): {match1}"
-      severity: "info"
-      category: "discovery"
-    
-    - pattern: "(?i)403\\s+\\d+\\w?\\s+([^\\s]+)"
-      description: "Forbidden Access (403): {match1} - potential restricted resource"
-      severity: "medium"
-      category: "access_control"
-    
-    - pattern: "(?i)401\\s+\\d+\\w?\\s+([^\\s]+)"
-      description: "Authentication Required (401): {match1}"
-      severity: "medium"
-      category: "authentication"
-    
-    - pattern: "(?i)405\\s+\\d+\\w?\\s+([^\\s]+)"
-      description: "Method Not Allowed (405): {match1}"
-      severity: "info"
-      category: "discovery"
-    
-    # Common sensitive files and directories
-    - pattern: "(?i)200.*admin"
-      description: "WARNING: Admin interface found - potential administrative access"
-      severity: "high"
-      category: "sensitive_files"
-    
-    - pattern: "(?i)200.*(backup|bak|old|tmp)"
-      description: "WARNING: Backup/temporary file found - potential information disclosure"
-      severity: "medium"
-      category: "sensitive_files"
-    
-    - pattern: "(?i)200.*(config|conf|\\.cfg)"
-      description: "WARNING: Configuration file found - potential credential disclosure"
-      severity: "medium"
-      category: "sensitive_files"
-    
-    - pattern: "(?i)200.*(log|logs)"
-      description: "INFO: Log file/directory found - potential information disclosure"
-      severity: "low"
-      category: "sensitive_files"
-    
-    - pattern: "(?i)200.*(upload|uploads)"
-      description: "INFO: Upload directory found - potential file upload functionality"
-      severity: "info"
-      category: "functionality"
-    
-    - pattern: "(?i)200.*(test|testing|dev|development)"
-      description: "WARNING: Development/test directory found - potential debugging information"
-      severity: "medium"
-      category: "sensitive_files"
-    
-    - pattern: "(?i)200.*\\.git"
-      description: "CRITICAL: Git repository found - source code disclosure"
-      severity: "critical"
-      category: "source_disclosure"
-    
-    - pattern: "(?i)200.*\\.svn"
-      description: "CRITICAL: SVN repository found - source code disclosure"
-      severity: "critical"
-      category: "source_disclosure"
-    
-    - pattern: "(?i)200.*\\.env"
-      description: "CRITICAL: Environment file found - credential disclosure"
-      severity: "critical"
-      category: "credentials"
-    
-    - pattern: "(?i)200.*\\.sql"
-      description: "WARNING: SQL file found - database structure/data disclosure"
-      severity: "high"
-      category: "sensitive_files"
-    
-    - pattern: "(?i)200.*\\.txt"
-      description: "INFO: Text file found"
-      severity: "info"
-      category: "discovery"
-    
-    - pattern: "(?i)200.*\\.php"
-      description: "INFO: PHP file found"
-      severity: "info"
-      category: "discovery"
-    
-    - pattern: "(?i)200.*\\.html"
-      description: "INFO: HTML file found"
-      severity: "info"
-      category: "discovery"
-    
-    # Tool-specific output patterns
-    - pattern: "(?i)\\[\\d+\\].*200.*([^\\s]+)"
-      description: "Feroxbuster discovery: {match1}"
-      severity: "info"
-      category: "tool_output"
-    
-    - pattern: "(?i)found.*([^\\s]+).*\\(status:\\s*(\\d+)\\)"
-      description: "Gobuster discovery: {match1} (Status: {match2})"
-      severity: "info"
-      category: "tool_output"
-    
-    - pattern: "(?i)\\[\\d+:\\d+:\\d+\\].*\\[([^\\]]+)\\].*([^\\s]+)"
-      description: "Dirsearch discovery: {match2} ({match1})"
-      severity: "info"
-      category: "tool_output"
-    
-    # Error and status patterns
-    - pattern: "(?i)SUSPICIOUS.*abnormally fast"
-      description: "WARNING: Directory busting completed abnormally fast - possible issues"
-      severity: "medium"
-      category: "scan_issues"
-    
-    - pattern: "(?i)WORDLIST_ERROR"
-      description: "ERROR: Wordlist resolution failed"
-      severity: "high"
-      category: "scan_issues"
-    
-    - pattern: "(?i)No wordlists available"
-      description: "ERROR: No wordlists available for directory busting"
-      severity: "high"
-      category: "scan_issues"
-    
-    # Technology detection patterns
-    - pattern: "(?i)200.*wp-admin"
-      description: "WordPress admin interface detected"
-      severity: "medium"
-      category: "cms_detection"
-    
-    - pattern: "(?i)200.*wp-content"
-      description: "WordPress content directory detected"
-      severity: "info"
-      category: "cms_detection"
-    
-    - pattern: "(?i)200.*drupal"
-      description: "Drupal CMS detected"
-      severity: "info"
-      category: "cms_detection"
-    
-    - pattern: "(?i)200.*joomla"
-      description: "Joomla CMS detected"
-      severity: "info"
-      category: "cms_detection"
-    
-    - pattern: "(?i)200.*phpmyadmin"
-      description: "phpMyAdmin interface detected"
-      severity: "high"
-      category: "database_tools"
-    
-    - pattern: "(?i)200.*webmail"
-      description: "Webmail interface detected"
-      severity: "medium"
-      category: "email_services"
-
+  - pattern: (?i)200\s+\d+\w?\s+([^\s]+)
+    description: 'Directory/File Found (200): {match1}'
+    severity: info
+    category: discovery
+  - pattern: (?i)30[1-8]\s+\d+\w?\s+([^\s]+)
+    description: 'Redirect Found (30x): {match1}'
+    severity: info
+    category: discovery
+  - pattern: (?i)403\s+\d+\w?\s+([^\s]+)
+    description: 'Forbidden Access (403): {match1} - potential restricted resource'
+    severity: medium
+    category: access_control
+  - pattern: (?i)401\s+\d+\w?\s+([^\s]+)
+    description: 'Authentication Required (401): {match1}'
+    severity: medium
+    category: authentication
+  - pattern: (?i)405\s+\d+\w?\s+([^\s]+)
+    description: 'Method Not Allowed (405): {match1}'
+    severity: info
+    category: discovery
+  - pattern: (?i)200.*admin
+    description: 'WARNING: Admin interface found - potential administrative access'
+    severity: high
+    category: sensitive_files
+  - pattern: (?i)200.*(backup|bak|old|tmp)
+    description: 'WARNING: Backup/temporary file found - potential information disclosure'
+    severity: medium
+    category: sensitive_files
+  - pattern: (?i)200.*(config|conf|\.cfg)
+    description: 'WARNING: Configuration file found - potential credential disclosure'
+    severity: medium
+    category: sensitive_files
+  - pattern: (?i)200.*(log|logs)
+    description: 'INFO: Log file/directory found - potential information disclosure'
+    severity: low
+    category: sensitive_files
+  - pattern: (?i)200.*(upload|uploads)
+    description: 'INFO: Upload directory found - potential file upload functionality'
+    severity: info
+    category: functionality
+  - pattern: (?i)200.*(test|testing|dev|development)
+    description: 'WARNING: Development/test directory found - potential debugging
+      information'
+    severity: medium
+    category: sensitive_files
+  - pattern: (?i)200.*\.git
+    description: 'CRITICAL: Git repository found - source code disclosure'
+    severity: critical
+    category: source_disclosure
+  - pattern: (?i)200.*\.svn
+    description: 'CRITICAL: SVN repository found - source code disclosure'
+    severity: critical
+    category: source_disclosure
+  - pattern: (?i)200.*\.env
+    description: 'CRITICAL: Environment file found - credential disclosure'
+    severity: critical
+    category: credentials
+  - pattern: (?i)200.*\.sql
+    description: 'WARNING: SQL file found - database structure/data disclosure'
+    severity: high
+    category: sensitive_files
+  - pattern: (?i)200.*\.txt
+    description: 'INFO: Text file found'
+    severity: info
+    category: discovery
+  - pattern: (?i)200.*\.php
+    description: 'INFO: PHP file found'
+    severity: info
+    category: discovery
+  - pattern: (?i)200.*\.html
+    description: 'INFO: HTML file found'
+    severity: info
+    category: discovery
+  - pattern: (?i)\[\d+\].*200.*([^\s]+)
+    description: 'Feroxbuster discovery: {match1}'
+    severity: info
+    category: tool_output
+  - pattern: (?i)found.*([^\s]+).*\(status:\s*(\d+)\)
+    description: 'Gobuster discovery: {match1} (Status: {match2})'
+    severity: info
+    category: tool_output
+  - pattern: (?i)\[\d+:\d+:\d+\].*\[([^\]]+)\].*([^\s]+)
+    description: 'Dirsearch discovery: {match2} ({match1})'
+    severity: info
+    category: tool_output
+  - pattern: (?i)SUSPICIOUS.*abnormally fast
+    description: 'WARNING: Directory busting completed abnormally fast - possible
+      issues'
+    severity: medium
+    category: scan_issues
+  - pattern: (?i)WORDLIST_ERROR
+    description: 'ERROR: Wordlist resolution failed'
+    severity: high
+    category: scan_issues
+  - pattern: (?i)No wordlists available
+    description: 'ERROR: No wordlists available for directory busting'
+    severity: high
+    category: scan_issues
+  - pattern: (?i)200.*wp-admin
+    description: WordPress admin interface detected
+    severity: medium
+    category: cms_detection
+  - pattern: (?i)200.*wp-content
+    description: WordPress content directory detected
+    severity: info
+    category: cms_detection
+  - pattern: (?i)200.*drupal
+    description: Drupal CMS detected
+    severity: info
+    category: cms_detection
+  - pattern: (?i)200.*joomla
+    description: Joomla CMS detected
+    severity: info
+    category: cms_detection
+  - pattern: (?i)200.*phpmyadmin
+    description: phpMyAdmin interface detected
+    severity: high
+    category: database_tools
+  - pattern: (?i)200.*webmail
+    description: Webmail interface detected
+    severity: medium
+    category: email_services
   technology_detection:
-    - pattern: "(?i)200.*wp-.*"
-      technology: "WordPress"
-    
-    - pattern: "(?i)200.*drupal"
-      technology: "Drupal"
-    
-    - pattern: "(?i)200.*joomla"
-      technology: "Joomla"
-    
-    - pattern: "(?i)200.*\\.php"
-      technology: "PHP"
-    
-    - pattern: "(?i)200.*\\.asp"
-      technology: "ASP"
-    
-    - pattern: "(?i)200.*\\.jsp"
-      technology: "JSP"
-
+  - pattern: (?i)200.*wp-.*
+    technology: WordPress
+  - pattern: (?i)200.*drupal
+    technology: Drupal
+  - pattern: (?i)200.*joomla
+    technology: Joomla
+  - pattern: (?i)200.*\.php
+    technology: PHP
+  - pattern: (?i)200.*\.asp
+    technology: ASP
+  - pattern: (?i)200.*\.jsp
+    technology: JSP
 requirements:
   tools:
-    - name: "feroxbuster"
-      check_command: "feroxbuster --version"
-      install_hint: "cargo install feroxbuster"
-      condition: "tool == 'feroxbuster'"
-    - name: "gobuster"
-      check_command: "gobuster version"
-      install_hint: "apt-get install gobuster"
-      condition: "tool == 'gobuster'"
-    - name: "dirsearch"
-      check_command: "dirsearch --version"
-      install_hint: "pip3 install dirsearch"
-      condition: "tool == 'dirsearch'"
-    - name: "ffuf"
-      check_command: "ffuf -V"
-      install_hint: "go install github.com/ffuf/ffuf@latest"
-      condition: "tool == 'ffuf'"
-    - name: "dirb"
-      check_command: "dirb"
-      install_hint: "apt-get install dirb"
-      condition: "tool == 'dirb'"
-
+  - name: feroxbuster
+    check_command: feroxbuster --version
+    install_hint: cargo install feroxbuster
+    condition: tool == 'feroxbuster'
+  - name: gobuster
+    check_command: gobuster version
+    install_hint: apt-get install gobuster
+    condition: tool == 'gobuster'
+  - name: dirsearch
+    check_command: dirsearch --version
+    install_hint: pip3 install dirsearch
+    condition: tool == 'dirsearch'
+  - name: ffuf
+    check_command: ffuf -V
+    install_hint: go install github.com/ffuf/ffuf@latest
+    condition: tool == 'ffuf'
+  - name: dirb
+    check_command: dirb
+    install_hint: apt-get install dirb
+    condition: tool == 'dirb'
 debug:
-  log_level: "info"
+  log_level: info
   trace_decisions: true
   show_command_output: false
+variables:
+  timeout: 300

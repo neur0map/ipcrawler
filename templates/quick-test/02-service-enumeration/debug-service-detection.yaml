@@ -1,0 +1,72 @@
+metadata:
+  name: "Service Detection Debug"
+  description: "Debug plugin to show exactly what services are detected and why service enumeration may not be triggering"
+  type: "servicescan" 
+  priority: 1
+  version: "1.0"
+  author: "IPCrawler Debug Template"
+  tags:
+    - debug
+    - service-detection
+
+conditions:
+  # Match ALL services to see what's being detected
+  services:
+    include: [".*"]  # Match everything
+    exclude: []
+
+execution:
+  commands:
+    - name: "service_debug_info"
+      command: |
+        echo "=== SERVICE DETECTION DEBUG ===" &&
+        echo "Target: {address}:{port}" &&
+        echo "Protocol: {protocol}" &&
+        echo "Service Name: '{service}'" &&
+        echo "Secure: {secure}" &&
+        echo "HTTP Scheme: {http_scheme}" &&
+        echo "URL: {url}" &&
+        echo "" &&
+        echo "Service name patterns to match:" &&
+        echo "  ^http -> $(echo '{service}' | grep -E '^http' || echo 'NO MATCH')" &&
+        echo "  ^https -> $(echo '{service}' | grep -E '^https' || echo 'NO MATCH')" &&
+        echo "  ssl/http -> $(echo '{service}' | grep -E 'ssl/http' || echo 'NO MATCH')" &&
+        echo "  http/ -> $(echo '{service}' | grep -E 'http/' || echo 'NO MATCH')" &&
+        echo "  https/ -> $(echo '{service}' | grep -E 'https/' || echo 'NO MATCH')" &&
+        echo "" &&
+        echo "This service SHOULD trigger web enumeration if any pattern matches"
+      timeout: 10
+      output_file: "{protocol}_{port}_service_debug.txt"
+
+output:
+  patterns:
+    - pattern: "Service Name: '(.*)'"
+      description: "🔍 Detected Service: {match1}"
+      severity: "info"
+      category: "service_detection"
+    
+    - pattern: "Target: (.*)"
+      description: "🎯 Debug Target: {match1}"
+      severity: "info"
+      category: "debug_info"
+    
+    - pattern: "NO MATCH"
+      description: "❌ Service name doesn't match HTTP patterns"
+      severity: "medium"
+      category: "debug_issue"
+    
+    - pattern: "\\^http -> (.+)"
+      description: "✅ HTTP Pattern Match: {match1}"
+      severity: "info"
+      category: "pattern_match"
+
+requirements:
+  tools:
+    - name: "echo"
+      check_command: "echo test"
+      install_hint: "Built-in command"
+
+debug:
+  log_level: "info"
+  trace_decisions: true
+  show_command_output: true 

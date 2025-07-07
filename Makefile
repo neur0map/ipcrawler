@@ -2,7 +2,7 @@
 # This Makefile no longer uses venv or modifies PATH.
 # It installs a symlink in ~/.local/bin/ipcrawler and removes it on clean.
 
-.PHONY: install clean clean-all update debug help dev-install fix-permissions
+.PHONY: install clean clean-all update debug help dev-install fix-permissions test test-unit test-integration test-e2e coverage lint security-scan
 
 # Default target
 help:
@@ -15,6 +15,10 @@ help:
 	@echo "  make clean-all       - Remove everything including tools (keeps results)"
 	@echo "  make fix-permissions - Fix ownership of results directory files"
 	@echo "  make debug           - Show system diagnostics"
+	@echo "  make test            - Run all tests"
+	@echo "  make test-unit       - Run unit tests only"
+	@echo "  make coverage        - Generate test coverage report"
+	@echo "  make lint            - Run code quality checks"
 	@echo ""
 
 # Complete installation with tool detection
@@ -697,3 +701,45 @@ debug:
 # Development installation - same as install but explicit
 dev-install: install
 	@echo "💡 'make install' now automatically sets up live updates when run from git repo"
+
+# Testing targets
+test: test-unit test-integration test-e2e
+
+test-unit:
+	@echo "🧪 Running unit tests..."
+	@python3 -m pytest tests/test_config.py tests/test_yaml_plugins_simple.py -v
+
+test-integration:
+	@echo "🔗 Running integration tests..."
+	@python3 tests/test_targets_simple.py
+
+test-e2e:
+	@echo "🌐 Running end-to-end tests..."
+	@python3 ipcrawler.py --version
+	@echo "✅ E2E: Version check passed"
+
+coverage:
+	@echo "📊 Generating coverage report..."
+	@python3 -m pytest tests/test_config.py tests/test_yaml_plugins_simple.py --cov=ipcrawler --cov-report=html --cov-report=term-missing
+	@echo "📈 Coverage report generated in htmlcov/"
+
+lint:
+	@echo "🔍 Running code quality checks..."
+	@command -v flake8 >/dev/null 2>&1 && flake8 ipcrawler/ --count --select=E9,F63,F7,F82 --show-source --statistics || echo "⚠️ flake8 not installed"
+	@command -v black >/dev/null 2>&1 && black --check ipcrawler/ || echo "⚠️ black not installed"
+	@command -v isort >/dev/null 2>&1 && isort --check-only ipcrawler/ || echo "⚠️ isort not installed"
+
+security-scan:
+	@echo "🔒 Running security scans..."
+	@command -v bandit >/dev/null 2>&1 && bandit -r ipcrawler/ || echo "⚠️ bandit not installed"
+	@command -v safety >/dev/null 2>&1 && safety check || echo "⚠️ safety not installed"
+
+# Clean test artifacts
+clean-test:
+	@echo "🧹 Cleaning test artifacts..."
+	@rm -rf .pytest_cache/
+	@rm -rf htmlcov/
+	@rm -f .coverage
+	@rm -f coverage.xml
+	@find . -name "*.pyc" -delete
+	@find . -name "__pycache__" -delete

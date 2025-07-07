@@ -26,7 +26,7 @@ commands:
     timeout: 60
 
   - description: "SMTP user enumeration"
-    command: "nmap -p {port} --script smtp-enum-users --script-args smtp-enum-users.methods={{VRFY,EXPN,RCPT}} {address}"
+    command: "nmap -p {port} --script smtp-enum-users --script-args smtp-enum-users.methods={VRFY,EXPN,RCPT} {address}"
     timeout: 120
 
   - description: "SMTP relay test"

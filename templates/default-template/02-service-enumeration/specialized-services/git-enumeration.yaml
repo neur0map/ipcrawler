@@ -31,55 +31,55 @@ options:
 
 execution:
   commands:
-    # Git daemon protocol enumeration (port 9418)
+    # Git daemon protocol enumeration (port 9418) - with timeout and error handling
     - name: "git_daemon_ls_remote"
       condition: "port == 9418"
-      command: "git ls-remote git://{hostname}:9418/"
-      timeout: 60
+      command: "timeout {git_timeout} git ls-remote git://{hostname}:9418/ 2>/dev/null || echo 'Git daemon not responsive'"
+      timeout: 120
       output_file: "{protocol}_{port}_git-ls-remote.txt"
     
-    # Common repository discovery for Git daemon
+    # Common repository discovery for Git daemon - with better error handling
     - name: "git_daemon_common_repos"
       condition: "port == 9418 and check_common_repos"
-      command: 'timeout 120 bash -c "for repo in repo main project app web dev staging prod backup admin config; do echo \"Testing $repo:\"; git ls-remote git://{hostname}:9418/$repo 2>/dev/null && echo \"Found: $repo\"; done"'
+      command: 'timeout {git_timeout} bash -c "for repo in repo main project app web dev staging prod backup admin config; do echo \"Testing $repo:\"; timeout 10 git ls-remote git://{hostname}:9418/$repo 2>/dev/null && echo \"Found: $repo\" || true; done"'
       timeout: 180
       output_file: "{protocol}_{port}_git-common-repos.txt"
     
     # HTTP .git directory exposure check
     - name: "http_git_head_check"
       condition: "service_name in ['http', 'https'] or port in [80, 443, 8080, 8443]"
-      command: "curl -sSi --max-time 10 --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git/HEAD"
-      timeout: 30
+      command: "curl -sSi --max-time {http_timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git/HEAD"
+      timeout: 60
       output_file: "{protocol}_{port}_{http_scheme}_git-head.txt"
     
     - name: "http_git_config_check"
       condition: "service_name in ['http', 'https'] or port in [80, 443, 8080, 8443]"
-      command: "curl -sSi --max-time 10 --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git/config"
+      command: "curl -sSi --max-time {http_timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git/config"
       timeout: 30
       output_file: "{protocol}_{port}_{http_scheme}_git-config.txt"
     
     - name: "http_git_index_check"
       condition: "service_name in ['http', 'https'] or port in [80, 443, 8080, 8443]"
-      command: "curl -sSi --max-time 10 --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git/index"
+      command: "curl -sSi --max-time {http_timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git/index"
       timeout: 30
       output_file: "{protocol}_{port}_{http_scheme}_git-index.txt"
     
     - name: "http_git_logs_check"
       condition: "service_name in ['http', 'https'] or port in [80, 443, 8080, 8443]"
-      command: "curl -sSi --max-time 10 --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git/logs/HEAD"
+      command: "curl -sSi --max-time {http_timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git/logs/HEAD"
       timeout: 30
       output_file: "{protocol}_{port}_{http_scheme}_git-logs.txt"
     
     # Common Git file patterns
     - name: "http_gitignore_check"
       condition: "service_name in ['http', 'https'] or port in [80, 443, 8080, 8443]"
-      command: "curl -sSi --max-time 10 --connect-timeout 5 {http_scheme}://{hostname}:{port}/.gitignore"
+      command: "curl -sSi --max-time {http_timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/.gitignore"
       timeout: 30
       output_file: "{protocol}_{port}_{http_scheme}_gitignore.txt"
     
     - name: "http_git_credentials_check"
       condition: "service_name in ['http', 'https'] or port in [80, 443, 8080, 8443]"
-      command: "curl -sSi --max-time 10 --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git-credentials"
+      command: "curl -sSi --max-time {http_timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/.git-credentials"
       timeout: 30
       output_file: "{protocol}_{port}_{http_scheme}_git-credentials.txt"
     
@@ -93,7 +93,7 @@ execution:
     # SSH Git enumeration
     - name: "ssh_git_version_check"
       condition: "service_name == 'ssh' or port == 22"
-      command: "timeout 10 ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null git@{hostname} \"git --version\" 2>&1 || echo \"Git user not accessible\""
+      command: "timeout {http_timeout} ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null git@{hostname} \"git --version\" 2>&1 || echo \"Git user not accessible\""
       timeout: 30
       output_file: "{protocol}_{port}_ssh-git-version.txt"
     

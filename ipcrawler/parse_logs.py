@@ -241,9 +241,13 @@ def build_parsed_yaml(target: str) -> None:
     
     # Parse each section
     nmap_log_path = os.path.join(scans_dir, "nmap.log")
+    quick_nmap_log_path = os.path.join(scans_dir, "_quick_tcp_nmap.txt")
     errors_log_path = os.path.join(scans_dir, "errors.log")
     
+    # Try standard nmap.log first, then quick-test output
     ports = parse_nmap_ports(nmap_log_path)
+    if not ports and os.path.exists(quick_nmap_log_path):
+        ports = parse_nmap_ports(quick_nmap_log_path)
     endpoints = parse_directory_busting_logs(scans_dir)
     cms = parse_cms_detection(scans_dir)
     errors = parse_errors_log(errors_log_path)

@@ -1,21 +1,53 @@
 # Global Configuration for ipcrawler
 # ===================================
-# This file contains global plugin defaults and pattern matching configurations.
-# Wordlist management is handled automatically by SecLists detection.
+# GLOBAL APPLICATION SETTINGS ONLY
+# 
+# This file contains only truly global settings that affect the entire application.
+# All tool-specific configurations are handled by individual YAML plugins.
+# This prevents conflicts and allows proper plugin-level customization.
 
-# This file will only be used as fallback in case auto-detection of seclists fails.
+# Global Application Variables
+# =============================
+# These are used for template variable substitution across all plugins
+# Individual YAML plugins can override these by defining their own variables
 
-[global.domain]
-help = 'The domain to use (if known). Used for DNS and/or Active Directory. Default: %(default)s'
+[global.variables]
+# Network and timing defaults (can be overridden by individual plugins)
+timeout_default = "300"        # Default command timeout in seconds
+user_agent = "Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0"
 
-# Configure global pattern matching here.
+# Directory and file defaults  
+results_base = "results"        # Base results directory
+temp_base = "/tmp"              # Temporary files base directory
+
+# Live progress tracking settings (from our new system)
+live_progress = "true"          # Enable 100% live progress tracking for YAML plugins
+progress_update_interval = "2"  # Show progress updates every N seconds
+
+# Global Pattern Matching
+# ========================
+# These patterns are applied across all plugin outputs for security findings
+
 [[pattern]]
-description = 'Nmap script found a potential vulnerability. ({match})'
+description = 'Nmap script found a potential vulnerability: {match}'
 pattern = 'State: (?:(?:LIKELY\_?)?VULNERABLE)'
 
 [[pattern]]
+description = 'Unauthorized access detected: {match}'  
 pattern = '(?i)unauthorized'
 
 [[pattern]]
 description = 'CVE Identified: {match}'
 pattern = '(CVE-\d{4}-\d{4,7})'
+
+[[pattern]]
+description = 'Potential credential found: {match}'
+pattern = '(?i)(password|passwd|secret|key|token|api[_-]?key)'
+
+[[pattern]]
+description = 'Sensitive file detected: {match}'
+pattern = '(?i)(\.env|\.git|\.svn|\.htaccess|\.htpasswd|config\.php|wp-config\.php)'
+
+# NOTE: All tool-specific variables (nmap flags, timing options, etc.) have been 
+# moved to individual YAML plugin files. This eliminates conflicts and allows 
+# each plugin to define its own optimal settings without interference.

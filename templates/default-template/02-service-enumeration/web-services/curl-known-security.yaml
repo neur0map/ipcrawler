@@ -1,212 +1,169 @@
 metadata:
-  name: "Curl Security.txt"
-  description: "Retrieves security.txt files containing security contact and policy information"
-  type: "servicescan"
+  name: Curl Security.txt
+  description: Retrieves security.txt files containing security contact and policy
+    information
+  type: servicescan
   priority: 15
-  version: "1.0"
-  author: "IPCrawler YAML Plugin System"
-
+  version: '1.0'
+  author: IPCrawler YAML Plugin System
 conditions:
   services:
-    include: ["^http", "ssl/http", "^https"]
-    exclude: ["^nacn_http$"]
+    include:
+    - ^http
+    - ssl/http
+    - ^https
+    exclude:
+    - ^nacn_http$
   protocols:
-    include: ["tcp"]
-
+    include:
+    - tcp
 options:
-  - name: "timeout"
-    type: "integer"
-    default: 10
-    help: "HTTP request timeout in seconds"
-  - name: "check_both_locations"
-    type: "boolean"
-    default: true
-    help: "Check both /.well-known/security.txt and /security.txt locations"
-
+- name: timeout
+  type: integer
+  default: 10
+  help: HTTP request timeout in seconds
+- name: check_both_locations
+  type: boolean
+  default: true
+  help: Check both /.well-known/security.txt and /security.txt locations
 execution:
   commands:
-    - name: "fetch_well_known_security"
-      command: "curl -sSi --max-time {timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/.well-known/security.txt"
-      timeout: 30
-      output_file: "{protocol}_{port}_{http_scheme}_known-security_{hostname_clean}.txt"
-      environment:
-        hostname_clean: "{{ hostname | replace('.', '_') | replace(':', '_') }}"
-    
-    - name: "fetch_root_security"
-      condition: "check_both_locations"
-      command: "curl -sSi --max-time {timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/security.txt"
-      timeout: 30
-      output_file: "{protocol}_{port}_{http_scheme}_root-security_{hostname_clean}.txt"
-      environment:
-        hostname_clean: "{{ hostname | replace('.', '_') | replace(':', '_') }}"
-
+  - name: fetch_well_known_security
+    command: curl -sSi --max-time {timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/.well-known/security.txt
+    timeout: 30
+    output_file: '{protocol}_{port}_{http_scheme}_known-security_{hostname_clean}.txt'
+  - name: fetch_root_security
+    condition: check_both_locations
+    command: curl -sSi --max-time {timeout} --connect-timeout 5 {http_scheme}://{hostname}:{port}/security.txt
+    timeout: 30
+    output_file: '{protocol}_{port}_{http_scheme}_root-security_{hostname_clean}.txt'
   manual_commands:
-    - description: "(curl) Fetch security.txt from well-known location"
-      command: "curl -sSi {http_scheme}://{hostname}:{port}/.well-known/security.txt"
-    - description: "(curl) Fetch security.txt from root location"
-      command: "curl -sSi {http_scheme}://{hostname}:{port}/security.txt"
-
+  - description: (curl) Fetch security.txt from well-known location
+    command: curl -sSi {http_scheme}://{hostname}:{port}/.well-known/security.txt
+  - description: (curl) Fetch security.txt from root location
+    command: curl -sSi {http_scheme}://{hostname}:{port}/security.txt
 output:
   patterns:
-    # Security.txt contact information
-    - pattern: "(?i)^Contact:\\s*([^\\n\\r]+)"
-      description: "Security Contact: {match1}"
-      severity: "info"
-      category: "security_contact"
-    
-    - pattern: "(?i)^Email:\\s*([^\\n\\r]+)"
-      description: "Security Email: {match1}"
-      severity: "info"
-      category: "security_contact"
-    
-    - pattern: "(?i)^Phone:\\s*([^\\n\\r]+)"
-      description: "Security Phone: {match1}"
-      severity: "info"
-      category: "security_contact"
-    
-    # Security policies and procedures
-    - pattern: "(?i)^Policy:\\s*([^\\n\\r]+)"
-      description: "Security Policy URL: {match1}"
-      severity: "info"
-      category: "security_policy"
-    
-    - pattern: "(?i)^Disclosure:\\s*([^\\n\\r]+)"
-      description: "Disclosure Policy: {match1}"
-      severity: "info"
-      category: "security_policy"
-    
-    - pattern: "(?i)^Acknowledgments:\\s*([^\\n\\r]+)"
-      description: "Security Acknowledgments: {match1}"
-      severity: "info"
-      category: "security_policy"
-    
-    # Security program information
-    - pattern: "(?i)^Hiring:\\s*([^\\n\\r]+)"
-      description: "Security Job Opportunities: {match1}"
-      severity: "info"
-      category: "security_program"
-    
-    - pattern: "(?i)^Signature:\\s*([^\\n\\r]+)"
-      description: "Digital Signature: {match1}"
-      severity: "info"
-      category: "security_verification"
-    
-    - pattern: "(?i)^Encryption:\\s*([^\\n\\r]+)"
-      description: "Encryption Key: {match1}"
-      severity: "info"
-      category: "security_verification"
-    
-    # Bug bounty and reward programs
-    - pattern: "(?i)bounty|reward|bug.bounty"
-      description: "Bug Bounty Program Mentioned: Check for vulnerability reward program"
-      severity: "info"
-      category: "bug_bounty"
-    
-    - pattern: "(?i)\\$[0-9,]+|reward.*\\$|prize.*\\$"
-      description: "Monetary Reward Mentioned: Active bug bounty program"
-      severity: "info"
-      category: "bug_bounty"
-    
-    # Vulnerability disclosure preferences
-    - pattern: "(?i)responsible.disclosure|coordinated.disclosure"
-      description: "Responsible Disclosure Program: Organization follows ethical disclosure"
-      severity: "info"
-      category: "disclosure_policy"
-    
-    - pattern: "(?i)gpg|pgp|public.key"
-      description: "Encrypted Communication Available: GPG/PGP key provided"
-      severity: "info"
-      category: "secure_communication"
-    
-    # Time constraints and expectations
-    - pattern: "(?i)response.*time|[0-9]+.*day|[0-9]+.*hour"
-      description: "Response Time Commitment: Organization commits to timely responses"
-      severity: "info"
-      category: "response_time"
-    
-    - pattern: "(?i)expires?:\\s*([^\\n\\r]+)"
-      description: "Security.txt Expires: {match1}"
-      severity: "info"
-      category: "validity"
-    
-    # Scope and coverage
-    - pattern: "(?i)scope|in.scope|out.of.scope"
-      description: "Security Scope Defined: Check scope limitations"
-      severity: "info"
-      category: "security_scope"
-    
-    - pattern: "(?i)subdomain|wildcard|\\*\\."
-      description: "Subdomain Coverage: Security program covers subdomains"
-      severity: "info"
-      category: "security_scope"
-    
-    # Legal and compliance
-    - pattern: "(?i)terms.of.service|legal|compliance"
-      description: "Legal Terms Referenced: Review legal constraints"
-      severity: "info"
-      category: "legal"
-    
-    - pattern: "(?i)safe.harbor|legal.protection"
-      description: "Safe Harbor Protection: Legal protection for security researchers"
-      severity: "info"
-      category: "legal"
-    
-    # HTTP response analysis
-    - pattern: "(?i)HTTP/[12]\\.[01]\\s+200"
-      description: "Security.txt file found and accessible"
-      severity: "info"
-      category: "http_status"
-    
-    - pattern: "(?i)HTTP/[12]\\.[01]\\s+404"
-      description: "No security.txt file found (404 Not Found)"
-      severity: "info"
-      category: "http_status"
-    
-    - pattern: "(?i)HTTP/[12]\\.[01]\\s+403"
-      description: "Security.txt access forbidden (403 Forbidden)"
-      severity: "low"
-      category: "http_status"
-    
-    # Content validation
-    - pattern: "(?i)Content-Type:\\s*text/plain"
-      description: "Correct Content-Type for security.txt (text/plain)"
-      severity: "info"
-      category: "file_format"
-    
-    - pattern: "(?i)Content-Length:\\s*0"
-      description: "Empty security.txt file found"
-      severity: "low"
-      category: "file_info"
-    
-    # Security maturity indicators
-    - pattern: "(?i)security.team|security.department|CISO|CSO"
-      description: "Dedicated Security Team: Organization has formal security structure"
-      severity: "info"
-      category: "security_maturity"
-    
-    - pattern: "(?i)ISO.27001|SOC.2|compliance|audit"
-      description: "Security Compliance: Organization mentions security certifications"
-      severity: "info"
-      category: "security_maturity"
-    
-    # Contact method preferences
-    - pattern: "(?i)signal|telegram|encrypted.messaging"
-      description: "Secure Messaging: Encrypted communication channels available"
-      severity: "info"
-      category: "secure_communication"
-    
-    - pattern: "(?i)hackerone|bugcrowd|synack|platform"
-      description: "Bug Bounty Platform: Organization uses established platform"
-      severity: "info"
-      category: "bug_bounty_platform"
-
+  - pattern: (?i)^Contact:\s*([^\n\r]+)
+    description: 'Security Contact: {match1}'
+    severity: info
+    category: security_contact
+  - pattern: (?i)^Email:\s*([^\n\r]+)
+    description: 'Security Email: {match1}'
+    severity: info
+    category: security_contact
+  - pattern: (?i)^Phone:\s*([^\n\r]+)
+    description: 'Security Phone: {match1}'
+    severity: info
+    category: security_contact
+  - pattern: (?i)^Policy:\s*([^\n\r]+)
+    description: 'Security Policy URL: {match1}'
+    severity: info
+    category: security_policy
+  - pattern: (?i)^Disclosure:\s*([^\n\r]+)
+    description: 'Disclosure Policy: {match1}'
+    severity: info
+    category: security_policy
+  - pattern: (?i)^Acknowledgments:\s*([^\n\r]+)
+    description: 'Security Acknowledgments: {match1}'
+    severity: info
+    category: security_policy
+  - pattern: (?i)^Hiring:\s*([^\n\r]+)
+    description: 'Security Job Opportunities: {match1}'
+    severity: info
+    category: security_program
+  - pattern: (?i)^Signature:\s*([^\n\r]+)
+    description: 'Digital Signature: {match1}'
+    severity: info
+    category: security_verification
+  - pattern: (?i)^Encryption:\s*([^\n\r]+)
+    description: 'Encryption Key: {match1}'
+    severity: info
+    category: security_verification
+  - pattern: (?i)bounty|reward|bug.bounty
+    description: 'Bug Bounty Program Mentioned: Check for vulnerability reward program'
+    severity: info
+    category: bug_bounty
+  - pattern: (?i)\$[0-9,]+|reward.*\$|prize.*\$
+    description: 'Monetary Reward Mentioned: Active bug bounty program'
+    severity: info
+    category: bug_bounty
+  - pattern: (?i)responsible.disclosure|coordinated.disclosure
+    description: 'Responsible Disclosure Program: Organization follows ethical disclosure'
+    severity: info
+    category: disclosure_policy
+  - pattern: (?i)gpg|pgp|public.key
+    description: 'Encrypted Communication Available: GPG/PGP key provided'
+    severity: info
+    category: secure_communication
+  - pattern: (?i)response.*time|[0-9]+.*day|[0-9]+.*hour
+    description: 'Response Time Commitment: Organization commits to timely responses'
+    severity: info
+    category: response_time
+  - pattern: (?i)expires?:\s*([^\n\r]+)
+    description: 'Security.txt Expires: {match1}'
+    severity: info
+    category: validity
+  - pattern: (?i)scope|in.scope|out.of.scope
+    description: 'Security Scope Defined: Check scope limitations'
+    severity: info
+    category: security_scope
+  - pattern: (?i)subdomain|wildcard|\*\.
+    description: 'Subdomain Coverage: Security program covers subdomains'
+    severity: info
+    category: security_scope
+  - pattern: (?i)terms.of.service|legal|compliance
+    description: 'Legal Terms Referenced: Review legal constraints'
+    severity: info
+    category: legal
+  - pattern: (?i)safe.harbor|legal.protection
+    description: 'Safe Harbor Protection: Legal protection for security researchers'
+    severity: info
+    category: legal
+  - pattern: (?i)HTTP/[12]\.[01]\s+200
+    description: Security.txt file found and accessible
+    severity: info
+    category: http_status
+  - pattern: (?i)HTTP/[12]\.[01]\s+404
+    description: No security.txt file found (404 Not Found)
+    severity: info
+    category: http_status
+  - pattern: (?i)HTTP/[12]\.[01]\s+403
+    description: Security.txt access forbidden (403 Forbidden)
+    severity: low
+    category: http_status
+  - pattern: (?i)Content-Type:\s*text/plain
+    description: Correct Content-Type for security.txt (text/plain)
+    severity: info
+    category: file_format
+  - pattern: (?i)Content-Length:\s*0
+    description: Empty security.txt file found
+    severity: low
+    category: file_info
+  - pattern: (?i)security.team|security.department|CISO|CSO
+    description: 'Dedicated Security Team: Organization has formal security structure'
+    severity: info
+    category: security_maturity
+  - pattern: (?i)ISO.27001|SOC.2|compliance|audit
+    description: 'Security Compliance: Organization mentions security certifications'
+    severity: info
+    category: security_maturity
+  - pattern: (?i)signal|telegram|encrypted.messaging
+    description: 'Secure Messaging: Encrypted communication channels available'
+    severity: info
+    category: secure_communication
+  - pattern: (?i)hackerone|bugcrowd|synack|platform
+    description: 'Bug Bounty Platform: Organization uses established platform'
+    severity: info
+    category: bug_bounty_platform
 requirements:
   tools:
-    - name: "curl"
-      check_command: "curl --version"
-      install_hint: "apt-get install curl"
-
+  - name: curl
+    check_command: curl --version
+    install_hint: apt-get install curl
 debug:
-  log_level: "info"
+  log_level: info
   trace_decisions: false
   show_command_output: false
+variables:
+  timeout: 300

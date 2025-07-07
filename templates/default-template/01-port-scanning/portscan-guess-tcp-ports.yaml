@@ -1,153 +1,145 @@
 metadata:
-  name: "Guess TCP Ports"
-  description: "Performs an Nmap scan with service guessing based on well-known ports for faster results"
-  type: "portscan"
+  name: Guess TCP Ports
+  description: Performs an Nmap scan with service guessing based on well-known ports
+    for faster results
+  type: portscan
   priority: 2
-  version: "1.0"
-  author: "IPCrawler YAML Plugin System"
-
+  version: '1.0'
+  author: IPCrawler YAML Plugin System
 conditions:
   targets:
-    timeout: 7200  # 2 hours timeout for full scan
-
+    timeout: 7200
 options:
-  - name: "min_rate"
-    type: "integer"
-    default: 5000
-    help: "Minimum packet rate per second"
-  - name: "max_rate"
-    type: "integer"
-    default: 10000
-    help: "Maximum packet rate per second"
-
+- name: min_rate
+  type: integer
+  default: 5000
+  help: Minimum packet rate per second
+- name: max_rate
+  type: integer
+  default: 10000
+  help: Maximum packet rate per second
 execution:
   commands:
-    - name: "guess_scan_custom_ports"
-      condition: "target.ports and target.ports.tcp"
-      command: "nmap {nmap_extra} -T5 --min-rate={min_rate} --max-rate={max_rate} -A --osscan-guess --version-all -p {target_ports_tcp} -oN \"{scandir}/_custom_ports_tcp_nmap.txt\" -oX \"{scandir}/xml/_custom_ports_tcp_nmap.xml\" {address}"
-      timeout: 7200
-      environment:
-        target_ports_tcp: "{target.ports.tcp}"
-    
-    - name: "guess_scan_all_ports"
-      condition: "not target.ports or not target.ports.tcp"
-      command: "nmap {nmap_extra} -T5 --min-rate={min_rate} --max-rate={max_rate} -A --osscan-guess --version-all -p- -oN \"{scandir}/_quick_tcp_nmap.txt\" -oX \"{scandir}/xml/_quick_tcp_nmap.xml\" {address}"
-      timeout: 7200
-
+  - name: guess_scan_custom_ports
+    condition: target.ports and target.ports.tcp
+    command: nmap -T5 --min-rate={min_rate} --max-rate={max_rate} {service_opts}
+      --version-all -p {target_ports_tcp} -oN "{scandir}/_custom_ports_tcp_nmap.txt"
+      -oX "{scandir}/xml/_custom_ports_tcp_nmap.xml" {address}
+    timeout: 7200
+  - name: guess_scan_all_ports
+    condition: not target.ports or not target.ports.tcp
+    command: nmap -T5 --min-rate={min_rate} --max-rate={max_rate} {service_opts}
+      --version-all -p- -oN "{scandir}/_quick_tcp_nmap.txt" -oX "{scandir}/xml/_quick_tcp_nmap.xml"
+      {address}
+    timeout: 7200
   manual_commands:
-    - description: "(nmap) Guess scan with service detection"
-      command: "nmap -T5 --min-rate=5000 -A --version-all -p- {address}"
-    - description: "(nmap) Fast guess scan top ports"
-      command: "nmap -T5 --min-rate=5000 -A --top-ports 1000 {address}"
-
+  - description: (nmap) Aggressive guess scan with service detection (requires sudo)
+    command: nmap -T5 --min-rate=5000 -A --version-all -p- {address}
+  - description: (nmap) Fast guess scan top ports (requires sudo)
+    command: nmap -T5 --min-rate=5000 -A --top-ports 1000 {address}
 output:
   service_detection:
-    # Well-known insecure ports with service mapping
-    - pattern: "^(20|21)/(tcp)\\s+open"
-      service_name: "ftp"
-    - pattern: "^(22)/(tcp)\\s+open"
-      service_name: "ssh"
-    - pattern: "^(23)/(tcp)\\s+open"
-      service_name: "telnet"
-    - pattern: "^(25|587)/(tcp)\\s+open"
-      service_name: "smtp"
-    - pattern: "^(53)/(tcp)\\s+open"
-      service_name: "domain"
-    - pattern: "^(80|8080)/(tcp)\\s+open"
-      service_name: "http"
-    - pattern: "^(88)/(tcp)\\s+open"
-      service_name: "kerberos"
-    - pattern: "^(110)/(tcp)\\s+open"
-      service_name: "pop3"
-    - pattern: "^(111)/(tcp)\\s+open"
-      service_name: "rpcbind"
-    - pattern: "^(135)/(tcp)\\s+open"
-      service_name: "msrpc"
-    - pattern: "^(139|445)/(tcp)\\s+open"
-      service_name: "smb"
-    - pattern: "^(143)/(tcp)\\s+open"
-      service_name: "imap"
-    - pattern: "^(161)/(tcp)\\s+open"
-      service_name: "snmp"
-    - pattern: "^(389)/(tcp)\\s+open"
-      service_name: "ldap"
-    - pattern: "^(1433)/(tcp)\\s+open"
-      service_name: "mssql"
-    - pattern: "^(1521)/(tcp)\\s+open"
-      service_name: "oracle"
-    - pattern: "^(2049)/(tcp)\\s+open"
-      service_name: "nfs"
-    - pattern: "^(3306)/(tcp)\\s+open"
-      service_name: "mysql"
-    - pattern: "^(3389)/(tcp)\\s+open"
-      service_name: "rdp"
-    - pattern: "^(5060)/(tcp)\\s+open"
-      service_name: "asterisk"
-    - pattern: "^(5900|5500)/(tcp)\\s+open"
-      service_name: "vnc"
-    - pattern: "^(5985)/(tcp)\\s+open"
-      service_name: "wsman"
-    - pattern: "^(6379)/(tcp)\\s+open"
-      service_name: "redis"
-    - pattern: "^(27017|27018|27019)/(tcp)\\s+open"
-      service_name: "mongod"
-    
-    # Well-known secure ports with service mapping
-    - pattern: "^(443)/(tcp)\\s+open"
-      service_name: "https"
-    - pattern: "^(465)/(tcp)\\s+open"
-      service_name: "smtp"
-    - pattern: "^(563)/(tcp)\\s+open"
-      service_name: "nntp"
-    - pattern: "^(585)/(tcp)\\s+open"
-      service_name: "imaps"
-    - pattern: "^(593)/(tcp)\\s+open"
-      service_name: "msrpc"
-    - pattern: "^(636)/(tcp)\\s+open"
-      service_name: "ldap"
-    - pattern: "^(989|990)/(tcp)\\s+open"
-      service_name: "ftp"
-    - pattern: "^(992)/(tcp)\\s+open"
-      service_name: "telnet"
-    - pattern: "^(993)/(tcp)\\s+open"
-      service_name: "imaps"
-    - pattern: "^(995)/(tcp)\\s+open"
-      service_name: "pop3s"
-    - pattern: "^(5986)/(tcp)\\s+open"
-      service_name: "wsman"
-    
-    # Generic service detection for unknown ports
-    - pattern: "^(\\d+)/(tcp)\\s+open\\s+(\\S+)"
-      service_name: "{match3}"
-
+  - pattern: ^(20|21)/(tcp)\s+open
+    service_name: ftp
+  - pattern: ^(22)/(tcp)\s+open
+    service_name: ssh
+  - pattern: ^(23)/(tcp)\s+open
+    service_name: telnet
+  - pattern: ^(25|587)/(tcp)\s+open
+    service_name: smtp
+  - pattern: ^(53)/(tcp)\s+open
+    service_name: domain
+  - pattern: ^(80|8080)/(tcp)\s+open
+    service_name: http
+  - pattern: ^(88)/(tcp)\s+open
+    service_name: kerberos
+  - pattern: ^(110)/(tcp)\s+open
+    service_name: pop3
+  - pattern: ^(111)/(tcp)\s+open
+    service_name: rpcbind
+  - pattern: ^(135)/(tcp)\s+open
+    service_name: msrpc
+  - pattern: ^(139|445)/(tcp)\s+open
+    service_name: smb
+  - pattern: ^(143)/(tcp)\s+open
+    service_name: imap
+  - pattern: ^(161)/(tcp)\s+open
+    service_name: snmp
+  - pattern: ^(389)/(tcp)\s+open
+    service_name: ldap
+  - pattern: ^(1433)/(tcp)\s+open
+    service_name: mssql
+  - pattern: ^(1521)/(tcp)\s+open
+    service_name: oracle
+  - pattern: ^(2049)/(tcp)\s+open
+    service_name: nfs
+  - pattern: ^(3306)/(tcp)\s+open
+    service_name: mysql
+  - pattern: ^(3389)/(tcp)\s+open
+    service_name: rdp
+  - pattern: ^(5060)/(tcp)\s+open
+    service_name: asterisk
+  - pattern: ^(5900|5500)/(tcp)\s+open
+    service_name: vnc
+  - pattern: ^(5985)/(tcp)\s+open
+    service_name: wsman
+  - pattern: ^(6379)/(tcp)\s+open
+    service_name: redis
+  - pattern: ^(27017|27018|27019)/(tcp)\s+open
+    service_name: mongod
+  - pattern: ^(443)/(tcp)\s+open
+    service_name: https
+  - pattern: ^(465)/(tcp)\s+open
+    service_name: smtp
+  - pattern: ^(563)/(tcp)\s+open
+    service_name: nntp
+  - pattern: ^(585)/(tcp)\s+open
+    service_name: imaps
+  - pattern: ^(593)/(tcp)\s+open
+    service_name: msrpc
+  - pattern: ^(636)/(tcp)\s+open
+    service_name: ldap
+  - pattern: ^(989|990)/(tcp)\s+open
+    service_name: ftp
+  - pattern: ^(992)/(tcp)\s+open
+    service_name: telnet
+  - pattern: ^(993)/(tcp)\s+open
+    service_name: imaps
+  - pattern: ^(995)/(tcp)\s+open
+    service_name: pop3s
+  - pattern: ^(5986)/(tcp)\s+open
+    service_name: wsman
+  - pattern: ^(\d+)/(tcp)\s+open\s+(\S+)
+    service_name: '{match3}'
   patterns:
-    - pattern: "(?i)Discovered open port ([0-9]+)/tcp"
-      description: "Discovered TCP Port: {match1}/tcp"
-      severity: "info"
-      category: "discovery"
-    
-    - pattern: "(?i)(\\d+)/(tcp)\\s+open\\s+(\\S+)\\s+(.+)"
-      description: "Open Port: {match1}/{match2} - {match3} ({match4})"
-      severity: "info"
-      category: "ports"
-    
-    - pattern: "(?i)OS details: (.+)"
-      description: "Operating System: {match1}"
-      severity: "info"
-      category: "os_detection"
-    
-    - pattern: "(?i)Service Info: (.+)"
-      description: "Service Information: {match1}"
-      severity: "info"
-      category: "service_info"
-
+  - pattern: (?i)Discovered open port ([0-9]+)/tcp
+    description: 'Discovered TCP Port: {match1}/tcp'
+    severity: info
+    category: discovery
+  - pattern: (?i)(\d+)/(tcp)\s+open\s+(\S+)\s+(.+)
+    description: 'Open Port: {match1}/{match2} - {match3} ({match4})'
+    severity: info
+    category: ports
+  - pattern: '(?i)OS details: (.+)'
+    description: 'Operating System: {match1}'
+    severity: info
+    category: os_detection
+  - pattern: '(?i)Service Info: (.+)'
+    description: 'Service Information: {match1}'
+    severity: info
+    category: service_info
 requirements:
   tools:
-    - name: "nmap"
-      check_command: "nmap --version"
-      install_hint: "apt-get install nmap"
-
+  - name: nmap
+    check_command: nmap --version
+    install_hint: apt-get install nmap
+  permissions:
+  - type: root
+    description: Advanced service detection and OS detection require root privileges for optimal results
 debug:
-  log_level: "info"
+  log_level: info
   trace_decisions: true
   show_command_output: false
+variables:
+  min_rate: 1000
+  max_rate: 5000

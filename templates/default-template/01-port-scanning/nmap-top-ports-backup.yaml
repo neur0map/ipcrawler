@@ -32,7 +32,7 @@ options:
 execution:
   commands:
     - name: "nmap_top_ports"
-      command: "nmap {nmap_extra} -{timing} --min-rate=1000 --max-rate=5000 --host-timeout=300s --script-timeout=60s --top-ports {top_ports} -sV -sC -oN \"{scandir}/_quick_tcp_nmap.txt\" -oX \"{scandir}/xml/_quick_tcp_nmap.xml\" {address}"
+      command: "nmap -{timing} --min-rate=1000 --max-rate=5000 --host-timeout=300s --script-timeout=60s --top-ports {top_ports} -sV -sC -oN \"{scandir}/_quick_tcp_nmap.txt\" -oX \"{scandir}/xml/_quick_tcp_nmap.xml\" {address}"
       timeout: 1800
       background: false
       output_file: "_quick_tcp_nmap.txt"

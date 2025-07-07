@@ -1,315 +1,260 @@
 metadata:
-  name: "WhatWeb Technology Detection"
-  description: "Web application and technology identification using WhatWeb"
-  type: "servicescan"
+  name: WhatWeb Technology Detection
+  description: Web application and technology identification using WhatWeb
+  type: servicescan
   priority: 7
-  version: "1.0"
-  author: "IPCrawler YAML Plugin System"
-
+  version: '1.0'
+  author: IPCrawler YAML Plugin System
 conditions:
   services:
-    include: ["^http", "ssl/http", "^https"]
-    exclude: ["^nacn_http$"]
-
+    include:
+    - ^http
+    - ssl/http
+    - ^https
+    exclude:
+    - ^nacn_http$
 options:
-  - name: "aggression"
-    type: "choice"
-    choices: ["1", "2", "3", "4"]
-    default: "1"
-    help: "WhatWeb aggression level (1=passive, 4=aggressive)"
-  - name: "ignore_errors"
-    type: "boolean"
-    default: false
-    help: "Continue scanning even if HTTP errors occur"
-
+- name: aggression
+  type: choice
+  choices:
+  - '1'
+  - '2'
+  - '3'
+  - '4'
+  default: '1'
+  help: WhatWeb aggression level (1=passive, 4=aggressive)
+- name: ignore_errors
+  type: boolean
+  default: false
+  help: Continue scanning even if HTTP errors occur
 execution:
   commands:
-    - name: "whatweb_scan"
-      command: "whatweb --color=never -a {aggression} -v {http_scheme}://{hostname}:{port} 2>&1"
-      timeout: 120
-      output_file: "{protocol}_{port}_{http_scheme}_whatweb_{hostname_safe}.txt"
-      per_hostname: true
-    
-    - name: "whatweb_fallback"
-      command: "whatweb --color=never --no-errors -a 1 {http_scheme}://{hostname}:{port} 2>&1"
-      timeout: 60
-      output_file: "{protocol}_{port}_{http_scheme}_whatweb_{hostname_safe}_simple.txt"
-      per_hostname: true
-      condition: "on_error"
-    
-    - name: "curl_headers_debug"
-      command: "curl -s -I {http_scheme}://{hostname}:{port}/ 2>&1"
-      timeout: 30
-      output_file: "{protocol}_{port}_{http_scheme}_curl_headers_{hostname_safe}.txt"
-      per_hostname: true
-      condition: "on_error"
-
+  - name: whatweb_scan
+    command: whatweb --color=never -a {aggression} -v {http_scheme}://{hostname}:{port}
+      2>&1
+    timeout: 120
+    output_file: '{protocol}_{port}_{http_scheme}_whatweb_{hostname_safe}.txt'
+    per_hostname: true
+  - name: whatweb_fallback
+    command: whatweb --color=never --no-errors -a 1 {http_scheme}://{hostname}:{port}
+      2>&1
+    timeout: 60
+    output_file: '{protocol}_{port}_{http_scheme}_whatweb_{hostname_safe}_simple.txt'
+    per_hostname: true
+    condition: on_error
+  - name: curl_headers_debug
+    command: curl -s -I {http_scheme}://{hostname}:{port}/ 2>&1
+    timeout: 30
+    output_file: '{protocol}_{port}_{http_scheme}_curl_headers_{hostname_safe}.txt'
+    per_hostname: true
+    condition: on_error
   manual_commands:
-    - description: "(whatweb) Passive technology detection"
-      command: "whatweb -a 1 {http_scheme}://{address}:{port}"
-    - description: "(whatweb) Aggressive technology detection"
-      command: "whatweb -a 3 {http_scheme}://{address}:{port}"
-    - description: "(curl) Check HTTP headers"
-      command: "curl -s -I {http_scheme}://{address}:{port}/"
-
+  - description: (whatweb) Passive technology detection
+    command: whatweb -a 1 {http_scheme}://{address}:{port}
+  - description: (whatweb) Aggressive technology detection
+    command: whatweb -a 3 {http_scheme}://{address}:{port}
+  - description: (curl) Check HTTP headers
+    command: curl -s -I {http_scheme}://{address}:{port}/
 output:
   patterns:
-    # Web Server and Framework Detection
-    - pattern: "(?i)\\[([^\\]]+)\\].*\\[Version ([\\d\\.]+[\\w\\.-]*)\\]"
-      description: "Technology Detected: {match1} v{match2}"
-      severity: "info"
-      category: "technology"
-    
-    - pattern: "(?i)\\[([^\\]]+)\\]"
-      description: "Technology Detected: {match1}"
-      severity: "info"
-      category: "technology"
-    
-    # Specific Web Servers
-    - pattern: "(?i)\\[Apache(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Apache Web Server{match1 and ' v' + match1 or ''} detected"
-      severity: "info"
-      category: "web_server"
-    
-    - pattern: "(?i)\\[Nginx(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Nginx Web Server{match1 and ' v' + match1 or ''} detected"
-      severity: "info"
-      category: "web_server"
-    
-    - pattern: "(?i)\\[IIS(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Microsoft IIS{match1 and ' v' + match1 or ''} detected"
-      severity: "info"
-      category: "web_server"
-    
-    - pattern: "(?i)\\[LiteSpeed(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "LiteSpeed Web Server{match1 and ' v' + match1 or ''} detected"
-      severity: "info"
-      category: "web_server"
-    
-    # Content Management Systems
-    - pattern: "(?i)\\[WordPress(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "WordPress CMS{match1 and ' v' + match1 or ''} detected - check for vulnerabilities"
-      severity: "medium"
-      category: "cms"
-    
-    - pattern: "(?i)\\[Drupal(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Drupal CMS{match1 and ' v' + match1 or ''} detected - check for vulnerabilities"
-      severity: "medium"
-      category: "cms"
-    
-    - pattern: "(?i)\\[Joomla(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Joomla CMS{match1 and ' v' + match1 or ''} detected - check for vulnerabilities"
-      severity: "medium"
-      category: "cms"
-    
-    - pattern: "(?i)\\[Magento(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Magento E-commerce{match1 and ' v' + match1 or ''} detected"
-      severity: "medium"
-      category: "cms"
-    
-    - pattern: "(?i)\\[Shopify\\]"
-      description: "Shopify E-commerce platform detected"
-      severity: "info"
-      category: "cms"
-    
-    # Programming Languages and Frameworks
-    - pattern: "(?i)\\[PHP(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "PHP{match1 and ' v' + match1 or ''} detected - server-side scripting"
-      severity: "info"
-      category: "programming"
-    
-    - pattern: "(?i)\\[ASP\\.NET(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "ASP.NET{match1 and ' v' + match1 or ''} detected - Microsoft web framework"
-      severity: "info"
-      category: "programming"
-    
-    - pattern: "(?i)\\[Python(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Python{match1 and ' v' + match1 or ''} detected - server-side scripting"
-      severity: "info"
-      category: "programming"
-    
-    - pattern: "(?i)\\[Java(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Java{match1 and ' v' + match1 or ''} detected - server-side application"
-      severity: "info"
-      category: "programming"
-    
-    - pattern: "(?i)\\[Ruby(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Ruby{match1 and ' v' + match1 or ''} detected - server-side scripting"
-      severity: "info"
-      category: "programming"
-    
-    - pattern: "(?i)\\[Node\\.js(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Node.js{match1 and ' v' + match1 or ''} detected - JavaScript runtime"
-      severity: "info"
-      category: "programming"
-    
-    # JavaScript Frameworks and Libraries
-    - pattern: "(?i)\\[jQuery(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "jQuery{match1 and ' v' + match1 or ''} detected - JavaScript library"
-      severity: "info"
-      category: "javascript"
-    
-    - pattern: "(?i)\\[React(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "React{match1 and ' v' + match1 or ''} detected - JavaScript framework"
-      severity: "info"
-      category: "javascript"
-    
-    - pattern: "(?i)\\[Angular(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Angular{match1 and ' v' + match1 or ''} detected - JavaScript framework"
-      severity: "info"
-      category: "javascript"
-    
-    - pattern: "(?i)\\[Vue\\.js(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Vue.js{match1 and ' v' + match1 or ''} detected - JavaScript framework"
-      severity: "info"
-      category: "javascript"
-    
-    # Web Application Frameworks
-    - pattern: "(?i)\\[Laravel(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Laravel{match1 and ' v' + match1 or ''} detected - PHP framework"
-      severity: "info"
-      category: "framework"
-    
-    - pattern: "(?i)\\[Django(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Django{match1 and ' v' + match1 or ''} detected - Python framework"
-      severity: "info"
-      category: "framework"
-    
-    - pattern: "(?i)\\[Rails(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Ruby on Rails{match1 and ' v' + match1 or ''} detected - Ruby framework"
-      severity: "info"
-      category: "framework"
-    
-    - pattern: "(?i)\\[Express(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Express.js{match1 and ' v' + match1 or ''} detected - Node.js framework"
-      severity: "info"
-      category: "framework"
-    
-    # Database and Data Storage
-    - pattern: "(?i)\\[MySQL(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "MySQL{match1 and ' v' + match1 or ''} database detected"
-      severity: "info"
-      category: "database"
-    
-    - pattern: "(?i)\\[PostgreSQL(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "PostgreSQL{match1 and ' v' + match1 or ''} database detected"
-      severity: "info"
-      category: "database"
-    
-    - pattern: "(?i)\\[MongoDB(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "MongoDB{match1 and ' v' + match1 or ''} NoSQL database detected"
-      severity: "info"
-      category: "database"
-    
-    - pattern: "(?i)\\[Redis(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      description: "Redis{match1 and ' v' + match1 or ''} cache/database detected"
-      severity: "info"
-      category: "database"
-    
-    # Security and CDN
-    - pattern: "(?i)\\[Cloudflare\\]"
-      description: "Cloudflare CDN detected - traffic routing through Cloudflare"
-      severity: "info"
-      category: "cdn"
-    
-    - pattern: "(?i)\\[CloudFront\\]"
-      description: "Amazon CloudFront CDN detected"
-      severity: "info"
-      category: "cdn"
-    
-    - pattern: "(?i)\\[WAF\\]"
-      description: "Web Application Firewall detected"
-      severity: "info"
-      category: "security"
-    
-    # Analytics and Tracking
-    - pattern: "(?i)\\[Google Analytics\\]"
-      description: "Google Analytics tracking detected"
-      severity: "info"
-      category: "analytics"
-    
-    - pattern: "(?i)\\[Google Tag Manager\\]"
-      description: "Google Tag Manager detected"
-      severity: "info"
-      category: "analytics"
-    
-    # Error Messages and Status
-    - pattern: "(?i)HTTP.*error.*([0-9]{3})"
-      description: "HTTP Error {match1} encountered during scan"
-      severity: "low"
-      category: "error"
-    
-    - pattern: "(?i)connection.*failed"
-      description: "Connection failed during WhatWeb scan"
-      severity: "low"
-      category: "connectivity"
-    
-    - pattern: "(?i)timeout.*occurred"
-      description: "Timeout occurred during WhatWeb scan"
-      severity: "low"
-      category: "connectivity"
-    
-    # Security Indicators
-    - pattern: "(?i)\\[HTTPS\\]"
-      description: "HTTPS encryption detected - secure communication"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)\\[HTTP.*Strict.*Transport.*Security\\]"
-      description: "HSTS security header detected"
-      severity: "info"
-      category: "security"
-    
-    - pattern: "(?i)\\[X-Frame-Options\\]"
-      description: "X-Frame-Options security header detected"
-      severity: "info"
-      category: "security"
-    
-    # WordPress Specific Patterns
-    - pattern: "(?i)wp-content|wp-includes|wp-admin"
-      description: "WordPress directory structure detected"
-      severity: "info"
-      category: "cms"
-    
-    - pattern: "(?i)wp-json|rest.*api"
-      description: "WordPress REST API detected - potential enumeration target"
-      severity: "medium"
-      category: "api"
-    
-    # Version Disclosure Issues
-    - pattern: "(?i)\\[Version ([\\d\\.]+)\\].*generator"
-      description: "Version information disclosed: v{match1} - potential security risk"
-      severity: "low"
-      category: "information_disclosure"
-
+  - pattern: (?i)\[([^\]]+)\].*\[Version ([\d\.]+[\w\.-]*)\]
+    description: 'Technology Detected: {match1} v{match2}'
+    severity: info
+    category: technology
+  - pattern: (?i)\[([^\]]+)\]
+    description: 'Technology Detected: {match1}'
+    severity: info
+    category: technology
+  - pattern: (?i)\[Apache(?:\[Version ([\d\.]+)\])?\]
+    description: Apache Web Server{match1 and ' v' + match1 or ''} detected
+    severity: info
+    category: web_server
+  - pattern: (?i)\[Nginx(?:\[Version ([\d\.]+)\])?\]
+    description: Nginx Web Server{match1 and ' v' + match1 or ''} detected
+    severity: info
+    category: web_server
+  - pattern: (?i)\[IIS(?:\[Version ([\d\.]+)\])?\]
+    description: Microsoft IIS{match1 and ' v' + match1 or ''} detected
+    severity: info
+    category: web_server
+  - pattern: (?i)\[LiteSpeed(?:\[Version ([\d\.]+)\])?\]
+    description: LiteSpeed Web Server{match1 and ' v' + match1 or ''} detected
+    severity: info
+    category: web_server
+  - pattern: (?i)\[WordPress(?:\[Version ([\d\.]+)\])?\]
+    description: WordPress CMS{match1 and ' v' + match1 or ''} detected - check for
+      vulnerabilities
+    severity: medium
+    category: cms
+  - pattern: (?i)\[Drupal(?:\[Version ([\d\.]+)\])?\]
+    description: Drupal CMS{match1 and ' v' + match1 or ''} detected - check for vulnerabilities
+    severity: medium
+    category: cms
+  - pattern: (?i)\[Joomla(?:\[Version ([\d\.]+)\])?\]
+    description: Joomla CMS{match1 and ' v' + match1 or ''} detected - check for vulnerabilities
+    severity: medium
+    category: cms
+  - pattern: (?i)\[Magento(?:\[Version ([\d\.]+)\])?\]
+    description: Magento E-commerce{match1 and ' v' + match1 or ''} detected
+    severity: medium
+    category: cms
+  - pattern: (?i)\[Shopify\]
+    description: Shopify E-commerce platform detected
+    severity: info
+    category: cms
+  - pattern: (?i)\[PHP(?:\[Version ([\d\.]+)\])?\]
+    description: PHP{match1 and ' v' + match1 or ''} detected - server-side scripting
+    severity: info
+    category: programming
+  - pattern: (?i)\[ASP\.NET(?:\[Version ([\d\.]+)\])?\]
+    description: ASP.NET{match1 and ' v' + match1 or ''} detected - Microsoft web
+      framework
+    severity: info
+    category: programming
+  - pattern: (?i)\[Python(?:\[Version ([\d\.]+)\])?\]
+    description: Python{match1 and ' v' + match1 or ''} detected - server-side scripting
+    severity: info
+    category: programming
+  - pattern: (?i)\[Java(?:\[Version ([\d\.]+)\])?\]
+    description: Java{match1 and ' v' + match1 or ''} detected - server-side application
+    severity: info
+    category: programming
+  - pattern: (?i)\[Ruby(?:\[Version ([\d\.]+)\])?\]
+    description: Ruby{match1 and ' v' + match1 or ''} detected - server-side scripting
+    severity: info
+    category: programming
+  - pattern: (?i)\[Node\.js(?:\[Version ([\d\.]+)\])?\]
+    description: Node.js{match1 and ' v' + match1 or ''} detected - JavaScript runtime
+    severity: info
+    category: programming
+  - pattern: (?i)\[jQuery(?:\[Version ([\d\.]+)\])?\]
+    description: jQuery{match1 and ' v' + match1 or ''} detected - JavaScript library
+    severity: info
+    category: javascript
+  - pattern: (?i)\[React(?:\[Version ([\d\.]+)\])?\]
+    description: React{match1 and ' v' + match1 or ''} detected - JavaScript framework
+    severity: info
+    category: javascript
+  - pattern: (?i)\[Angular(?:\[Version ([\d\.]+)\])?\]
+    description: Angular{match1 and ' v' + match1 or ''} detected - JavaScript framework
+    severity: info
+    category: javascript
+  - pattern: (?i)\[Vue\.js(?:\[Version ([\d\.]+)\])?\]
+    description: Vue.js{match1 and ' v' + match1 or ''} detected - JavaScript framework
+    severity: info
+    category: javascript
+  - pattern: (?i)\[Laravel(?:\[Version ([\d\.]+)\])?\]
+    description: Laravel{match1 and ' v' + match1 or ''} detected - PHP framework
+    severity: info
+    category: framework
+  - pattern: (?i)\[Django(?:\[Version ([\d\.]+)\])?\]
+    description: Django{match1 and ' v' + match1 or ''} detected - Python framework
+    severity: info
+    category: framework
+  - pattern: (?i)\[Rails(?:\[Version ([\d\.]+)\])?\]
+    description: Ruby on Rails{match1 and ' v' + match1 or ''} detected - Ruby framework
+    severity: info
+    category: framework
+  - pattern: (?i)\[Express(?:\[Version ([\d\.]+)\])?\]
+    description: Express.js{match1 and ' v' + match1 or ''} detected - Node.js framework
+    severity: info
+    category: framework
+  - pattern: (?i)\[MySQL(?:\[Version ([\d\.]+)\])?\]
+    description: MySQL{match1 and ' v' + match1 or ''} database detected
+    severity: info
+    category: database
+  - pattern: (?i)\[PostgreSQL(?:\[Version ([\d\.]+)\])?\]
+    description: PostgreSQL{match1 and ' v' + match1 or ''} database detected
+    severity: info
+    category: database
+  - pattern: (?i)\[MongoDB(?:\[Version ([\d\.]+)\])?\]
+    description: MongoDB{match1 and ' v' + match1 or ''} NoSQL database detected
+    severity: info
+    category: database
+  - pattern: (?i)\[Redis(?:\[Version ([\d\.]+)\])?\]
+    description: Redis{match1 and ' v' + match1 or ''} cache/database detected
+    severity: info
+    category: database
+  - pattern: (?i)\[Cloudflare\]
+    description: Cloudflare CDN detected - traffic routing through Cloudflare
+    severity: info
+    category: cdn
+  - pattern: (?i)\[CloudFront\]
+    description: Amazon CloudFront CDN detected
+    severity: info
+    category: cdn
+  - pattern: (?i)\[WAF\]
+    description: Web Application Firewall detected
+    severity: info
+    category: security
+  - pattern: (?i)\[Google Analytics\]
+    description: Google Analytics tracking detected
+    severity: info
+    category: analytics
+  - pattern: (?i)\[Google Tag Manager\]
+    description: Google Tag Manager detected
+    severity: info
+    category: analytics
+  - pattern: (?i)HTTP.*error.*([0-9]{3})
+    description: HTTP Error {match1} encountered during scan
+    severity: low
+    category: error
+  - pattern: (?i)connection.*failed
+    description: Connection failed during WhatWeb scan
+    severity: low
+    category: connectivity
+  - pattern: (?i)timeout.*occurred
+    description: Timeout occurred during WhatWeb scan
+    severity: low
+    category: connectivity
+  - pattern: (?i)\[HTTPS\]
+    description: HTTPS encryption detected - secure communication
+    severity: info
+    category: security
+  - pattern: (?i)\[HTTP.*Strict.*Transport.*Security\]
+    description: HSTS security header detected
+    severity: info
+    category: security
+  - pattern: (?i)\[X-Frame-Options\]
+    description: X-Frame-Options security header detected
+    severity: info
+    category: security
+  - pattern: (?i)wp-content|wp-includes|wp-admin
+    description: WordPress directory structure detected
+    severity: info
+    category: cms
+  - pattern: (?i)wp-json|rest.*api
+    description: WordPress REST API detected - potential enumeration target
+    severity: medium
+    category: api
+  - pattern: (?i)\[Version ([\d\.]+)\].*generator
+    description: 'Version information disclosed: v{match1} - potential security risk'
+    severity: low
+    category: information_disclosure
   technology_detection:
-    - pattern: "(?i)\\[WordPress(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      technology: "WordPress"
-      version_group: 1
-    
-    - pattern: "(?i)\\[Apache(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      technology: "Apache"
-      version_group: 1
-    
-    - pattern: "(?i)\\[Nginx(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      technology: "Nginx"
-      version_group: 1
-    
-    - pattern: "(?i)\\[PHP(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      technology: "PHP"
-      version_group: 1
-    
-    - pattern: "(?i)\\[jQuery(?:\\[Version ([\\d\\.]+)\\])?\\]"
-      technology: "jQuery"
-      version_group: 1
-
+  - pattern: (?i)\[WordPress(?:\[Version ([\d\.]+)\])?\]
+    technology: WordPress
+    version_group: 1
+  - pattern: (?i)\[Apache(?:\[Version ([\d\.]+)\])?\]
+    technology: Apache
+    version_group: 1
+  - pattern: (?i)\[Nginx(?:\[Version ([\d\.]+)\])?\]
+    technology: Nginx
+    version_group: 1
+  - pattern: (?i)\[PHP(?:\[Version ([\d\.]+)\])?\]
+    technology: PHP
+    version_group: 1
+  - pattern: (?i)\[jQuery(?:\[Version ([\d\.]+)\])?\]
+    technology: jQuery
+    version_group: 1
 requirements:
   tools:
-    - name: "whatweb"
-      check_command: "whatweb --version"
-      install_hint: "apt-get install whatweb"
-
+  - name: whatweb
+    check_command: whatweb --version
+    install_hint: apt-get install whatweb
 debug:
-  log_level: "info"
+  log_level: info
   trace_decisions: false
   show_command_output: false
+variables:
+  aggression: 3

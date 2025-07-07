@@ -1,0 +1,130 @@
+name: File Hygiene Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  cleanup-check:
+    runs-on: ubuntu-latest
+    name: Check for orphan files
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run cleanup dry-run
+      id: cleanup_check
+      run: |
+        echo "Running file hygiene check..."
+        
+        # Run cleanup dry-run and capture output
+        python3 ipcrawler_cleanup.py --root . --dry-run > cleanup_output.txt 2>&1
+        exit_code=$?
+        
+        echo "cleanup_exit_code=$exit_code" >> $GITHUB_OUTPUT
+        
+        # Check if any files would be deleted
+        if grep -q "Found.*unused files" cleanup_output.txt; then
+          orphan_count=$(grep -o "Found [0-9]* unused files" cleanup_output.txt | grep -o "[0-9]*")
+          echo "orphan_count=$orphan_count" >> $GITHUB_OUTPUT
+          echo "has_orphans=true" >> $GITHUB_OUTPUT
+        else
+          echo "orphan_count=0" >> $GITHUB_OUTPUT
+          echo "has_orphans=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Always show the output
+        echo "=== CLEANUP DRY-RUN OUTPUT ==="
+        cat cleanup_output.txt
+        echo "==============================="
+        
+    - name: Upload cleanup report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: cleanup-report
+        path: cleanup_output.txt
+        
+    - name: Fail if orphan files detected
+      if: steps.cleanup_check.outputs.has_orphans == 'true'
+      run: |
+        echo "❌ ORPHAN FILES DETECTED!"
+        echo ""
+        echo "Found ${{ steps.cleanup_check.outputs.orphan_count }} orphan files that should be cleaned up."
+        echo ""
+        echo "To fix this issue:"
+        echo "1. Review the files listed above"
+        echo "2. Remove unused files: python3 ipcrawler_cleanup.py --remove-unused"
+        echo "3. Or exclude them if they should be kept (add to .cleanup_ignore)"
+        echo ""
+        echo "For more details, see the cleanup report artifact."
+        exit 1
+        
+    - name: Success summary
+      if: steps.cleanup_check.outputs.has_orphans == 'false'
+      run: |
+        echo "✅ FILE HYGIENE CHECK PASSED"
+        echo ""
+        echo "No orphan files detected - repository is clean!"
+        echo "Good job maintaining file hygiene! 🎉"
+
+  cleanup-analysis:
+    runs-on: ubuntu-latest
+    name: Analyze cleanup patterns
+    needs: cleanup-check
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download cleanup report
+      uses: actions/download-artifact@v3
+      with:
+        name: cleanup-report
+        
+    - name: Analyze cleanup patterns
+      run: |
+        echo "📊 CLEANUP PATTERN ANALYSIS"
+        echo "=========================="
+        
+        if [ -f cleanup_output.txt ]; then
+          echo "Analyzing cleanup output..."
+          
+          # Count different types of orphan files
+          test_files=$(grep -c "test.*\.py" cleanup_output.txt || echo "0")
+          fix_files=$(grep -c "fix.*\.py" cleanup_output.txt || echo "0")
+          migration_files=$(grep -c "migration.*\.py" cleanup_output.txt || echo "0")
+          
+          echo "Test files: $test_files"
+          echo "Fix scripts: $fix_files" 
+          echo "Migration scripts: $migration_files"
+          
+          # Check for patterns that might indicate issues
+          if [ "$test_files" -gt 5 ]; then
+            echo "⚠️ High number of orphan test files - consider reviewing test organization"
+          fi
+          
+          if [ "$fix_files" -gt 3 ]; then
+            echo "⚠️ Many orphan fix scripts - consider archiving old fixes"
+          fi
+          
+        else
+          echo "No cleanup output found - this is expected if no orphan files exist"
+        fi

@@ -108,9 +108,8 @@ class PluginDebugger:
             debug_logger.debug(f"{status_icon} [{plugin_type}] {plugin_slug} → {target_service}: {reason}")
         
         # Also log important decisions at info level
-        if config.get('verbose', 0) >= 1:
-            status_text = "SELECTED" if selected else "SKIPPED"
-            logger.info(f"Plugin {plugin_slug} {status_text} for {target_service}: {reason}")
+        status_text = "SELECTED" if selected else "SKIPPED"
+        logger.info(f"Plugin {plugin_slug} {status_text} for {target_service}: {reason}")
     
     def log_plugin_execution_start(self, plugin_slug: str, target_service: str):
         """
