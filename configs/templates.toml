@@ -1,0 +1,80 @@
+# Template Categories and Mappings
+# User-customizable template organization
+
+[categories]
+# Flag shortcuts to template folders
+# Format: flag_name = "folder_name"
+# Usage: ipcrawler -flag_name target
+
+# Core template categories
+default = "default"
+recon = "recon"
+custom = "custom"
+htb = "htb"
+
+# Additional template categories (examples)
+web = "web_scanning"
+network = "network_tools"
+vuln = "vulnerability_scans"
+osint = "osint_tools"
+
+# Add your custom template folders here
+# Example:
+# user = "custom_folder"
+# corp = "corporate_tools"
+# mobile = "mobile_security"
+
+[metadata]
+# Template discovery settings
+scan_depth = 3              # How deep to search for templates
+auto_discover = true        # Automatically discover new templates
+cache_templates = true      # Cache template metadata for faster loading
+refresh_cache_hours = 24    # How often to refresh template cache
+
+[filters]
+# Template filtering options
+exclude_patterns = ["*test*", "*.backup", "*example*"]  # Skip these patterns
+include_tags = ["production", "stable"]                 # Only load templates with these tags
+exclude_tags = ["experimental", "broken"]               # Skip templates with these tags
+min_quality_score = 7                                   # Minimum quality score (1-10)
+max_timeout = 300                                        # Maximum allowed timeout per template
+
+[validation]
+# Template validation rules
+require_description = true   # Require description field
+require_tags = true         # Require tags field
+require_author = false      # Require author field
+validate_syntax = true     # Validate JSON syntax
+validate_security = true   # Validate for security issues
+
+# Allowed tools (security whitelist)
+allowed_tools = [
+    "nmap", "curl", "dig", "nuclei", "feroxbuster", "gobuster", 
+    "ping", "echo", "openssl", "nslookup", "wpscan", "nikto",
+    "dirb", "ffuf", "sqlmap", "john", "hydra", "masscan"
+]
+
+# Blocked tools (security blacklist)
+blocked_tools = ["rm", "del", "format", "shutdown", "reboot"]
+
+[organization]
+# Template organization preferences
+group_by_tool = false       # Group templates by tool type
+group_by_category = true    # Group templates by category folder
+auto_categorize = true      # Automatically categorize new templates
+show_hidden = false         # Show templates in hidden folders
+sort_by = "name"           # Sort templates by: name, date, author, quality
+
+[display]
+# Template display settings
+show_descriptions = true    # Show template descriptions in lists
+show_tags = true           # Show template tags
+show_author = false        # Show template author
+show_timeout = true        # Show template timeout values
+truncate_description = 100 # Truncate descriptions to N characters
+
+[defaults]
+# Default values for new templates
+default_timeout = 60       # Default timeout for new templates
+default_tags = ["custom"]  # Default tags for new templates
+default_parallel_safe = true  # Default parallel execution safety

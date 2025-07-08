@@ -47,6 +47,13 @@ class IPCrawlerCLI:
             help='Enable debug mode with Sentry error tracking (requires .env with SENTRY_DSN)'
         )
         
+        # Add version flag
+        parser.add_argument(
+            '--version',
+            action='version',
+            version=f'ipcrawler {self.config_manager.config.application.version}'
+        )
+        
         subparsers = parser.add_subparsers(dest='command', help='Available commands')
         
         # Run command
@@ -325,7 +332,10 @@ class IPCrawlerCLI:
                 if arg.startswith('-') and arg not in ['-debug', '--debug']:
                     # Check if this is a category flag
                     flag = arg[1:]  # Remove the '-' prefix
-                    if flag in self.config_manager.config.templates:
+                    # Check if this flag maps to a template category
+                    # First check if it's in the templates categories
+                    templates_config = self.config_manager.get_templates_config()
+                    if templates_config and "categories" in templates_config and flag in templates_config["categories"]:
                         # Find the target (should be next non-debug argument)
                         target = None
                         for j in range(i + 1, len(sys.argv)):
