@@ -1,7 +1,7 @@
 {
   "name": "vhost-redirect-discovery",
   "tool": "curl",
-  "args": ["-s", "-I", "-L", "--max-redirs", "5", "-H", "Host: {{target}}", "http://{{target}}/", "-w", "Status: %{http_code}\\nRedirect: %{redirect_url}\\nFinal URL: %{url_effective}\\n"],
+  "args": ["-s", "-I", "-L", "--max-redirs", "5", "--connect-timeout", "10", "--max-time", "30", "-H", "Host: {{target}}", "http://{{target}}/", "-w", "Status: %{http_code}\\nRedirect: %{redirect_url}\\nFinal URL: %{url_effective}\\n"],
   "description": "Virtual host discovery through redirect analysis using curl",
   "author": "HTB Team",
   "version": "1.0.0",
