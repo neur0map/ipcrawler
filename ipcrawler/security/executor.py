@@ -25,6 +25,7 @@ class SecureExecutor:
         args: List[str], 
         target: str,
         env: Optional[Dict[str, str]] = None,
+        wordlist: Optional[str] = None,
         timeout: Optional[int] = None
     ) -> ExecutionResult:
         """Execute a template safely."""
@@ -33,7 +34,7 @@ class SecureExecutor:
         
         try:
             # Sanitize command
-            command = CommandSanitizer.sanitize_command(tool, args, target)
+            command = CommandSanitizer.sanitize_command(tool, args, target, wordlist)
             safe_env = CommandSanitizer.prepare_environment(env)
             
             # Final safety check

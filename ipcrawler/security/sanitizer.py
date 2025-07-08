@@ -12,7 +12,7 @@ class CommandSanitizer:
     """Sanitizes commands for safe execution."""
     
     @classmethod
-    def sanitize_command(cls, tool: str, args: List[str], target: str) -> List[str]:
+    def sanitize_command(cls, tool: str, args: List[str], target: str, wordlist: Optional[str] = None) -> List[str]:
         """Sanitize and prepare command for execution."""
         # Validate tool name
         if not re.match(r'^[a-zA-Z0-9_/-]+$', tool):
@@ -30,15 +30,47 @@ class CommandSanitizer:
         
         sanitized_args = [ArgumentValidator.sanitize_argument(arg) for arg in args]
         
-        # Replace {{target}} placeholder with sanitized target
+        # Replace placeholders with sanitized values
         final_args = []
         for arg in sanitized_args:
-            if '{{target}}' in arg:
-                final_args.append(arg.replace('{{target}}', sanitized_target))
-            else:
-                final_args.append(arg)
+            processed_arg = arg
+            
+            # Replace {{target}} placeholder
+            if '{{target}}' in processed_arg:
+                processed_arg = processed_arg.replace('{{target}}', sanitized_target)
+            
+            # Replace {{wordlist}} placeholder
+            if '{{wordlist}}' in processed_arg and wordlist:
+                # Additional security validation for wordlist path
+                if cls._validate_wordlist_path(wordlist):
+                    processed_arg = processed_arg.replace('{{wordlist}}', wordlist)
+                else:
+                    raise ValueError('Invalid wordlist path')
+            
+            final_args.append(processed_arg)
         
         return [tool] + final_args
+    
+    @classmethod
+    def _validate_wordlist_path(cls, path: str) -> bool:
+        """Validate wordlist file path for security."""
+        # Check for dangerous patterns
+        dangerous_patterns = [
+            r'[;&|`$()<>]',  # Shell metacharacters
+            r'\.\./',        # Directory traversal attempts
+            r'^\s*$',        # Empty/whitespace only
+            r'[\x00-\x1f\x7f-\x9f]',  # Control characters
+        ]
+        
+        for pattern in dangerous_patterns:
+            if re.search(pattern, path):
+                return False
+        
+        # Path length check
+        if len(path) > 500:
+            return False
+        
+        return True
     
     @classmethod
     def prepare_environment(cls, env: Optional[Dict[str, str]] = None) -> Dict[str, str]:

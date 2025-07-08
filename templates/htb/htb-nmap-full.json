@@ -1,0 +1,15 @@
+{
+  "name": "htb-nmap-full",
+  "tool": "nmap",
+  "args": ["-T5", "--min-rate", "5000", "--max-rate", "10000", "--top-ports", "1000", "-sV", "-sC", "-O", "-A", "--open", "{{target}}"],
+  "description": "HTB comprehensive nmap scan with aggressive timing and full information gathering",
+  "author": "HTB Team",
+  "version": "1.0.0",
+  "tags": ["htb", "aggressive-scan", "service-detection", "os-detection", "scripts"],
+  "dependencies": ["nmap"],
+  "timeout": 300,
+  "target_types": ["ip", "domain"],
+  "severity": "high",
+  "stealth": false,
+  "parallel_safe": false
+} 

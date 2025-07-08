@@ -1,0 +1,16 @@
+{
+  "name": "htb-gobuster-dir",
+  "tool": "gobuster",
+  "args": ["dir", "-u", "http://{{target}}", "-w", "{{wordlist}}", "-x", "php,html,txt,js,css,zip,bak,old", "-k", "-r", "-q", "--wildcard", "-H", "Host: {{target}}", "-H", "User-Agent: Mozilla/5.0 HTB-Scanner"],
+  "description": "HTB Gobuster directory enumeration with SecLists common wordlist and domain discovery headers",
+  "author": "HTB Team",
+  "version": "1.0.0",
+  "tags": ["htb", "directory-enum", "web-discovery", "gobuster"],
+  "dependencies": ["gobuster", "seclists"],
+  "wordlist": "/usr/share/seclists/Discovery/Web-Content/common.txt",
+  "timeout": 300,
+  "target_types": ["ip", "domain", "url"],
+  "severity": "medium",
+  "stealth": false,
+  "parallel_safe": true
+} 

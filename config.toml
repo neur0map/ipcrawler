@@ -14,6 +14,9 @@ recon = "recon"
 # Run all tools in the custom folder (advanced multi-step scans)
 custom = "custom"
 
+# Run all tools in the htb folder (HTB specific templates)
+htb = "htb"
+
 # Add your custom template folders here
 # Example:
 # user = "custom_folder"

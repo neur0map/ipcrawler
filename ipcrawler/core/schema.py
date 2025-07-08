@@ -75,6 +75,11 @@ class TemplateSchema:
                 "additionalProperties": False,
                 "maxProperties": 10
             },
+            "wordlist": {
+                "type": "string",
+                "maxLength": 500,
+                "pattern": "^[^;&|`$()<>]*$"
+            },
             "timeout": {
                 "type": "integer",
                 "minimum": 1,

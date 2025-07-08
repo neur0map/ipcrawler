@@ -18,6 +18,7 @@ class ToolTemplate(BaseModel):
     tags: Optional[List[str]] = Field(None, max_items=10)
     dependencies: Optional[List[str]] = Field(None, max_items=10)
     env: Optional[Dict[str, str]] = Field(None, max_items=10)
+    wordlist: Optional[str] = Field(None, max_length=500)
     timeout: int = Field(60, ge=1, le=300)
     target_types: Optional[List[str]] = Field(None, max_items=5)
     severity: Optional[Literal['low', 'medium', 'high']] = None
@@ -63,6 +64,21 @@ class ToolTemplate(BaseModel):
                 raise ValueError(f'Invalid environment variable name: {key}')
             if len(value) > 1000:
                 raise ValueError(f'Environment variable value too long: {key}')
+        
+        return v
+    
+    @validator('wordlist')
+    def validate_wordlist(cls, v):
+        """Validate wordlist path."""
+        if not v:
+            return v
+            
+        # Validate wordlist path
+        if len(v) > 500:
+            raise ValueError('Wordlist path too long')
+        # Basic path validation - no dangerous patterns
+        if re.search(r'[;&|`$()<>]', v):
+            raise ValueError('Wordlist path contains dangerous characters')
         
         return v
 

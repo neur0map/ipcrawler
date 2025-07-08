@@ -1,0 +1,16 @@
+{
+  "name": "htb-gobuster-https",
+  "tool": "gobuster",
+  "args": ["dir", "-u", "https://{{target}}", "-w", "{{wordlist}}", "-x", "php,html,txt,js,css,zip,bak,old,asp,aspx,jsp", "-k", "-r", "-q", "--wildcard", "-H", "Host: {{target}}", "-H", "User-Agent: Mozilla/5.0 HTB-Scanner"],
+  "description": "HTB Gobuster HTTPS directory enumeration with SecLists common wordlist and extended file types",
+  "author": "HTB Team",
+  "version": "1.0.0",
+  "tags": ["htb", "directory-enum", "web-discovery", "gobuster", "https", "ssl"],
+  "dependencies": ["gobuster", "seclists"],
+  "wordlist": "/usr/share/seclists/Discovery/Web-Content/common.txt",
+  "timeout": 300,
+  "target_types": ["ip", "domain", "url"],
+  "severity": "medium",
+  "stealth": false,
+  "parallel_safe": true
+} 

@@ -106,6 +106,7 @@ class IPCrawlerCLI:
                 args=template.args,
                 target=target,
                 env=template.env,
+                wordlist=template.wordlist,
                 timeout=template.timeout
             )
             
@@ -168,6 +169,7 @@ class IPCrawlerCLI:
                         args=template.args,
                         target=target,
                         env=template.env,
+                        wordlist=template.wordlist,
                         timeout=template.timeout
                     )
                     
