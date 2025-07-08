@@ -1,7 +1,8 @@
 """
-ipcrawler - A multi-threaded network reconnaissance tool
+ipcrawler - Security Tool Orchestration Framework
 """
 
-__version__ = "0.1.0-alpha"
-__author__ = "Tib3rius"
-__description__ = "A multi-threaded network reconnaissance tool which performs automated enumeration of services."
+from .cli.main import main
+
+__version__ = "1.0.0"
+__all__ = ['main']

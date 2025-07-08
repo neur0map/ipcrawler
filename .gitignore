@@ -1,20 +1,11 @@
-__pycache__
-*.pyc
 results/
-poetry.*
-venv/
 .claude/
+.cursor/
+.github/
 .vscode/
 claude.md
-ipcrawler/wordlists/wordlists.toml
-cleanup_ipcrawler.sh
-local/
-# Smart wordlist catalogs (user-generated, never commit)
-ipcrawler/data/seclists_catalog.yaml
-seclists_catalog.yaml
-unified_wordlists_catalog.yaml
+local_files/
 .coverage
-
 
 # Environment files (never commit these)
 .env

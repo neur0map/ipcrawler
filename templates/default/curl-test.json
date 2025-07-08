@@ -1,0 +1,15 @@
+{
+  "name": "curl-test",
+  "tool": "curl",
+  "args": ["-I", "-s", "--connect-timeout", "10", "http://{{target}}"],
+  "description": "Basic HTTP connectivity test using curl",
+  "author": "Security Team",
+  "version": "1.0.0",
+  "tags": ["web", "http", "connectivity"],
+  "dependencies": ["curl"],
+  "timeout": 15,
+  "target_types": ["domain", "url"],
+  "severity": "low",
+  "stealth": false,
+  "parallel_safe": true
+}

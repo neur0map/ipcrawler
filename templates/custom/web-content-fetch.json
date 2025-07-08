@@ -1,0 +1,15 @@
+{
+  "name": "web-content-fetch",
+  "tool": "curl",
+  "args": ["-sL", "--max-time", "30", "--max-filesize", "1048576", "http://{{target}}"],
+  "description": "Download webpage content for analysis (1MB limit)",
+  "author": "Security Team",
+  "version": "1.0.0",
+  "tags": ["web", "content", "download"],
+  "dependencies": ["curl"],
+  "timeout": 35,
+  "target_types": ["domain", "url"],
+  "severity": "low",
+  "stealth": true,
+  "parallel_safe": true
+}

@@ -1,0 +1,15 @@
+{
+  "name": "nuclei-quick",
+  "tool": "nuclei",
+  "args": ["-u", "{{target}}", "-silent", "-tags", "tech,dns", "-timeout", "10"],
+  "description": "Quick nuclei scan for basic tech detection",
+  "author": "Security Team",
+  "version": "1.0.0",
+  "tags": ["web", "quick", "tech-detect"],
+  "dependencies": ["nuclei"],
+  "timeout": 60,
+  "target_types": ["domain", "url"],
+  "severity": "low",
+  "stealth": false,
+  "parallel_safe": true
+}

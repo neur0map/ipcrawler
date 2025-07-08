@@ -1,0 +1,38 @@
+# ipcrawler Configuration File
+# Define custom template flags for easy scanning
+
+[templates]
+# Format: flag_name = "folder_name"
+# Usage: ipcrawler -flag_name target
+
+# Run all tools in the default folder
+default = "default"
+
+# Run all tools in the recon folder  
+recon = "recon"
+
+# Run all tools in the custom folder (advanced multi-step scans)
+custom = "custom"
+
+# Add your custom template folders here
+# Example:
+# user = "custom_folder"
+# web = "web_scanning"
+# network = "network_tools"
+
+[settings]
+# Global settings for ipcrawler
+templates_dir = "templates"
+concurrent_limit = 10
+default_timeout = 60
+
+[logging]
+# Logging configuration
+silent = true
+
+[retry]
+# Retry logic configuration
+count = 3
+backoff_multiplier = 2
+max_wait_time = 60
+

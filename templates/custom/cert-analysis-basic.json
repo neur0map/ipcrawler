@@ -1,0 +1,15 @@
+{
+  "name": "cert-analysis-basic",
+  "tool": "openssl",
+  "args": ["s_client", "-connect", "{{target}}:443", "-servername", "{{target}}", "-showcerts"],
+  "description": "Basic SSL certificate analysis using openssl",
+  "author": "Security Team",
+  "version": "1.0.0",
+  "tags": ["ssl", "tls", "certificates"],
+  "dependencies": ["openssl"],
+  "timeout": 30,
+  "target_types": ["domain"],
+  "severity": "medium",
+  "stealth": false,
+  "parallel_safe": true
+}

@@ -1,0 +1,15 @@
+{
+  "name": "dns-txt-records",
+  "tool": "dig",
+  "args": ["+short", "{{target}}", "TXT"],
+  "description": "DNS TXT record lookup for policies and verification",
+  "author": "Security Team",
+  "version": "1.0.0",
+  "tags": ["dns", "recon", "txt-records", "spf", "dmarc"],
+  "dependencies": ["dig"],
+  "timeout": 15,
+  "target_types": ["domain"],
+  "severity": "low",
+  "stealth": true,
+  "parallel_safe": true
+}

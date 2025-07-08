@@ -1,0 +1,14 @@
+{
+  "name": "echo-test",
+  "tool": "echo",
+  "args": ["Testing target: {{target}}"],
+  "description": "Simple echo test for target validation",
+  "author": "Security Team",
+  "version": "1.0",
+  "tags": ["test", "basic"],
+  "timeout": 30,
+  "target_types": ["ip", "domain", "url"],
+  "severity": "low",
+  "stealth": true,
+  "parallel_safe": true
+}

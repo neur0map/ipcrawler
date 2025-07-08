@@ -1,0 +1,19 @@
+{
+  "name": "enhanced-echo",
+  "tool": "echo",
+  "args": ["Enhanced test for {{target}}"],
+  "description": "Enhanced echo test with full schema features",
+  "author": "Security Team",
+  "version": "1.2.0",
+  "tags": ["test", "demo", "basic"],
+  "dependencies": ["echo"],
+  "env": {
+    "TEST_MODE": "enabled",
+    "LOG_LEVEL": "info"
+  },
+  "timeout": 30,
+  "target_types": ["ip", "domain", "url"],
+  "severity": "low",
+  "stealth": true,
+  "parallel_safe": true
+}

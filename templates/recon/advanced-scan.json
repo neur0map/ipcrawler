@@ -1,0 +1,15 @@
+{
+  "name": "advanced-scan",
+  "tool": "nuclei",
+  "args": ["-u", "{{target}}", "-silent"],
+  "description": "Advanced vulnerability scanner using nuclei",
+  "author": "Security Team",
+  "version": "2.1.0",
+  "tags": ["vuln", "scanner", "nuclei"],
+  "dependencies": ["nuclei"],
+  "timeout": 300,
+  "target_types": ["url", "domain"],
+  "severity": "high",
+  "stealth": false,
+  "parallel_safe": false
+}

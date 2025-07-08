@@ -1,0 +1,15 @@
+{
+  "name": "http-headers",
+  "tool": "curl",
+  "args": ["-I", "-s", "--max-time", "30", "http://{{target}}"],
+  "description": "HTTP header analysis for web servers",
+  "author": "Security Team",
+  "version": "1.0.0",
+  "tags": ["web", "http", "headers"],
+  "dependencies": ["curl"],
+  "timeout": 35,
+  "target_types": ["domain", "url"],
+  "severity": "low",
+  "stealth": true,
+  "parallel_safe": true
+}

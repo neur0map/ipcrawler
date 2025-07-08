@@ -1,0 +1,15 @@
+{
+  "name": "nmap-quick",
+  "tool": "nmap",
+  "args": ["-T4", "-F", "{{target}}"],
+  "description": "Quick nmap scan of most common ports",
+  "author": "Security Team",
+  "version": "1.0.0",
+  "tags": ["network", "port-scan", "quick"],
+  "dependencies": ["nmap"],
+  "timeout": 120,
+  "target_types": ["ip", "domain"],
+  "severity": "low",
+  "stealth": false,
+  "parallel_safe": true
+}
