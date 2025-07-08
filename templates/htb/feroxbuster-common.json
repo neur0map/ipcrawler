@@ -1,8 +1,8 @@
 {
   "name": "feroxbuster-common",
   "tool": "feroxbuster",
-  "preset": "feroxbuster.fast_scan",
+  "preset": "feroxbuster.ctf_fast",
   "args": ["-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
-  "description": "Feroxbuster directory/file enumeration using SecLists common.txt wordlist",
-  "tags": ["htb", "web", "directory", "enumeration", "feroxbuster"]
+  "description": "CTF-optimized feroxbuster scan (200 only - no redirect noise)",
+  "tags": ["htb", "ctf", "clean", "directory", "enumeration", "feroxbuster"]
 }

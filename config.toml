@@ -127,12 +127,12 @@ ctf_backup = ["-t", "15", "-s", "200,403", "--dont-filter", "-q", "--no-state", 
 # CTF Redirects scan - When you specifically want to analyze redirects
 ctf_redirects = ["-t", "20", "-s", "301,302", "--dont-filter", "-q", "--no-state", "--filter-similar"]
 
-# Legacy presets (backwards compatibility)
-fast_scan = ["-t", "20", "-s", "200,301,302", "--dont-filter", "-q", "--no-state"]
-deep_scan = ["-t", "50", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "--depth", "3", "--auto-tune"]
-stealth_scan = ["-t", "5", "-s", "200,301,302", "--dont-filter", "-q", "--no-state", "--rate-limit", "10"]
-extensions_scan = ["-t", "20", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "-x", "php,html,js,txt,xml,json"]
-backup_scan = ["-t", "15", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "-x", "bak,backup,old,tmp,~"]
+# Legacy presets (backwards compatibility) - ORIGINAL BEHAVIOR MAINTAINED
+fast_scan = ["-t", "20", "-s", "200,204,301,302,307,401,403,405", "--dont-filter", "-q", "--no-state"]
+deep_scan = ["-t", "50", "-s", "200,204,301,302,307,401,403,405,500", "--dont-filter", "-q", "--no-state", "--depth", "3", "--auto-tune"]
+stealth_scan = ["-t", "5", "-s", "200,204,301,302,307,401,403", "--dont-filter", "-q", "--no-state", "--rate-limit", "10"]
+extensions_scan = ["-t", "20", "-s", "200,204,301,302,307,401,403,405", "--dont-filter", "-q", "--no-state", "-x", "php,html,js,txt,xml,json"]
+backup_scan = ["-t", "15", "-s", "200,204,301,302,307,401,403,405", "--dont-filter", "-q", "--no-state", "-x", "bak,backup,old,tmp,~"]
 
 # =============================================================================
 # GOBUSTER PRESETS - Multi-purpose enumeration configurations (CTF optimized)
@@ -153,11 +153,11 @@ ctf_dir_redirects = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "
 ctf_dns_fast = ["dns", "-t", "20", "-q"]
 ctf_dns_thorough = ["dns", "-t", "50", "-q", "--wildcard"]
 
-# Legacy presets (backwards compatibility)
+# Legacy presets (backwards compatibility) - ORIGINAL BEHAVIOR MAINTAINED
 vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress"]
 vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress"]
-dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,301,302,403"]
-dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-x", "php,html,js,txt,xml", "-s", "200,301,302,403"]
+dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,204,301,302,307,401,403,405"]
+dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-x", "php,html,js,txt,xml", "-s", "200,204,301,302,307,401,403,405"]
 dns_fast = ["dns", "-t", "20", "-q"]
 dns_thorough = ["dns", "-t", "50", "-q", "--wildcard"]
 

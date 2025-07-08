@@ -1,8 +1,8 @@
 {
   "name": "example-wordlist-demo",
   "tool": "gobuster",
-  "preset": "gobuster.dir_fast",
+  "preset": "gobuster.ctf_dir_fast",
   "args": ["-u", "{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt", "-x", "php,html"],
-  "description": "Demo template using gobuster preset with extensions",
-  "tags": ["demo", "wordlist-example", "preset"]
+  "description": "CTF-optimized demo template using gobuster preset",
+  "tags": ["demo", "ctf", "wordlist-example", "preset"]
 } 

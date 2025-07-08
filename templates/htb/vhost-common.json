@@ -1,8 +1,8 @@
 {
   "name": "vhost-common",
   "tool": "gobuster",
-  "preset": "gobuster.vhost_fast",
+  "preset": "gobuster.ctf_vhost_fast",
   "args": ["-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/DNS/namelist.txt"],
-  "description": "Virtual host discovery using gobuster with common names wordlist",
-  "tags": ["htb", "web", "vhost", "gobuster", "fast"]
+  "description": "CTF-optimized virtual host discovery using gobuster",
+  "tags": ["htb", "ctf", "web", "vhost", "gobuster"]
 }
