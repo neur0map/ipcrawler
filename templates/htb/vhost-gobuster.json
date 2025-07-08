@@ -1,0 +1,16 @@
+{
+  "name": "vhost-gobuster",
+  "tool": "gobuster",
+  "args": ["vhost", "-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-t", "20", "--append-domain"],
+  "description": "Virtual host discovery using gobuster with common vhost wordlist",
+  "author": "HTB Team",
+  "version": "1.0.0",
+  "tags": ["htb", "web", "vhost", "gobuster", "discovery"],
+  "dependencies": ["gobuster"],
+  "wordlist": "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
+  "timeout": 120,
+  "target_types": ["domain", "ip"],
+  "severity": "medium",
+  "stealth": false,
+  "parallel_safe": true
+}

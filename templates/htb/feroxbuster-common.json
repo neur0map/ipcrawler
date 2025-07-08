@@ -1,7 +1,7 @@
 {
   "name": "feroxbuster-common",
   "tool": "feroxbuster",
-  "args": ["-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt", "-s", "200,204,301,302,307,401,403,405,500", "-t", "10", "-q", "--no-state"],
+  "args": ["-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt", "-s", "200,204,301,302,307,401,403,405,500", "-t", "10", "-q", "--no-state", "--dont-filter"],
   "description": "Feroxbuster directory/file enumeration using SecLists common.txt wordlist",
   "author": "HTB Team",
   "version": "1.0.0",
