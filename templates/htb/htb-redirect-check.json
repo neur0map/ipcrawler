@@ -1,7 +1,7 @@
 {
   "name": "htb-redirect-check",
   "tool": "curl",
-  "args": ["-sI", "--max-time", "30", "-L", "http://{{target}}", "-w", "\\n=== REDIRECT INFO ===\\nFinal URL: %{url_effective}\\nRedirect URL: %{redirect_url}\\nRedirect Count: %{num_redirects}\\n=== LOOK FOR DOMAINS ABOVE ===\\n"],
+  "args": ["-sI", "--max-time", "30", "-L", "http://{{target}}", "-v"],
   "description": "HTB redirect checker - shows final URLs and redirects to manually extract domains for FFUF",
   "author": "HTB Team",
   "version": "1.0.0",

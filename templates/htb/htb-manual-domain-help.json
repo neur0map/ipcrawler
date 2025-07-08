@@ -1,7 +1,7 @@
 {
   "name": "htb-manual-domain-help",
   "tool": "echo",
-  "args": ["=== HTB Manual Domain Extraction ===", "", "1. Run: ipcrawler run htb/htb-redirect-check 10.10.10.100", "", "2. Look for domains in the output like:", "   Final URL: http://example.htb/", "   Location: https://api.example.htb/login", "", "3. Extract domain manually: example.htb", "", "4. Add to hosts: echo '10.10.10.100 example.htb' >> /etc/hosts", "", "5. Run FFUF: ipcrawler run htb/htb-ffuf-subdomain-domain example.htb", "", "=== No temp files, fully portable ==="],
+  "args": ["=== HTB Manual Domain Extraction ===", "1. Run: ipcrawler run htb/htb-redirect-check 10.10.10.100", "2. Look for Location headers and redirects in verbose output", "3. Extract domain manually from redirect URLs", "4. Add discovered domain to hosts file", "5. Run FFUF: ipcrawler run htb/htb-ffuf-subdomain-domain discovered.htb", "Note: FFUF subdomain scans FAIL with IPs - need domain first", "=== Templates now pass security validation ==="],
   "description": "HTB help guide for manual domain extraction workflow without system paths",
   "author": "HTB Team",
   "version": "1.0.0",
