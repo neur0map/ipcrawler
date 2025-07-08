@@ -340,6 +340,24 @@ For CTF scenarios, ipcrawler includes specialized presets that filter results to
 - `404` - Not found (usually not helpful)
 - `405` - Method not allowed (rarely useful in CTF)
 - `500` - Server errors (typically unintentional)
+- `301/302` - Redirects (excluded from main scans to reduce noise)
+
+### Handling Redirect Noise
+
+When servers redirect all paths to a single location (like `artificial.htb`), you get thousands of identical redirect entries. The CTF presets handle this by:
+
+1. **Primary scans exclude redirects**: Focus on `200` (accessible) and `403` (forbidden but interesting)
+2. **Separate redirect analysis**: Use dedicated redirect-only scans with filtering
+3. **Clean output**: Dramatically reduces output from 20k+ lines to actual findings
+
+**Example workflow:**
+```bash
+# Step 1: Clean scan for actual content
+python ipcrawler.py run htb/feroxbuster-ctf-clean target
+
+# Step 2: If needed, analyze redirects separately  
+python ipcrawler.py run htb/feroxbuster-redirects-only target
+```
 
 ## Testing Your Plugin
 

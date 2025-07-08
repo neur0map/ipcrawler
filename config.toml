@@ -109,20 +109,23 @@ debug_mode = ["-v", "--max-time", "30", "-w", "\\n--- DEBUG INFO ---\\nHTTP: %{h
 # FEROXBUSTER PRESETS - Directory/file enumeration configurations (CTF optimized)
 # =============================================================================
 [presets.feroxbuster]
-# CTF Fast scan - Focus on accessible content and redirects
-ctf_fast = ["-t", "20", "-s", "200,301,302", "--dont-filter", "-q", "--no-state"]
+# CTF Fast scan - Focus on accessible content only (no redirects to reduce noise)
+ctf_fast = ["-t", "20", "-s", "200", "--dont-filter", "-q", "--no-state"]
 
 # CTF Deep scan - Include forbidden paths that might be accessible
-ctf_deep = ["-t", "50", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "--depth", "3", "--auto-tune"]
+ctf_deep = ["-t", "50", "-s", "200,403", "--dont-filter", "-q", "--no-state", "--depth", "3", "--auto-tune"]
 
 # CTF Stealth scan - Low noise for sensitive targets
-ctf_stealth = ["-t", "5", "-s", "200,301,302", "--dont-filter", "-q", "--no-state", "--rate-limit", "10"]
+ctf_stealth = ["-t", "5", "-s", "200", "--dont-filter", "-q", "--no-state", "--rate-limit", "10"]
 
-# CTF Extensions scan - Common CTF file types
-ctf_extensions = ["-t", "20", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "-x", "php,html,js,txt,xml,json,flag,key,config"]
+# CTF Extensions scan - Common CTF file types (no redirects)
+ctf_extensions = ["-t", "20", "-s", "200,403", "--dont-filter", "-q", "--no-state", "-x", "php,html,js,txt,xml,json,flag,key,config"]
 
-# CTF Backup files scan - Look for exposed sensitive files
-ctf_backup = ["-t", "15", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "-x", "bak,backup,old,tmp,~,flag,key"]
+# CTF Backup files scan - Look for exposed sensitive files (no redirects)
+ctf_backup = ["-t", "15", "-s", "200,403", "--dont-filter", "-q", "--no-state", "-x", "bak,backup,old,tmp,~,flag,key"]
+
+# CTF Redirects scan - When you specifically want to analyze redirects
+ctf_redirects = ["-t", "20", "-s", "301,302", "--dont-filter", "-q", "--no-state", "--filter-similar"]
 
 # Legacy presets (backwards compatibility)
 fast_scan = ["-t", "20", "-s", "200,301,302", "--dont-filter", "-q", "--no-state"]
@@ -139,9 +142,12 @@ backup_scan = ["-t", "15", "-s", "200,301,302,403", "--dont-filter", "-q", "--no
 ctf_vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress"]
 ctf_vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress"]
 
-# CTF Directory enumeration - Focus on important status codes
-ctf_dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,301,302,403"]
-ctf_dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-x", "php,html,js,txt,xml,json,flag,key,config", "-s", "200,301,302,403"]
+# CTF Directory enumeration - Focus on accessible content (no redirects to reduce noise)
+ctf_dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,403"]
+ctf_dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-x", "php,html,js,txt,xml,json,flag,key,config", "-s", "200,403"]
+
+# CTF Redirects scan - When you specifically want to analyze redirects  
+ctf_dir_redirects = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "301,302"]
 
 # CTF DNS subdomain enumeration
 ctf_dns_fast = ["dns", "-t", "20", "-q"]

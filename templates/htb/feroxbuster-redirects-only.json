@@ -1,0 +1,8 @@
+{
+  "name": "feroxbuster-redirects-only",
+  "tool": "feroxbuster",
+  "preset": "feroxbuster.ctf_redirects",
+  "args": ["-u", "{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
+  "description": "Analyze redirects only with similarity filtering",
+  "tags": ["ctf", "redirects", "analysis", "preset"]
+}
