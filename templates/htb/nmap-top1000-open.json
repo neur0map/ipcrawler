@@ -1,0 +1,14 @@
+{
+  "name": "nmap-top1000-open",
+  "tool": "nmap",
+  "args": ["-sT", "--top-ports", "1000", "--open", "-T4", "{{target}}"],
+  "description": "Nmap TCP connect scan on top 1000 ports showing only open ports",
+  "author": "HTB Team",
+  "version": "1.0.0",
+  "tags": ["htb", "network", "port-scan", "tcp", "fast"],
+  "timeout": 120,
+  "target_types": ["ip", "domain"],
+  "severity": "low",
+  "stealth": false,
+  "parallel_safe": true
+}

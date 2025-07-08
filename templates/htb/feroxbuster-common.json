@@ -1,0 +1,16 @@
+{
+  "name": "feroxbuster-common",
+  "tool": "feroxbuster",
+  "args": ["-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt", "-s", "200,204,301,302,307,401,403,405,500", "-t", "10", "--silent"],
+  "description": "Feroxbuster directory/file enumeration using SecLists common.txt wordlist",
+  "author": "HTB Team",
+  "version": "1.0.0",
+  "tags": ["htb", "web", "directory", "enumeration", "feroxbuster"],
+  "dependencies": ["feroxbuster"],
+  "wordlist": "/usr/share/seclists/Discovery/Web-Content/common.txt",
+  "timeout": 180,
+  "target_types": ["domain", "ip"],
+  "severity": "medium",
+  "stealth": false,
+  "parallel_safe": true
+}

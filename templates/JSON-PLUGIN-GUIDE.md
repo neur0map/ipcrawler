@@ -7,7 +7,7 @@ This guide provides comprehensive instructions for creating successful JSON plug
 ## Quick Start
 
 1. Place your JSON file in the appropriate folder under `templates/`
-2. Follow the schema structure defined in `tool-plugin-schema.json`
+2. Follow the schema structure with `tool` and `args` fields
 3. Test your plugin with `ipcrawler run category/plugin-name target`
 
 ## Schema Structure
@@ -120,6 +120,12 @@ Every JSON plugin must follow this basic structure:
 #### `output_format` (string)
 - **Purpose**: Specific output format details
 - **Example**: `"json-lines"`
+
+#### `wordlist` (string)
+- **Purpose**: Path to wordlist file for tools that require input files
+- **Requirements**: Valid file path without dangerous characters
+- **Max Length**: 500 characters
+- **Example**: `"/usr/share/wordlists/common.txt"`
 
 ## Privilege Requirements
 
@@ -236,15 +242,15 @@ Always prefer non-privileged alternatives when possible:
 ### 1. Command Design
 
 **✅ DO:**
-- Use absolute paths for unusual tools
-- Include necessary flags for non-interactive operation
-- Use `{{target}}` placeholder appropriately
-- Test commands manually first
+- Use absolute paths for unusual tools in the `tool` field
+- Include necessary flags for non-interactive operation in `args`
+- Use `{{target}}` placeholder appropriately in `args`
+- Test the tool and arguments manually first
 
 **❌ DON'T:**
-- Use interactive flags (`-i`, `--interactive`)
-- Rely on shell features (pipes, redirects)
-- Include hardcoded IP addresses or domains
+- Use interactive flags (`-i`, `--interactive`) in `args`
+- Rely on shell features (pipes, redirects) in `args`
+- Include hardcoded IP addresses or domains in `args`
 
 ### 2. Timeout Configuration
 
@@ -252,7 +258,7 @@ Always prefer non-privileged alternatives when possible:
 - **Fast scans**: 15-60 seconds
 - **Medium scans**: 60-300 seconds  
 - **Thorough scans**: 300-1800 seconds
-- **Never exceed**: 3600 seconds (1 hour)
+- **Never exceed**: 300 seconds (5 minutes)
 
 ### 3. Tagging Strategy
 
@@ -264,7 +270,7 @@ Always prefer non-privileged alternatives when possible:
 
 ### 4. Error Handling
 
-Your commands should:
+Your tools should:
 - Exit with code 0 on success
 - Exit with non-zero code on failure
 - Provide meaningful error messages to stderr
@@ -284,22 +290,22 @@ jsonschema -i your-plugin.json tool-plugin-schema.json
 ### 2. Functionality Testing
 ```bash
 # Test individual plugin
-ipcrawler run category/your-plugin 127.0.0.1
+python ipcrawler.py run category/your-plugin 127.0.0.1
 
 # Test in folder context
-ipcrawler scan-folder templates/category/ 127.0.0.1
+python ipcrawler.py scan-folder templates/category/ 127.0.0.1
 
 # Check results
-ipcrawler results 127.0.0.1
+python ipcrawler.py results 127.0.0.1
 ```
 
 ### 3. Integration Testing
 ```bash
 # Test with other plugins
-ipcrawler scan-all 127.0.0.1
+python ipcrawler.py scan-all 127.0.0.1
 
 # Export readable results
-ipcrawler export 127.0.0.1 --output test-results.txt
+python ipcrawler.py export 127.0.0.1 --output test-results.txt
 ```
 
 ## File Organization
@@ -347,10 +353,10 @@ templates/
 - Verify JSON syntax
 - Ensure proper category folder
 
-**Command Fails:**
-- Test command manually outside ipcrawler
+**Tool Execution Fails:**
+- Test tool and arguments manually outside ipcrawler
 - Check tool installation and PATH
-- Verify target substitution works
+- Verify target substitution works in args
 
 **Timeout Issues:**
 - Increase timeout value
@@ -440,10 +446,11 @@ ipcrawler automatically captures stdout and stderr. For structured output, consi
 
 ### Resources
 
-- **Schema File**: `tool-plugin-schema.json` - Complete field definitions
+- **Schema Definition**: `ipcrawler/core/schema.py` - Complete field definitions
+- **Data Models**: `ipcrawler/models/template.py` - Template validation models
 - **Config File**: `config.toml` - Global settings and template flags
 - **Example Templates**: `templates/` directory - Working examples
-- **Log Files**: `logs/` directory - Execution details and errors
+- **Results Directory**: `results/` directory - Execution results and outputs
 
 ---
 
