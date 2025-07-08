@@ -1,0 +1,15 @@
+{
+  "name": "htb-workflow-domain-discovery",
+  "tool": "echo",
+  "args": ["HTB Domain Discovery Workflow:", "1. Run htb-domain-extractor to find domains from redirects", "2. Copy the discovered domain from console output", "3. Add domain to /etc/hosts: echo 'IP domain.htb' >> /etc/hosts", "4. Run htb-ffuf-subdomain-domain with discovered domain instead of IP", "Example workflow: ipcrawler run htb/htb-domain-extractor 10.10.10.100, then ipcrawler run htb/htb-ffuf-subdomain-domain discovered.htb"],
+  "description": "HTB workflow guide for chaining web-tech-headers domain discovery with FFUF scans",
+  "author": "HTB Team",
+  "version": "1.0.0",
+  "tags": ["htb", "workflow", "domain-discovery", "manual-chaining"],
+  "dependencies": [],
+  "timeout": 5,
+  "target_types": ["ip", "domain", "url"],
+  "severity": "low",
+  "stealth": true,
+  "parallel_safe": true
+} 

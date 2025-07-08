@@ -1,0 +1,15 @@
+{
+  "name": "web-tech-headers-with-domain-extract",
+  "tool": "curl",
+  "args": ["-sI", "--max-time", "30", "-L", "http://{{target}}", "-w", "FINAL_URL: %{url_effective}\\nREDIRECT_URL: %{redirect_url}\\n"],
+  "description": "Web technology detection with domain extraction from redirects for use in subsequent FFUF scans",
+  "author": "HTB Team",
+  "version": "1.0.0",
+  "tags": ["web", "recon", "headers", "tech-detection", "domain-extraction"],
+  "dependencies": ["curl"],
+  "timeout": 35,
+  "target_types": ["ip", "domain", "url"],
+  "severity": "low",
+  "stealth": true,
+  "parallel_safe": true
+} 

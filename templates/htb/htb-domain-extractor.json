@@ -1,0 +1,15 @@
+{
+  "name": "htb-domain-extractor",
+  "tool": "bash",
+  "args": ["-c", "curl -sI --max-time 30 -L http://{{target}} -w 'FINAL_URL: %{url_effective}\\nREDIRECT_URL: %{redirect_url}\\n' | grep -E '(FINAL_URL|REDIRECT_URL|Location:)' | grep -oE '[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}' | head -1 && echo '=== DISCOVERED DOMAIN ABOVE === Copy and use with FFUF subdomain templates'"],
+  "description": "HTB domain extractor from redirects - outputs discovered domain to console for manual use with FFUF",
+  "author": "HTB Team", 
+  "version": "1.0.0",
+  "tags": ["htb", "domain-extraction", "redirect-discovery", "preprocessing"],
+  "dependencies": ["curl", "bash"],
+  "timeout": 35,
+  "target_types": ["ip", "domain", "url"],
+  "severity": "low",
+  "stealth": true,
+  "parallel_safe": true
+} 
