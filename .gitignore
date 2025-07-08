@@ -33,3 +33,6 @@ wheels/
 .env
 .env.local
 .env.*.local
+
+# Sentry debug configuration (never commit actual DSN)
+.env

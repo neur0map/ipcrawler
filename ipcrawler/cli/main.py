@@ -9,6 +9,7 @@ from typing import List, Optional
 from ..core import ConfigManager, TemplateDiscovery, ResultsManager, StatusDispatcher
 from ..core.schema import TemplateSchema
 from ..core.preset_resolver import PresetResolver
+from ..core.sentry_integration import sentry_manager, with_sentry_context
 from ..security import SecureExecutor
 from ..models.template import ToolTemplate
 
@@ -29,6 +30,7 @@ class IPCrawlerCLI:
             timeout=self.config_manager.get_default_timeout(),
             max_output_size=self.config_manager.config.settings.max_output_size
         )
+        self.debug_mode = False
         
     
     def create_parser(self) -> argparse.ArgumentParser:
@@ -36,6 +38,13 @@ class IPCrawlerCLI:
         parser = argparse.ArgumentParser(
             description="ipcrawler - Security Tool Orchestration Framework",
             formatter_class=argparse.RawDescriptionHelpFormatter
+        )
+        
+        # Add global debug flag
+        parser.add_argument(
+            '-debug', '--debug',
+            action='store_true',
+            help='Enable debug mode with Sentry error tracking (requires .env with SENTRY_DSN)'
         )
         
         subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -85,8 +94,14 @@ class IPCrawlerCLI:
         
         return parser
     
+    @with_sentry_context("run_template")
     async def run_template(self, template_name: str, target: str) -> None:
         """Run a specific template."""
+        if self.debug_mode:
+            sentry_manager.add_breadcrumb(
+                f"Running template: {template_name}",
+                data={"template": template_name, "target": target}
+            )
         try:
             # Parse template path
             if '/' in template_name:
@@ -124,9 +139,23 @@ class IPCrawlerCLI:
             
         except Exception as e:
             self.status_dispatcher.display_error(f"Failed to run template: {e}")
+            if self.debug_mode:
+                sentry_manager.capture_exception(e, {
+                    "template_execution": {
+                        "template_name": template_name,
+                        "target": target,
+                        "execution_type": "single_template"
+                    }
+                })
     
+    @with_sentry_context("run_folder")
     async def run_folder(self, folder: str, target: str) -> None:
         """Run all templates in a folder."""
+        if self.debug_mode:
+            sentry_manager.add_breadcrumb(
+                f"Running folder: {folder}",
+                data={"folder": folder, "target": target}
+            )
         try:
             templates = self.template_discovery.discover_templates(folder)
             
@@ -187,6 +216,11 @@ class IPCrawlerCLI:
                     results.append(result)
                     return result
                     
+                except asyncio.CancelledError:
+                    # Handle cancellation gracefully - don't save incomplete results
+                    self.status_dispatcher.display_info(f"🚫 {template.name} cancelled")
+                    return None
+                    
                 except Exception as e:
                     self.status_dispatcher.display_error(f"Execution error for {template.name}: {e}")
                     return e
@@ -194,12 +228,32 @@ class IPCrawlerCLI:
         # Create tasks for all templates
         tasks = [execute_single_template(template) for template in templates]
         
-        # Wait for all to complete
-        await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            # Wait for all to complete
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+        except asyncio.CancelledError:
+            # Handle cancellation gracefully
+            self.status_dispatcher.display_info("\n⚠️  Scan cancelled by user")
+            self.status_dispatcher.display_info("💾 Saving results from completed scans...")
+            
+            # Cancel any remaining tasks
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            
+            # Wait a bit for tasks to clean up
+            try:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            except:
+                pass  # Ignore errors during cleanup
         
-        # Generate summary (this will create readable files)
-        summary = self.results_manager.generate_summary(target)
-        self.status_dispatcher.finish_scan(summary)
+        # Generate summary (this will create readable files) - always run this
+        try:
+            summary = self.results_manager.generate_summary(target)
+            self.status_dispatcher.finish_scan(summary)
+        except Exception as e:
+            self.status_dispatcher.display_error(f"Error generating summary: {e}")
     
     def list_templates(self, category: Optional[str] = None) -> None:
         """List available templates."""
@@ -261,32 +315,44 @@ class IPCrawlerCLI:
         """Parse command line arguments, handling flag-style commands."""
         import sys
         
+        # Check for debug flag first (can appear anywhere)
+        debug_flag = '-debug' in sys.argv or '--debug' in sys.argv
+        
         # Handle flag-style commands manually due to argparse limitations
-        if len(sys.argv) >= 3 and sys.argv[1].startswith('-'):
-            command = sys.argv[1]
-            target = sys.argv[2]
-            flag = command[1:]  # Remove the '-' prefix
-            
-            if flag in self.config_manager.config.templates:
-                return self._create_flag_args(command, target)
+        if len(sys.argv) >= 3:
+            # Look for category flags, skipping debug flag
+            for i, arg in enumerate(sys.argv[1:], 1):
+                if arg.startswith('-') and arg not in ['-debug', '--debug']:
+                    # Check if this is a category flag
+                    flag = arg[1:]  # Remove the '-' prefix
+                    if flag in self.config_manager.config.templates:
+                        # Find the target (should be next non-debug argument)
+                        target = None
+                        for j in range(i + 1, len(sys.argv)):
+                            if sys.argv[j] not in ['-debug', '--debug']:
+                                target = sys.argv[j]
+                                break
+                        if target:
+                            return self._create_flag_args(arg, target, debug_flag)
         
         # Normal parsing for other commands
         parser = self.create_parser()
         return parser.parse_args()
     
-    def _create_flag_args(self, command: str, target: str):
+    def _create_flag_args(self, command: str, target: str, debug_flag: bool = False):
         """Create args object for flag-style commands."""
         class Args:
-            def __init__(self, command, target):
+            def __init__(self, command, target, debug_flag):
                 self.command = command
                 self.target = target
+                self.debug = debug_flag
                 self.template = None
                 self.folder = None
                 self.category = None
                 self.format = None
                 self.output = None
         
-        return Args(command, target)
+        return Args(command, target, debug_flag)
     
     async def _execute_command(self, args):
         """Execute the parsed command."""
@@ -317,11 +383,23 @@ class IPCrawlerCLI:
             parser = self.create_parser()
             parser.print_help()
     
+    @with_sentry_context("main_execution")
     async def main(self) -> None:
         """Main entry point."""
         import sys
         
         args = self._parse_arguments()
+        
+        # Initialize Sentry if debug flag is present
+        debug_flag = getattr(args, 'debug', False)
+        self.debug_mode = debug_flag
+        
+        if debug_flag:
+            # Initialize Sentry with debug flag
+            sentry_initialized = sentry_manager.initialize(debug_flag=True)
+            if sentry_initialized:
+                sentry_manager.add_breadcrumb("CLI startup", data={"command": args.command})
+                sentry_manager.set_tag("cli_mode", "debug")
         
         if not args.command:
             parser = self.create_parser()
@@ -330,10 +408,33 @@ class IPCrawlerCLI:
         
         try:
             await self._execute_command(args)
+            
+            # Flush Sentry events before exit
+            if self.debug_mode:
+                sentry_manager.flush()
+                
         except KeyboardInterrupt:
-            self.status_dispatcher.display_info("Interrupted by user")
+            # Handle Ctrl+C gracefully
+            self.status_dispatcher.display_info("\n🛑 Execution interrupted by user")
+            self.status_dispatcher.display_info("📊 Check results directory for any completed scans")
+            
+            if self.debug_mode:
+                sentry_manager.capture_message("User interrupted execution", "info")
+                sentry_manager.flush()
+                
+            # Exit gracefully without traceback
+            sys.exit(0)
+            
         except Exception as e:
             self.status_dispatcher.display_error(f"Unexpected error: {e}")
+            if self.debug_mode:
+                sentry_manager.capture_exception(e, {
+                    "cli_context": {
+                        "command": args.command,
+                        "debug_mode": self.debug_mode
+                    }
+                })
+                sentry_manager.flush()
             sys.exit(1)
 
 

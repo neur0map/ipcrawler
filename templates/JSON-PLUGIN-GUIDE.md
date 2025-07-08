@@ -520,12 +520,6 @@ ipcrawler automatically captures stdout and stderr. For structured output, consi
 
 ## Support and Community
 
-### Getting Help
-
-1. Check the logs first: `logs/ipcrawler-YYYY-MM-DD.log`
-2. Test plugins manually outside ipcrawler
-3. Validate JSON syntax and schema compliance
-4. Review this guide for best practices
 
 ### Resources
 

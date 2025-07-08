@@ -4,6 +4,7 @@ Preset resolution service for template argument presets.
 
 from typing import List, Optional, Dict, Any
 from ..core.config import ConfigManager
+from .sentry_integration import sentry_manager, with_sentry_context
 
 
 class PresetResolver:
@@ -12,6 +13,7 @@ class PresetResolver:
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
     
+    @with_sentry_context("preset_resolution")
     def resolve_preset(self, preset_name: str) -> Optional[List[str]]:
         """
         Resolve a preset name to its argument list.
@@ -27,6 +29,11 @@ class PresetResolver:
         """
         if not preset_name:
             return None
+            
+        sentry_manager.add_breadcrumb(
+            f"Resolving preset: {preset_name}",
+            data={"preset_name": preset_name}
+        )
             
         # Validate preset name format
         if not self._validate_preset_name(preset_name):

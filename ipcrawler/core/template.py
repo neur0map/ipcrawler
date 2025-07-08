@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from ..models.template import ToolTemplate, TemplateConfig
 from .schema import TemplateSchema
+from .sentry_integration import sentry_manager, with_sentry_context, capture_validation_error
 
 
 class TemplateDiscovery:
@@ -22,9 +23,15 @@ class TemplateDiscovery:
             if alt_path.exists():
                 self.base_path = alt_path
     
+    @with_sentry_context("template_discovery")
     def discover_templates(self, subfolder: Optional[str] = None) -> List[ToolTemplate]:
         """Discover and load all templates from a folder."""
         templates = []
+        
+        sentry_manager.add_breadcrumb(
+            f"Discovering templates in {subfolder or 'all folders'}",
+            data={"subfolder": subfolder, "base_path": str(self.base_path)}
+        )
         
         if subfolder:
             search_path = self.base_path / subfolder

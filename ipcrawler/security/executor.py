@@ -9,6 +9,12 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from ..models.result import ExecutionResult
 from .sanitizer import CommandSanitizer
+from ..core.sentry_integration import (
+    sentry_manager, 
+    with_sentry_context, 
+    capture_template_execution_error,
+    capture_preset_resolution_error
+)
 
 
 class SecureExecutor:
@@ -18,6 +24,7 @@ class SecureExecutor:
         self.timeout = timeout
         self.max_output_size = max_output_size
     
+    @with_sentry_context("secure_template_execution")
     async def execute_template(
         self, 
         template_name: str,
@@ -35,13 +42,36 @@ class SecureExecutor:
         start_time = datetime.now()
         execution_timeout = timeout or self.timeout
         
+        sentry_manager.add_breadcrumb(
+            f"Executing template: {template_name}",
+            data={
+                "template": template_name,
+                "tool": tool,
+                "target": target,
+                "preset": preset,
+                "timeout": execution_timeout
+            }
+        )
+        
         try:
             # Resolve preset arguments if preset is provided
             preset_args = None
             if preset and preset_resolver:
-                preset_args = preset_resolver.resolve_preset(preset)
-                if preset_args is None:
-                    raise ValueError(f'Preset not found: {preset}')
+                try:
+                    preset_args = preset_resolver.resolve_preset(preset)
+                    if preset_args is None:
+                        raise ValueError(f'Preset not found: {preset}')
+                    sentry_manager.add_breadcrumb(
+                        f"Resolved preset: {preset}",
+                        data={"preset": preset, "args": preset_args}
+                    )
+                except Exception as e:
+                    capture_preset_resolution_error(preset, e, {
+                        "template_name": template_name,
+                        "tool": tool,
+                        "target": target
+                    })
+                    raise
             
             # Ensure we have either args or preset_args
             if not args and not preset_args:
@@ -83,6 +113,16 @@ class SecureExecutor:
         
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
+            
+            # Capture template execution error in Sentry
+            capture_template_execution_error(template_name, tool, e, {
+                "target": target,
+                "preset": preset,
+                "execution_time": execution_time,
+                "timeout": execution_timeout,
+                "args": args,
+                "variables": variables
+            })
             
             return ExecutionResult(
                 template_name=template_name,
@@ -145,6 +185,23 @@ class SecureExecutor:
                     pass
                 
                 raise TimeoutError(f'Command timed out after {timeout} seconds')
+            
+            except asyncio.CancelledError:
+                # Handle cancellation gracefully
+                try:
+                    # Try to terminate the process gracefully first
+                    process.terminate()
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=2.0)
+                    except asyncio.TimeoutError:
+                        # If it doesn't terminate, kill it
+                        process.kill()
+                        await process.wait()
+                except ProcessLookupError:
+                    pass  # Process already ended
+                
+                # Re-raise the cancellation
+                raise
         
         except Exception as e:
             raise RuntimeError(f'Execution failed: {str(e)}')

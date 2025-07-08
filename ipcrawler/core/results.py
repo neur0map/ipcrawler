@@ -165,14 +165,17 @@ class ResultsManager:
         return "\n".join(lines)
     
     def _generate_readable_files(self, target: str, results: List[ExecutionResult]) -> None:
-        """Generate readable .txt and .md files."""
+        """Generate readable .txt and .md files with run-based separation."""
         target_path = self.base_path / self._sanitize_target(target)
         readable_path = target_path / "readable"
         readable_path.mkdir(exist_ok=True)
         
-        # Generate all scans file (includes all results)
-        all_scans_txt = readable_path / "all_scans.txt"
-        all_scans_md = readable_path / "all_scans.md"
+        # Determine run number based on existing files
+        run_number = self._get_next_run_number(readable_path)
+        
+        # Generate all scans file with run number
+        all_scans_txt = readable_path / f"all_scans_{run_number}.txt"
+        all_scans_md = readable_path / f"all_scans_{run_number}.md"
         
         with open(all_scans_txt, 'w') as f:
             f.write(self._format_text_results(results))
@@ -180,11 +183,11 @@ class ResultsManager:
         with open(all_scans_md, 'w') as f:
             f.write(self._format_markdown_results(results))
         
-        # Generate successful scans only file
+        # Generate raw results file (successful scans only)
         successful_results = [r for r in results if r.success]
         if successful_results:
-            successful_txt = readable_path / "successful_scans.txt"
-            with open(successful_txt, 'w') as f:
+            raw_results_txt = readable_path / f"raw_results_{run_number}.txt"
+            with open(raw_results_txt, 'w') as f:
                 f.write(self._format_text_results(successful_results))
     
     def _format_markdown_results(self, results: List[ExecutionResult]) -> str:
@@ -217,3 +220,20 @@ class ResultsManager:
                 lines.append("")
         
         return "\n".join(lines)
+    
+    def _get_next_run_number(self, readable_path: Path) -> int:
+        """Get the next run number based on existing files."""
+        max_run = 0
+        
+        # Check for existing all_scans_* files
+        for file_path in readable_path.glob("all_scans_*.txt"):
+            try:
+                # Extract run number from filename
+                filename = file_path.stem  # Remove .txt extension
+                run_part = filename.split("_")[-1]  # Get last part after underscore
+                run_num = int(run_part)
+                max_run = max(max_run, run_num)
+            except (ValueError, IndexError):
+                continue
+        
+        return max_run + 1
