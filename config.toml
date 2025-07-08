@@ -140,8 +140,8 @@ ctf_vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress"]
 ctf_vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress"]
 
 # CTF Directory enumeration - Focus on important status codes
-ctf_dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-s", "200,301,302,403"]
-ctf_dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-x", "php,html,js,txt,xml,json,flag,key,config", "-s", "200,301,302,403"]
+ctf_dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,301,302,403"]
+ctf_dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-x", "php,html,js,txt,xml,json,flag,key,config", "-s", "200,301,302,403"]
 
 # CTF DNS subdomain enumeration
 ctf_dns_fast = ["dns", "-t", "20", "-q"]
@@ -150,8 +150,8 @@ ctf_dns_thorough = ["dns", "-t", "50", "-q", "--wildcard"]
 # Legacy presets (backwards compatibility)
 vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress"]
 vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress"]
-dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-s", "200,301,302,403"]
-dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-x", "php,html,js,txt,xml", "-s", "200,301,302,403"]
+dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,301,302,403"]
+dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-x", "php,html,js,txt,xml", "-s", "200,301,302,403"]
 dns_fast = ["dns", "-t", "20", "-q"]
 dns_thorough = ["dns", "-t", "50", "-q", "--wildcard"]
 
