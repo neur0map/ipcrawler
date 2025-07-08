@@ -1,14 +1,8 @@
 {
   "name": "echo-test",
   "tool": "echo",
+  "preset": "echo.basic",
   "args": ["Testing target: {{target}}"],
-  "description": "Simple echo test for target validation",
-  "author": "Security Team",
-  "version": "1.0",
-  "tags": ["test", "basic"],
-  "timeout": 30,
-  "target_types": ["ip", "domain", "url"],
-  "severity": "low",
-  "stealth": true,
-  "parallel_safe": true
+  "description": "Simple echo test for target validation using preset",
+  "tags": ["test", "basic", "preset"]
 }

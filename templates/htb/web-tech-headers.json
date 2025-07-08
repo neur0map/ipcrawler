@@ -1,15 +1,8 @@
 {
   "name": "web-tech-headers",
   "tool": "curl",
-  "args": ["-sI", "--max-time", "30", "http://{{target}}"],
+  "preset": "curl.basic_info",
+  "args": ["-I", "http://{{target}}"],
   "description": "Web technology detection via HTTP headers",
-  "author": "Security Team",
-  "version": "1.0.0",
-  "tags": ["web", "recon", "headers", "tech-detection"],
-  "dependencies": ["curl"],
-  "timeout": 35,
-  "target_types": ["domain", "url"],
-  "severity": "low",
-  "stealth": true,
-  "parallel_safe": true
+  "tags": ["web", "recon", "headers", "tech-detection"]
 }

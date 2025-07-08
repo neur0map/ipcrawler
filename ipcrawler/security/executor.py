@@ -22,19 +22,40 @@ class SecureExecutor:
         self, 
         template_name: str,
         tool: str, 
-        args: List[str], 
-        target: str,
+        args: Optional[List[str]] = None, 
+        target: str = "",
         env: Optional[Dict[str, str]] = None,
         wordlist: Optional[str] = None,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
+        preset: Optional[str] = None,
+        variables: Optional[Dict[str, str]] = None,
+        preset_resolver: Optional[object] = None
     ) -> ExecutionResult:
         """Execute a template safely."""
         start_time = datetime.now()
         execution_timeout = timeout or self.timeout
         
         try:
-            # Sanitize command
-            command = CommandSanitizer.sanitize_command(tool, args, target, wordlist)
+            # Resolve preset arguments if preset is provided
+            preset_args = None
+            if preset and preset_resolver:
+                preset_args = preset_resolver.resolve_preset(preset)
+                if preset_args is None:
+                    raise ValueError(f'Preset not found: {preset}')
+            
+            # Ensure we have either args or preset_args
+            if not args and not preset_args:
+                raise ValueError('Either args or preset must be provided')
+            
+            # Sanitize command with preset support
+            command = CommandSanitizer.sanitize_command(
+                tool, 
+                args or [], 
+                target, 
+                wordlist, 
+                preset_args, 
+                variables
+            )
             safe_env = CommandSanitizer.prepare_environment(env)
             
             # Final safety check

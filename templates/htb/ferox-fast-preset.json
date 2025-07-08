@@ -1,0 +1,8 @@
+{
+  "name": "ferox-fast-preset",
+  "tool": "feroxbuster",
+  "preset": "feroxbuster.fast_scan",
+  "args": ["-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
+  "description": "Fast feroxbuster scan using preset configuration",
+  "tags": ["htb", "feroxbuster", "web", "preset"]
+}

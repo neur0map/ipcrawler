@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from ..core import ConfigManager, TemplateDiscovery, ResultsManager, StatusDispatcher
 from ..core.schema import TemplateSchema
+from ..core.preset_resolver import PresetResolver
 from ..security import SecureExecutor
 from ..models.template import ToolTemplate
 
@@ -20,6 +21,7 @@ class IPCrawlerCLI:
     
     def __init__(self):
         self.config_manager = ConfigManager()
+        self.preset_resolver = PresetResolver(self.config_manager)
         self.template_discovery = TemplateDiscovery("templates")
         self.results_manager = ResultsManager()
         self.status_dispatcher = StatusDispatcher(False)  # Always show scan output
@@ -107,7 +109,10 @@ class IPCrawlerCLI:
                 target=target,
                 env=template.env,
                 wordlist=template.wordlist,
-                timeout=template.timeout
+                timeout=template.timeout,
+                preset=template.preset,
+                variables=template.variables,
+                preset_resolver=self.preset_resolver
             )
             
             # Save and display result
@@ -170,7 +175,10 @@ class IPCrawlerCLI:
                         target=target,
                         env=template.env,
                         wordlist=template.wordlist,
-                        timeout=template.timeout
+                        timeout=template.timeout,
+                        preset=template.preset,
+                        variables=template.variables,
+                        preset_resolver=self.preset_resolver
                     )
                     
                     # Save and show completion immediately

@@ -2,7 +2,7 @@
 Application configuration models.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field, validator
 
 
@@ -25,12 +25,53 @@ class SettingsConfig(BaseModel):
     max_output_size: int = Field(1024 * 1024, ge=1024, le=100 * 1024 * 1024)  # 1KB to 100MB
 
 
+class PresetConfig(BaseModel):
+    """Preset configuration for argument templates."""
+    # Global presets - can be used by any tool
+    global_presets: Dict[str, List[str]] = Field({}, max_items=50)
+    
+    # Tool-specific presets - organized by tool name
+    tool_presets: Dict[str, Dict[str, List[str]]] = Field({}, max_items=20)
+    
+    @validator('global_presets')
+    def validate_global_presets(cls, v):
+        """Validate global preset structure."""
+        for preset_name, args in v.items():
+            if len(preset_name) > 50:
+                raise ValueError(f'Preset name too long: {preset_name}')
+            if len(args) > 100:
+                raise ValueError(f'Too many arguments in preset: {preset_name}')
+            for arg in args:
+                if len(str(arg)) > 500:
+                    raise ValueError(f'Argument too long in preset: {preset_name}')
+        return v
+    
+    @validator('tool_presets')
+    def validate_tool_presets(cls, v):
+        """Validate tool-specific preset structure."""
+        for tool_name, presets in v.items():
+            if len(tool_name) > 20:
+                raise ValueError(f'Tool name too long: {tool_name}')
+            if len(presets) > 50:
+                raise ValueError(f'Too many presets for tool: {tool_name}')
+            for preset_name, args in presets.items():
+                if len(preset_name) > 50:
+                    raise ValueError(f'Preset name too long: {preset_name}')
+                if len(args) > 100:
+                    raise ValueError(f'Too many arguments in preset: {preset_name}')
+                for arg in args:
+                    if len(str(arg)) > 500:
+                        raise ValueError(f'Argument too long in preset: {preset_name}')
+        return v
+
+
 class AppConfig(BaseModel):
     """Main application configuration."""
     templates: Dict[str, str] = Field({}, max_items=50)
     settings: SettingsConfig = Field(default_factory=SettingsConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     retry: RetryConfig = Field(default_factory=RetryConfig)
+    presets: Optional[Dict[str, Any]] = Field(None)
     
     @validator('templates')
     def validate_templates(cls, v):

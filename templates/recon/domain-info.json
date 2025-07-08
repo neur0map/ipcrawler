@@ -1,15 +1,8 @@
 {
   "name": "domain-info",
   "tool": "nslookup",
+  "preset": "nslookup.basic",
   "args": ["{{target}}"],
-  "description": "Basic DNS lookup for domain information",
-  "author": "Security Team",
-  "version": "1.0",
-  "tags": ["dns", "domain", "info"],
-  "dependencies": ["nslookup"],
-  "timeout": 15,
-  "target_types": ["domain"],
-  "severity": "low",
-  "stealth": true,
-  "parallel_safe": true
+  "description": "Basic DNS lookup using preset configuration",
+  "tags": ["dns", "domain", "info", "preset"]
 }

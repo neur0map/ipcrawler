@@ -1,14 +1,8 @@
 {
   "name": "vhost-discovery-simple",
   "tool": "curl",
-  "args": ["-s", "-I", "--connect-timeout", "10", "--max-time", "30", "http://{{target}}/", "-w", "\\nHTTP-Status: %{http_code}\\nContent-Length: %{size_download}\\nRedirect-URL: %{redirect_url}\\nFinal-URL: %{url_effective}\\n"],
+  "preset": "curl.basic_info",
+  "args": ["http://{{target}}/", "-w", "\\nHTTP-Status: %{http_code}\\nContent-Length: %{size_download}\\nRedirect-URL: %{redirect_url}\\nFinal-URL: %{url_effective}\\n"],
   "description": "Simple virtual host discovery using curl without custom headers",
-  "author": "HTB Team",
-  "version": "1.0.0",
-  "tags": ["htb", "web", "vhost", "discovery", "simple"],
-  "timeout": 45,
-  "target_types": ["domain", "ip"],
-  "severity": "low",
-  "stealth": true,
-  "parallel_safe": true
+  "tags": ["htb", "web", "vhost", "discovery", "simple"]
 }

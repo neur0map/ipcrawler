@@ -1,15 +1,8 @@
 {
   "name": "robots-txt-fetch",
   "tool": "curl",
-  "args": ["-sL", "--max-time", "30", "https://{{target}}/robots.txt"],
-  "description": "Download and display robots.txt file",
-  "author": "Security Team",
-  "version": "1.0.0",
-  "tags": ["web", "recon", "robots"],
-  "dependencies": ["curl"],
-  "timeout": 35,
-  "target_types": ["domain", "url"],
-  "severity": "low",
-  "stealth": true,
-  "parallel_safe": true
+  "preset": "curl.fast_content",
+  "args": ["-L", "https://{{target}}/robots.txt"],
+  "description": "Download robots.txt using curl preset",
+  "tags": ["web", "recon", "robots", "preset"]
 }

@@ -1,14 +1,8 @@
 {
   "name": "ping-test",
   "tool": "ping",
-  "args": ["-c", "1", "{{target}}"],
+  "preset": "ping.basic",
+  "args": ["{{target}}"],
   "description": "Basic ping test to check if target is reachable",
-  "author": "Security Team",
-  "version": "1.0",
-  "tags": ["network", "basic"],
-  "timeout": 10,
-  "target_types": ["ip", "domain"],
-  "severity": "low",
-  "stealth": false,
-  "parallel_safe": true
+  "tags": ["network", "basic", "preset"]
 }

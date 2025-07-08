@@ -1,15 +1,8 @@
 {
   "name": "nmap-stealth",
   "tool": "nmap",
-  "args": ["-sT", "-T2", "-p", "22,53,80,443,8080,8443", "{{target}}"],
-  "description": "TCP connect scan of common service ports",
-  "author": "Security Team",
-  "version": "1.0.0",
-  "tags": ["network", "stealth", "port-scan"],
-  "dependencies": ["nmap"],
-  "timeout": 180,
-  "target_types": ["ip", "domain"],
-  "severity": "medium",
-  "stealth": true,
-  "parallel_safe": true
+  "preset": "nmap.stealth",
+  "args": ["-p", "22,53,80,443,8080,8443", "{{target}}"],
+  "description": "Stealth nmap scan using preset configuration",
+  "tags": ["network", "stealth", "port-scan", "preset"]
 }

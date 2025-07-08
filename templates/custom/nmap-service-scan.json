@@ -1,15 +1,8 @@
 {
   "name": "nmap-service-scan",
   "tool": "nmap",
-  "args": ["-sV", "--top-ports", "20", "--open", "{{target}}"],
+  "preset": "nmap.service_scan",
+  "args": ["--top-ports", "20", "--open", "{{target}}"],
   "description": "Service version detection scan on top 20 ports",
-  "author": "Security Team",
-  "version": "1.0.0",
-  "tags": ["port-scan", "service-detection", "version"],
-  "dependencies": ["nmap"],
-  "timeout": 120,
-  "target_types": ["ip", "domain"],
-  "severity": "medium",
-  "stealth": false,
-  "parallel_safe": true
+  "tags": ["port-scan", "service-detection", "version", "preset"]
 }

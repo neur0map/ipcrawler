@@ -5,7 +5,7 @@ Configuration management module.
 import sys
 import toml
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from ..models.config import AppConfig
 
 
@@ -87,6 +87,30 @@ class ConfigManager:
             "wait_multiplier": self.config.retry.wait_multiplier,
             "wait_max": self.config.retry.wait_max
         }
+    
+    def get_preset(self, preset_name: str) -> Optional[List[str]]:
+        """Get preset arguments by name (supports tool.preset_name format)."""
+        if not self.config.presets:
+            return None
+            
+        # Handle tool.preset_name format
+        if '.' in preset_name:
+            tool_name, preset_key = preset_name.split('.', 1)
+            tool_presets = self.config.presets.get(tool_name, {})
+            return tool_presets.get(preset_key)
+        
+        # Handle global presets
+        return self.config.presets.get(preset_name)
+    
+    def get_all_presets(self) -> Dict[str, Any]:
+        """Get all available presets."""
+        return self.config.presets or {}
+    
+    def list_presets_for_tool(self, tool_name: str) -> Dict[str, List[str]]:
+        """List all presets available for a specific tool."""
+        if not self.config.presets:
+            return {}
+        return self.config.presets.get(tool_name, {})
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""

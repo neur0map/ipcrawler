@@ -12,7 +12,8 @@ class CommandSanitizer:
     """Sanitizes commands for safe execution."""
     
     @classmethod
-    def sanitize_command(cls, tool: str, args: List[str], target: str, wordlist: Optional[str] = None) -> List[str]:
+    def sanitize_command(cls, tool: str, args: List[str], target: str, wordlist: Optional[str] = None, 
+                        preset_args: Optional[List[str]] = None, variables: Optional[Dict[str, str]] = None) -> List[str]:
         """Sanitize and prepare command for execution."""
         # Validate tool name
         if not re.match(r'^[a-zA-Z0-9_/-]+$', tool):
@@ -24,11 +25,18 @@ class CommandSanitizer:
         
         sanitized_target = TargetValidator.sanitize_target(target)
         
+        # Combine preset args with template args
+        all_args = []
+        if preset_args:
+            all_args.extend(preset_args)
+        if args:
+            all_args.extend(args)
+        
         # Validate and sanitize arguments
-        if not ArgumentValidator.validate_arguments(args):
+        if not ArgumentValidator.validate_arguments(all_args):
             raise ValueError('Invalid arguments detected')
         
-        sanitized_args = [ArgumentValidator.sanitize_argument(arg) for arg in args]
+        sanitized_args = [ArgumentValidator.sanitize_argument(arg) for arg in all_args]
         
         # Replace placeholders with sanitized values
         final_args = []
@@ -46,6 +54,17 @@ class CommandSanitizer:
                     processed_arg = processed_arg.replace('{{wordlist}}', wordlist)
                 else:
                     raise ValueError('Invalid wordlist path')
+            
+            # Replace custom variable placeholders
+            if variables:
+                for var_name, var_value in variables.items():
+                    placeholder = f'{{{{{var_name}}}}}'
+                    if placeholder in processed_arg:
+                        # Validate variable value before substitution
+                        if cls._validate_variable_value(var_value):
+                            processed_arg = processed_arg.replace(placeholder, var_value)
+                        else:
+                            raise ValueError(f'Invalid variable value: {var_name}')
             
             final_args.append(processed_arg)
         
@@ -68,6 +87,26 @@ class CommandSanitizer:
         
         # Path length check
         if len(path) > 500:
+            return False
+        
+        return True
+    
+    @classmethod
+    def _validate_variable_value(cls, value: str) -> bool:
+        """Validate custom variable value for security."""
+        # Check for dangerous patterns
+        dangerous_patterns = [
+            r'[;&|`$()<>]',  # Shell metacharacters
+            r'\.\./',        # Directory traversal attempts
+            r'[\x00-\x1f\x7f-\x9f]',  # Control characters
+        ]
+        
+        for pattern in dangerous_patterns:
+            if re.search(pattern, value):
+                return False
+        
+        # Value length check
+        if len(value) > 500:
             return False
         
         return True

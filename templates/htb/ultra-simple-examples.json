@@ -1,0 +1,8 @@
+{
+  "name": "ultra-simple-nmap",
+  "tool": "nmap",
+  "preset": "nmap.service_scan",
+  "args": ["{{target}}"],
+  "description": "Ultra-simple nmap service scan - just 4 lines!",
+  "tags": ["htb", "simple"]
+}

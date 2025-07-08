@@ -1,15 +1,8 @@
 {
   "name": "dns-mx-records",
   "tool": "dig",
-  "args": ["+short", "{{target}}", "MX"],
-  "description": "DNS MX record lookup for mail servers",
-  "author": "Security Team",
-  "version": "1.0.0",
-  "tags": ["dns", "recon", "mx-records", "mail"],
-  "dependencies": ["dig"],
-  "timeout": 15,
-  "target_types": ["domain"],
-  "severity": "low",
-  "stealth": true,
-  "parallel_safe": true
+  "preset": "dig.mx_records",
+  "args": ["{{target}}"],
+  "description": "DNS MX record lookup using dig preset",
+  "tags": ["dns", "recon", "mx-records", "mail", "preset"]
 }

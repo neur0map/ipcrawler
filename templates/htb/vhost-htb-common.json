@@ -1,0 +1,8 @@
+{
+  "name": "vhost-htb-common",
+  "tool": "curl",
+  "preset": "curl.vhost_check",
+  "args": ["-H", "Host: admin.{{target}}", "http://{{target}}/", "-w", "\\n---\\nHost: admin.{{target}}\\nStatus: %{http_code}\\nSize: %{size_download}\\nTime: %{time_total}\\n"],
+  "description": "Test common HTB vhost pattern 'admin' subdomain",
+  "tags": ["htb", "web", "vhost", "admin", "curl"]
+}

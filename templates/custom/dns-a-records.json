@@ -1,15 +1,8 @@
 {
   "name": "dns-a-records",
   "tool": "dig",
-  "args": ["+short", "{{target}}", "A"],
-  "description": "DNS A record lookup",
-  "author": "Security Team",
-  "version": "1.0.0",
-  "tags": ["dns", "recon", "a-records"],
-  "dependencies": ["dig"],
-  "timeout": 15,
-  "target_types": ["domain"],
-  "severity": "low",
-  "stealth": true,
-  "parallel_safe": true
+  "preset": "dig.a_records",
+  "args": ["{{target}}"],
+  "description": "DNS A record lookup using dig preset",
+  "tags": ["dns", "recon", "a-records", "preset"]
 }

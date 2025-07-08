@@ -1,19 +1,8 @@
 {
   "name": "example-wordlist-demo",
   "tool": "gobuster",
-  "args": ["dir", "-u", "{{target}}", "-w", "{{wordlist:fast}}", "-x", "php,html"],
-  "description": "Demo template showing self-contained wordlist mapping",
-  "author": "Demo",
-  "version": "1.0.0",
-  "tags": ["demo", "wordlist-example"],
-  "dependencies": ["gobuster"],
-  "wordlists": {
-    "fast": "/usr/share/seclists/Discovery/Web-Content/common.txt",
-    "thorough": "/usr/share/seclists/Discovery/Web-Content/big.txt",
-    "custom": "/opt/my-custom-wordlist.txt"
-  },
-  "timeout": 60,
-  "target_types": ["url", "domain"],
-  "severity": "low",
-  "parallel_safe": true
+  "preset": "gobuster.dir_fast",
+  "args": ["-u", "{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt", "-x", "php,html"],
+  "description": "Demo template using gobuster preset with extensions",
+  "tags": ["demo", "wordlist-example", "preset"]
 } 

@@ -102,10 +102,32 @@ class TemplateSchema:
             },
             "parallel_safe": {
                 "type": "boolean"
+            },
+            "preset": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_.-]+$",
+                "maxLength": 100,
+                "description": "Preset name in format 'tool.preset_name' or 'global_preset'"
+            },
+            "variables": {
+                "type": "object",
+                "patternProperties": {
+                    "^[a-zA-Z0-9_]+$": {
+                        "type": "string",
+                        "maxLength": 500
+                    }
+                },
+                "additionalProperties": False,
+                "maxProperties": 10,
+                "description": "Custom variables for template substitution"
             }
         },
-        "required": ["name", "tool", "args"],
-        "additionalProperties": False
+        "required": ["name", "tool"],
+        "additionalProperties": False,
+        "anyOf": [
+            {"required": ["args"]},
+            {"required": ["preset"]}
+        ]
     }
     
     @classmethod
