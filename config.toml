@@ -106,37 +106,52 @@ fast_content = ["-s", "--max-time", "15", "--connect-timeout", "5"]
 debug_mode = ["-v", "--max-time", "30", "-w", "\\n--- DEBUG INFO ---\\nHTTP: %{http_code}\\nTime: %{time_total}s\\nSize: %{size_download}\\n"]
 
 # =============================================================================
-# FEROXBUSTER PRESETS - Directory/file enumeration configurations
+# FEROXBUSTER PRESETS - Directory/file enumeration configurations (CTF optimized)
 # =============================================================================
 [presets.feroxbuster]
-# Fast scan - Quick directory discovery
-fast_scan = ["-t", "20", "-s", "200,204,301,302,307,401,403,405", "--dont-filter", "-q", "--no-state"]
+# CTF Fast scan - Focus on accessible content and redirects
+ctf_fast = ["-t", "20", "-s", "200,301,302", "--dont-filter", "-q", "--no-state"]
 
-# Deep scan - Comprehensive enumeration
-deep_scan = ["-t", "50", "-s", "200,204,301,302,307,401,403,405,500", "--dont-filter", "-q", "--no-state", "--depth", "3", "--auto-tune"]
+# CTF Deep scan - Include forbidden paths that might be accessible
+ctf_deep = ["-t", "50", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "--depth", "3", "--auto-tune"]
 
-# Stealth scan - Low noise enumeration
-stealth_scan = ["-t", "5", "-s", "200,204,301,302,307,401,403", "--dont-filter", "-q", "--no-state", "--rate-limit", "10"]
+# CTF Stealth scan - Low noise for sensitive targets
+ctf_stealth = ["-t", "5", "-s", "200,301,302", "--dont-filter", "-q", "--no-state", "--rate-limit", "10"]
 
-# Extensions scan - Look for specific file types
-extensions_scan = ["-t", "20", "-s", "200,204,301,302,307,401,403,405", "--dont-filter", "-q", "--no-state", "-x", "php,html,js,txt,xml,json"]
+# CTF Extensions scan - Common CTF file types
+ctf_extensions = ["-t", "20", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "-x", "php,html,js,txt,xml,json,flag,key,config"]
 
-# Backup files scan - Look for backup/temp files
-backup_scan = ["-t", "15", "-s", "200,204,301,302,307,401,403,405", "--dont-filter", "-q", "--no-state", "-x", "bak,backup,old,tmp,~"]
+# CTF Backup files scan - Look for exposed sensitive files
+ctf_backup = ["-t", "15", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "-x", "bak,backup,old,tmp,~,flag,key"]
+
+# Legacy presets (backwards compatibility)
+fast_scan = ["-t", "20", "-s", "200,301,302", "--dont-filter", "-q", "--no-state"]
+deep_scan = ["-t", "50", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "--depth", "3", "--auto-tune"]
+stealth_scan = ["-t", "5", "-s", "200,301,302", "--dont-filter", "-q", "--no-state", "--rate-limit", "10"]
+extensions_scan = ["-t", "20", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "-x", "php,html,js,txt,xml,json"]
+backup_scan = ["-t", "15", "-s", "200,301,302,403", "--dont-filter", "-q", "--no-state", "-x", "bak,backup,old,tmp,~"]
 
 # =============================================================================
-# GOBUSTER PRESETS - Multi-purpose enumeration configurations
+# GOBUSTER PRESETS - Multi-purpose enumeration configurations (CTF optimized)
 # =============================================================================
 [presets.gobuster]
-# Virtual host discovery
+# CTF Virtual host discovery - Focus on accessible content
+ctf_vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress"]
+ctf_vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress"]
+
+# CTF Directory enumeration - Focus on important status codes
+ctf_dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-s", "200,301,302,403"]
+ctf_dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-x", "php,html,js,txt,xml,json,flag,key,config", "-s", "200,301,302,403"]
+
+# CTF DNS subdomain enumeration
+ctf_dns_fast = ["dns", "-t", "20", "-q"]
+ctf_dns_thorough = ["dns", "-t", "50", "-q", "--wildcard"]
+
+# Legacy presets (backwards compatibility)
 vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress"]
 vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress"]
-
-# Directory enumeration
-dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-s", "200,204,301,302,307,401,403,405"]
-dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-x", "php,html,js,txt,xml", "-s", "200,204,301,302,307,401,403,405"]
-
-# DNS subdomain enumeration
+dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-s", "200,301,302,403"]
+dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-x", "php,html,js,txt,xml", "-s", "200,301,302,403"]
 dns_fast = ["dns", "-t", "20", "-q"]
 dns_thorough = ["dns", "-t", "50", "-q", "--wildcard"]
 

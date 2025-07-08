@@ -12,13 +12,26 @@ This guide provides comprehensive instructions for creating successful JSON plug
 
 ## Schema Structure
 
-Every JSON plugin must follow this basic structure:
+Every JSON plugin can use either arguments or presets:
 
+### Using Presets (Recommended)
+```json
+{
+  "name": "plugin-name",
+  "tool": "executable-name", 
+  "preset": "tool.preset_name",
+  "args": ["{{target}}"],
+  "description": "Brief description of what this tool does",
+  "tags": ["ctf", "wordlist", "preset"]
+}
+```
+
+### Using Direct Arguments
 ```json
 {
   "name": "plugin-name",
   "tool": "executable-name",
-  "args": ["{{target}}"],
+  "args": ["{{target}}", "-flag", "value"],
   "description": "Brief description of what this tool does",
   "author": "Your Name",
   "version": "1.0.0",
@@ -275,6 +288,58 @@ Your tools should:
 - Exit with non-zero code on failure
 - Provide meaningful error messages to stderr
 - Handle timeouts gracefully
+
+## CTF-Optimized Presets
+
+For CTF scenarios, ipcrawler includes specialized presets that filter results to show only the most relevant HTTP status codes and file types:
+
+### Feroxbuster CTF Presets
+```json
+{
+  "name": "feroxbuster-ctf",
+  "tool": "feroxbuster", 
+  "preset": "feroxbuster.ctf_fast",
+  "args": ["-u", "{{target}}", "-w", "/path/to/wordlist.txt"],
+  "description": "CTF-optimized directory scan (200, 301, 302 only)",
+  "tags": ["ctf", "wordlist", "preset"]
+}
+```
+
+**Available CTF Presets:**
+- `feroxbuster.ctf_fast` - Quick scan (200, 301, 302)
+- `feroxbuster.ctf_deep` - Deep scan (200, 301, 302, 403)
+- `feroxbuster.ctf_extensions` - Scan with CTF file extensions (flag, key, config)
+- `feroxbuster.ctf_backup` - Look for backup/temp files
+
+### Gobuster CTF Presets
+```json
+{
+  "name": "gobuster-ctf",
+  "tool": "gobuster",
+  "preset": "gobuster.ctf_dir_fast", 
+  "args": ["-u", "{{target}}", "-w", "/path/to/wordlist.txt"],
+  "description": "CTF-optimized gobuster scan",
+  "tags": ["ctf", "wordlist", "preset"]
+}
+```
+
+**Available CTF Presets:**
+- `gobuster.ctf_dir_fast` - Directory scan (200, 301, 302, 403)
+- `gobuster.ctf_dir_extensions` - Scan with CTF extensions (flag, key, config)
+
+### CTF Status Code Strategy
+
+**Primary codes (always include):**
+- `200` - Accessible content (highest priority)
+- `301/302` - Redirects (may lead to hidden content)
+
+**Secondary codes (CTF specific):**
+- `403` - Forbidden (may be bypassable or indicate sensitive areas)
+
+**Excluded codes (noise in CTF):**
+- `404` - Not found (usually not helpful)
+- `405` - Method not allowed (rarely useful in CTF)
+- `500` - Server errors (typically unintentional)
 
 ## Testing Your Plugin
 

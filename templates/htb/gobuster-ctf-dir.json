@@ -1,0 +1,8 @@
+{
+  "name": "gobuster-ctf-dir",
+  "tool": "gobuster",
+  "preset": "gobuster.ctf_dir_fast",
+  "args": ["-u", "{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
+  "description": "CTF-optimized gobuster directory scan (200, 301, 302, 403 only)",
+  "tags": ["ctf", "directory", "wordlist", "preset"]
+}

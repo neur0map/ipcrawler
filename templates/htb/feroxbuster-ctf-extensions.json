@@ -1,0 +1,8 @@
+{
+  "name": "feroxbuster-ctf-extensions",
+  "tool": "feroxbuster",
+  "preset": "feroxbuster.ctf_extensions",
+  "args": ["-u", "{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
+  "description": "CTF feroxbuster with extensions (flag, key, config files)",
+  "tags": ["ctf", "directory", "wordlist", "extensions", "preset"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "feroxbuster-ctf",
+  "tool": "feroxbuster",
+  "preset": "feroxbuster.ctf_fast",
+  "args": ["-u", "{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
+  "description": "CTF-optimized feroxbuster scan (200, 301, 302 only)",
+  "tags": ["ctf", "directory", "wordlist", "preset"]
+}
