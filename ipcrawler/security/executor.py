@@ -3,6 +3,7 @@ Secure command execution without shell=True.
 """
 
 import asyncio
+import os
 import subprocess
 import signal
 from typing import List, Dict, Optional, Tuple
@@ -23,6 +24,26 @@ class SecureExecutor:
     def __init__(self, timeout: int = 60, max_output_size: int = 1024 * 1024):
         self.timeout = timeout
         self.max_output_size = max_output_size
+        self._is_root_cached = None  # Cache root privilege check
+    
+    def _is_running_as_root(self) -> bool:
+        """Check if the current process is running with root privileges."""
+        if self._is_root_cached is None:
+            try:
+                # Check if effective user ID is 0 (root)
+                self._is_root_cached = os.geteuid() == 0
+            except AttributeError:
+                # On Windows, os.geteuid() doesn't exist
+                self._is_root_cached = False
+        return self._is_root_cached
+    
+    def _should_skip_sudo_plugin(self, requires_sudo: bool) -> bool:
+        """Determine if a sudo plugin should be skipped."""
+        if not requires_sudo:
+            return False
+        
+        # Skip if plugin requires sudo but we're not running as root
+        return not self._is_running_as_root()
     
     @with_sentry_context("secure_template_execution")
     async def execute_template(
@@ -36,11 +57,29 @@ class SecureExecutor:
         timeout: Optional[int] = None,
         preset: Optional[str] = None,
         variables: Optional[Dict[str, str]] = None,
-        preset_resolver: Optional[object] = None
+        preset_resolver: Optional[object] = None,
+        requires_sudo: bool = False,
+        chain_variables: Optional[Dict[str, str]] = None
     ) -> ExecutionResult:
         """Execute a template safely."""
         start_time = datetime.now()
         execution_timeout = timeout or self.timeout
+        
+        # Check sudo requirements before execution
+        if self._should_skip_sudo_plugin(requires_sudo):
+            execution_time = (datetime.now() - start_time).total_seconds()
+            return ExecutionResult(
+                template_name=template_name,
+                tool=tool,
+                target=target,
+                success=False,
+                stdout="",
+                stderr="Plugin requires sudo but IPCrawler was not run with elevated privileges",
+                return_code=-2,  # Special code for skipped sudo plugins
+                execution_time=execution_time,
+                timestamp=start_time,
+                error_message="⚠️ Skipped plugin — requires sudo privileges"
+            )
         
         sentry_manager.add_breadcrumb(
             f"Executing template: {template_name}",
@@ -84,7 +123,8 @@ class SecureExecutor:
                 target, 
                 wordlist, 
                 preset_args, 
-                variables
+                variables,
+                chain_variables
             )
             safe_env = CommandSanitizer.prepare_environment(env)
             

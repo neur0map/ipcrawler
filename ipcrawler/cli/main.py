@@ -10,6 +10,7 @@ from ..core import ConfigManager, TemplateDiscovery, ResultsManager, StatusDispa
 from ..core.status import create_status_dispatcher
 from ..core.schema import TemplateSchema
 from ..core.preset_resolver import PresetResolver
+from ..core.chain_resolver import ChainResolver
 from ..core.sentry_integration import sentry_manager, with_sentry_context
 from ..security import SecureExecutor
 from ..models.template import ToolTemplate
@@ -24,8 +25,9 @@ class IPCrawlerCLI:
     def __init__(self):
         self.config_manager = ConfigManager()
         self.preset_resolver = PresetResolver(self.config_manager)
+        self.chain_resolver = ChainResolver()
         self.template_discovery = TemplateDiscovery("templates")
-        self.results_manager = ResultsManager()
+        self.results_manager = ResultsManager(config_manager=self.config_manager)
         
         # Create status dispatcher with Rich TUI if enabled
         ui_config = self.config_manager.get_ui_config()
@@ -94,7 +96,7 @@ class IPCrawlerCLI:
         # Export command
         export_parser = subparsers.add_parser('export', help='Export results')
         export_parser.add_argument('target', help='Target to export results for')
-        export_parser.add_argument('--format', choices=['txt', 'json', 'md'], default='txt')
+        export_parser.add_argument('--format', choices=['txt', 'json', 'jsonl', 'md'], default='txt')
         export_parser.add_argument('--output', help='Output file path')
         
         # Config command
@@ -199,16 +201,56 @@ class IPCrawlerCLI:
             await self._execute_templates(templates, target, folder)
     
     async def _execute_templates(self, templates: List[ToolTemplate], target: str, folder: Optional[str] = None) -> None:
-        """Execute templates with proper progress tracking."""
+        """Execute templates with proper progress tracking and template chaining support."""
+        # Start new scan session for real-time results
+        self.results_manager.start_new_scan_session(target)
+        
+        # Check for sudo plugins and notify user
+        self._check_and_notify_sudo_plugins(templates)
+        
         self.status_dispatcher.start_scan(target, len(templates), folder)
         
         # Initialize plugins in the Rich status dispatcher
         if hasattr(self.status_dispatcher, 'initialize_plugins'):
             self.status_dispatcher.initialize_plugins(templates)
         
-        # Create async tasks for real-time execution
+        # Separate templates into vhost discovery and others
+        vhost_templates = [t for t in templates if 'vhost' in t.name.lower()]
+        other_templates = [t for t in templates if 'vhost' not in t.name.lower()]
+        
+        # Phase 1: Execute vhost discovery templates first
+        phase1_results = []
+        if vhost_templates:
+            self.status_dispatcher.display_info("🔍 Phase 1: Executing vhost discovery templates...")
+            phase1_results = await self._execute_template_phase(vhost_templates, target, {})
+        
+        # Phase 2: Extract discovered domains and generate chain variables
+        chain_variables = {}
+        if phase1_results:
+            target_ip = self.chain_resolver.resolve_target_ip(target)
+            discovered_domains = self.chain_resolver.extract_discovered_domains(phase1_results, target_ip)
+            
+            if discovered_domains:
+                chain_variables = self.chain_resolver.generate_chain_variables(discovered_domains)
+                domain_list = ', '.join([d.domain for d in discovered_domains])
+                self.status_dispatcher.display_info(f"🎯 Discovered domains: {domain_list}")
+                self.status_dispatcher.display_info(f"🔗 Chain variables available: {list(chain_variables.keys())}")
+        
+        # Phase 3: Execute remaining templates with chain variables
+        if other_templates:
+            self.status_dispatcher.display_info("🔧 Phase 2: Executing remaining templates with chain variables...")
+            await self._execute_template_phase(other_templates, target, chain_variables)
+        
+        # Generate summary (this will create readable files) - always run this
+        try:
+            summary = self.results_manager.generate_summary(target)
+            self.status_dispatcher.finish_scan(summary)
+        except Exception as e:
+            self.status_dispatcher.display_error(f"Error generating summary: {e}")
+    
+    async def _execute_template_phase(self, templates: List[ToolTemplate], target: str, chain_variables: dict) -> List:
+        """Execute a phase of templates with optional chain variables."""
         semaphore = asyncio.Semaphore(self.config_manager.get_concurrent_limit())
-        tasks = []
         results = []
         
         async def execute_single_template(template: ToolTemplate):
@@ -227,7 +269,9 @@ class IPCrawlerCLI:
                         timeout=template.timeout,
                         preset=template.preset,
                         variables=template.variables,
-                        preset_resolver=self.preset_resolver
+                        preset_resolver=self.preset_resolver,
+                        requires_sudo=template.requires_sudo or False,
+                        chain_variables=chain_variables
                     )
                     
                     # Save and show completion immediately
@@ -268,12 +312,34 @@ class IPCrawlerCLI:
             except:
                 pass  # Ignore errors during cleanup
         
-        # Generate summary (this will create readable files) - always run this
+        return results
+    
+    def _check_and_notify_sudo_plugins(self, templates: List[ToolTemplate]) -> None:
+        """Check for sudo plugins and notify user if needed."""
+        sudo_plugins = [t for t in templates if getattr(t, 'requires_sudo', False)]
+        
+        if not sudo_plugins:
+            return
+            
+        # Check if running as root
         try:
-            summary = self.results_manager.generate_summary(target)
-            self.status_dispatcher.finish_scan(summary)
-        except Exception as e:
-            self.status_dispatcher.display_error(f"Error generating summary: {e}")
+            import os
+            is_root = os.geteuid() == 0
+        except AttributeError:
+            is_root = False
+        
+        if not is_root:
+            sudo_plugin_names = [p.name for p in sudo_plugins]
+            self.status_dispatcher.display_info(
+                f"⚠️  {len(sudo_plugins)} plugin(s) require sudo privileges: {', '.join(sudo_plugin_names)}"
+            )
+            self.status_dispatcher.display_info(
+                "   These plugins will be skipped. Run with 'sudo' to execute them."
+            )
+        else:
+            self.status_dispatcher.display_info(
+                f"🔐 Running with sudo privileges - {len(sudo_plugins)} privileged plugin(s) will execute"
+            )
     
     def list_templates(self, category: Optional[str] = None) -> None:
         """List available templates."""

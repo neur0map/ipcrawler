@@ -103,6 +103,9 @@ class TemplateSchema:
             "parallel_safe": {
                 "type": "boolean"
             },
+            "requires_sudo": {
+                "type": "boolean"
+            },
             "preset": {
                 "type": "string",
                 "pattern": "^[a-zA-Z0-9_.-]+$",

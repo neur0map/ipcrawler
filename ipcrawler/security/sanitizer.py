@@ -13,7 +13,8 @@ class CommandSanitizer:
     
     @classmethod
     def sanitize_command(cls, tool: str, args: List[str], target: str, wordlist: Optional[str] = None, 
-                        preset_args: Optional[List[str]] = None, variables: Optional[Dict[str, str]] = None) -> List[str]:
+                        preset_args: Optional[List[str]] = None, variables: Optional[Dict[str, str]] = None,
+                        chain_variables: Optional[Dict[str, str]] = None) -> List[str]:
         """Sanitize and prepare command for execution."""
         # Validate tool name
         if not re.match(r'^[a-zA-Z0-9_/-]+$', tool):
@@ -56,8 +57,15 @@ class CommandSanitizer:
                     raise ValueError('Invalid wordlist path')
             
             # Replace custom variable placeholders
+            # Merge chain variables with template variables (chain variables take precedence)
+            all_variables = {}
             if variables:
-                for var_name, var_value in variables.items():
+                all_variables.update(variables)
+            if chain_variables:
+                all_variables.update(chain_variables)
+            
+            if all_variables:
+                for var_name, var_value in all_variables.items():
                     placeholder = f'{{{{{var_name}}}}}'
                     if placeholder in processed_arg:
                         # Validate variable value before substitution

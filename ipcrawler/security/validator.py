@@ -22,9 +22,9 @@ class ArgumentValidator:
         r'[\x00-\x1f\x7f-\x9f]', # Control characters
     ]
     
-    # Dangerous file extensions
+    # Dangerous file extensions (excluding common domain TLDs)
     DANGEROUS_EXTENSIONS = [
-        '.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.js',
+        '.exe', '.bat', '.cmd', '.pif', '.scr', '.vbs', '.js',
         '.jar', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
         '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.dat', '.tmp'
     ]
@@ -40,9 +40,14 @@ class ArgumentValidator:
             if re.search(pattern, arg):
                 return False
         
-        # Check for dangerous file extensions
+        # Check for dangerous file extensions (but exclude URLs and domain-like patterns)
         for ext in cls.DANGEROUS_EXTENSIONS:
             if arg.lower().endswith(ext):
+                # Don't flag if this looks like a URL or domain name
+                if ('://' in arg or 
+                    'Host:' in arg or 
+                    arg.count('.') >= 1 and not arg.startswith('/')):
+                    continue
                 return False
         
         return True

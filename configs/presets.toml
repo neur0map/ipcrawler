@@ -45,6 +45,9 @@ udp_common = ["-sU", "--top-ports", "100", "-T4"]
 # Vulnerability scan - Using NSE scripts
 vuln_scan = ["-sV", "--script", "vuln", "-T4"]
 
+# HTB scan - Service detection with port range optimization
+htb_scan = ["-sV", "-T4", "--min-rate", "5000", "--max-rate", "10000", "--open"]
+
 # =============================================================================
 # CURL PRESETS - HTTP/HTTPS request configurations
 # =============================================================================
@@ -98,8 +101,8 @@ backup_scan = ["-t", "15", "-s", "200,204,301,302,307,401,403,405", "--dont-filt
 # =============================================================================
 [gobuster]
 # CTF Virtual host discovery - Focus on accessible content
-ctf_vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress"]
-ctf_vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress"]
+ctf_vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress", "--exclude-status", "404"]
+ctf_vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress", "--exclude-status", "404"]
 
 # CTF Directory enumeration - Focus on accessible content (no redirects to reduce noise)
 ctf_dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,403"]

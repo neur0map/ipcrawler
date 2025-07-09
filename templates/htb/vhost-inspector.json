@@ -1,0 +1,11 @@
+{
+  "name": "vhost-inspector",
+  "tool": "gobuster",
+  "preset": "gobuster.ctf_vhost_fast",
+  "args": ["-u", "http://{{target}}", "-w", "wordlists/common-vhosts.txt"],
+  "description": "HTB unified vhost discovery - scans for common virtual hosts using gobuster (replaces individual vhost checks)",
+  "author": "neur0map",
+  "version": "1.0.0",
+  "timeout": 120,
+  "tags": ["htb", "vhost", "discovery", "unified", "preset", "ctf", "gobuster"]
+}

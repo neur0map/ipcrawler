@@ -5,7 +5,7 @@
 # Available output formats
 default_readable = "txt"           # Default human-readable format
 machine_readable = "jsonl"         # Default machine-readable format
-export_formats = ["txt", "md", "json", "xml", "csv", "html"]
+export_formats = ["txt", "md", "json", "jsonl", "xml", "csv", "html"]
 
 # Format-specific settings
 [formats.json]
@@ -79,6 +79,13 @@ exclude_empty_results = true       # Exclude results with no output
 exclude_failed_scans = false      # Exclude failed scans from exports
 min_execution_time = 0             # Minimum execution time to include (seconds)
 max_execution_time = 0             # Maximum execution time to include (0 = no limit)
+
+# CTF noise filtering (for cleaner results in competitive scenarios)
+enable_ctf_filtering = true        # Enable CTF-specific noise filtering
+filter_nmap_fingerprints = true    # Remove nmap service fingerprints (SF: lines)
+filter_submission_prompts = true   # Remove tool submission/reporting prompts
+filter_version_banners = false     # Remove verbose version banners
+filter_debug_output = true         # Remove debug and verbose tool output
 
 [templates]
 # Output templates for different formats

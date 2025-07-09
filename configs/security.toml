@@ -35,6 +35,17 @@ resource_limits = true             # Enforce resource limits
 network_restrictions = false       # Apply network restrictions (future)
 chroot_jail = false                # Run in chroot jail (advanced)
 
+# Sudo privilege settings
+sudo_detection_enabled = true      # Enable sudo privilege detection
+sudo_skip_gracefully = true        # Skip sudo plugins gracefully when not root
+sudo_warn_user = true             # Warn user about skipped sudo plugins
+sudo_file_paths_allowed = [        # File paths allowed for sudo operations
+    "/etc/hosts",
+    "/etc/hostname", 
+    "/tmp/*",
+    "/var/tmp/*"
+]
+
 # Process limits
 max_execution_time = 300           # Maximum execution time per template (5 minutes)
 max_memory_usage = 512             # Maximum memory per process (MB)
@@ -59,6 +70,17 @@ allowed_tools = [
     "openssl", "sslscan", "testssl",
     # Basic utilities
     "ping", "echo", "cat", "head", "tail"
+]
+
+# Sudo-enabled tools (only allowed when requires_sudo: true)
+sudo_enabled_tools = [
+    # System file modification
+    "tee",      # For writing to system files like /etc/hosts
+    "touch",    # For creating files
+    "mkdir",    # For creating directories
+    # File permissions (limited scope)
+    "chmod",    # For changing permissions
+    "chown",    # For changing ownership
 ]
 
 # Completely blocked tools

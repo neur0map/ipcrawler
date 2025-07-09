@@ -26,6 +26,7 @@ class ToolTemplate(BaseModel):
     severity: Optional[Literal['low', 'medium', 'high']] = None
     stealth: Optional[bool] = None
     parallel_safe: Optional[bool] = True
+    requires_sudo: Optional[bool] = False
     
     @validator('tool')
     def validate_tool(cls, v):
@@ -118,6 +119,30 @@ class ToolTemplate(BaseModel):
                 raise ValueError(f'Variable value too long: {var_name}')
             if re.search(r'[;&|`$()<>]', str(var_value)):
                 raise ValueError(f'Variable value contains dangerous characters: {var_name}')
+        
+        return v
+    
+    @validator('requires_sudo')
+    def validate_sudo_requirements(cls, v, values):
+        """Validate sudo requirements and tool compatibility."""
+        if not v:
+            return v
+            
+        # If requires_sudo is True, validate the tool is approved for sudo operations
+        tool = values.get('tool')
+        if tool and v:
+            # List of tools approved for sudo operations
+            sudo_approved_tools = {
+                'tee',      # For writing to system files
+                'echo',     # For simple output operations
+                'touch',    # For creating files
+                'mkdir',    # For creating directories
+                'chmod',    # For changing permissions (limited)
+                'chown',    # For changing ownership (limited)
+            }
+            
+            if tool not in sudo_approved_tools:
+                raise ValueError(f'Tool "{tool}" is not approved for sudo operations. Approved tools: {", ".join(sudo_approved_tools)}')
         
         return v
     

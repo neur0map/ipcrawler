@@ -1,55 +1,41 @@
-# ipcrawler Core Configuration
-# Global system behavior and performance settings
-
 [application]
 name = "ipcrawler"
 version = "0.1.0-alpha"
 debug = false
 
 [performance]
-# Execution performance settings
 concurrent_limit = 10
 default_timeout = 80
-max_output_size = 1048576  # 1MB
-memory_limit = 512  # MB
+max_output_size = 1048576
+memory_limit = 512
 
 [security]
-# Core security settings
 enforce_validation = true
 allow_shell_commands = false
-max_template_size = 1048576  # 1MB
+max_template_size = 1048576
 
 [system]
-# System paths and directories
 config_dir = "configs"
 templates_dir = "templates"
 results_dir = "results"
 cache_dir = ".cache"
 
 [logging]
-# Logging configuration
 silent = true
 level = "INFO"
 file_rotation = true
-max_log_size = 10485760  # 10MB
+max_log_size = 10485760
 
 [retry]
-# Retry logic configuration
 count = 3
 backoff_multiplier = 2
 max_wait_time = 60
 
 [ui]
-# Rich TUI settings
 enable_rich_ui = true
-fullscreen_mode = false  # false = box mode, true = fullscreen
-refresh_rate = 2  # Updates per second (1-5 recommended for smooth time display)
-
-# Available themes:
-# - minimal: Clean white/greyish theme (default)
-# - dark: Dark theme with subtle colors
-# - matrix: Green matrix-style theme
-# - cyber: Cyan/magenta cyberpunk theme
-# - hacker: Bright green hacker theme
-# - corporate: Professional blue theme
+fullscreen_mode = false
+refresh_rate = 2
 theme = "minimal"
+
+[wordlists]
+seclists_path = "/Users/carlosm/.local/share/seclists"

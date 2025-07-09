@@ -28,6 +28,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+wordlists/
 
 # Environment files (never commit these)
 .env

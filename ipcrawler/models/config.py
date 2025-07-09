@@ -318,6 +318,12 @@ class OutputExportConfig(BaseModel):
     exclude_failed_scans: bool = False
     min_execution_time: int = Field(0, ge=0)
     max_execution_time: int = Field(0, ge=0)
+    # CTF noise filtering (for cleaner results in competitive scenarios)
+    enable_ctf_filtering: bool = True
+    filter_nmap_fingerprints: bool = True
+    filter_submission_prompts: bool = True
+    filter_version_banners: bool = False
+    filter_debug_output: bool = True
 
 
 class OutputConfig(BaseModel):
