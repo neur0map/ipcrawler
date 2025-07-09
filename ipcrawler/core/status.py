@@ -3,9 +3,24 @@ Status display and console output management.
 """
 
 import sys
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from datetime import datetime
 from ..models.result import ExecutionResult, ScanResult
+
+
+def create_status_dispatcher(config: Dict[str, Any], silent: bool = False) -> Union['StatusDispatcher', 'RichStatusDispatcher']:
+    """Factory function to create appropriate status dispatcher."""
+    try:
+        # Try to import and use Rich TUI if enabled
+        if config.get("enable_rich_ui", True):
+            from ..ui.rich_status import RichStatusDispatcher
+            return RichStatusDispatcher(config, silent)
+    except ImportError:
+        # Fall back to basic status dispatcher if Rich is not available
+        pass
+    
+    # Use basic status dispatcher
+    return StatusDispatcher(silent)
 
 
 class StatusDispatcher:

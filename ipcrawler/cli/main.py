@@ -7,6 +7,7 @@ import asyncio
 from typing import List, Optional
 
 from ..core import ConfigManager, TemplateDiscovery, ResultsManager, StatusDispatcher
+from ..core.status import create_status_dispatcher
 from ..core.schema import TemplateSchema
 from ..core.preset_resolver import PresetResolver
 from ..core.sentry_integration import sentry_manager, with_sentry_context
@@ -25,7 +26,11 @@ class IPCrawlerCLI:
         self.preset_resolver = PresetResolver(self.config_manager)
         self.template_discovery = TemplateDiscovery("templates")
         self.results_manager = ResultsManager()
-        self.status_dispatcher = StatusDispatcher(False)  # Always show scan output
+        
+        # Create status dispatcher with Rich TUI if enabled
+        ui_config = self.config_manager.get_ui_config()
+        self.status_dispatcher = create_status_dispatcher(ui_config, False)  # Always show scan output
+        
         self.executor = SecureExecutor(
             timeout=self.config_manager.get_default_timeout(),
             max_output_size=self.config_manager.config.settings.max_output_size
@@ -121,28 +126,8 @@ class IPCrawlerCLI:
                 self.status_dispatcher.display_error(f"Template not found: {template_name}")
                 return
             
-            # Execute template
-            self.status_dispatcher.start_scan(target, 1)
-            
-            result = await self.executor.execute_template(
-                template_name=template.name,
-                tool=template.tool,
-                args=template.args,
-                target=target,
-                env=template.env,
-                wordlist=template.wordlist,
-                timeout=template.timeout,
-                preset=template.preset,
-                variables=template.variables,
-                preset_resolver=self.preset_resolver
-            )
-            
-            # Save and display result
-            self.results_manager.save_result(result, target)
-            self.status_dispatcher.update_progress(result)
-            
-            summary = self.results_manager.generate_summary(target)
-            self.status_dispatcher.finish_scan(summary)
+            # Execute template using the same context as multiple templates
+            await self._run_templates([template], target)
             
         except Exception as e:
             self.status_dispatcher.display_error(f"Failed to run template: {e}")
@@ -164,6 +149,10 @@ class IPCrawlerCLI:
                 data={"folder": folder, "target": target}
             )
         try:
+            # Normalize folder path - strip 'templates/' prefix if present
+            if folder.startswith('templates/'):
+                folder = folder[10:]  # Remove 'templates/' prefix
+            
             templates = self.template_discovery.discover_templates(folder)
             
             if not templates:
@@ -191,7 +180,23 @@ class IPCrawlerCLI:
     
     async def _run_templates(self, templates: List[ToolTemplate], target: str, folder: Optional[str] = None) -> None:
         """Run multiple templates."""
+        # Check if this is a Rich TUI status dispatcher
+        is_rich_ui = hasattr(self.status_dispatcher, '__aenter__')
+        
+        # Use Rich TUI context if available, otherwise run normally
+        if is_rich_ui:
+            async with self.status_dispatcher:
+                await self._execute_templates(templates, target, folder)
+        else:
+            await self._execute_templates(templates, target, folder)
+    
+    async def _execute_templates(self, templates: List[ToolTemplate], target: str, folder: Optional[str] = None) -> None:
+        """Execute templates with proper progress tracking."""
         self.status_dispatcher.start_scan(target, len(templates), folder)
+        
+        # Initialize plugins in the Rich status dispatcher
+        if hasattr(self.status_dispatcher, 'initialize_plugins'):
+            self.status_dispatcher.initialize_plugins(templates)
         
         # Create async tasks for real-time execution
         semaphore = asyncio.Semaphore(self.config_manager.get_concurrent_limit())
@@ -233,7 +238,7 @@ class IPCrawlerCLI:
                     return e
         
         # Create tasks for all templates
-        tasks = [execute_single_template(template) for template in templates]
+        tasks = [asyncio.create_task(execute_single_template(template)) for template in templates]
         
         try:
             # Wait for all to complete

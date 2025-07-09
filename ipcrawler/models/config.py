@@ -365,12 +365,29 @@ class LegacyRetryConfig(BaseModel):
     wait_max: int = Field(60, ge=1, le=300)
 
 
+class UIConfig(BaseModel):
+    """User interface configuration."""
+    enable_rich_ui: bool = True
+    fullscreen_mode: bool = False
+    refresh_rate: int = Field(2, ge=1, le=60)  # 1-5 recommended for smooth time display
+    theme: str = Field("minimal", pattern=r"^(minimal|dark|matrix|cyber|hacker|corporate)$")
+    
+    @validator('theme')
+    def validate_theme(cls, v):
+        """Validate theme selection."""
+        valid_themes = ["minimal", "dark", "matrix", "cyber", "hacker", "corporate"]
+        if v not in valid_themes:
+            raise ValueError(f'Theme must be one of: {", ".join(valid_themes)}')
+        return v
+
+
 class AppConfig(BaseModel):
     """Main application configuration (backwards compatible)."""
     application: ApplicationConfig = Field(default_factory=ApplicationConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     security: SecurityCoreConfig = Field(default_factory=SecurityCoreConfig)
     system: SystemConfig = Field(default_factory=SystemConfig)
+    ui: UIConfig = Field(default_factory=UIConfig)
     templates: Dict[str, str] = Field({}, max_items=50)
     settings: LegacySettingsConfig = Field(default_factory=LegacySettingsConfig)
     logging: LegacyLoggingConfig = Field(default_factory=LegacyLoggingConfig)

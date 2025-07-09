@@ -228,6 +228,27 @@ class ConfigManager:
         """Check if silent mode is enabled."""
         return self.config.logging.silent
     
+    def get_ui_config(self) -> Dict[str, Any]:
+        """Get UI configuration."""
+        return {
+            "enable_rich_ui": self.config.ui.enable_rich_ui,
+            "fullscreen_mode": self.config.ui.fullscreen_mode,
+            "refresh_rate": self.config.ui.refresh_rate,
+            "theme": self.config.ui.theme
+        }
+    
+    def is_rich_ui_enabled(self) -> bool:
+        """Check if Rich UI is enabled."""
+        return self.config.ui.enable_rich_ui
+    
+    def is_fullscreen_mode(self) -> bool:
+        """Check if fullscreen mode is enabled."""
+        return self.config.ui.fullscreen_mode
+    
+    def get_refresh_rate(self) -> int:
+        """Get UI refresh rate."""
+        return self.config.ui.refresh_rate
+    
     def get_retry_config(self) -> Dict[str, Any]:
         """Get retry configuration."""
         return {
