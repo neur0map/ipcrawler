@@ -124,3 +124,41 @@ class StatusDispatcher:
     def set_silent(self, silent: bool) -> None:
         """Enable or disable silent mode."""
         self.silent = silent
+
+    def display_version(self, version: str, app_name: str = "ipcrawler") -> None:
+        """Display version information."""
+        if not self.silent:
+            print(f"\n{app_name} version {version}")
+            print("Security Tool Orchestration Framework")
+            print("Copyright (c) 2024 - Open Source")
+
+    def display_help(self, app_name: str = "ipcrawler") -> None:
+        """Display help information."""
+        if not self.silent:
+            print(f"\n{app_name} - Security Tool Orchestration Framework")
+            print("\nUSAGE:")
+            print("  python ipcrawler.py [OPTIONS] COMMAND [ARGS]")
+            print("\nCOMMANDS:")
+            print("  run TEMPLATE TARGET        Run a specific template")
+            print("  scan-folder FOLDER TARGET  Run all templates in a folder")
+            print("  scan-all TARGET           Run all templates")
+            print("  list [--category CAT]     List available templates")
+            print("  results TARGET            Show results for a target")
+            print("  export TARGET             Export results")
+            print("  config                    Show configuration")
+            print("  schema                    Show template JSON schema")
+            print("  validate                  Validate templates")
+            print("\nSHORTCUTS:")
+            print("  -default TARGET           Run default templates")
+            print("  -recon TARGET             Run reconnaissance templates")
+            print("  -custom TARGET            Run custom templates")
+            print("  -htb TARGET               Run HTB/CTF templates")
+            print("\nOPTIONS:")
+            print("  -debug, --debug           Enable debug mode")
+            print("  --version                 Show version information")
+            print("  -h, --help                Show this help message")
+            print("\nEXAMPLES:")
+            print("  python ipcrawler.py list")
+            print("  python ipcrawler.py run custom/robots-txt-fetch example.com")
+            print("  python ipcrawler.py -recon example.com")
+            print("  python ipcrawler.py -debug scan-all example.com")

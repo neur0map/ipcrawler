@@ -1,8 +1,0 @@
-{
-  "name": "dns-a-records",
-  "tool": "dig",
-  "preset": "dig.a_records",
-  "args": ["{{target}}"],
-  "description": "DNS A record lookup using dig preset",
-  "tags": ["dns", "recon", "a-records", "preset"]
-}

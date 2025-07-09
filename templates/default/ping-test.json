@@ -1,8 +1,0 @@
-{
-  "name": "ping-test",
-  "tool": "ping",
-  "preset": "ping.basic",
-  "args": ["{{target}}"],
-  "description": "Basic ping test to check if target is reachable",
-  "tags": ["network", "basic", "preset"]
-}

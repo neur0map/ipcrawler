@@ -1,8 +1,0 @@
-{
-  "name": "nmap-stealth",
-  "tool": "nmap",
-  "preset": "nmap.stealth",
-  "args": ["-p", "22,53,80,443,8080,8443", "{{target}}"],
-  "description": "Stealth nmap scan using preset configuration",
-  "tags": ["network", "stealth", "port-scan", "preset"]
-}

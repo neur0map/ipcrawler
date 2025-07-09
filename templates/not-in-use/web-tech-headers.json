@@ -1,8 +1,0 @@
-{
-  "name": "web-tech-headers",
-  "tool": "curl",
-  "preset": "curl.basic_info",
-  "args": ["-I", "http://{{target}}"],
-  "description": "Web technology detection via HTTP headers",
-  "tags": ["web", "recon", "headers", "tech-detection"]
-}

@@ -1,8 +1,0 @@
-{
-  "name": "echo-test",
-  "tool": "echo",
-  "preset": "echo.basic",
-  "args": ["Testing target: {{target}}"],
-  "description": "Simple echo test for target validation using preset",
-  "tags": ["test", "basic", "preset"]
-}

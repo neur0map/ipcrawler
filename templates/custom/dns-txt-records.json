@@ -1,8 +1,0 @@
-{
-  "name": "dns-txt-records",
-  "tool": "dig",
-  "preset": "dig.txt_records",
-  "args": ["{{target}}"],
-  "description": "DNS TXT record lookup using dig preset",
-  "tags": ["dns", "recon", "txt-records", "spf", "dmarc", "preset"]
-}

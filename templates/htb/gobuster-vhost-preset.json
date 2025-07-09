@@ -1,8 +1,0 @@
-{
-  "name": "gobuster-vhost-preset", 
-  "tool": "gobuster",
-  "preset": "gobuster.ctf_vhost_fast",
-  "args": ["-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/DNS/namelist.txt"],
-  "description": "CTF-optimized gobuster vhost discovery",
-  "tags": ["htb", "ctf", "gobuster", "vhost", "preset"]
-}

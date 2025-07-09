@@ -1,8 +1,0 @@
-{
-  "name": "feroxbuster-ctf-clean",
-  "tool": "feroxbuster",
-  "preset": "feroxbuster.ctf_fast",
-  "args": ["-u", "{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
-  "description": "Clean CTF feroxbuster scan (200 only - no redirect noise)",
-  "tags": ["ctf", "clean", "no-redirects", "preset"]
-}

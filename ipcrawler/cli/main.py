@@ -42,7 +42,8 @@ class IPCrawlerCLI:
         """Create command-line argument parser."""
         parser = argparse.ArgumentParser(
             description="ipcrawler - Security Tool Orchestration Framework",
-            formatter_class=argparse.RawDescriptionHelpFormatter
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            add_help=False  # We'll handle help manually
         )
         
         # Add global debug flag
@@ -52,11 +53,18 @@ class IPCrawlerCLI:
             help='Enable debug mode with Sentry error tracking (requires .env with SENTRY_DSN)'
         )
         
-        # Add version flag
+        # Add version flag (handled manually, but keep for compatibility)
         parser.add_argument(
             '--version',
-            action='version',
-            version=f'ipcrawler {self.config_manager.config.application.version}'
+            action='store_true',
+            help='Show version information'
+        )
+        
+        # Add help flag (handled manually, but keep for compatibility)
+        parser.add_argument(
+            '-h', '--help',
+            action='store_true',
+            help='Show this help message'
         )
         
         subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -326,6 +334,18 @@ class IPCrawlerCLI:
     def _parse_arguments(self):
         """Parse command line arguments, handling flag-style commands."""
         import sys
+        
+        # Handle version and help first (before any other parsing)
+        if '--version' in sys.argv:
+            self.status_dispatcher.display_version(
+                self.config_manager.config.application.version,
+                self.config_manager.config.application.name
+            )
+            sys.exit(0)
+        
+        if '-h' in sys.argv or '--help' in sys.argv:
+            self.status_dispatcher.display_help(self.config_manager.config.application.name)
+            sys.exit(0)
         
         # Check for debug flag first (can appear anywhere)
         debug_flag = '-debug' in sys.argv or '--debug' in sys.argv

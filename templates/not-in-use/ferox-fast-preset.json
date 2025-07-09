@@ -1,8 +1,0 @@
-{
-  "name": "ferox-fast-preset",
-  "tool": "feroxbuster",
-  "preset": "feroxbuster.ctf_fast",
-  "args": ["-u", "http://{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
-  "description": "CTF-optimized fast feroxbuster scan (clean output)",
-  "tags": ["htb", "ctf", "clean", "feroxbuster", "web", "preset"]
-}

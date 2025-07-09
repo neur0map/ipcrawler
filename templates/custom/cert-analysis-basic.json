@@ -1,8 +1,0 @@
-{
-  "name": "cert-analysis-basic",
-  "tool": "openssl",
-  "preset": "openssl.cert_info",
-  "args": ["{{target}}:443"],
-  "description": "Basic SSL certificate analysis using openssl preset",
-  "tags": ["ssl", "tls", "certificates", "preset"]
-}

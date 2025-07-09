@@ -1,8 +1,0 @@
-{
-  "name": "domain-info",
-  "tool": "nslookup",
-  "preset": "nslookup.basic",
-  "args": ["{{target}}"],
-  "description": "Basic DNS lookup using preset configuration",
-  "tags": ["dns", "domain", "info", "preset"]
-}

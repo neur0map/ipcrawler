@@ -1,8 +1,0 @@
-{
-  "name": "nmap-service-scan",
-  "tool": "nmap",
-  "preset": "nmap.service_scan",
-  "args": ["--top-ports", "20", "--open", "{{target}}"],
-  "description": "Service version detection scan on top 20 ports",
-  "tags": ["port-scan", "service-detection", "version", "preset"]
-}

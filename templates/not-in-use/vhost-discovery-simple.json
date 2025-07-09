@@ -1,8 +1,0 @@
-{
-  "name": "vhost-discovery-simple",
-  "tool": "curl",
-  "preset": "curl.basic_info",
-  "args": ["http://{{target}}/", "-w", "\\nHTTP-Status: %{http_code}\\nContent-Length: %{size_download}\\nRedirect-URL: %{redirect_url}\\nFinal-URL: %{url_effective}\\n"],
-  "description": "Simple virtual host discovery using curl without custom headers",
-  "tags": ["htb", "web", "vhost", "discovery", "simple"]
-}

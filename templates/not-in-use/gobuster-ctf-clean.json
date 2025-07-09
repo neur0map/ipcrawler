@@ -1,8 +1,0 @@
-{
-  "name": "gobuster-ctf-clean",
-  "tool": "gobuster",
-  "preset": "gobuster.ctf_dir_fast",
-  "args": ["-u", "{{target}}", "-w", "/usr/share/seclists/Discovery/Web-Content/common.txt"],
-  "description": "Clean CTF gobuster scan (200, 403 only - no redirect noise)",
-  "tags": ["ctf", "clean", "no-redirects", "preset"]
-}

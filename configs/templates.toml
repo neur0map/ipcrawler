@@ -6,17 +6,8 @@
 # Format: flag_name = "folder_name"
 # Usage: ipcrawler -flag_name target
 
-# Core template categories
-default = "default"
-recon = "recon"
-custom = "custom"
+# template name = folder name
 htb = "htb"
-
-# Additional template categories (examples)
-web = "web_scanning"
-network = "network_tools"
-vuln = "vulnerability_scans"
-osint = "osint_tools"
 
 # Add your custom template folders here
 # Example:

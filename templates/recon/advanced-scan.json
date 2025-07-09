@@ -1,8 +1,0 @@
-{
-  "name": "advanced-scan",
-  "tool": "nuclei",
-  "preset": "nuclei.full_scan",
-  "args": ["-u", "{{target}}"],
-  "description": "Advanced vulnerability scanner using nuclei preset",
-  "tags": ["vuln", "scanner", "nuclei", "preset"]
-}

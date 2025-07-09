@@ -1,8 +1,0 @@
-{
-  "name": "web-content-fetch",
-  "tool": "curl",
-  "preset": "curl.fast_content",
-  "args": ["--max-filesize", "1048576", "http://{{target}}"],
-  "description": "Download webpage content for analysis (1MB limit)",
-  "tags": ["web", "content", "download", "preset"]
-}

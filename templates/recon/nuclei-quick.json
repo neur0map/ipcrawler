@@ -1,8 +1,0 @@
-{
-  "name": "nuclei-quick",
-  "tool": "nuclei",
-  "preset": "nuclei.tech_detection",
-  "args": ["-u", "{{target}}"],
-  "description": "Quick nuclei scan for tech detection using preset",
-  "tags": ["web", "quick", "tech-detect", "preset"]
-}

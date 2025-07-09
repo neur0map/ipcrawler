@@ -1,8 +1,0 @@
-{
-  "name": "nmap-quick",
-  "tool": "nmap",
-  "preset": "nmap.quick_tcp",
-  "args": ["{{target}}"],
-  "description": "Quick nmap scan using preset configuration",
-  "tags": ["network", "port-scan", "quick", "preset"]
-}

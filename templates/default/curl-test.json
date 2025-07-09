@@ -1,8 +1,0 @@
-{
-  "name": "curl-test",
-  "tool": "curl",
-  "preset": "curl.basic_info",
-  "args": ["http://{{target}}"],
-  "description": "Basic HTTP connectivity test using curl preset",
-  "tags": ["web", "http", "preset"]
-}

@@ -495,3 +495,135 @@ class RichStatusDispatcher:
     def set_silent(self, silent: bool) -> None:
         """Enable or disable silent mode."""
         self.silent = silent
+
+    def display_version(self, version: str, app_name: str = "ipcrawler") -> None:
+        """Display Rich version information."""
+        if self.silent:
+            return
+        
+        # Create version info table
+        version_table = Table(show_header=False, box=None, padding=(0, 1))
+        version_table.add_column("Property", style=self.colors["header_text"], width=20)
+        version_table.add_column("Value", style=self.colors["progress_text"])
+        
+        version_table.add_row("Application:", app_name)
+        version_table.add_row("Version:", version)
+        version_table.add_row("Type:", "Security Tool Orchestration Framework")
+        version_table.add_row("License:", "Open Source")
+        version_table.add_row("Copyright:", "2024")
+        
+        # Create features table
+        features_table = Table(show_header=False, box=None, padding=(0, 1))
+        features_table.add_column("Feature", style=self.colors["success_text"], width=20)
+        features_table.add_column("Status", style=self.colors["progress_text"])
+        
+        features_table.add_row("Rich TUI:", "✓ Enabled" if self.enable_rich_ui else "✗ Disabled")
+        features_table.add_row("Themes:", f"✓ {self.theme.title()}")
+        features_table.add_row("Fullscreen:", "✓ Enabled" if self.fullscreen_mode else "✗ Disabled")
+        features_table.add_row("Async Execution:", "✓ Enabled")
+        features_table.add_row("Preset System:", "✓ Enabled")
+        
+        # Display version panel
+        version_panel = Panel(
+            version_table,
+            title=f"[{self.colors['header_text']}]{app_name} Version Information[/{self.colors['header_text']}]",
+            style=self.colors["border"]
+        )
+        
+        # Display features panel
+        features_panel = Panel(
+            features_table,
+            title=f"[{self.colors['header_text']}]Features[/{self.colors['header_text']}]",
+            style=self.colors["border"]
+        )
+        
+        self.console.print()
+        self.console.print(version_panel)
+        self.console.print(features_panel)
+
+    def display_help(self, app_name: str = "ipcrawler") -> None:
+        """Display Rich help information."""
+        if self.silent:
+            return
+        
+        # Create header
+        header_text = Text(f"{app_name} - Security Tool Orchestration Framework", style=self.colors["header_text"])
+        header_panel = Panel(
+            Align.center(header_text),
+            style=self.colors["border"]
+        )
+        
+        # Create commands table
+        commands_table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
+        commands_table.add_column("Command", style=self.colors["active_text"], width=25)
+        commands_table.add_column("Description", style=self.colors["progress_text"])
+        
+        commands_table.add_row("run TEMPLATE TARGET", "Run a specific template")
+        commands_table.add_row("scan-folder FOLDER TARGET", "Run all templates in a folder")
+        commands_table.add_row("scan-all TARGET", "Run all templates")
+        commands_table.add_row("list [--category CAT]", "List available templates")
+        commands_table.add_row("results TARGET", "Show results for a target")
+        commands_table.add_row("export TARGET", "Export results")
+        commands_table.add_row("config", "Show configuration")
+        commands_table.add_row("schema", "Show template JSON schema")
+        commands_table.add_row("validate", "Validate templates")
+        
+        # Create shortcuts table
+        shortcuts_table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
+        shortcuts_table.add_column("Shortcut", style=self.colors["success_text"], width=25)
+        shortcuts_table.add_column("Description", style=self.colors["progress_text"])
+        
+        shortcuts_table.add_row("-default TARGET", "Run default templates")
+        shortcuts_table.add_row("-recon TARGET", "Run reconnaissance templates")
+        shortcuts_table.add_row("-custom TARGET", "Run custom templates")
+        shortcuts_table.add_row("-htb TARGET", "Run HTB/CTF templates")
+        
+        # Create options table
+        options_table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
+        options_table.add_column("Option", style=self.colors["active_text"], width=25)
+        options_table.add_column("Description", style=self.colors["progress_text"])
+        
+        options_table.add_row("-debug, --debug", "Enable debug mode")
+        options_table.add_row("--version", "Show version information")
+        options_table.add_row("-h, --help", "Show this help message")
+        
+        # Create examples table
+        examples_table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
+        examples_table.add_column("Example", style=self.colors["info_text"])
+        
+        examples_table.add_row("python ipcrawler.py list")
+        examples_table.add_row("python ipcrawler.py run custom/robots-txt-fetch example.com")
+        examples_table.add_row("python ipcrawler.py -recon example.com")
+        examples_table.add_row("python ipcrawler.py -debug scan-all example.com")
+        
+        # Display all panels
+        self.console.print()
+        self.console.print(header_panel)
+        
+        commands_panel = Panel(
+            commands_table,
+            title=f"[{self.colors['header_text']}]Commands[/{self.colors['header_text']}]",
+            style=self.colors["border"]
+        )
+        self.console.print(commands_panel)
+        
+        shortcuts_panel = Panel(
+            shortcuts_table,
+            title=f"[{self.colors['header_text']}]Category Shortcuts[/{self.colors['header_text']}]",
+            style=self.colors["border"]
+        )
+        self.console.print(shortcuts_panel)
+        
+        options_panel = Panel(
+            options_table,
+            title=f"[{self.colors['header_text']}]Options[/{self.colors['header_text']}]",
+            style=self.colors["border"]
+        )
+        self.console.print(options_panel)
+        
+        examples_panel = Panel(
+            examples_table,
+            title=f"[{self.colors['header_text']}]Examples[/{self.colors['header_text']}]",
+            style=self.colors["border"]
+        )
+        self.console.print(examples_panel)

@@ -1,8 +1,0 @@
-{
-  "name": "nmap-top1000-open",
-  "tool": "nmap",
-  "preset": "nmap.quick_tcp",
-  "args": ["--top-ports", "1000", "--open", "{{target}}"],
-  "description": "Nmap TCP connect scan on top 1000 ports showing only open ports",
-  "tags": ["htb", "network", "port-scan", "tcp", "fast"]
-}

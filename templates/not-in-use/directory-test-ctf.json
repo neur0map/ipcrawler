@@ -1,8 +1,0 @@
-{
-  "name": "directory-test-ctf",
-  "tool": "curl",
-  "preset": "curl.basic_info",
-  "args": ["{{target}}/admin", "{{target}}/flag", "{{target}}/robots.txt"],
-  "description": "CTF directory test using curl (demonstrates status code filtering concept)",
-  "tags": ["ctf", "directory", "test", "preset"]
-}
