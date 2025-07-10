@@ -1,5 +1,5 @@
 """
-Rich TUI status display for ipcrawler.
+Rich TUI status display for ipcrawler using Executive Dashboard layout.
 """
 
 import sys
@@ -10,20 +10,18 @@ from contextlib import contextmanager
 
 from rich.console import Console
 from rich.live import Live
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 from rich.text import Text
-from rich.columns import Columns
 from rich.align import Align
 
 from ..models.result import ExecutionResult, ScanResult
 from .plugin_tracker import PluginTracker, PluginState
+from .layout_executive import ExecutiveDashboardLayout
 
 
 class RichStatusDispatcher:
-    """Rich TUI status display with live updates."""
+    """Rich TUI status display with Executive Dashboard layout."""
     
     def __init__(self, config: Dict[str, Any], silent: bool = False):
         self.config = config
@@ -34,86 +32,15 @@ class RichStatusDispatcher:
         # TUI settings
         self.enable_rich_ui = config.get("enable_rich_ui", True)
         self.fullscreen_mode = config.get("fullscreen_mode", False)
-        self.refresh_rate = config.get("refresh_rate", 10)
+        self.refresh_rate = config.get("refresh_rate", 2)
         self.theme = config.get("theme", "minimal")
         
-        # Theme configurations
-        self.themes = {
-            "minimal": {
-                "border": "white",
-                "header_text": "bright_white",
-                "header_secondary": "dim white",
-                "progress_text": "bright_white",
-                "active_text": "bright_white",
-                "success_text": "green",
-                "error_text": "red",
-                "queued_text": "dim white",
-                "info_text": "dim white"
-            },
-            "dark": {
-                "border": "bright_black",
-                "header_text": "white",
-                "header_secondary": "bright_black",
-                "progress_text": "white",
-                "active_text": "cyan",
-                "success_text": "bright_green",
-                "error_text": "bright_red",
-                "queued_text": "bright_black",
-                "info_text": "bright_black"
-            },
-            "matrix": {
-                "border": "green",
-                "header_text": "bright_green",
-                "header_secondary": "green",
-                "progress_text": "bright_green",
-                "active_text": "bright_green",
-                "success_text": "bright_green",
-                "error_text": "bright_red",
-                "queued_text": "green",
-                "info_text": "green"
-            },
-            "cyber": {
-                "border": "bright_cyan",
-                "header_text": "bright_cyan",
-                "header_secondary": "cyan",
-                "progress_text": "bright_cyan",
-                "active_text": "bright_magenta",
-                "success_text": "bright_green",
-                "error_text": "bright_red",
-                "queued_text": "cyan",
-                "info_text": "cyan"
-            },
-            "hacker": {
-                "border": "bright_green",
-                "header_text": "bright_green",
-                "header_secondary": "green",
-                "progress_text": "bright_green",
-                "active_text": "bright_yellow",
-                "success_text": "bright_green",
-                "error_text": "bright_red",
-                "queued_text": "green",
-                "info_text": "green"
-            },
-            "corporate": {
-                "border": "blue",
-                "header_text": "bright_blue",
-                "header_secondary": "blue",
-                "progress_text": "bright_blue",
-                "active_text": "bright_white",
-                "success_text": "bright_green",
-                "error_text": "bright_red",
-                "queued_text": "blue",
-                "info_text": "blue"
-            }
-        }
+        # Executive Dashboard Layout
+        self.executive_layout = ExecutiveDashboardLayout(config, self.plugin_tracker)
+        self.layout = self.executive_layout.get_layout()
         
-        # Get current theme colors
-        self.colors = self.themes.get(self.theme, self.themes["minimal"])
-        
-        # Layout components
-        self.layout = Layout()
+        # Live display
         self.live = None
-        self.progress = None
         
         # Scan state
         self.scan_active = False
@@ -124,146 +51,15 @@ class RichStatusDispatcher:
         # Timer task for live updates
         self._timer_task = None
         self._update_stop_event = None
-        
-        # Setup layout
-        self._setup_layout()
-    
-    def _setup_layout(self) -> None:
-        """Setup the Rich layout structure."""
-        self.layout.split_column(
-            Layout(name="header", size=3),
-            Layout(name="main", ratio=1),
-            Layout(name="footer", size=3)
-        )
-        
-        # Split main area for progress and details
-        self.layout["main"].split_column(
-            Layout(name="progress", size=6),
-            Layout(name="plugins", ratio=1)
-        )
-    
-    def _create_header(self) -> Panel:
-        """Create header panel with target info."""
-        if not self.scan_active:
-            return Panel("ipcrawler - Security Tool Orchestration Framework", style=self.colors["border"])
-        
-        target_text = Text(f"Target: {self.plugin_tracker.target}", style=self.colors["header_text"])
-        elapsed_str = self.plugin_tracker.get_formatted_elapsed_time()
-        
-        status_text = Text(f"Scanning... | Elapsed: {elapsed_str}", style=self.colors["header_secondary"])
-        
-        header_content = Columns([target_text, status_text], equal=False, expand=True)
-        return Panel(header_content, style=self.colors["border"])
-    
-    def _create_progress_panel(self) -> Panel:
-        """Create progress panel with statistics."""
-        if not self.scan_active:
-            return Panel("Ready to scan", style=self.colors["border"])
-        
-        stats = self.plugin_tracker.stats
-        progress_pct = self.plugin_tracker.progress_percentage
-        
-        # Progress bar
-        progress_bar = f"[{'▓' * int(progress_pct // 10)}{'░' * (10 - int(progress_pct // 10))}]"
-        progress_text = f"{progress_bar} {progress_pct:.1f}% ({stats['completed'] + stats['failed']}/{stats['total']})"
-        
-        # Statistics
-        stats_text = Text()
-        stats_text.append(f"Active: {stats['active']}", style=self.colors["active_text"])
-        stats_text.append(" | ", style=self.colors["info_text"])
-        stats_text.append(f"Queued: {stats['queued']}", style=self.colors["queued_text"])
-        stats_text.append(" | ", style=self.colors["info_text"])
-        stats_text.append(f"Complete: {stats['completed']}", style=self.colors["success_text"])
-        stats_text.append(" | ", style=self.colors["info_text"])
-        stats_text.append(f"Failed: {stats['failed']}", style=self.colors["error_text"])
-        
-        content = Text()
-        content.append(f"Progress: {progress_text}\n", style=self.colors["progress_text"])
-        content.append(stats_text)
-        
-        return Panel(content, title="Scan Progress", style=self.colors["border"])
-    
-    def _create_plugins_panel(self) -> Panel:
-        """Create plugins panel with current status."""
-        if not self.scan_active:
-            return Panel("No active scan", style=self.colors["border"])
-        
-        # Create table for plugin status
-        table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
-        table.add_column("Status", style=self.colors["info_text"], width=8)
-        table.add_column("Tool", style=self.colors["header_text"], width=12)
-        table.add_column("Plugin", style=self.colors["header_text"], no_wrap=True)
-        
-        # Add active plugins
-        active_plugins = self.plugin_tracker.get_active_plugins()
-        for plugin in active_plugins:
-            table.add_row(
-                "running",
-                plugin.tool,
-                plugin.name,
-                style=self.colors["active_text"]
-            )
-        
-        # Add recently completed plugins (last 5)
-        completed_plugins = self.plugin_tracker.get_completed_plugins()[-5:]
-        for plugin in completed_plugins:
-            table.add_row(
-                "complete",
-                plugin.tool,
-                plugin.name,
-                style=self.colors["success_text"]
-            )
-        
-        # Add failed plugins
-        failed_plugins = self.plugin_tracker.get_failed_plugins()
-        for plugin in failed_plugins:
-            error_msg = plugin.error_message or "unknown error"
-            table.add_row(
-                "failed",
-                plugin.tool,
-                f"{plugin.name} ({error_msg})",
-                style=self.colors["error_text"]
-            )
-        
-        # Add queued plugins (first 10)
-        queued_plugins = self.plugin_tracker.get_queued_plugins()[:10]
-        for plugin in queued_plugins:
-            table.add_row(
-                "queued",
-                plugin.tool,
-                plugin.name,
-                style=self.colors["queued_text"]
-            )
-        
-        # Show truncation message if there are more queued plugins
-        remaining_queued = len(self.plugin_tracker.get_queued_plugins()) - 10
-        if remaining_queued > 0:
-            table.add_row(
-                "...",
-                "...",
-                f"and {remaining_queued} more queued",
-                style=self.colors["queued_text"]
-            )
-        
-        return Panel(table, title="Plugin Status", style=self.colors["border"])
-    
-    def _create_footer(self) -> Panel:
-        """Create footer panel with summary info."""
-        if not self.scan_active:
-            return Panel("Ready - Use 'python ipcrawler.py -h' for help", style=self.colors["border"])
-        
-        footer_text = Text(f"Press Ctrl+C to cancel scan", style=self.colors["info_text"])
-        return Panel(footer_text, style=self.colors["border"])
     
     def _update_display(self) -> None:
         """Update the display with current state."""
         if not self.enable_rich_ui or self.silent:
             return
         
-        self.layout["header"].update(self._create_header())
-        self.layout["progress"].update(self._create_progress_panel())
-        self.layout["plugins"].update(self._create_plugins_panel())
-        self.layout["footer"].update(self._create_footer())
+        # Update executive layout
+        self.executive_layout.set_scan_active(self.scan_active)
+        self.executive_layout.update_display()
     
     async def _timer_update_loop(self) -> None:
         """Background task to update the display every second."""
@@ -343,7 +139,7 @@ class RichStatusDispatcher:
         self.completed_templates = 0
         self.scan_active = True
         
-        # Initialize plugin tracker (we'll update it when templates are available)
+        # Initialize plugin tracker
         self.plugin_tracker.target = target
         self.plugin_tracker.total_plugins = template_count
         self.plugin_tracker.scan_start_time = self.start_time
@@ -417,12 +213,12 @@ class RichStatusDispatcher:
             summary = self.plugin_tracker.get_summary()
             
             summary_table = Table(show_header=False, box=None, padding=(0, 1))
-            summary_table.add_column("Metric", style=self.colors["header_text"])
-            summary_table.add_column("Value", style=self.colors["progress_text"])
+            summary_table.add_column("Metric", style="bright_white")
+            summary_table.add_column("Value", style="bright_white")
             
             summary_table.add_row("Total scans:", str(summary["total_plugins"]))
-            summary_table.add_row("Successful:", str(summary["completed"]), style=self.colors["success_text"])
-            summary_table.add_row("Failed:", str(summary["failed"]), style=self.colors["error_text"])
+            summary_table.add_row("Successful:", str(summary["completed"]), style="green")
+            summary_table.add_row("Failed:", str(summary["failed"]), style="red")
             summary_table.add_row("Success rate:", f"{summary['success_rate']:.1f}%")
             
             elapsed = summary["elapsed_time"]
@@ -430,7 +226,7 @@ class RichStatusDispatcher:
             summary_table.add_row("Elapsed time:", elapsed_str)
             
             self.console.print()
-            self.console.print(Panel(summary_table, title="Scan Summary", style=self.colors["border"]))
+            self.console.print(Panel(summary_table, title="Scan Summary", style="white"))
     
     # Maintain compatibility with existing StatusDispatcher interface
     def display_results(self, results: list) -> None:
@@ -503,8 +299,8 @@ class RichStatusDispatcher:
         
         # Create version info table
         version_table = Table(show_header=False, box=None, padding=(0, 1))
-        version_table.add_column("Property", style=self.colors["header_text"], width=20)
-        version_table.add_column("Value", style=self.colors["progress_text"])
+        version_table.add_column("Property", style="bright_white", width=20)
+        version_table.add_column("Value", style="bright_white")
         
         version_table.add_row("Application:", app_name)
         version_table.add_row("Version:", version)
@@ -514,11 +310,12 @@ class RichStatusDispatcher:
         
         # Create features table
         features_table = Table(show_header=False, box=None, padding=(0, 1))
-        features_table.add_column("Feature", style=self.colors["success_text"], width=20)
-        features_table.add_column("Status", style=self.colors["progress_text"])
+        features_table.add_column("Feature", style="green", width=20)
+        features_table.add_column("Status", style="bright_white")
         
         features_table.add_row("Rich TUI:", "✓ Enabled" if self.enable_rich_ui else "✗ Disabled")
-        features_table.add_row("Themes:", f"✓ {self.theme.title()}")
+        features_table.add_row("Layout:", "✓ Executive Dashboard")
+        features_table.add_row("Theme:", f"✓ {self.theme.title()}")
         features_table.add_row("Fullscreen:", "✓ Enabled" if self.fullscreen_mode else "✗ Disabled")
         features_table.add_row("Async Execution:", "✓ Enabled")
         features_table.add_row("Preset System:", "✓ Enabled")
@@ -526,15 +323,15 @@ class RichStatusDispatcher:
         # Display version panel
         version_panel = Panel(
             version_table,
-            title=f"[{self.colors['header_text']}]{app_name} Version Information[/{self.colors['header_text']}]",
-            style=self.colors["border"]
+            title=f"[bright_white]{app_name} Version Information[/bright_white]",
+            style="white"
         )
         
         # Display features panel
         features_panel = Panel(
             features_table,
-            title=f"[{self.colors['header_text']}]Features[/{self.colors['header_text']}]",
-            style=self.colors["border"]
+            title=f"[bright_white]Features[/bright_white]",
+            style="white"
         )
         
         self.console.print()
@@ -547,16 +344,16 @@ class RichStatusDispatcher:
             return
         
         # Create header
-        header_text = Text(f"{app_name} - Security Tool Orchestration Framework", style=self.colors["header_text"])
+        header_text = Text(f"{app_name} - Security Tool Orchestration Framework", style="bright_white")
         header_panel = Panel(
             Align.center(header_text),
-            style=self.colors["border"]
+            style="white"
         )
         
         # Create commands table
-        commands_table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
-        commands_table.add_column("Command", style=self.colors["active_text"], width=25)
-        commands_table.add_column("Description", style=self.colors["progress_text"])
+        commands_table = Table(show_header=True, header_style="bright_white", box=None, padding=(0, 1))
+        commands_table.add_column("Command", style="bright_white", width=25)
+        commands_table.add_column("Description", style="white")
         
         commands_table.add_row("run TEMPLATE TARGET", "Run a specific template")
         commands_table.add_row("scan-folder FOLDER TARGET", "Run all templates in a folder")
@@ -569,9 +366,9 @@ class RichStatusDispatcher:
         commands_table.add_row("validate", "Validate templates")
         
         # Create shortcuts table
-        shortcuts_table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
-        shortcuts_table.add_column("Shortcut", style=self.colors["success_text"], width=25)
-        shortcuts_table.add_column("Description", style=self.colors["progress_text"])
+        shortcuts_table = Table(show_header=True, header_style="bright_white", box=None, padding=(0, 1))
+        shortcuts_table.add_column("Shortcut", style="green", width=25)
+        shortcuts_table.add_column("Description", style="white")
         
         shortcuts_table.add_row("-default TARGET", "Run default templates")
         shortcuts_table.add_row("-recon TARGET", "Run reconnaissance templates")
@@ -579,17 +376,17 @@ class RichStatusDispatcher:
         shortcuts_table.add_row("-htb TARGET", "Run HTB/CTF templates")
         
         # Create options table
-        options_table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
-        options_table.add_column("Option", style=self.colors["active_text"], width=25)
-        options_table.add_column("Description", style=self.colors["progress_text"])
+        options_table = Table(show_header=True, header_style="bright_white", box=None, padding=(0, 1))
+        options_table.add_column("Option", style="bright_white", width=25)
+        options_table.add_column("Description", style="white")
         
         options_table.add_row("-debug, --debug", "Enable debug mode")
         options_table.add_row("--version", "Show version information")
         options_table.add_row("-h, --help", "Show this help message")
         
         # Create examples table
-        examples_table = Table(show_header=True, header_style=self.colors["header_text"], box=None, padding=(0, 1))
-        examples_table.add_column("Example", style=self.colors["info_text"])
+        examples_table = Table(show_header=True, header_style="bright_white", box=None, padding=(0, 1))
+        examples_table.add_column("Example", style="dim white")
         
         examples_table.add_row("python ipcrawler.py list")
         examples_table.add_row("python ipcrawler.py run custom/robots-txt-fetch example.com")
@@ -602,28 +399,28 @@ class RichStatusDispatcher:
         
         commands_panel = Panel(
             commands_table,
-            title=f"[{self.colors['header_text']}]Commands[/{self.colors['header_text']}]",
-            style=self.colors["border"]
+            title=f"[bright_white]Commands[/bright_white]",
+            style="white"
         )
         self.console.print(commands_panel)
         
         shortcuts_panel = Panel(
             shortcuts_table,
-            title=f"[{self.colors['header_text']}]Category Shortcuts[/{self.colors['header_text']}]",
-            style=self.colors["border"]
+            title=f"[bright_white]Category Shortcuts[/bright_white]",
+            style="white"
         )
         self.console.print(shortcuts_panel)
         
         options_panel = Panel(
             options_table,
-            title=f"[{self.colors['header_text']}]Options[/{self.colors['header_text']}]",
-            style=self.colors["border"]
+            title=f"[bright_white]Options[/bright_white]",
+            style="white"
         )
         self.console.print(options_panel)
         
         examples_panel = Panel(
             examples_table,
-            title=f"[{self.colors['header_text']}]Examples[/{self.colors['header_text']}]",
-            style=self.colors["border"]
+            title=f"[bright_white]Examples[/bright_white]",
+            style="white"
         )
         self.console.print(examples_panel)
