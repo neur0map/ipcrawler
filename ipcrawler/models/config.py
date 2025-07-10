@@ -387,6 +387,14 @@ class UIConfig(BaseModel):
         return v
 
 
+class WordlistConfig(BaseModel):
+    """Wordlist management configuration."""
+    seclists_path: str = "/Users/carlosm/.local/share/seclists"
+    enable_auto_selection: bool = True
+    fallback_wordlist: str = "/usr/share/seclists/Discovery/Web-Content/common.txt"
+    analysis_timeout: int = Field(10, ge=1, le=60)
+
+
 class AppConfig(BaseModel):
     """Main application configuration (backwards compatible)."""
     application: ApplicationConfig = Field(default_factory=ApplicationConfig)
@@ -394,6 +402,7 @@ class AppConfig(BaseModel):
     security: SecurityCoreConfig = Field(default_factory=SecurityCoreConfig)
     system: SystemConfig = Field(default_factory=SystemConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
+    wordlists: WordlistConfig = Field(default_factory=WordlistConfig)
     templates: Dict[str, str] = Field({}, max_items=50)
     settings: LegacySettingsConfig = Field(default_factory=LegacySettingsConfig)
     logging: LegacyLoggingConfig = Field(default_factory=LegacyLoggingConfig)

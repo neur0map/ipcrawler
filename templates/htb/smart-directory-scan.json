@@ -1,0 +1,12 @@
+{
+  "name": "smart-directory-scan",
+  "tool": "gobuster",
+  "preset": "gobuster.ctf_dir_fast",
+  "args": ["-u", "http://{{target}}", "-w", "auto_wordlist"],
+  "wordlist_hint": "directory",
+  "description": "Smart directory scan with auto-wordlist selection based on target technology",
+  "author": "ipcrawler",
+  "version": "1.0.0",
+  "timeout": 120,
+  "tags": ["htb", "directory", "smart", "auto", "ctf", "gobuster"]
+}

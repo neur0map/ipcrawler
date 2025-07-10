@@ -1,0 +1,11 @@
+{
+  "name": "smart-nmap-recon",
+  "tool": "nmap",
+  "preset": "nmap.service_scan",
+  "args": ["{{target}}"],
+  "description": "Smart nmap reconnaissance with service detection for comprehensive host analysis",
+  "author": "ipcrawler",
+  "version": "1.0.0",
+  "timeout": 300,
+  "tags": ["htb", "recon", "smart", "nmap", "services"]
+}

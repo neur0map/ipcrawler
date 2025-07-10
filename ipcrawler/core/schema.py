@@ -10,6 +10,126 @@ from jsonschema import validate, ValidationError
 class TemplateSchema:
     """Strict JSON schema for template validation."""
     
+    # Schema for individual plugins within multi-plugin templates
+    PLUGIN_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]+$",
+                "maxLength": 100,
+                "minLength": 1
+            },
+            "tool": {
+                "type": "string", 
+                "pattern": "^[a-zA-Z0-9_/-]+$",
+                "maxLength": 50,
+                "minLength": 1
+            },
+            "args": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 1,
+                    "pattern": "^[^;&|`$()<>]*$"
+                },
+                "maxItems": 50,
+                "minItems": 0
+            },
+            "preset": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_.-]+$",
+                "maxLength": 100
+            },
+            "description": {
+                "type": "string",
+                "maxLength": 500
+            },
+            "env": {
+                "type": "object",
+                "patternProperties": {
+                    "^[A-Z_][A-Z0-9_]*$": {
+                        "type": "string",
+                        "maxLength": 1000
+                    }
+                },
+                "additionalProperties": False,
+                "maxProperties": 10
+            },
+            "wordlist": {
+                "type": "string",
+                "maxLength": 500,
+                "pattern": "^[^;&|`$()<>]*$"
+            },
+            "wordlist_hint": {
+                "type": "string",
+                "maxLength": 50,
+                "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "timeout": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 300
+            },
+            "requires_sudo": {
+                "type": "boolean"
+            }
+        },
+        "required": ["name", "tool"],
+        "additionalProperties": False,
+        "anyOf": [
+            {"required": ["args"]},
+            {"required": ["preset"]}
+        ]
+    }
+    
+    # Schema for multi-plugin templates
+    MULTI_PLUGIN_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]+$",
+                "maxLength": 100,
+                "minLength": 1
+            },
+            "description": {
+                "type": "string",
+                "maxLength": 500
+            },
+            "author": {
+                "type": "string",
+                "maxLength": 100
+            },
+            "version": {
+                "type": "string",
+                "maxLength": 20
+            },
+            "tags": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "maxItems": 10
+            },
+            "timeout": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+            },
+            "plugins": {
+                "type": "array",
+                "items": PLUGIN_SCHEMA,
+                "minItems": 2,
+                "maxItems": 2
+            }
+        },
+        "required": ["name", "plugins"],
+        "additionalProperties": False
+    }
+    
     SCHEMA = {
         "type": "object",
         "properties": {
@@ -80,6 +200,12 @@ class TemplateSchema:
                 "maxLength": 500,
                 "pattern": "^[^;&|`$()<>]*$"
             },
+            "wordlist_hint": {
+                "type": "string",
+                "maxLength": 50,
+                "pattern": "^[a-zA-Z0-9_-]+$",
+                "description": "Context hint for auto-wordlist selection (admin, api, directory, backup, etc.)"
+            },
             "timeout": {
                 "type": "integer",
                 "minimum": 1,
@@ -135,9 +261,12 @@ class TemplateSchema:
     
     @classmethod
     def validate_template(cls, template_data: Dict[str, Any]) -> bool:
-        """Validate template against schema."""
+        """Validate template against appropriate schema."""
         try:
-            validate(instance=template_data, schema=cls.SCHEMA)
+            if "plugins" in template_data:
+                validate(instance=template_data, schema=cls.MULTI_PLUGIN_SCHEMA)
+            else:
+                validate(instance=template_data, schema=cls.SCHEMA)
             return True
         except ValidationError:
             return False
@@ -145,7 +274,10 @@ class TemplateSchema:
     @classmethod
     def validate_template_strict(cls, template_data: Dict[str, Any]) -> None:
         """Validate template and raise exception on failure."""
-        validate(instance=template_data, schema=cls.SCHEMA)
+        if "plugins" in template_data:
+            validate(instance=template_data, schema=cls.MULTI_PLUGIN_SCHEMA)
+        else:
+            validate(instance=template_data, schema=cls.SCHEMA)
     
     @classmethod
     def get_schema_json(cls) -> str:

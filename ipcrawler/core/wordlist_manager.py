@@ -7,9 +7,10 @@ import json
 import os
 import toml
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 import re
+import logging
 
 
 class WordlistManager:
@@ -17,10 +18,14 @@ class WordlistManager:
     
     def __init__(self, config_path: str = "config.toml"):
         """Initialize WordlistManager with configuration"""
+        self.logger = logging.getLogger(__name__)
         self.config = self._load_config(config_path)
-        self.seclists_path = self.config.get("wordlists", {}).get("seclists_path", "")
+        configured_path = self.config.get("wordlists", {}).get("seclists_path", "auto")
+        self.seclists_path = self._auto_detect_seclists_path(configured_path)
         self.wordlists_dir = Path("wordlists")
         self.wordlists_dir.mkdir(exist_ok=True)
+        self._catalog_cache = None
+        self._cache_timestamp = None
         
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from TOML file"""
@@ -29,6 +34,57 @@ class WordlistManager:
                 return toml.load(f)
         except FileNotFoundError:
             return {}
+    
+    def _auto_detect_seclists_path(self, configured_path: str) -> str:
+        """Auto-detect SecLists installation path."""
+        if configured_path != "auto" and configured_path:
+            # Use configured path if not set to auto
+            if Path(configured_path).exists():
+                return configured_path
+            else:
+                self.logger.warning(f"Configured SecLists path does not exist: {configured_path}")
+        
+        # Common SecLists installation locations
+        common_paths = [
+            # User home directory locations
+            Path.home() / ".local" / "share" / "seclists",
+            Path.home() / "seclists",
+            Path.home() / ".seclists",
+            Path.home() / "tools" / "seclists",
+            Path.home() / "tools" / "SecLists",
+            
+            # System-wide locations
+            Path("/usr/share/seclists"),
+            Path("/usr/share/SecLists"),
+            Path("/opt/seclists"),
+            Path("/opt/SecLists"),
+            
+            # Common tool directories
+            Path("/tools/seclists"),
+            Path("/tools/SecLists"),
+            
+            # Relative to current directory
+            Path("seclists"),
+            Path("SecLists"),
+            Path("../seclists"),
+            Path("../SecLists"),
+        ]
+        
+        for path in common_paths:
+            if path.exists() and path.is_dir():
+                # Verify it's actually SecLists by checking for characteristic directories
+                if self._is_seclists_directory(path):
+                    self.logger.info(f"Auto-detected SecLists at: {path}")
+                    return str(path)
+        
+        self.logger.warning("SecLists not found in common locations. Auto-wordlist will use fallback.")
+        return ""
+    
+    def _is_seclists_directory(self, path: Path) -> bool:
+        """Verify that a directory is actually SecLists."""
+        # Check for characteristic SecLists directories
+        required_dirs = ["Discovery", "Passwords", "Usernames"]
+        return all((path / dir_name).exists() for dir_name in required_dirs)
     
     def _get_file_stats(self, filepath: Path) -> Dict[str, Any]:
         """Get file statistics (size, line count, etc.)"""
@@ -364,6 +420,283 @@ class WordlistManager:
                         lines.append("")
         
         return "\n".join(lines)
+    
+    def load_catalog(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Load wordlist catalog with caching support."""
+        catalog_path = self.wordlists_dir / "catalog.json"
+        
+        # Check if we need to refresh cache
+        if force_refresh or self._catalog_cache is None:
+            if catalog_path.exists():
+                try:
+                    with open(catalog_path, 'r') as f:
+                        self._catalog_cache = json.load(f)
+                        self._cache_timestamp = datetime.now()
+                        self.logger.debug(f"Loaded wordlist catalog from {catalog_path}")
+                except Exception as e:
+                    self.logger.error(f"Error loading catalog: {e}")
+                    return {}
+            else:
+                self.logger.warning(f"Catalog not found at {catalog_path}")
+                return {}
+        
+        return self._catalog_cache or {}
+    
+    def get_wordlists_by_technology(self, technologies: List[str], 
+                                  max_results: int = 50) -> List[Dict[str, Any]]:
+        """
+        Get wordlists filtered by technology tags.
+        
+        Args:
+            technologies: List of technology tags to match
+            max_results: Maximum number of results to return
+            
+        Returns:
+            List of wordlist metadata dictionaries
+        """
+        catalog = self.load_catalog()
+        wordlists = []
+        
+        # Flatten all wordlists from all sources
+        for source_name, source_data in catalog.get("wordlists", {}).items():
+            if source_name == "seclists":
+                # Process SecLists structure
+                for category_name, category_data in source_data.get("categories", {}).items():
+                    for wordlist in category_data.get("files", []):
+                        wordlist["source"] = "seclists"
+                        wordlist["category"] = category_name
+                        wordlists.append(wordlist)
+            elif "files" in source_data:
+                # Process local wordlists
+                for wordlist in source_data["files"]:
+                    wordlist["source"] = source_name
+                    wordlist["category"] = "local"
+                    wordlists.append(wordlist)
+        
+        # Filter by technologies
+        if technologies:
+            tech_set = set(tech.lower() for tech in technologies if tech)
+            filtered_wordlists = []
+            
+            for wordlist in wordlists:
+                wordlist_techs = set(tech.lower() for tech in wordlist.get("technology", []) if tech)
+                # Check for intersection
+                if tech_set.intersection(wordlist_techs):
+                    filtered_wordlists.append(wordlist)
+            
+            wordlists = filtered_wordlists
+        
+        # Sort by quality score (descending)
+        wordlists.sort(key=lambda x: x.get("quality_score", 0), reverse=True)
+        
+        return wordlists[:max_results]
+    
+    def score_wordlist(self, wordlist: Dict[str, Any], context: Dict[str, Any],
+                      scoring_config: Dict[str, float]) -> Tuple[float, Dict[str, float]]:
+        """
+        Score a wordlist based on context and configuration.
+        
+        Args:
+            wordlist: Wordlist metadata dictionary
+            context: Context from target analysis (technologies, hints, etc.)
+            scoring_config: Scoring weights configuration
+            
+        Returns:
+            Tuple of (total_score, score_breakdown)
+        """
+        scores = {
+            'technology_score': 0.0,
+            'context_score': 0.0,
+            'quality_score': 0.0,
+            'performance_score': 0.0
+        }
+        
+        # Technology matching score (0-40 points)
+        tech_weight = scoring_config.get('technology_weight', 0.4)
+        scores['technology_score'] = self._score_technology_match(
+            wordlist, context
+        ) * tech_weight * 100
+        
+        # Context relevance score (0-30 points) 
+        context_weight = scoring_config.get('context_weight', 0.3)
+        scores['context_score'] = self._score_context_match(
+            wordlist, context
+        ) * context_weight * 100
+        
+        # Quality metrics score (0-30 points)
+        quality_weight = scoring_config.get('quality_weight', 0.3)
+        scores['quality_score'] = self._score_quality_metrics(
+            wordlist, context
+        ) * quality_weight * 100
+        
+        # Performance score (reserved for future use)
+        performance_weight = scoring_config.get('performance_weight', 0.0)
+        scores['performance_score'] = 0.0  # Not implemented yet
+        
+        total_score = sum(scores.values())
+        return total_score, scores
+    
+    def _score_technology_match(self, wordlist: Dict[str, Any], 
+                               context: Dict[str, Any]) -> float:
+        """Score technology matching (0.0 to 1.0)."""
+        wordlist_techs = set(tech.lower() for tech in wordlist.get("technology", []) if tech)
+        context_techs = set(tech.lower() for tech in context.get("technologies", []) if tech)
+        
+        if not context_techs:
+            return 0.1  # Default score for generic wordlists
+        
+        # Exact primary technology match gets highest score
+        primary_tech = (context.get("primary_technology") or "").lower()
+        if primary_tech and primary_tech in wordlist_techs:
+            return 1.0
+        
+        # Specific technology matches (PHP, JSP, etc.) get high scores
+        specific_techs = {"php", "jsp", "asp", "python", "nodejs", "ruby", "java"}
+        specific_intersection = wordlist_techs.intersection(context_techs).intersection(specific_techs)
+        if specific_intersection:
+            # High score for specific technology matches
+            return 0.9
+        
+        # CMS/Framework specific matches
+        cms_techs = {"wordpress", "drupal", "joomla", "django", "laravel", "spring"}
+        cms_intersection = wordlist_techs.intersection(context_techs).intersection(cms_techs)
+        if cms_intersection:
+            return 0.8
+        
+        # General technology intersection
+        intersection = wordlist_techs.intersection(context_techs)
+        if intersection:
+            # Score based on percentage of overlap, but boost for more specific matches
+            overlap_ratio = len(intersection) / len(context_techs)
+            return min(1.0, overlap_ratio * 0.7)  # Cap at 0.7 for general matches
+        
+        # Web technology fallback (lowest score for generic web wordlists)
+        if "web" in wordlist_techs and any(tech in ["web", "http", "directory"] 
+                                          for tech in context_techs):
+            return 0.3  # Reduced from 0.5 to prioritize specific wordlists
+        
+        return 0.0
+    
+    def _score_context_match(self, wordlist: Dict[str, Any], 
+                            context: Dict[str, Any]) -> float:
+        """Score context/hint matching (0.0 to 1.0)."""
+        wordlist_purpose = (wordlist.get("purpose") or "").lower()
+        wordlist_techs = set(tech.lower() for tech in wordlist.get("technology", []) if tech)
+        context_hints = set(hint.lower() for hint in context.get("context_hints", []) if hint)
+        
+        if not context_hints:
+            return 0.3  # Default score when no hints
+        
+        # Direct purpose matching
+        purpose_matches = 0
+        for hint in context_hints:
+            if hint in wordlist_purpose:
+                purpose_matches += 1
+        
+        # Technology tag matching
+        tech_matches = len(wordlist_techs.intersection(context_hints))
+        
+        # Calculate score based on matches
+        total_matches = purpose_matches + tech_matches
+        max_possible_matches = len(context_hints)
+        
+        if total_matches > 0:
+            return min(1.0, total_matches / max_possible_matches)
+        
+        return 0.1
+    
+    def _score_quality_metrics(self, wordlist: Dict[str, Any], 
+                              context: Dict[str, Any]) -> float:
+        """Score quality metrics (0.0 to 1.0)."""
+        score = 0.0
+        
+        # Base quality score (0.5 weight)
+        quality = wordlist.get("quality_score", 5)
+        score += (quality / 10.0) * 0.5
+        
+        # CTF optimization bonus (0.3 weight)
+        if wordlist.get("ctf_optimized", False):
+            score += 0.3
+        
+        # Size optimization (0.2 weight)
+        lines = wordlist.get("lines", 0)
+        if 1000 <= lines <= 50000:  # Optimal size range
+            score += 0.2
+        elif lines <= 1000:  # Too small
+            score += 0.1
+        # Large wordlists get no bonus
+        
+        return min(1.0, score)
+    
+    def get_scored_wordlists(self, context: Dict[str, Any], 
+                           scoring_config: Dict[str, float],
+                           max_results: int = 10) -> List[Tuple[Dict[str, Any], float, Dict[str, float]]]:
+        """
+        Get wordlists scored and ranked for given context.
+        
+        Args:
+            context: Context dictionary from target analysis
+            scoring_config: Scoring configuration with weights
+            max_results: Maximum number of results to return
+            
+        Returns:
+            List of tuples (wordlist, total_score, score_breakdown)
+        """
+        # Get candidate wordlists (ensure sufficient candidates for proper scoring)
+        technologies = context.get("technologies", [])
+        min_candidates = max(50, max_results * 5)  # Ensure at least 50 candidates
+        candidates = self.get_wordlists_by_technology(technologies, min_candidates)
+        
+        # Score all candidates
+        scored_wordlists = []
+        for wordlist in candidates:
+            total_score, score_breakdown = self.score_wordlist(
+                wordlist, context, scoring_config
+            )
+            scored_wordlists.append((wordlist, total_score, score_breakdown))
+        
+        # Sort by total score (descending), then by technology relevance, then by quality
+        scored_wordlists.sort(key=lambda x: (
+            x[1],  # Total score
+            len(set(x[0].get("technology", [])).intersection(context.get("technologies", []))),  # Technology overlap
+            x[0].get("quality_score", 0),  # Quality score
+            -x[0].get("lines", float('inf'))  # Prefer smaller wordlists for speed (negative for ascending)
+        ), reverse=True)
+        
+        return scored_wordlists[:max_results]
+    
+    def find_best_wordlist(self, context: Dict[str, Any], 
+                          scoring_config: Dict[str, float],
+                          fallback_path: str) -> Tuple[str, float, Dict[str, Any]]:
+        """
+        Find the best wordlist for given context.
+        
+        Args:
+            context: Context dictionary from target analysis
+            scoring_config: Scoring configuration with weights
+            fallback_path: Fallback wordlist path if no good match
+            
+        Returns:
+            Tuple of (wordlist_path, score, wordlist_metadata)
+        """
+        try:
+            scored_wordlists = self.get_scored_wordlists(context, scoring_config, max_results=1)
+            
+            if scored_wordlists:
+                wordlist, score, score_breakdown = scored_wordlists[0]
+                wordlist_path = wordlist.get("absolute_path", fallback_path)
+                
+                self.logger.debug(f"Selected wordlist: {wordlist['name']} (score: {score:.1f})")
+                self.logger.debug(f"Score breakdown: {score_breakdown}")
+                
+                return wordlist_path, score, wordlist
+            else:
+                self.logger.warning("No wordlists found, using fallback")
+                return fallback_path, 0.0, {}
+                
+        except Exception as e:
+            self.logger.error(f"Error finding best wordlist: {e}")
+            return fallback_path, 0.0, {}
 
 
 def main():

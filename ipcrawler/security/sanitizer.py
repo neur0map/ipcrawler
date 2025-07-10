@@ -56,6 +56,14 @@ class CommandSanitizer:
                 else:
                     raise ValueError('Invalid wordlist path')
             
+            # Replace auto_wordlist directly in args
+            if processed_arg == 'auto_wordlist' and wordlist:
+                # Additional security validation for wordlist path
+                if cls._validate_wordlist_path(wordlist):
+                    processed_arg = wordlist
+                else:
+                    raise ValueError('Invalid wordlist path')
+            
             # Replace custom variable placeholders
             # Merge chain variables with template variables (chain variables take precedence)
             all_variables = {}

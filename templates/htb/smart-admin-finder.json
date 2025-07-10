@@ -1,0 +1,12 @@
+{
+  "name": "smart-admin-finder",
+  "tool": "feroxbuster",
+  "preset": "feroxbuster.ctf_fast", 
+  "args": ["-u", "http://{{target}}", "-w", "auto_wordlist"],
+  "wordlist_hint": "admin",
+  "description": "Adaptive admin panel discovery with intelligent wordlist selection",
+  "author": "ipcrawler",
+  "version": "1.0.0",
+  "timeout": 150,
+  "tags": ["htb", "admin", "smart", "auto", "ctf", "feroxbuster"]
+}

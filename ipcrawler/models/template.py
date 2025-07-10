@@ -2,7 +2,7 @@
 Template data models with strict security validation.
 """
 
-from typing import Dict, List, Optional, Literal
+from typing import Dict, List, Optional, Literal, Union
 from pydantic import BaseModel, Field, validator
 import re
 
@@ -21,6 +21,7 @@ class ToolTemplate(BaseModel):
     dependencies: Optional[List[str]] = Field(None, max_items=10)
     env: Optional[Dict[str, str]] = Field(None, max_items=10)
     wordlist: Optional[str] = Field(None, max_length=500)
+    wordlist_hint: Optional[str] = Field(None, max_length=50)
     timeout: int = Field(60, ge=1, le=300)
     target_types: Optional[List[str]] = Field(None, max_items=5)
     severity: Optional[Literal['low', 'medium', 'high']] = None
@@ -72,8 +73,12 @@ class ToolTemplate(BaseModel):
     
     @validator('wordlist')
     def validate_wordlist(cls, v):
-        """Validate wordlist path."""
+        """Validate wordlist path or auto_wordlist keyword."""
         if not v:
+            return v
+        
+        # Allow auto_wordlist keyword
+        if v == "auto_wordlist":
             return v
             
         # Validate wordlist path
@@ -82,6 +87,28 @@ class ToolTemplate(BaseModel):
         # Basic path validation - no dangerous patterns
         if re.search(r'[;&|`$()<>]', v):
             raise ValueError('Wordlist path contains dangerous characters')
+        
+        return v
+    
+    @validator('wordlist_hint')
+    def validate_wordlist_hint(cls, v):
+        """Validate wordlist hint for auto-selection."""
+        if not v:
+            return v
+        
+        # Validate hint format
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('Wordlist hint contains invalid characters')
+        
+        # Common hint validation
+        valid_hints = [
+            'directory', 'admin', 'api', 'vhost', 'backup', 'php', 'asp', 
+            'wordpress', 'drupal', 'joomla', 'cms', 'files', 'extensions'
+        ]
+        
+        if v not in valid_hints:
+            # Allow custom hints but warn in logs
+            pass
         
         return v
     
@@ -153,6 +180,72 @@ class ToolTemplate(BaseModel):
         # Allow empty args if preset is provided, but not both empty
         if (not v or v == []) and not preset:
             raise ValueError('Either args or preset must be provided')
+        return v
+
+
+class PluginConfig(BaseModel):
+    """Configuration for a single plugin within a multi-plugin template."""
+    name: str = Field(..., pattern=r'^[a-zA-Z0-9_-]+$', max_length=100)
+    tool: str = Field(..., pattern=r'^[a-zA-Z0-9_/-]+$', max_length=50)
+    args: Optional[List[str]] = Field(None, max_items=50)
+    preset: Optional[str] = Field(None, pattern=r'^[a-zA-Z0-9_.-]+$', max_length=100)
+    variables: Optional[Dict[str, str]] = Field(None, max_items=10)
+    description: Optional[str] = Field(None, max_length=500)
+    env: Optional[Dict[str, str]] = Field(None, max_items=10)
+    wordlist: Optional[str] = Field(None, max_length=500)
+    wordlist_hint: Optional[str] = Field(None, max_length=50)
+    timeout: int = Field(60, ge=1, le=300)
+    requires_sudo: Optional[bool] = False
+    
+    @validator('tool')
+    def validate_tool(cls, v):
+        """Validate tool name contains only safe characters."""
+        if not re.match(r'^[a-zA-Z0-9_/-]+$', v):
+            raise ValueError('Tool name contains invalid characters')
+        return v
+    
+    @validator('wordlist')
+    def validate_wordlist(cls, v):
+        """Validate wordlist path or auto_wordlist keyword."""
+        if not v:
+            return v
+        
+        # Allow auto_wordlist keyword
+        if v == "auto_wordlist":
+            return v
+            
+        # Validate wordlist path
+        if len(v) > 500:
+            raise ValueError('Wordlist path too long')
+        if re.search(r'[;&|`$()<>]', v):
+            raise ValueError('Wordlist path contains dangerous characters')
+        
+        return v
+    
+    @validator('args', always=True)
+    def validate_args_or_preset_required(cls, v, values):
+        """Ensure either args or preset is provided."""
+        preset = values.get('preset')
+        if (not v or v == []) and not preset:
+            raise ValueError('Either args or preset must be provided')
+        return v
+
+
+class MultiPluginTemplate(BaseModel):
+    """Template with multiple plugins that execute in sequence."""
+    name: str = Field(..., pattern=r'^[a-zA-Z0-9_-]+$', max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+    author: Optional[str] = Field(None, max_length=100)
+    version: Optional[str] = Field(None, max_length=20)
+    tags: Optional[List[str]] = Field(None, max_items=10)
+    timeout: int = Field(300, ge=1, le=3600)  # Higher timeout for multi-plugin
+    plugins: List[PluginConfig] = Field(..., min_items=2, max_items=5)
+    
+    @validator('plugins')
+    def validate_plugins_count(cls, v):
+        """Ensure exactly 2 plugins as requested."""
+        if len(v) != 2:
+            raise ValueError('Template must have exactly 2 plugins')
         return v
 
 

@@ -38,4 +38,9 @@ refresh_rate = 2
 theme = "minimal"
 
 [wordlists]
-seclists_path = "/Users/carlosm/.local/share/seclists"
+seclists_path = "auto"
+enable_auto_selection = true
+fallback_wordlist = "auto"
+catalog_cache_hours = 24
+max_selection_time_ms = 100
+analysis_timeout = 10

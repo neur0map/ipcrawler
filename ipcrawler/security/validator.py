@@ -16,7 +16,7 @@ class ArgumentValidator:
         r'[;&|`$()]',           # Shell metacharacters
         r'\.\./',               # Directory traversal
         r'[<>]',                # Redirection operators
-        r'^\s*$',               # Empty/whitespace only
+        r'^\s+$',               # Whitespace-only (but not empty string)
         r'\\x[0-9a-fA-F]{2}',   # Hex encoded chars
         r'%[0-9a-fA-F]{2}',     # URL encoded chars
         r'[\x00-\x1f\x7f-\x9f]', # Control characters
@@ -32,8 +32,12 @@ class ArgumentValidator:
     @classmethod
     def validate_argument(cls, arg: str) -> bool:
         """Validate a single argument."""
-        if not arg or len(arg) > 1000:
+        if len(arg) > 1000:
             return False
+        
+        # Allow empty strings for specific use cases (like gobuster -b "")
+        if arg == "":
+            return True
         
         # Check for dangerous patterns
         for pattern in cls.DANGEROUS_PATTERNS:

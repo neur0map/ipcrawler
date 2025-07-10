@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from ..models.template import ToolTemplate, TemplateConfig
+from ..models.template import ToolTemplate, TemplateConfig, MultiPluginTemplate
 from .schema import TemplateSchema
 from .sentry_integration import sentry_manager, with_sentry_context, capture_validation_error
 
@@ -24,7 +24,7 @@ class TemplateDiscovery:
                 self.base_path = alt_path
     
     @with_sentry_context("template_discovery")
-    def discover_templates(self, subfolder: Optional[str] = None) -> List[ToolTemplate]:
+    def discover_templates(self, subfolder: Optional[str] = None) -> List[Any]:
         """Discover and load all templates from a folder."""
         templates = []
         
@@ -51,7 +51,7 @@ class TemplateDiscovery:
         
         return templates
     
-    def _load_template(self, file_path: Path) -> Optional[ToolTemplate]:
+    def _load_template(self, file_path: Path) -> Optional[Any]:
         """Load and validate a single template."""
         try:
             # Check file size
@@ -69,8 +69,13 @@ class TemplateDiscovery:
             # Convert legacy format if needed
             template_data = self._convert_legacy_format(template_data)
             
-            # Create and validate template
-            return ToolTemplate(**template_data)
+            # Determine template type and create appropriate model
+            if "plugins" in template_data:
+                # Multi-plugin template
+                return MultiPluginTemplate(**template_data)
+            else:
+                # Single tool template
+                return ToolTemplate(**template_data)
             
         except Exception as e:
             raise RuntimeError(f"Failed to load template {file_path}: {e}")

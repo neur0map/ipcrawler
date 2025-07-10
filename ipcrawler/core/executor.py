@@ -5,12 +5,13 @@ Handles template execution coordination, progress tracking, and result managemen
 
 import asyncio
 import os
-from typing import List, Optional
+from typing import List, Optional, Union, Any
 
 from . import ConfigManager, ResultsManager
 from .preset_resolver import PresetResolver
+from .auto_wordlist import AutoWordlistResolver
 from ..security import SecureExecutor
-from ..models.template import ToolTemplate
+from ..models.template import ToolTemplate, MultiPluginTemplate
 
 
 class TemplateOrchestrator:
@@ -24,8 +25,11 @@ class TemplateOrchestrator:
         self.preset_resolver = preset_resolver
         self.secure_executor = secure_executor
         self.status_dispatcher = status_dispatcher
+        
+        # Initialize auto-wordlist resolver
+        self.auto_wordlist_resolver = AutoWordlistResolver(config_manager.config)
     
-    async def run_templates(self, templates: List[ToolTemplate], target: str, 
+    async def run_templates(self, templates: List[Union[ToolTemplate, MultiPluginTemplate]], target: str, 
                           folder: Optional[str] = None) -> None:
         """Run multiple templates with Rich TUI support."""
         # Check if this is a Rich TUI status dispatcher
@@ -42,26 +46,29 @@ class TemplateOrchestrator:
         else:
             await self._execute_templates(templates, target, folder)
     
-    async def _execute_templates(self, templates: List[ToolTemplate], target: str, 
+    async def _execute_templates(self, templates: List[Union[ToolTemplate, MultiPluginTemplate]], target: str, 
                                folder: Optional[str] = None) -> None:
         """Execute templates with proper progress tracking."""
         # Start new scan session for real-time results
         self.results_manager.start_new_scan_session(target)
         
-        # Check for sudo plugins and notify user
-        self._check_and_notify_sudo_plugins(templates)
+        # Expand multi-plugin templates first
+        expanded_templates = self._expand_templates(templates)
         
-        self.status_dispatcher.start_scan(target, len(templates), folder)
+        # Check for sudo plugins and notify user
+        self._check_and_notify_sudo_plugins(expanded_templates)
+        
+        self.status_dispatcher.start_scan(target, len(expanded_templates), folder)
         
         # Initialize plugins in the Rich status dispatcher if available
         if hasattr(self.status_dispatcher, 'initialize_plugins'):
             try:
-                self.status_dispatcher.initialize_plugins(templates)
+                self.status_dispatcher.initialize_plugins(expanded_templates)
             except AttributeError:
                 pass  # Skip if method not available
         
-        # Execute all templates
-        await self._execute_template_phase(templates, target, {})
+        # Execute all expanded templates
+        await self._execute_template_phase(expanded_templates, target, {})
         
         # Generate summary (this will create readable files) - always run this
         try:
@@ -69,6 +76,37 @@ class TemplateOrchestrator:
             self.status_dispatcher.finish_scan(summary)
         except Exception as e:
             self.status_dispatcher.display_error(f"Error generating summary: {e}")
+    
+    def _expand_templates(self, templates: List[Union[ToolTemplate, MultiPluginTemplate]]) -> List[ToolTemplate]:
+        """Expand multi-plugin templates into individual ToolTemplate instances."""
+        expanded = []
+        
+        for template in templates:
+            if isinstance(template, MultiPluginTemplate):
+                # Convert each plugin to a ToolTemplate
+                for plugin in template.plugins:
+                    tool_template = ToolTemplate(
+                        name=f"{template.name}-{plugin.name}",
+                        tool=plugin.tool,
+                        args=plugin.args,
+                        preset=plugin.preset,
+                        variables=plugin.variables,
+                        description=plugin.description or template.description,
+                        author=template.author,
+                        version=template.version,
+                        tags=template.tags,
+                        env=plugin.env,
+                        wordlist=plugin.wordlist,
+                        wordlist_hint=plugin.wordlist_hint,
+                        timeout=plugin.timeout,
+                        requires_sudo=plugin.requires_sudo
+                    )
+                    expanded.append(tool_template)
+            else:
+                # Single tool template - add as is
+                expanded.append(template)
+        
+        return expanded
     
     async def _execute_template_phase(self, templates: List[ToolTemplate], target: str, 
                                     chain_variables: dict) -> None:
@@ -81,13 +119,62 @@ class TemplateOrchestrator:
                 self.status_dispatcher.template_starting(template.tool, template.name, target)
                 
                 try:
+                    # Resolve auto_wordlist if needed (from template.wordlist field)
+                    wordlist_path = template.wordlist
+                    if wordlist_path == "auto_wordlist":
+                        try:
+                            wordlist_path = self.auto_wordlist_resolver.resolve_wordlist(
+                                target=target,
+                                tool=template.tool,
+                                hint=template.wordlist_hint,
+                                template_context={
+                                    "template_name": template.name,
+                                    "tags": template.tags or []
+                                }
+                            )
+                        except Exception as e:
+                            self.status_dispatcher.display_warning(
+                                f"Auto-wordlist resolution failed for {template.name}: {e}, using fallback"
+                            )
+                            # Use fallback wordlist from config
+                            if hasattr(self.config_manager.config, 'wordlists'):
+                                wordlist_path = self.config_manager.config.wordlists.fallback_wordlist
+                            else:
+                                wordlist_path = "/usr/share/seclists/Discovery/Web-Content/common.txt"
+                    
+                    # Also check if auto_wordlist appears in the args and resolve it
+                    resolved_wordlist_for_args = None
+                    if template.args and "auto_wordlist" in template.args:
+                        try:
+                            resolved_wordlist_for_args = self.auto_wordlist_resolver.resolve_wordlist(
+                                target=target,
+                                tool=template.tool,
+                                hint=template.wordlist_hint,
+                                template_context={
+                                    "template_name": template.name,
+                                    "tags": template.tags or []
+                                }
+                            )
+                        except Exception as e:
+                            self.status_dispatcher.display_warning(
+                                f"Auto-wordlist resolution in args failed for {template.name}: {e}, using fallback"
+                            )
+                            # Use fallback wordlist from config
+                            if hasattr(self.config_manager.config, 'wordlists'):
+                                resolved_wordlist_for_args = self.config_manager.config.wordlists.fallback_wordlist
+                            else:
+                                resolved_wordlist_for_args = "/usr/share/seclists/Discovery/Web-Content/common.txt"
+                    
+                    # Use the resolved wordlist from args if available, otherwise use the wordlist field
+                    final_wordlist = resolved_wordlist_for_args or wordlist_path
+                    
                     result = await self.secure_executor.execute_template(
                         template_name=template.name,
                         tool=template.tool,
                         args=template.args,
                         target=target,
                         env=template.env,
-                        wordlist=template.wordlist,
+                        wordlist=final_wordlist,
                         timeout=template.timeout,
                         preset=template.preset,
                         variables=template.variables,

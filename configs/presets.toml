@@ -105,7 +105,7 @@ ctf_vhost_fast = ["vhost", "-t", "20", "-q", "--timeout", "5s", "--no-progress",
 ctf_vhost_thorough = ["vhost", "-t", "50", "-q", "--timeout", "10s", "--no-progress", "--exclude-status", "404"]
 
 # CTF Directory enumeration - Focus on accessible content (no redirects to reduce noise)
-ctf_dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,403"]
+ctf_dir_fast = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-s", "200,403", "--exclude-length", "4546"]
 ctf_dir_extensions = ["dir", "-t", "20", "-q", "--no-progress", "-b", "", "-x", "php,html,js,txt,xml,json,flag,key,config", "-s", "200,403"]
 
 # CTF Redirects scan - When you specifically want to analyze redirects  
