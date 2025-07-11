@@ -1,7 +1,7 @@
 {
   "template_type": "traditional",
   "name": "wiss",
-  "description": "test for wizzard",
+  "description": "test for wizard",
   "tool": "sqlmap",
   "args": [
     "{{target}}"
