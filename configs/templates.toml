@@ -115,7 +115,7 @@ admin = ["admin"]
 directory = ["directory"]        # Directory hint stays focused
 admin = ["admin"]
 api = ["api"]
-vhost = ["dns", "subdomain"]
+vhost = ["dns", "subdomain", "vhost"]  # Added explicit vhost tag
 backup = ["backup"]
 
 [auto_wordlist.tool_preferences]
@@ -126,8 +126,9 @@ dirb = ["small", "classic"]
 ffuf = ["fast", "modern"]
 
 [auto_wordlist.fallbacks]
-# Fallback wordlists for different scenarios
-default = "/usr/share/seclists/Discovery/Web-Content/common.txt"
-admin = "/usr/share/seclists/Discovery/Web-Content/common.txt"
-api = "/usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt"
-directory = "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
+# Fallback wordlists for different scenarios (auto detection will find appropriate paths)
+default = "auto"
+admin = "auto"
+api = "auto" 
+directory = "auto"
+vhost = "auto"

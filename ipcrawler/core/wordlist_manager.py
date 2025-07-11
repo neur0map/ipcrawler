@@ -345,7 +345,7 @@ class WordlistManager:
                 if stats["readable"]:
                     local_data["files"].append({
                         "name": filepath.name,
-                        "path": str(filepath.relative_to(Path.cwd())),
+                        "path": str(filepath),
                         "size": stats["size"],
                         "lines": stats["lines"],
                         "last_modified": stats["last_modified"]
@@ -583,6 +583,18 @@ class WordlistManager:
         wordlist_purpose = (wordlist.get("purpose") or "").lower()
         wordlist_techs = set(tech.lower() for tech in wordlist.get("technology", []) if tech)
         context_hints = set(hint.lower() for hint in context.get("context_hints", []) if hint)
+        
+        # Check for explicit hint priority (vhost, admin, api, etc.)
+        explicit_hint = context.get("explicit_hint", "").lower()
+        if explicit_hint:
+            # High priority for exact explicit hint matches
+            if explicit_hint in wordlist_purpose or explicit_hint in wordlist_techs:
+                return 1.0
+            # Medium priority for related hint matches
+            if explicit_hint == "vhost" and any(term in wordlist_purpose for term in ["subdomain", "dns", "vhost"]):
+                return 0.95
+            if explicit_hint == "directory" and any(term in wordlist_purpose for term in ["directory", "web", "content"]):
+                return 0.95
         
         if not context_hints:
             return 0.3  # Default score when no hints

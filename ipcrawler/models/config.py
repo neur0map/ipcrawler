@@ -389,9 +389,9 @@ class UIConfig(BaseModel):
 
 class WordlistConfig(BaseModel):
     """Wordlist management configuration."""
-    seclists_path: str = "/Users/carlosm/.local/share/seclists"
+    seclists_path: str = str(Path.home() / ".local" / "share" / "seclists")
     enable_auto_selection: bool = True
-    fallback_wordlist: str = "/usr/share/seclists/Discovery/Web-Content/common.txt"
+    fallback_wordlist: str = "auto"
     analysis_timeout: int = Field(10, ge=1, le=60)
 
 

@@ -198,10 +198,12 @@ class AutoWordlistResolver:
             if tech in self.tech_mapping:
                 enhanced_technologies.update(self.tech_mapping[tech])
         
-        # Apply context hint mappings
+        # Apply context hint mappings with priority boost for explicit hints
         if hint and hint in self.context_hints:
             enhanced_hints.update(self.context_hints[hint])
             enhanced_technologies.update(self.context_hints[hint])
+            # Mark explicit hint for priority scoring
+            context["explicit_hint"] = hint
         
         # Apply tool preferences
         if tool and tool in self.tool_preferences:
