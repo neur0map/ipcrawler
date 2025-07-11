@@ -3,9 +3,12 @@ Status display and console output management.
 """
 
 import sys
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 from datetime import datetime
 from ..models.result import ExecutionResult, ScanResult
+
+if TYPE_CHECKING:
+    from ..ui.rich_status import RichStatusDispatcher
 
 
 def create_status_dispatcher(config: Dict[str, Any], silent: bool = False) -> Union['StatusDispatcher', 'RichStatusDispatcher']:
