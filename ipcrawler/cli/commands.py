@@ -10,6 +10,7 @@ from ..core.schema import TemplateSchema
 from ..core.preset_resolver import PresetResolver
 from ..core.sentry_integration import sentry_manager, with_sentry_context
 from ..core.executor import TemplateOrchestrator
+from ..wizard.template_wizard import TemplateWizard
 
 
 class CommandHandler:
@@ -211,6 +212,38 @@ class CommandHandler:
                     "category": category
                 })
     
+    @with_sentry_context("launch_wizard")
+    def launch_wizard(self) -> None:
+        """Launch the interactive template creation wizard."""
+        if self.debug_mode:
+            sentry_manager.add_breadcrumb(
+                "Launching template wizard",
+                data={"wizard_type": "template_creation"}
+            )
+        
+        try:
+            # Get UI config for wizard theming
+            ui_config = self.config_manager.get_ui_config() or {}
+            
+            # Create and run enhanced wizard
+            wizard = TemplateWizard(ui_config)
+            success = wizard.run()
+            
+            if success:
+                self.status_dispatcher.display_info("Template created successfully!")
+            else:
+                self.status_dispatcher.display_info("Template creation cancelled or failed.")
+                
+        except Exception as e:
+            self.status_dispatcher.display_error(f"Wizard failed: {e}")
+            if self.debug_mode:
+                sentry_manager.capture_exception(e, {
+                    "wizard_execution": {
+                        "wizard_type": "template_creation",
+                        "execution_stage": "wizard_launch"
+                    }
+                })
+    
     async def execute_command(self, args):
         """Execute the parsed command."""
         if args.command == 'run':
@@ -232,8 +265,15 @@ class CommandHandler:
         elif args.command == 'validate':
             self.validate_templates(getattr(args, 'category', None))
         elif args.command.startswith('-'):
-            # Handle category shortcuts
+            # Handle category shortcuts and special commands
             flag = args.command[1:]
+            
+            # Handle wizard commands
+            if flag in ['wiz', 'wizard']:
+                self.launch_wizard()
+                return
+            
+            # Handle other category shortcuts
             templates_config = self.config_manager.get_templates_config()
             if templates_config and "categories" in templates_config:
                 folder = templates_config["categories"].get(flag, flag)

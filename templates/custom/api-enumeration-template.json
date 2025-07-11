@@ -1,0 +1,12 @@
+{
+  "name": "api-enumeration-template",
+  "description": "API Endpoint Discovery - Discover API endpoints, test API functionality and security",
+  "tool": "feroxbuster",
+  "args": [
+    "{{target}}"
+  ],
+  "tags": [
+    "recon",
+    "htb"
+  ]
+}

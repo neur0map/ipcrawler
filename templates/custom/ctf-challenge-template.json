@@ -1,0 +1,40 @@
+{
+  "name": "ctf-challenge-template",
+  "description": "Chain template: Service discovery followed by vulnerability analysis",
+  "tool": "nmap",
+  "args": [
+    "-i"
+  ],
+  "chain_template": true,
+  "workflow_pattern": "Discovery \u2192 Analysis",
+  "chain_steps": [
+    {
+      "step_number": 1,
+      "tool": "nmap",
+      "purpose": "Quick port discovery",
+      "args": [
+        "{{target}}"
+      ],
+      "preset": "nmap.quick_tcp"
+    },
+    {
+      "step_number": 2,
+      "tool": "nuclei",
+      "purpose": "Vulnerability analysis of discovered services",
+      "args": [
+        "-u",
+        "{{target}}",
+        "-severity",
+        "medium,high,critical"
+      ],
+      "input_from_step": 1,
+      "condition": "service_discovered"
+    }
+  ],
+  "preset": "nmap.quick_tcp",
+  "tags": [
+    "chain",
+    "workflow",
+    "multi-tool"
+  ]
+}

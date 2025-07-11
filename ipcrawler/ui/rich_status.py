@@ -374,6 +374,7 @@ class RichStatusDispatcher:
         shortcuts_table.add_row("-recon TARGET", "Run reconnaissance templates")
         shortcuts_table.add_row("-custom TARGET", "Run custom templates")
         shortcuts_table.add_row("-htb TARGET", "Run HTB/CTF templates")
+        shortcuts_table.add_row("-wiz, -wizard", "Launch template creation wizard")
         
         # Create options table
         options_table = Table(show_header=True, header_style="bright_white", box=None, padding=(0, 1))

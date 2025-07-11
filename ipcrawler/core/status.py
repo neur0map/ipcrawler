@@ -153,6 +153,7 @@ class StatusDispatcher:
             print("  -recon TARGET             Run reconnaissance templates")
             print("  -custom TARGET            Run custom templates")
             print("  -htb TARGET               Run HTB/CTF templates")
+            print("  -wiz, -wizard             Launch template creation wizard")
             print("\nOPTIONS:")
             print("  -debug, --debug           Enable debug mode")
             print("  --version                 Show version information")

@@ -9,6 +9,8 @@
 # template name = folder name
 htb = "htb"
 testing = "testing"
+wiz = "wizard"
+wizard = "wizard"
 
 # Add your custom template folders here
 # Example:

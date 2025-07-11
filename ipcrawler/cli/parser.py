@@ -92,12 +92,17 @@ class ArgumentParser:
         templates_config = self.config_manager.get_templates_config()
         if templates_config and "categories" in templates_config:
             for flag, folder in templates_config["categories"].items():
-                flag_parser = subparsers.add_parser(f'-{flag}', help=f'Run all templates in {folder}')
-                flag_parser.add_argument('target', help=self.TARGET_HELP)
+                if flag in ['wiz', 'wizard']:
+                    # Wizard commands don't need a target
+                    flag_parser = subparsers.add_parser(f'-{flag}', help='Launch template creation wizard')
+                else:
+                    # Regular category shortcuts need a target
+                    flag_parser = subparsers.add_parser(f'-{flag}', help=f'Run all templates in {folder}')
+                    flag_parser.add_argument('target', help=self.TARGET_HELP)
         
         return parser
     
-    def _create_flag_args(self, command: str, target: str, debug_flag: bool = False) -> SimpleNamespace:
+    def _create_flag_args(self, command: str, target: str = None, debug_flag: bool = False) -> SimpleNamespace:
         """Create args object for flag-style commands."""
         return SimpleNamespace(
             command=command,
@@ -127,18 +132,23 @@ class ArgumentParser:
         # Check for debug flag first (can appear anywhere)
         debug_flag = '-debug' in sys.argv or '--debug' in sys.argv
         
-        # Handle flag-style commands (category shortcuts)
-        if len(sys.argv) >= 3:
+        # Handle flag-style commands (category shortcuts and wizard)
+        if len(sys.argv) >= 2:
             for i, arg in enumerate(sys.argv[1:], 1):
                 if arg.startswith('-') and arg not in ['-debug', '--debug']:
                     flag = arg[1:]  # Remove the '-' prefix
                     # Check if this flag maps to a template category
                     templates_config = self.config_manager.get_templates_config()
                     if templates_config and "categories" in templates_config and flag in templates_config["categories"]:
-                        # Find the target (next non-debug argument)
-                        for j in range(i + 1, len(sys.argv)):
-                            if sys.argv[j] not in ['-debug', '--debug']:
-                                return self._create_flag_args(arg, sys.argv[j], debug_flag)
+                        # Handle wizard commands (no target required)
+                        if flag in ['wiz', 'wizard']:
+                            return self._create_flag_args(arg, None, debug_flag)
+                        # Handle regular category shortcuts (target required)
+                        elif len(sys.argv) >= 3:
+                            # Find the target (next non-debug argument)
+                            for j in range(i + 1, len(sys.argv)):
+                                if sys.argv[j] not in ['-debug', '--debug']:
+                                    return self._create_flag_args(arg, sys.argv[j], debug_flag)
         
         # Normal parsing for other commands
         parser = self.create_parser()
