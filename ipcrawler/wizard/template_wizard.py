@@ -1,6 +1,6 @@
 """
 Unified Rich-powered TUI Wizard for creating IPCrawler plugin templates.
-Combines modern Rich patterns with comprehensive intelligence features.
+Rich TUI wizard with smart template suggestions.
 """
 
 import json

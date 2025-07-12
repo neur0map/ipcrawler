@@ -122,7 +122,7 @@ long_execution_threshold = 180     # Execution time to trigger alert (seconds)
 
 [compliance]
 # Compliance and auditing settings
-audit_mode = false                 # Enable comprehensive audit logging
+audit_mode = false                 # Enable detailed audit logging
 log_retention_days = 90           # How long to keep audit logs
 encrypt_sensitive_data = true     # Encrypt sensitive data in logs
 anonymize_targets = false         # Anonymize target information in logs
@@ -172,7 +172,7 @@ sensitive_patterns = [
 # Incident response settings
 auto_quarantine = false           # Automatically quarantine suspicious templates
 alert_on_violations = true        # Send alerts on security violations
-emergency_stop = false            # Enable emergency stop functionality
+emergency_stop = false            # Enable emergency stop
 contact_admin = false             # Auto-contact administrator on incidents
 
 # Response actions

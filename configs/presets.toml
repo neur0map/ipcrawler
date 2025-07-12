@@ -45,7 +45,7 @@ udp_common = ["-sU", "--top-ports", "100", "-T4"]
 # Vulnerability scan - Using NSE scripts
 vuln_scan = ["-sV", "--script", "vuln", "-T4"]
 
-# HTB scan - Service detection with port range optimization
+# HTB scan - Service detection with fast port scanning
 htb_scan = ["-sV", "-T4", "--min-rate", "5000", "--max-rate", "10000", "--open"]
 
 # =============================================================================

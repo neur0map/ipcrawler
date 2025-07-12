@@ -92,7 +92,7 @@ class WordlistManager:
             stat = filepath.stat()
             size = stat.st_size
             
-            # Count lines efficiently
+            # Count lines in file
             with open(filepath, 'rb') as f:
                 lines = sum(1 for _ in f)
             
@@ -149,7 +149,7 @@ class WordlistManager:
             purpose = "API endpoint discovery"
             quality_score = 7
         
-        # Filename-based enhancement
+        # Add tech tags from filename
         if "admin" in filename:
             technology.append("admin")
             purpose += " - Admin panels"
@@ -163,7 +163,7 @@ class WordlistManager:
         elif "jsp" in filename:
             technology.append("jsp")
         
-        # CTF optimization detection
+        # Check if CTF-optimized
         if any(term in filename for term in ["small", "short", "quick", "common", "top"]):
             ctf_optimized = True
             quality_score += 1
@@ -252,7 +252,7 @@ class WordlistManager:
         return descriptions.get(category, "")
     
     def generate_wordlist_catalog(self, output_format: str = "json") -> Dict[str, Any]:
-        """Generate comprehensive wordlist catalog"""
+        """Generate wordlist catalog"""
         catalog = {
             "metadata": {
                 "generated": datetime.now().isoformat(),
@@ -626,11 +626,11 @@ class WordlistManager:
         quality = wordlist.get("quality_score", 5)
         score += (quality / 10.0) * 0.5
         
-        # CTF optimization bonus (0.3 weight)
+        # CTF bonus: +0.3
         if wordlist.get("ctf_optimized", False):
             score += 0.3
         
-        # Size optimization (0.2 weight)
+        # Size bonus: +0.2
         lines = wordlist.get("lines", 0)
         if 1000 <= lines <= 50000:  # Optimal size range
             score += 0.2

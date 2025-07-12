@@ -3,7 +3,7 @@
   "tool": "nmap",
   "preset": "nmap.service_scan",
   "args": ["{{target}}"],
-  "description": "Smart nmap reconnaissance with service detection for comprehensive host analysis",
+  "description": "Smart nmap scan with service detection",
   "author": "ipcrawler",
   "version": "1.0.0",
   "timeout": 300,

@@ -110,7 +110,7 @@ class SentryManager:
             return False
         
         try:
-            # Configure Sentry with comprehensive integrations
+            # Set up Sentry with required integrations
             sentry_sdk.init(
                 dsn=self.sentry_dsn,
                 traces_sample_rate=1.0,  # Capture all transactions for debugging

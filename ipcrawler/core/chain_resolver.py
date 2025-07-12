@@ -239,7 +239,7 @@ class ChainResolver:
         return True
     
     def get_execution_order(self, templates: List[Any]) -> List[Any]:
-        """Get optimal execution order for templates based on dependencies."""
+        """Get best execution order for templates based on dependencies."""
         # For now, return templates in original order
         # This can be extended to support:
         # - Dependency resolution
