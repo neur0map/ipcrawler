@@ -1,9 +1,0 @@
-{
-  "template_type": "traditional",
-  "name": "wiss",
-  "description": "test for wizard",
-  "tool": "sqlmap",
-  "args": [
-    "{{target}}"
-  ]
-}

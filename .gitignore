@@ -1,13 +1,7 @@
-results/
-.claude/
-.cursor/
-.github/
-.vscode/
-claude.md
-local_files/
-.coverage
+# Scan Results and Workspaces
+workspaces/
 
-# Python cache files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -28,12 +22,46 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-wordlists/
+MANIFEST
 
-# Environment files (never commit these)
+# Virtual environments
 .env
-.env.local
-.env.*.local
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Sentry debug configuration (never commit actual DSN)
-.env
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Security sensitive files
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+secrets.yaml

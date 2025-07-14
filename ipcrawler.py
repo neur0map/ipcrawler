@@ -1,14 +1,518 @@
 #!/usr/bin/env python3
-"""
-ipcrawler - Entry point for the security tool orchestration CLI.
 
-Run this script to use ipcrawler:
-  python3 ipcrawler.py list
-  python3 ipcrawler.py run --template default 127.0.0.1
-  python3 ipcrawler.py schema
-"""
+import os
+os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
 
-from ipcrawler.cli.main import main
+import asyncio
+import json
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
+import typer
+from rich.console import Console
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
+from workflows.nmap_fast_01.scanner import NmapFastScanner
+from workflows.nmap_02.scanner import NmapScanner
+from config_loader import config
+
+app = typer.Typer(
+    name="ipcrawler",
+    help="CLI orchestrator for reconnaissance workflows",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]}
+)
+
+console = Console()
+
+
+@app.command()
+def main(
+    target: str = typer.Argument(..., help="Target IP address or hostname to scan")
+):
+    """Run reconnaissance workflow on target"""
+    asyncio.run(run_workflow(target))
+
+
+def save_live_results(workspace: Path, target: str, accumulated_data: dict, scan_mode: str = "unknown"):
+    """Save live/partial scan results during scanning"""
+    # Save live JSON format
+    live_json_file = workspace / "live_results.json"
+    with open(live_json_file, 'w') as f:
+        json.dump(accumulated_data, f, indent=2)
+    
+    # Save live text report
+    live_txt_file = workspace / "live_report.txt"
+    with open(live_txt_file, 'w') as f:
+        f.write(generate_text_report(target, accumulated_data, is_live=True))
+    
+    # Save live HTML report
+    live_html_file = workspace / "live_report.html"
+    with open(live_html_file, 'w') as f:
+        f.write(generate_html_report(target, accumulated_data, is_live=True))
+    
+    # Fix file permissions if running as sudo
+    if os.geteuid() == 0:  # Running as root
+        sudo_uid = os.environ.get('SUDO_UID')
+        sudo_gid = os.environ.get('SUDO_GID')
+        
+        if sudo_uid and sudo_gid:
+            import subprocess
+            # Change ownership of all created files
+            for file in [live_json_file, live_txt_file, live_html_file]:
+                subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(file)], 
+                              capture_output=True, check=False)
+
+
+def merge_scan_data(accumulated: dict, new_result) -> dict:
+    """Merge new scan results with accumulated data"""
+    if not new_result or not new_result.hosts:
+        return accumulated
+    
+    # Initialize accumulated data if empty
+    if not accumulated:
+        accumulated = {
+            "tool": "nmap",
+            "target": new_result.hosts[0].ip if new_result.hosts else "unknown",
+            "start_time": new_result.start_time,
+            "hosts": [],
+            "total_hosts": 0,
+            "up_hosts": 0,
+            "down_hosts": 0,
+            "scan_progress": "in_progress",
+            "batches_completed": 0
+        }
+    
+    # Update timing info
+    accumulated["end_time"] = new_result.end_time
+    accumulated["duration"] = getattr(new_result, 'duration', 0)
+    accumulated["batches_completed"] = accumulated.get("batches_completed", 0) + 1
+    
+    # Merge hosts
+    existing_hosts = {host.get("ip", ""): host for host in accumulated["hosts"]}
+    
+    for new_host in new_result.hosts:
+        host_ip = new_host.ip
+        
+        if host_ip not in existing_hosts:
+            # New host
+            host_dict = new_host.model_dump()
+            accumulated["hosts"].append(host_dict)
+            existing_hosts[host_ip] = host_dict
+        else:
+            # Merge ports for existing host
+            existing_host = existing_hosts[host_ip]
+            existing_ports = {port.get("port", 0): port for port in existing_host.get("ports", [])}
+            
+            for new_port in new_host.ports:
+                port_num = new_port.port
+                if port_num not in existing_ports:
+                    existing_host["ports"].append(new_port.model_dump())
+                else:
+                    # Update with more detailed info if available
+                    existing_port = existing_ports[port_num]
+                    new_port_dict = new_port.model_dump()
+                    
+                    # Merge service information
+                    if new_port_dict.get("service") and not existing_port.get("service"):
+                        existing_port["service"] = new_port_dict["service"]
+                    if new_port_dict.get("version") and not existing_port.get("version"):
+                        existing_port["version"] = new_port_dict["version"]
+                    if new_port_dict.get("scripts"):
+                        existing_port.setdefault("scripts", []).extend(new_port_dict["scripts"])
+            
+            # Sort ports
+            existing_host["ports"].sort(key=lambda p: p.get("port", 0))
+            
+            # Update OS info if better
+            if (new_host.os and 
+                (not existing_host.get("os") or 
+                 (new_host.os_accuracy or 0) > existing_host.get("os_accuracy", 0))):
+                existing_host["os"] = new_host.os
+                existing_host["os_accuracy"] = new_host.os_accuracy
+                existing_host["os_details"] = new_host.os_details
+    
+    # Update host counts
+    up_hosts = sum(1 for host in accumulated["hosts"] if host.get("state") == "up")
+    accumulated["total_hosts"] = len(accumulated["hosts"])
+    accumulated["up_hosts"] = up_hosts
+    accumulated["down_hosts"] = accumulated["total_hosts"] - up_hosts
+    
+    return accumulated
+
+
+async def run_workflow(target: str):
+    """Execute reconnaissance workflow on target"""
+    # Create workspace directory
+    workspace = create_workspace(target)
+    
+    # IMPORTANT: Default behavior is to scan ONLY discovered ports
+    # Full 65535 port scan only happens when fast_port_discovery is explicitly set to false
+    discovered_ports = None
+    total_execution_time = 0.0
+    
+    if config.fast_port_discovery:
+        console.print(f"→ Starting fast port discovery on {target}...")
+        
+        # Run port discovery
+        discovery_scanner = NmapFastScanner()
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True
+        ) as progress:
+            task = progress.add_task("Discovering open ports...", total=None)
+            discovery_result = await discovery_scanner.execute(target=target)
+            progress.update(task, completed=True)
+        
+        if discovery_result.success and discovery_result.data:
+            discovered_ports = discovery_result.data.get("open_ports", [])
+            port_count = len(discovered_ports)
+            total_execution_time += discovery_result.execution_time or 0.0
+            
+            console.print(f"✓ Port discovery completed in {(discovery_result.execution_time or 0.0):.2f}s")
+            console.print(f"  Found {port_count} open ports using {discovery_result.data.get('tool', 'unknown')}")
+            
+            if port_count == 0:
+                console.print("⚠ No open ports found. Skipping detailed scan.")
+                return
+            
+            if port_count > config.max_detailed_ports:
+                console.print(f"⚠ Found {port_count} ports, limiting detailed scan to top {config.max_detailed_ports}")
+                discovered_ports = discovered_ports[:config.max_detailed_ports]
+        else:
+            console.print(f"✗ Port discovery failed: {discovery_result.error}")
+            console.print("⚠ Cannot proceed without port discovery. Exiting.")
+            console.print("  To scan all ports, set 'fast_port_discovery: false' in config.yaml")
+            return
+    
+    # Run detailed nmap scan
+    scanner = NmapScanner(batch_size=config.batch_size, ports_per_batch=config.ports_per_batch)
+    
+    # Create progress callback and live result tracking
+    progress_queue = asyncio.Queue()
+    accumulated_results = {}
+    
+    async def progress_monitor():
+        """Monitor and display batch progress with optional real-time file saving"""
+        nonlocal accumulated_results
+        completed = 0
+        
+        while True:
+            msg = await progress_queue.get()
+            if msg == "DONE":
+                break
+                
+            # Handle structured messages with results
+            if isinstance(msg, dict):
+                completed += 1
+                result = msg.get("result")
+                
+                # Show progress
+                if discovered_ports:
+                    console.print(f"→ Port range {completed} completed")
+                else:
+                    console.print(f"→ Batch {completed}/10 completed")
+                
+                # Save live results if enabled
+                if config.real_time_save and result:
+                    try:
+                        accumulated_results = merge_scan_data(accumulated_results, result)
+                        save_live_results(workspace, target, accumulated_results)
+                        
+                        # Show file update notification
+                        open_ports = sum(
+                            len([p for p in host.get("ports", []) if p.get("state") == "open"])
+                            for host in accumulated_results.get("hosts", [])
+                        )
+                        console.print(f"  → Live results updated: {open_ports} services discovered so far")
+                        
+                    except Exception as e:
+                        console.print(f"  ⚠ Failed to save live results: {str(e)}")
+            else:
+                # Handle legacy string messages
+                completed += 1
+                if discovered_ports:
+                    console.print(f"→ Port range {completed} completed")
+                else:
+                    console.print(f"→ Batch {completed}/10 completed")
+    
+    # Start progress monitor
+    monitor_task = asyncio.create_task(progress_monitor())
+    
+    # Initialize live results if real-time saving is enabled
+    if config.real_time_save:
+        console.print(f"→ Real-time results will be saved to: {workspace}/live_*.{'{json,txt,html}'}")
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True
+    ) as progress:
+        if discovered_ports is not None:
+            # When discovery is enabled, ONLY scan discovered ports
+            task = progress.add_task(f"Detailed scan of {len(discovered_ports)} discovered ports...", total=None)
+        else:
+            # Only do full scan when discovery is explicitly disabled
+            task = progress.add_task(f"Full scan of all 65535 ports (10 parallel batches)...", total=None)
+        
+        result = await scanner.execute(
+            target=target, 
+            progress_queue=progress_queue,
+            ports=discovered_ports
+        )
+        
+        progress.update(task, completed=True)
+    
+    # Signal monitor to stop
+    await progress_queue.put("DONE")
+    await monitor_task
+    
+    if result.success and result.data:
+        total_execution_time += result.execution_time or 0.0
+        console.print(f"\n✓ Scan completed in {total_execution_time:.2f}s total")
+        
+        # Add discovery info to results
+        if discovered_ports is not None:
+            result.data['discovery_enabled'] = True
+            result.data['discovered_ports'] = len(discovered_ports)
+        else:
+            result.data['discovery_enabled'] = False
+        
+        # Save final scan results to workspace
+        save_scan_results(workspace, target, result.data)
+        
+        # If real-time saving was enabled, notify about final results
+        if config.real_time_save:
+            console.print(f"→ Final results saved alongside live results in: {workspace}")
+        
+        # Display minimal summary only
+        display_minimal_summary(result.data, workspace)
+    else:
+        console.print(f"\n✗ Scan failed: {result.error}")
+        raise typer.Exit(1)
+
+
+def create_workspace(target: str) -> Path:
+    """Create workspace directory for scan results"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    workspace_name = f"scan_{target.replace('.', '_')}_{timestamp}"
+    
+    # Create workspaces directory with proper ownership
+    base_path = Path("workspaces")
+    workspace_path = base_path / workspace_name
+    
+    # Create directories
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    
+    # If running as sudo, change ownership to the real user
+    if os.geteuid() == 0:  # Running as root
+        # Get the real user ID from SUDO_UID environment variable
+        sudo_uid = os.environ.get('SUDO_UID')
+        sudo_gid = os.environ.get('SUDO_GID')
+        
+        if sudo_uid and sudo_gid:
+            # Change ownership of workspaces directory and all subdirectories
+            import subprocess
+            subprocess.run(['chown', '-R', f'{sudo_uid}:{sudo_gid}', str(base_path)], 
+                          capture_output=True, check=False)
+    
+    return workspace_path
+
+
+def save_scan_results(workspace: Path, target: str, data: dict):
+    """Save scan results in multiple formats"""
+    # Save JSON format
+    json_file = workspace / "scan_results.json"
+    with open(json_file, 'w') as f:
+        json.dump(data, f, indent=2)
+    
+    # Save detailed text report
+    txt_file = workspace / "scan_report.txt"
+    with open(txt_file, 'w') as f:
+        f.write(generate_text_report(target, data))
+    
+    # Save HTML report
+    html_file = workspace / "scan_report.html"
+    with open(html_file, 'w') as f:
+        f.write(generate_html_report(target, data))
+    
+    # Fix file permissions if running as sudo
+    if os.geteuid() == 0:  # Running as root
+        sudo_uid = os.environ.get('SUDO_UID')
+        sudo_gid = os.environ.get('SUDO_GID')
+        
+        if sudo_uid and sudo_gid:
+            import subprocess
+            # Change ownership of all created files
+            for file in [json_file, txt_file, html_file]:
+                subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(file)], 
+                              capture_output=True, check=False)
+
+
+def display_minimal_summary(data: dict, workspace: Path):
+    """Display minimal scan summary"""
+    scan_result = data
+    
+    # Count open ports
+    total_open_ports = 0
+    for host in scan_result.get('hosts', []):
+        total_open_ports += sum(1 for p in host.get('ports', []) if p.get('state') == 'open')
+    
+    # Minimal summary
+    scan_mode = scan_result.get('scan_mode', 'unknown')
+    
+    summary = Table(show_header=False, box=None, padding=(0, 1))
+    summary.add_column("Key", style="dim")
+    summary.add_column("Value")
+    
+    summary.add_row("Target", f"[green]{scan_result.get('hosts', [{}])[0].get('ip', 'Unknown') if scan_result.get('hosts') else 'Unknown'}[/green]")
+    summary.add_row("Scan Mode", scan_mode)
+    
+    # Show discovery info if enabled
+    if scan_result.get('discovery_enabled'):
+        summary.add_row("Port Discovery", f"Enabled ({scan_result.get('discovered_ports', 0)} ports found)")
+    else:
+        summary.add_row("Port Discovery", "Disabled (full scan)")
+    
+    summary.add_row("Duration", f"{scan_result['duration']:.2f}s")
+    summary.add_row("Hosts Found", f"{scan_result['up_hosts']} up, {scan_result['down_hosts']} down")
+    summary.add_row("Open Ports", str(total_open_ports))
+    summary.add_row("Results Saved", f"[green]{workspace}[/green]")
+    
+    console.print("\n", summary, "\n")
+    console.print("View detailed results in the workspace directory")
+
+
+
+def generate_text_report(target: str, data: dict, is_live: bool = False) -> str:
+    """Generate detailed text report"""
+    report = []
+    report.append(f"IP CRAWLER SCAN REPORT{'S (LIVE - IN PROGRESS)' if is_live else ''}")
+    report.append(f"Target: {target}")
+    report.append(f"Scan Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    report.append(f"Command: {data.get('command', 'N/A')}")
+    report.append(f"Duration: {data.get('duration', 0):.2f} seconds")
+    report.append(f"Hosts: {data.get('total_hosts', 0)} total, {data.get('up_hosts', 0)} up, {data.get('down_hosts', 0)} down")
+    if is_live:
+        report.append(f"Progress: {data.get('batches_completed', 0)} batches completed")
+    report.append("=" * 80)
+    
+    for host in data['hosts']:
+        report.append(f"\nHost: {host['ip']}")
+        if host['hostname']:
+            report.append(f"Hostname: {host['hostname']}")
+        if host.get('os'):
+            report.append(f"OS: {host['os']} (Accuracy: {host.get('os_accuracy', 'N/A')}%)")
+        if host.get('mac_address'):
+            report.append(f"MAC: {host['mac_address']} ({host.get('mac_vendor', 'Unknown vendor')})")
+        
+        # Open ports
+        open_ports = [p for p in host['ports'] if p['state'] == 'open']
+        if open_ports:
+            report.append(f"\nOpen Ports: {len(open_ports)}")
+            for port in open_ports:
+                report.append(f"  {port['port']}/{port['protocol']} - {port.get('service', 'unknown')}")
+                if port.get('version'):
+                    report.append(f"    Version: {port['version']}")
+                if port.get('product'):
+                    report.append(f"    Product: {port['product']}")
+                
+                # Script results
+                if port.get('scripts'):
+                    for script in port['scripts']:
+                        report.append(f"    Script: {script['id']}")
+                        for line in script['output'].strip().split('\n'):
+                            report.append(f"      {line}")
+        
+        report.append("-" * 80)
+    
+    return "\n".join(report)
+
+
+def generate_html_report(target: str, data: dict, is_live: bool = False) -> str:
+    """Generate HTML report"""
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IP Crawler Scan Report - {target}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; background-color: #1e1e1e; color: #e0e0e0; }}
+        h1, h2, h3 {{ color: #4fc3f7; }}
+        .summary {{ background-color: #2c2c2c; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
+        .host {{ background-color: #2c2c2c; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
+        .port {{ background-color: #3c3c3c; padding: 10px; margin: 10px 0; border-radius: 3px; }}
+        .script {{ background-color: #4c4c4c; padding: 8px; margin: 5px 0; border-radius: 3px; font-family: monospace; }}
+        table {{ border-collapse: collapse; width: 100%; }}
+        th, td {{ padding: 8px; text-align: left; border-bottom: 1px solid #555; }}
+        th {{ background-color: #3c3c3c; color: #4fc3f7; }}
+        .open {{ color: #4caf50; }}
+        .closed {{ color: #f44336; }}
+    </style>
+</head>
+<body>
+    <h1>IP Crawler Scan Report{' (LIVE - IN PROGRESS)' if is_live else ''}</h1>
+    <div class="summary">
+        <h2>Scan Summary</h2>
+        <p><strong>Target:</strong> {target}</p>
+        <p><strong>Date:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p><strong>Duration:</strong> {data.get('duration', 0):.2f} seconds</p>
+        <p><strong>Hosts:</strong> {data.get('total_hosts', 0)} total, {data.get('up_hosts', 0)} up, {data.get('down_hosts', 0)} down</p>
+        <p><strong>Command:</strong> <code>{data.get('command', 'N/A')}</code></p>
+        {f'<p><strong>Progress:</strong> {data.get("batches_completed", 0)} batches completed</p>' if is_live else ''}
+    </div>
+"""
+    
+    for host in data['hosts']:
+        html += f"""
+    <div class="host">
+        <h2>Host: {host['ip']}</h2>
+"""
+        if host['hostname']:
+            html += f"        <p><strong>Hostname:</strong> {host['hostname']}</p>\n"
+        if host.get('os'):
+            html += f"        <p><strong>OS:</strong> {host['os']} (Accuracy: {host.get('os_accuracy', 'N/A')}%)</p>\n"
+        if host.get('mac_address'):
+            html += f"        <p><strong>MAC:</strong> {host['mac_address']} ({host.get('mac_vendor', 'Unknown vendor')})</p>\n"
+        
+        open_ports = [p for p in host['ports'] if p['state'] == 'open']
+        if open_ports:
+            html += f"        <h3>Open Ports ({len(open_ports)})</h3>\n"
+            html += "        <table>\n"
+            html += "            <tr><th>Port</th><th>Service</th><th>Version</th><th>Product</th></tr>\n"
+            
+            for port in open_ports:
+                html += f"""
+            <tr>
+                <td class="open">{port['port']}/{port['protocol']}</td>
+                <td>{port.get('service', 'unknown')}</td>
+                <td>{port.get('version', '-')}</td>
+                <td>{port.get('product', '-')}</td>
+            </tr>
+"""
+                
+                if port.get('scripts'):
+                    html += "            <tr><td colspan='4'>\n"
+                    for script in port['scripts']:
+                        html += f"                <div class='script'><strong>{script['id']}:</strong><br><pre>{script['output']}</pre></div>\n"
+                    html += "            </td></tr>\n"
+            
+            html += "        </table>\n"
+        
+        html += "    </div>\n"
+    
+    html += """
+</body>
+</html>
+"""
+    return html
+
 
 if __name__ == "__main__":
-    main() 
+    app()

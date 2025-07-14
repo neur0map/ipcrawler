@@ -1,8 +1,0 @@
-{
-  "name": "admin-discovery-template",
-  "description": "Find Admin Panels - Look for admin login pages and management interfaces",
-  "tool": "curl",
-  "args": [
-    "{{target}}"
-  ]
-}

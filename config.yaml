@@ -1,0 +1,49 @@
+# IP Crawler Configuration
+
+# Scan Settings
+scan:
+  # DEFAULT BEHAVIOR: ONLY SCAN DISCOVERED OPEN PORTS
+  # 
+  # When true (DEFAULT): 
+  #   1. Fast nmap discovers which ports are open (~30 seconds)
+  #   2. Detailed nmap ONLY scans those specific open ports
+  #
+  # When false:
+  #   1. Skip port discovery
+  #   2. Nmap scans ALL 65535 ports (10+ minutes)
+  #
+  fast_port_discovery: true  # DEFAULT: true (recommended)
+  
+  # Maximum ports to scan in detail
+  # If more ports are discovered, only top N will be scanned
+  max_detailed_ports: 1000
+
+# Parallel Processing
+parallel:
+  # Number of concurrent scan processes
+  batch_size: 10
+  
+  # Ports per batch when scanning all ports
+  ports_per_batch: 6553
+
+# Output Settings
+output:
+  # Save raw XML output from tools
+  save_raw_xml: false
+  
+  # Verbose console output
+  verbose: false
+  
+  # Raw script output
+  # When false (default): Cleans binary/hex data from script outputs
+  # When true: Keeps all output as-is (including binary garbage)
+  raw_output: false
+  
+  # Save results in real-time to workspace during scanning
+  # When true (default): Creates live_results.json that updates as scan progresses
+  # When false: Only save final results after scan completion
+  real_time_save: true
+
+# Tool Paths (leave empty to use system PATH)
+tools:
+  nmap_path: ""
