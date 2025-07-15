@@ -25,6 +25,7 @@ clean_cache()
 import asyncio
 import json
 import tempfile
+import socket
 from datetime import datetime
 
 import typer
@@ -45,6 +46,8 @@ app = typer.Typer(
 )
 
 console = Console()
+
+
 
 
 @app.command()
@@ -171,8 +174,54 @@ def merge_scan_data(accumulated: dict, new_result) -> dict:
     return accumulated
 
 
+async def resolve_target(target: str) -> str:
+    """Resolve target hostname to IP with visual feedback"""
+    import ipaddress
+    
+    # Check if target is already an IP address
+    try:
+        ipaddress.ip_address(target)
+        console.print(f"▶ Target: [cyan]{target}[/cyan] (IP address)")
+        return target
+    except ValueError:
+        pass
+    
+    # Check if target is CIDR notation
+    try:
+        ipaddress.ip_network(target, strict=False)
+        console.print(f"▶ Target: [cyan]{target}[/cyan] (CIDR range)")
+        return target
+    except ValueError:
+        pass
+    
+    # It's a hostname, resolve it
+    console.print(f"▶ Resolving [cyan]{target}[/cyan]...")
+    
+    try:
+        # Use getaddrinfo for proper async DNS resolution
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, 
+            lambda: socket.getaddrinfo(target, None, socket.AF_INET)
+        )
+        
+        if result:
+            ip = result[0][4][0]
+            console.print(f"  → Resolved to [green]{ip}[/green]")
+            return target  # Return original hostname for nmap
+        else:
+            console.print(f"  ✗ Failed to resolve {target}")
+            return target
+            
+    except Exception as e:
+        console.print(f"  ⚠ DNS resolution warning: {str(e)}")
+        return target  # Let nmap handle it
+
+
 async def run_workflow(target: str):
     """Execute reconnaissance workflow on target"""
+    # Resolve target first
+    resolved_target = await resolve_target(target)
+    
     # Create workspace directory
     workspace = create_workspace(target)
     
@@ -182,20 +231,22 @@ async def run_workflow(target: str):
     total_execution_time = 0.0
     
     if config.fast_port_discovery:
-        console.print(f"→ Starting fast port discovery on [cyan]{target}[/cyan]...")
+        console.print("→ Starting fast port discovery...")
         
-        # Run port discovery
+        # Track discovered ports for real-time display
+        discovered_ports_live = []
+        
+        def port_discovered(port: int, protocol: str):
+            """Callback for when a port is discovered"""
+            discovered_ports_live.append(port)
+            console.print(f"  ✓ Found open port: [green]{port}/{protocol}[/green]")
+        
+        # Run port discovery with live updates
         discovery_scanner = NmapFastScanner()
-        
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            transient=True
-        ) as progress:
-            task = progress.add_task("Discovering open ports...", total=None)
-            discovery_result = await discovery_scanner.execute(target=target)
-            progress.update(task, completed=True)
+        discovery_result = await discovery_scanner.execute(
+            target=resolved_target,
+            progress_callback=port_discovered
+        )
         
         if discovery_result.success and discovery_result.data:
             discovered_ports = discovery_result.data.get("open_ports", [])
@@ -290,7 +341,7 @@ async def run_workflow(target: str):
             task = progress.add_task(f"Full scan of all 65535 ports (10 parallel batches)...", total=None)
         
         result = await scanner.execute(
-            target=target, 
+            target=resolved_target, 
             progress_queue=progress_queue,
             ports=discovered_ports
         )
@@ -303,7 +354,7 @@ async def run_workflow(target: str):
     
     if result.success and result.data:
         total_execution_time += result.execution_time or 0.0
-        console.print(f"\n✓ Scan completed in {total_execution_time:.2f}s total")
+        console.print(f"✓ Scan completed in {total_execution_time:.2f}s total")
         
         # Add discovery info to results
         if discovered_ports is not None:
@@ -322,7 +373,7 @@ async def run_workflow(target: str):
         # Display minimal summary only
         display_minimal_summary(result.data, workspace)
     else:
-        console.print(f"\n✗ Scan failed: {result.error}")
+        console.print(f"✗ Scan failed: {result.error}")
         raise typer.Exit(1)
     
     # Cleanup async writer

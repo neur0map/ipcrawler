@@ -3,7 +3,7 @@ import os
 import re
 import time
 import tempfile
-from typing import List
+from typing import List, Optional, Callable
 from pathlib import Path
 
 from rich.console import Console
@@ -29,7 +29,8 @@ class NmapFastScanner(BaseWorkflow):
         """Check if running with root privileges"""
         return os.geteuid() == 0
     
-    async def execute(self, target: str, **kwargs) -> WorkflowResult:
+    
+    async def execute(self, target: str, progress_callback: Optional[Callable] = None, **kwargs) -> WorkflowResult:
         """Execute fast nmap scan for port discovery"""
         start_time = time.time()
         
@@ -57,9 +58,12 @@ class NmapFastScanner(BaseWorkflow):
                         "-T4",                  # Aggressive timing
                         "--min-rate", "1000",   # Minimum packet rate
                         "--max-retries", "2",   # Maximum retries
+                        "--max-rtt-timeout", "100ms", # Prevent hanging on slow hosts
+                        "--host-timeout", "5m", # Overall timeout
                         "--open",               # Only show open ports
                         "-Pn",                  # Skip ping (assume host is up)
                         "-n",                   # No DNS resolution
+                        "-v",                   # Verbose for real-time updates
                         "-oG", str(temp_output), # Grepable output to file
                         target
                     ]
@@ -72,26 +76,56 @@ class NmapFastScanner(BaseWorkflow):
                         "-T4",                  # Aggressive timing
                         "--min-rate", "500",    # Lower rate for stability without root
                         "--max-retries", "2",   # Maximum retries
+                        "--max-rtt-timeout", "100ms", # Prevent hanging on slow hosts
+                        "--host-timeout", "5m", # Overall timeout
                         "--open",               # Only show open ports
                         "-Pn",                  # Skip ping (assume host is up)
                         "-n",                   # No DNS resolution
+                        "-v",                   # Verbose for real-time updates
                         "-oG", str(temp_output), # Grepable output to file
                         target
                     ]
                 
-                # Execute nmap
+                
+                # Execute nmap with real-time output parsing
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
                 
-                stdout, stderr = await process.communicate()
+                # Read output line by line for real-time port discovery
+                stdout_lines = []
+                if progress_callback:
+                    while True:
+                        line = await process.stdout.readline()
+                        if not line:
+                            break
+                        line_str = line.decode().strip()
+                        stdout_lines.append(line_str)
+                        
+                        # Check for discovered open ports
+                        if "Discovered open port" in line_str:
+                            match = re.search(r'Discovered open port (\d+)/(\w+)', line_str)
+                            if match:
+                                port, protocol = match.groups()
+                                progress_callback(int(port), protocol)
+                    
+                    # Wait for process to finish
+                    stderr_data = await process.stderr.read()
+                    await process.wait()
+                    stdout_data = '\n'.join(stdout_lines)
+                    stderr_data = stderr_data.decode()
+                else:
+                    # No callback, just get all output
+                    stdout_data, stderr_data = await process.communicate()
+                    stdout_data = stdout_data.decode()
+                    stderr_data = stderr_data.decode()
                 
                 if process.returncode != 0:
                     return WorkflowResult(
                         success=False,
-                        error=f"Fast nmap scan failed: {stderr.decode()}",
+                        error=f"Fast nmap scan failed: {stderr_data}",
                         execution_time=time.time() - start_time
                     )
                 
