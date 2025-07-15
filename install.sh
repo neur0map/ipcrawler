@@ -310,6 +310,31 @@ main() {
     print_color "           ${VOLT}ipcrawler example.com${NC}" "${SMOKE}"
     print_color "           ${VOLT}ipcrawler 10.0.0.1${NC}" "${SMOKE}"
     echo
+    
+    # Ask about system-wide Python dependencies for sudo usage
+    print_color "For privileged scans (${VOLT}sudo ipcrawler${NC}), install Python deps system-wide?" "${STEEL}"
+    printf "${STEEL}Install system-wide dependencies? [y/N]: ${NC}"
+    read -r install_system_deps
+    
+    if [[ "$install_system_deps" =~ ^[Yy]$ ]]; then
+        echo
+        print_color "[${VOLT}INSTALLING${NC}] System-wide Python dependencies..." "${GHOST}"
+        if command_exists pip3; then
+            sudo pip3 install typer rich pydantic
+            echo
+            print_color "[${NEON}SUCCESS${NC}] System dependencies installed" "${GHOST}"
+            print_color "You can now use: ${VOLT}sudo ipcrawler <target>${NC}" "${STEEL}"
+        else
+            print_color "[${VOLT}WARNING${NC}] pip3 not found" "${GHOST}"
+            print_color "Install manually: ${VOLT}sudo pip3 install typer rich pydantic${NC}" "${STEEL}"
+        fi
+    else
+        echo
+        print_color "[${VOLT}SKIPPED${NC}] System-wide installation" "${GHOST}"
+        print_color "For sudo usage: ${VOLT}sudo pip3 install typer rich pydantic${NC}" "${STEEL}"
+        print_color "Or use: ${VOLT}sudo \$(which python3) ipcrawler.py <target>${NC}" "${STEEL}"
+    fi
+    echo
     print_color "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓" "${SMOKE}"
     echo
 }

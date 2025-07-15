@@ -94,6 +94,13 @@ class NmapFastScanner(BaseWorkflow):
                     stderr=asyncio.subprocess.PIPE
                 )
                 
+                # Register process for cleanup
+                try:
+                    from ipcrawler import running_processes
+                    running_processes.append(process)
+                except:
+                    pass  # Ignore if running_processes not available
+                
                 # Read output with proper async handling
                 if progress_callback:
                     # Read stdout line by line for real-time updates

@@ -26,6 +26,8 @@ import asyncio
 import json
 import tempfile
 import socket
+import signal
+import sys
 from datetime import datetime
 
 import typer
@@ -45,6 +47,43 @@ app = typer.Typer(
 )
 
 console = Console()
+
+# Global list to track running processes for cleanup
+running_processes = []
+
+def cleanup_processes():
+    """Clean up any running nmap processes"""
+    global running_processes
+    for process in running_processes:
+        try:
+            if process and process.returncode is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except:
+                    process.kill()
+        except:
+            pass
+    running_processes.clear()
+
+def signal_handler(signum, frame):
+    """Handle Ctrl+C and other signals"""
+    console.print("\n⚠ Scan interrupted. Cleaning up...")
+    cleanup_processes()
+    sys.exit(0)
+
+def cleanup_existing_nmap_processes():
+    """Kill any existing nmap processes to prevent conflicts"""
+    try:
+        import subprocess
+        # Kill any existing nmap processes
+        subprocess.run(['pkill', '-f', 'nmap'], capture_output=True, check=False)
+    except:
+        pass  # Ignore errors
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 
 
@@ -105,6 +144,9 @@ async def resolve_target(target: str) -> str:
 
 async def run_workflow(target: str):
     """Execute reconnaissance workflow on target"""
+    # Clean up any existing nmap processes first
+    cleanup_existing_nmap_processes()
+    
     # Resolve target first
     resolved_target = await resolve_target(target)
     
@@ -226,6 +268,9 @@ async def run_workflow(target: str):
     else:
         console.print(f"✗ Scan failed: {result.error}")
         raise typer.Exit(1)
+    
+    # Clean up processes after scan completion
+    cleanup_processes()
     
 
 
