@@ -260,9 +260,6 @@ async def run_workflow(target: str):
         else:
             result.data['discovery_enabled'] = False
         
-        # Save nmap scan results
-        save_scan_results(workspace, target, result.data)
-        
         # Extract HTTP/HTTPS ports from scan results
         http_ports = []
         for host in result.data.get('hosts', []):
@@ -279,6 +276,7 @@ async def run_workflow(target: str):
                     http_ports.append(port_num)
         
         # Run HTTP advanced scan if HTTP services found
+        http_scan_data = None
         if http_ports:
             http_ports = list(set(http_ports))  # Remove duplicates
             console.print(f"\n→ Found {len(http_ports)} HTTP/HTTPS services. Starting advanced HTTP scan...")
@@ -292,20 +290,7 @@ async def run_workflow(target: str):
             if http_result.success and http_result.data:
                 total_execution_time += http_result.execution_time or 0.0
                 console.print(f"✓ HTTP scan completed in {http_result.execution_time:.2f}s")
-                
-                # Save HTTP scan results
-                http_results_file = workspace / "http_scan_results.json"
-                with open(http_results_file, 'w') as f:
-                    json.dump(http_result.data, f, indent=2)
-                
-                # Fix permissions if running as sudo
-                if os.geteuid() == 0:
-                    sudo_uid = os.environ.get('SUDO_UID')
-                    sudo_gid = os.environ.get('SUDO_GID')
-                    if sudo_uid and sudo_gid:
-                        import subprocess
-                        subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(http_results_file)], 
-                                      capture_output=True, check=False)
+                http_scan_data = http_result.data
                 
                 # Display HTTP findings
                 display_http_summary(http_result.data)
@@ -313,7 +298,26 @@ async def run_workflow(target: str):
                 error_msg = http_result.error or (http_result.errors[0] if http_result.errors else "Unknown error")
                 console.print(f"⚠ HTTP scan failed: {error_msg}")
         
+        # Merge all scan results
+        result.data['total_execution_time'] = total_execution_time
+        
+        # Add HTTP scan results to main data
+        if http_scan_data:
+            result.data['http_scan'] = http_scan_data
+            
+            # Also merge key findings into main summary
+            if 'summary' not in result.data:
+                result.data['summary'] = {}
+            
+            result.data['summary']['http_vulnerabilities'] = len(http_scan_data.get('vulnerabilities', []))
+            result.data['summary']['http_services'] = len(http_scan_data.get('services', []))
+            result.data['summary']['discovered_subdomains'] = len(http_scan_data.get('subdomains', []))
+            result.data['summary']['discovered_paths'] = len(http_scan_data.get('summary', {}).get('discovered_paths', []))
+        
         console.print(f"\n✓ All scans completed in {total_execution_time:.2f}s total")
+        
+        # Save consolidated results
+        save_scan_results(workspace, target, result.data)
         
         # Display minimal summary only
         display_minimal_summary(result.data, workspace)
@@ -521,6 +525,55 @@ def generate_text_report(target: str, data: dict, is_live: bool = False) -> str:
         
         report.append("-" * 80)
     
+    # Add HTTP scan results if available
+    if 'http_scan' in data:
+        http_data = data['http_scan']
+        report.append("\n" + "=" * 80)
+        report.append("HTTP/HTTPS SCAN RESULTS")
+        report.append("=" * 80)
+        
+        # HTTP Services
+        services = http_data.get('services', [])
+        if services:
+            report.append(f"\nHTTP Services Found: {len(services)}")
+            for service in services:
+                report.append(f"\n  {service.get('url', 'Unknown URL')}")
+                report.append(f"    Status: {service.get('status_code', 'N/A')}")
+                report.append(f"    Server: {service.get('server', 'Unknown')}")
+                if service.get('technologies'):
+                    report.append(f"    Technologies: {', '.join(service['technologies'])}")
+                if service.get('discovered_paths'):
+                    report.append(f"    Discovered Paths: {len(service['discovered_paths'])}")
+                    for path in service['discovered_paths'][:5]:
+                        report.append(f"      • {path}")
+        
+        # Vulnerabilities
+        vulns = http_data.get('vulnerabilities', [])
+        if vulns:
+            report.append(f"\nHTTP Vulnerabilities: {len(vulns)}")
+            severity_order = ['critical', 'high', 'medium', 'low']
+            for severity in severity_order:
+                severity_vulns = [v for v in vulns if v.get('severity') == severity]
+                if severity_vulns:
+                    report.append(f"\n  {severity.upper()} ({len(severity_vulns)})")
+                    for vuln in severity_vulns[:3]:  # Show first 3 of each severity
+                        report.append(f"    • {vuln.get('description', 'N/A')}")
+                        if vuln.get('evidence'):
+                            report.append(f"      Evidence: {vuln['evidence']}")
+        
+        # DNS and Subdomains
+        subdomains = http_data.get('subdomains', [])
+        if subdomains:
+            report.append(f"\nDiscovered Subdomains: {len(subdomains)}")
+            for subdomain in subdomains[:10]:
+                report.append(f"  • {subdomain}")
+        
+        dns_records = http_data.get('dns_records', [])
+        if dns_records:
+            report.append(f"\nDNS Records: {len(dns_records)}")
+            for record in dns_records[:10]:
+                report.append(f"  {record.get('type', 'N/A')}: {record.get('value', 'N/A')}")
+    
     return "\n".join(report)
 
 
@@ -593,6 +646,78 @@ def generate_html_report(target: str, data: dict, is_live: bool = False) -> str:
                     html += "            </td></tr>\n"
             
             html += "        </table>\n"
+        
+        html += "    </div>\n"
+    
+    # Add HTTP scan results if available
+    if 'http_scan' in data:
+        http_data = data['http_scan']
+        html += """
+    <div class="host">
+        <h2>HTTP/HTTPS Scan Results</h2>
+"""
+        
+        # HTTP Services
+        services = http_data.get('services', [])
+        if services:
+            html += f"        <h3>HTTP Services ({len(services)})</h3>\n"
+            html += "        <table>\n"
+            html += "            <tr><th>URL</th><th>Status</th><th>Server</th><th>Technologies</th><th>Paths Found</th></tr>\n"
+            for service in services:
+                html += f"""
+            <tr>
+                <td><a href="{service.get('url', '#')}" style="color: #4fc3f7;">{service.get('url', 'N/A')}</a></td>
+                <td>{service.get('status_code', 'N/A')}</td>
+                <td>{service.get('server', 'Unknown')}</td>
+                <td>{', '.join(service.get('technologies', []))}</td>
+                <td>{len(service.get('discovered_paths', []))}</td>
+            </tr>
+"""
+            html += "        </table>\n"
+        
+        # Vulnerabilities
+        vulns = http_data.get('vulnerabilities', [])
+        if vulns:
+            html += f"        <h3>HTTP Vulnerabilities ({len(vulns)})</h3>\n"
+            html += "        <table>\n"
+            html += "            <tr><th>Severity</th><th>Type</th><th>Description</th><th>URL</th></tr>\n"
+            for vuln in vulns:
+                severity_color = {'critical': '#f44336', 'high': '#ff9800', 'medium': '#ffeb3b', 'low': '#4caf50'}.get(vuln.get('severity', 'low'), '#4caf50')
+                html += f"""
+            <tr>
+                <td style="color: {severity_color}; font-weight: bold;">{vuln.get('severity', 'N/A').upper()}</td>
+                <td>{vuln.get('type', 'N/A')}</td>
+                <td>{vuln.get('description', 'N/A')}</td>
+                <td>{vuln.get('url', 'N/A')}</td>
+            </tr>
+"""
+            html += "        </table>\n"
+        
+        # DNS and Subdomains
+        subdomains = http_data.get('subdomains', [])
+        dns_records = http_data.get('dns_records', [])
+        
+        if subdomains or dns_records:
+            html += "        <h3>DNS Information</h3>\n"
+            
+            if subdomains:
+                html += f"        <p><strong>Discovered Subdomains ({len(subdomains)}):</strong></p>\n"
+                html += "        <ul>\n"
+                for subdomain in subdomains[:20]:
+                    html += f"            <li>{subdomain}</li>\n"
+                html += "        </ul>\n"
+            
+            if dns_records:
+                html += "        <table>\n"
+                html += "            <tr><th>Record Type</th><th>Value</th></tr>\n"
+                for record in dns_records[:20]:
+                    html += f"""
+            <tr>
+                <td>{record.get('type', 'N/A')}</td>
+                <td>{record.get('value', 'N/A')}</td>
+            </tr>
+"""
+                html += "        </table>\n"
         
         html += "    </div>\n"
     
