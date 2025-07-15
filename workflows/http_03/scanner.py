@@ -17,7 +17,8 @@ try:
     import dns.zone
     import dns.query
     DEPS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"[DEBUG] HTTP scanner import error: {e}")
     DEPS_AVAILABLE = False
 
 from workflows.core.base import BaseWorkflow, WorkflowResult
@@ -43,6 +44,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
         discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
         if not DEPS_AVAILABLE:
+            print(f"[DEBUG] Using fallback implementation. Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
             return await self._execute_fallback(target, ports, discovered_hostnames=discovered_hostnames, **kwargs)
         
         try:
@@ -55,6 +57,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
             
             # Determine ports to scan
             scan_ports = ports if ports else self.common_ports
+            print(f"[DEBUG] HTTP scanner execute - ports: {scan_ports}, hostnames: {discovered_hostnames}")
             
             # HTTP service discovery
             # Try discovered hostnames first, then fall back to IP
@@ -142,6 +145,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
             
             # Scan ports with curl
             scan_ports = ports if ports else self.common_ports
+            print(f"[DEBUG] Scanning ports: {scan_ports}")
             
             for port in scan_ports:
                 # Try HTTP first for common HTTP ports
@@ -157,7 +161,11 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 
                 for scheme in schemes:
                     for try_target in targets_to_try:
-                        url = f"{scheme}://{try_target}:{port}"
+                        # Don't include port for standard ports
+                        if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
+                            url = f"{scheme}://{try_target}"
+                        else:
+                            url = f"{scheme}://{try_target}:{port}"
                         
                         curl_cmd = [
                             "curl", "-I", "-s", "-m", "5",
@@ -179,6 +187,11 @@ class HTTPAdvancedScanner(BaseWorkflow):
                                 text=True,
                                 timeout=10
                             )
+                            
+                            print(f"[DEBUG] curl command: {' '.join(curl_cmd)}")
+                            print(f"[DEBUG] curl return code: {result.returncode}")
+                            print(f"[DEBUG] curl stdout length: {len(result.stdout) if result.stdout else 0}")
+                            print(f"[DEBUG] curl stderr: {result.stderr[:200] if result.stderr else 'None'}")
                             
                             if result.returncode == 0 and result.stdout:
                                 service = {
@@ -215,7 +228,8 @@ class HTTPAdvancedScanner(BaseWorkflow):
                                 # Found a working target, skip remaining
                                 break
                                 
-                        except:
+                        except Exception as e:
+                            print(f"[DEBUG] curl error for {url}: {e}")
                             continue
                     
                     # If we found a working service, skip trying other schemes
@@ -223,6 +237,19 @@ class HTTPAdvancedScanner(BaseWorkflow):
                         break
             
             execution_time = (datetime.now() - start_time).total_seconds()
+            
+            print(f"[DEBUG] Fallback scan results: {len(results['services'])} services found")
+            
+            # Add summary if we found services
+            if results['services']:
+                # Add basic summary
+                results['summary'] = {
+                    'total_services': len(results['services']),
+                    'total_vulnerabilities': len(results['vulnerabilities']),
+                    'severity_counts': self._count_vuln_severities(results['vulnerabilities']),
+                    'technologies': [],
+                    'discovered_paths': []
+                }
             
             return WorkflowResult(
                 success=True,
@@ -317,7 +344,11 @@ class HTTPAdvancedScanner(BaseWorkflow):
             schemes = ['http', 'https']  # Try HTTP first for unknown ports
             
         for scheme in schemes:
-            url = f"{scheme}://{target}:{port}"
+            # Don't include port for standard ports
+            if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
+                url = f"{scheme}://{target}"
+            else:
+                url = f"{scheme}://{target}:{port}"
             
             try:
                 # Use more specific timeouts
@@ -637,6 +668,15 @@ class HTTPAdvancedScanner(BaseWorkflow):
             })
         
         return vulnerabilities
+    
+    def _count_vuln_severities(self, vulnerabilities: List[Dict[str, Any]]) -> Dict[str, int]:
+        """Count vulnerabilities by severity for fallback mode"""
+        counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+        for vuln in vulnerabilities:
+            severity = vuln.get('severity', 'low')
+            if severity in counts:
+                counts[severity] += 1
+        return counts
     
     def validate_input(self, target: str, **kwargs) -> Tuple[bool, List[str]]:
         """Validate input parameters"""
