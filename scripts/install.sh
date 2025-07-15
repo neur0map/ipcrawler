@@ -346,7 +346,24 @@ main() {
                 # Verify installation
                 if sudo python3 -c "import httpx, dns.resolver" 2>/dev/null; then
                     print_success "HTTP scanner dependencies verified"
-                    print_color "You can now use: ${VOLT}sudo ipcrawler <target>${NC}" "${STEEL}"
+                    
+                    # Create system-wide command symlink
+                    print_step "Creating system-wide command..."
+                    SYSTEM_BIN="/usr/local/bin"
+                    
+                    # Create /usr/local/bin if it doesn't exist
+                    if [ ! -d "$SYSTEM_BIN" ]; then
+                        sudo mkdir -p "$SYSTEM_BIN"
+                    fi
+                    
+                    # Create system symlink
+                    if sudo ln -sf "${INSTALL_DIR}/ipcrawler" "$SYSTEM_BIN/ipcrawler"; then
+                        print_success "System-wide command installed to $SYSTEM_BIN/ipcrawler"
+                        print_color "You can now use: ${VOLT}sudo ipcrawler <target>${NC}" "${STEEL}"
+                    else
+                        print_error "Failed to create system-wide command"
+                        print_info "Try manually: ${VOLT}sudo ln -sf ${INSTALL_DIR}/ipcrawler /usr/local/bin/ipcrawler${NC}"
+                    fi
                 else
                     print_error "Dependencies installed but verification failed"
                     print_info "Try running: sudo pip3 list | grep -E 'httpx|dnspython'"

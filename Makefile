@@ -47,6 +47,7 @@ help:
 	@echo "  make install        - Full installation (user + prompt for system)"
 	@echo "  make install-user   - Install for current user only"
 	@echo "  make install-system - Install system-wide (requires sudo)"
+	@echo "  make fix-sudo       - Quick fix to enable 'sudo ipcrawler' command"
 	@echo "  make run TARGET=<ip> - Run IPCrawler on target"
 	@echo "  make check          - Check dependency installation"
 	@echo "  make clean          - Complete cleanup of IPCrawler (interactive)"
@@ -57,7 +58,14 @@ help:
 
 # Installation targets
 install:
-	@./install.sh
+	@if [ -f ./scripts/install.sh ]; then \
+		./scripts/install.sh; \
+	elif [ -f ./install.sh ]; then \
+		./install.sh; \
+	else \
+		echo "Error: install.sh not found"; \
+		exit 1; \
+	fi
 
 install-user:
 	@echo "Installing IPCrawler for current user..."
@@ -70,6 +78,16 @@ install-system:
 	@echo "Installing IPCrawler system-wide (requires sudo)..."
 	@sudo python3 -m pip install -r requirements.txt
 	@echo "System-wide dependencies installed"
+	@echo "Creating system-wide command..."
+	@sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler
+	@echo "System command installed to /usr/local/bin/ipcrawler"
+
+# Quick fix for sudo command
+fix-sudo:
+	@echo "Creating system-wide command for sudo usage..."
+	@sudo mkdir -p /usr/local/bin
+	@sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler
+	@echo "Done! You can now use: sudo ipcrawler <target>"
 
 # Run IPCrawler
 run:
