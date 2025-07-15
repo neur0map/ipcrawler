@@ -1,304 +1,362 @@
-# 🔍 IPCrawler
+<div align="center">
 
-> **CLI orchestrator for network reconnaissance workflows**
+# IPCrawler
 
-A high-performance, Python-based network reconnaissance tool that intelligently combines fast port discovery with detailed vulnerability scanning. Built for security professionals, penetration testers, and network administrators.
+**CLI orchestrator for network reconnaissance workflows**
 
-## ✨ Features
+A high-performance network reconnaissance tool that intelligently combines fast port discovery with detailed vulnerability scanning.
 
-- **🚀 Smart Scanning**: Two-phase approach - fast port discovery followed by targeted detailed analysis
-- **⚡ Parallel Processing**: Optimized concurrent scanning with configurable batch sizes
-- **📊 Live Results**: Real-time scan progress with live file updates
-- **📋 Multiple Output Formats**: JSON, TXT, and HTML reports with dark-themed styling
-- **🔧 Highly Configurable**: YAML-based configuration for all scanning parameters
-- **🛡️ Privilege-Aware**: Automatically adapts scanning techniques based on user privileges
-- **📁 Organized Workspaces**: Timestamped result directories with proper file permissions
-- **🎨 Rich CLI Interface**: Beautiful terminal UI with progress indicators and color coding
+</div>
 
-## 🏗️ Architecture
+---
 
-### Scanning Workflow
+## Overview
 
-1. **Fast Port Discovery** (`nmap_fast_01`)
-   - Quickly identifies open ports across all 65,535 ports
-   - Uses optimized nmap parameters for speed
-   - Duration: ~10-60 seconds
+IPCrawler is a Python-based reconnaissance orchestrator designed for security professionals, penetration testers, and network administrators. It implements a two-phase scanning approach that dramatically reduces scan time while maintaining comprehensive coverage.
 
-2. **Detailed Analysis** (`nmap_02`)  
-   - Performs comprehensive service detection and vulnerability scanning
-   - **Default**: Only scans ports discovered in phase 1 (efficient)
-   - **Optional**: Full port range scanning when discovery is disabled
-   - Duration: ~30 seconds to 2 minutes (targeted) or 5-10 minutes (full)
+<table>
+<tr>
+<td width="50%">
 
-   > 🚧 **More workflows coming soon** - Additional reconnaissance and vulnerability scanning workflows are currently in development and will be added to expand the tool's capabilities.
+**Phase 1: Fast Discovery**
+- Rapid port enumeration across all 65,535 ports
+- Optimized nmap parameters for speed
+- Duration: 10-60 seconds
+- Identifies open ports only
 
+</td>
+<td width="50%">
 
-### Key Benefits
+**Phase 2: Detailed Analysis**
+- Comprehensive service detection
+- Vulnerability scanning on discovered ports
+- Duration: 30 seconds - 2 minutes (targeted)
+- Full service fingerprinting
 
-- **Efficiency**: Targeted scanning reduces scan time by 80-90%
-- **Accuracy**: 100% port coverage with detailed service analysis
-- **Flexibility**: Configurable for both quick assessments and thorough audits
+</td>
+</tr>
+</table>
 
-## 🚀 Quick Start
+> 🚧 **More workflows coming soon** - Additional reconnaissance and vulnerability scanning workflows are currently in development and will be added to expand the tool's capabilities.
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Smart Scanning** | Two-phase approach reduces scan time by 80-90% |
+| **Parallel Processing** | Configurable concurrent scanning with batching |
+| **Live Results** | Real-time progress updates and file generation |
+| **Multiple Outputs** | JSON, TXT, and HTML reports with styling |
+| **Privilege Aware** | Adapts techniques based on user permissions |
+| **Organized Storage** | Timestamped workspaces with proper permissions |
+
+## Installation
 
 ### Prerequisites
 
-- **Python 3.8+**
-- **nmap** - Network exploration tool
-  ```bash
-  # macOS
-  brew install nmap
-  
-  # Ubuntu/Debian
-  sudo apt-get install nmap
-  
-  # Red Hat/CentOS
-  sudo yum install nmap
-  ```
+<table>
+<tr>
+<td align="center" width="33%">
 
-### Installation
+**Python 3.8+**
+```bash
+python3 --version
+```
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/neur0map/ipcrawler.git
-   cd ipcrawler
-   ```
+</td>
+<td align="center" width="33%">
 
-2. **Install Python dependencies**
-   ```bash
-   pip install -r requirements.txt --break-system-packages
-   ```
+**nmap**
+```bash
+# macOS
+brew install nmap
 
-### Basic Usage
+# Ubuntu/Debian  
+sudo apt install nmap
+```
+
+</td>
+<td align="center" width="33%">
+
+**Dependencies**
+```bash
+pip install -r requirements.txt \
+    --break-system-packages
+```
+
+</td>
+</tr>
+</table>
+
+### Setup
 
 ```bash
-# Scan a single IP address
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+pip install -r requirements.txt --break-system-packages
+```
+
+## Usage
+
+### Basic Scanning
+
+```bash
+# Standard scan with smart discovery
 python3 ipcrawler.py 192.168.1.100
 
-# Scan a hostname
+# Hostname scanning
 python3 ipcrawler.py example.com
-
-# The tool will automatically:
-# 1. Discover open ports (fast)
-# 2. Perform detailed analysis on discovered ports
-# 3. Generate comprehensive reports
 ```
 
-## 📖 Usage Examples
+### Advanced Options
 
-### Standard Network Scan
-```bash
-python3 ipcrawler.py 10.0.0.50
-```
-**Output**: Discovers open ports, then performs detailed service detection and vulnerability analysis.
+<table>
+<tr>
+<td width="50%">
 
-### Full Port Range Scan
-```bash
-# Edit config.yaml: set fast_port_discovery: false
-python3 ipcrawler.py 192.168.1.1
-```
-**Output**: Comprehensive scan of all 65,535 ports with detailed analysis.
-
-### Understanding the Output
-
-When you run a scan, IPCrawler creates a timestamped workspace:
-```
-workspaces/
-└── scan_192_168_1_100_20241231_143022/
-    ├── scan_results.json      # Machine-readable results
-    ├── scan_report.txt        # Human-readable detailed report
-    ├── scan_report.html       # Web-viewable report with dark theme
-    ├── live_results.json      # Real-time progress (if enabled)
-    ├── live_report.txt        # Live text report
-    └── live_report.html       # Live HTML report
-```
-
-## ⚙️ Configuration
-
-IPCrawler uses `config.yaml` for all configuration options:
-
+**Quick Assessment**
 ```yaml
-# Scan Settings
+# config.yaml
 scan:
-  fast_port_discovery: true    # Enable 2-phase scanning (recommended)
-  max_detailed_ports: 1000     # Limit detailed scan if too many ports found
-
-# Performance Settings  
-parallel:
-  batch_size: 10              # Concurrent scan processes
-  ports_per_batch: 6553       # Ports per batch for full scans
-
-# Output Settings
-output:
-  save_raw_xml: false         # Save raw nmap XML output
-  verbose: false              # Detailed console output
-  raw_output: false           # Include binary data in reports
-  real_time_save: true        # Enable live result updates
-
-# Tool Paths (optional)
-tools:
-  nmap_path: ""              # Custom nmap binary path
+  fast_port_discovery: true
+  max_detailed_ports: 1000
 ```
+- Best for: Initial recon, large networks
+- Time: 1-2 minutes per host
+- Coverage: Smart targeted scanning
 
-### Key Configuration Options
+</td>
+<td width="50%">
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `fast_port_discovery` | `true` | Enable smart 2-phase scanning |
-| `max_detailed_ports` | `1000` | Limit detailed scan scope |
-| `real_time_save` | `true` | Save results during scanning |
-| `batch_size` | `10` | Parallel process count |
-
-## 📊 Output Formats
-
-### JSON Report (`scan_results.json`)
-```json
-{
-  "tool": "nmap",
-  "target": "192.168.1.100",
-  "duration": 45.2,
-  "hosts": [
-    {
-      "ip": "192.168.1.100",
-      "hostname": "router.local",
-      "state": "up",
-      "ports": [
-        {
-          "port": 22,
-          "protocol": "tcp",
-          "state": "open",
-          "service": "ssh",
-          "version": "OpenSSH 8.2"
-        }
-      ]
-    }
-  ]
-}
+**Comprehensive Audit**
+```yaml
+# config.yaml  
+scan:
+  fast_port_discovery: false
+  max_detailed_ports: 65535
 ```
+- Best for: Security assessments, compliance
+- Time: 5-10 minutes per host  
+- Coverage: Full 65,535 port analysis
 
-### HTML Report Features
-- 🌑 **Dark theme** optimized for terminal users
-- 📱 **Responsive design** works on all devices  
-- 🔍 **Searchable tables** for large result sets
-- 🎨 **Syntax highlighting** for script outputs
-- 📈 **Summary statistics** and scan metadata
+</td>
+</tr>
+</table>
 
-## 🛠️ Advanced Usage
+### Privilege Escalation
 
-### Running with Elevated Privileges
+For enhanced scanning capabilities:
 
-For faster, more accurate scans:
 ```bash
 sudo python3 ipcrawler.py 192.168.1.100
 ```
 
-**Benefits of sudo/root access:**
-- SYN stealth scanning (faster, more stealthy)
-- OS detection capabilities
+**Benefits of elevated privileges:**
+- SYN stealth scanning (faster, stealthier)
+- OS detection capabilities  
 - Advanced timing optimizations
-- Raw socket access for better performance
+- Raw socket access
 
-### Customizing Scan Scope
+## Configuration
 
-**Quick Assessment** (fast_port_discovery: true)
-- Best for: Initial reconnaissance, large networks
-- Time: ~1-2 minutes per host
-- Coverage: All ports discovered, detailed analysis on open ports only
+The `config.yaml` file controls all scanning behavior:
 
-**Comprehensive Audit** (fast_port_discovery: false)  
-- Best for: Thorough security assessments, compliance audits
-- Time: ~5-10 minutes per host
-- Coverage: Full 65,535 port scan with detailed analysis
+<table>
+<tr>
+<td width="50%">
 
-### Integration with Other Tools
-
-IPCrawler outputs can be easily integrated into security workflows:
-
-```bash
-# Extract open ports for further testing
-jq '.hosts[].ports[] | select(.state=="open") | .port' scan_results.json
-
-# Generate target list for other tools
-jq -r '.hosts[] | select(.state=="up") | .ip' scan_results.json > targets.txt
-
-# Count services by type
-jq '.hosts[].ports[].service' scan_results.json | sort | uniq -c
+**Scan Settings**
+```yaml
+scan:
+  fast_port_discovery: true
+  max_detailed_ports: 1000
 ```
 
-## 🔧 Development
+**Performance**
+```yaml
+parallel:
+  batch_size: 10
+  ports_per_batch: 6553
+```
 
-### Project Structure
+</td>
+<td width="50%">
+
+**Output Options**
+```yaml
+output:
+  save_raw_xml: false
+  verbose: false
+  raw_output: false
+  real_time_save: true
+```
+
+**Tool Paths**
+```yaml
+tools:
+  nmap_path: ""
+```
+
+</td>
+</tr>
+</table>
+
+## Output Formats
+
+### Workspace Structure
+
+Each scan creates a timestamped workspace:
+
+```
+workspaces/scan_192_168_1_100_20241231_143022/
+├── scan_results.json      # Machine-readable data
+├── scan_report.txt        # Human-readable report  
+├── scan_report.html       # Web-viewable with dark theme
+├── live_results.json      # Real-time updates (optional)
+├── live_report.txt        # Live text format
+└── live_report.html       # Live web format
+```
+
+### JSON Structure
+
+```json
+{
+  "tool": "nmap",
+  "target": "192.168.1.100", 
+  "duration": 45.2,
+  "hosts": [{
+    "ip": "192.168.1.100",
+    "hostname": "router.local",
+    "state": "up",
+    "ports": [{
+      "port": 22,
+      "protocol": "tcp", 
+      "state": "open",
+      "service": "ssh",
+      "version": "OpenSSH 8.2"
+    }]
+  }]
+}
+```
+
+## Integration
+
+IPCrawler outputs integrate seamlessly with security workflows:
+
+<table>
+<tr>
+<td width="50%">
+
+**Extract Open Ports**
+```bash
+jq '.hosts[].ports[] | 
+    select(.state=="open") | 
+    .port' scan_results.json
+```
+
+**Generate Target Lists**
+```bash
+jq -r '.hosts[] | 
+       select(.state=="up") | 
+       .ip' scan_results.json > targets.txt
+```
+
+</td>
+<td width="50%">
+
+**Service Analysis**
+```bash
+jq '.hosts[].ports[].service' \
+   scan_results.json | sort | uniq -c
+```
+
+**Port Counting**
+```bash
+jq '.hosts[].ports | length' \
+   scan_results.json
+```
+
+</td>
+</tr>
+</table>
+
+## Development
+
+### Project Architecture
+
 ```
 ipcrawler/
 ├── config/                 # Configuration management
-├── workflows/              # Scanning workflow implementations
-│   ├── core/              # Base classes and utilities
+├── workflows/              # Scanning implementations
+│   ├── core/              # Base classes and utilities  
 │   ├── nmap_fast_01/      # Fast port discovery
 │   └── nmap_02/           # Detailed vulnerability scanning
-├── utils/                 # Utility functions
-├── workspaces/            # Scan result storage
-├── config.yaml           # Main configuration file
-├── ipcrawler.py          # Main CLI entry point
+├── utils/                 # Helper functions
+├── workspaces/            # Result storage
+├── config.yaml           # Main configuration
+├── ipcrawler.py          # CLI entry point
 └── requirements.txt      # Python dependencies
 ```
 
-### Adding New Workflows
+### Adding Workflows
 
-Workflows follow a numbered convention (`tool_XX`) to ensure proper execution order:
-
-1. Create new workflow directory: `workflows/newtool_03/`
+1. Create workflow directory: `workflows/newtool_03/`
 2. Implement `BaseWorkflow` interface
-3. Add workflow to execution chain in `ipcrawler.py`
+3. Register in execution chain
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Common Issues
+<table>
+<tr>
+<td width="50%">
 
-**ImportError: No module named 'typer'**
+**Common Issues**
+
+*ImportError: No module named 'typer'*
 ```bash
-pip install -r requirements.txt --break-system-packages
+pip install -r requirements.txt \
+    --break-system-packages
 ```
 
-**Permission denied errors**
+*Permission denied errors*
 ```bash
-# Ensure nmap is installed and accessible
 which nmap
-
-# Run with sudo for advanced features
 sudo python3 ipcrawler.py <target>
 ```
 
-**No ports found**
-- Verify target is reachable: `ping <target>`
+</td>
+<td width="50%">
+
+**Performance Issues**
+
+*No ports found*
+- Verify target reachability: `ping <target>`
 - Check firewall settings
-- Try with elevated privileges: `sudo python3 ipcrawler.py <target>`
+- Try elevated privileges
 
-**Slow scanning**
-- Enable fast port discovery: Set `fast_port_discovery: true` in config.yaml
-- Reduce batch size: Lower `batch_size` in config.yaml for resource-constrained systems
+*Slow scanning*
+- Enable `fast_port_discovery: true`
+- Reduce `batch_size` for low-resource systems
 
-## 📄 License
+</td>
+</tr>
+</table>
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## Contributing
 
-## 🤝 Contributing
+We welcome contributions! Please:
 
-Contributions are welcome! Please feel free to submit pull requests, report bugs, or suggest new features.
-
-### Development Guidelines
-
-1. Follow the existing code structure and naming conventions
-2. Add appropriate error handling and logging
+1. Follow existing code structure and conventions
+2. Add appropriate error handling  
 3. Update documentation for new features
 4. Test with both privileged and unprivileged execution
 
-## 🔗 Related Tools
-
-- **nmap**: Network exploration and security auditing
-- **nuclei**: Fast and customizable vulnerability scanner  
-- **masscan**: High-speed port scanner
-- **rustscan**: Modern port scanner built in Rust
-
 ---
 
-**⚡ Built for speed, designed for accuracy, optimized for modern workflows.** 
+<div align="center">
+
+**Built for speed, designed for accuracy, optimized for modern workflows**
+
+[Report Issues](https://github.com/neur0map/ipcrawler/issues) • [Request Features](https://github.com/neur0map/ipcrawler/issues/new) • [Documentation](https://github.com/neur0map/ipcrawler/wiki)
+
+</div> 
