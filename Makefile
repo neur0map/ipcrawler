@@ -61,7 +61,15 @@ install:
 		echo '# IPCrawler - Direct execution wrapper script' >> ipcrawler; \
 		echo 'export PYTHONDONTWRITEBYTECODE=1' >> ipcrawler; \
 		echo 'export PYTHONPYCACHEPREFIX=/tmp/ipcrawler_cache_$$' >> ipcrawler; \
-		echo 'SCRIPT_DIR="$$(cd "$$(dirname "$${BASH_SOURCE[0]}")" && pwd)"' >> ipcrawler; \
+		echo 'if [ -L "$${BASH_SOURCE[0]}" ]; then' >> ipcrawler; \
+		echo '    SCRIPT_PATH="$$(readlink "$${BASH_SOURCE[0]}")"' >> ipcrawler; \
+		echo '    if [[ "$$SCRIPT_PATH" != /* ]]; then' >> ipcrawler; \
+		echo '        SCRIPT_PATH="$$(dirname "$${BASH_SOURCE[0]}")/$$SCRIPT_PATH"' >> ipcrawler; \
+		echo '    fi' >> ipcrawler; \
+		echo '    SCRIPT_DIR="$$(cd "$$(dirname "$$SCRIPT_PATH")" && pwd)"' >> ipcrawler; \
+		echo 'else' >> ipcrawler; \
+		echo '    SCRIPT_DIR="$$(cd "$$(dirname "$${BASH_SOURCE[0]}")" && pwd)"' >> ipcrawler; \
+		echo 'fi' >> ipcrawler; \
 		echo 'find "$${SCRIPT_DIR}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true' >> ipcrawler; \
 		echo 'PYTHON_CMD=""' >> ipcrawler; \
 		echo 'for py in python3 python3.12 python3.11 python3.10 python3.9 python; do' >> ipcrawler; \
