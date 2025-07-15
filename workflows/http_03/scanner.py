@@ -133,11 +133,21 @@ class HTTPAdvancedScanner(BaseWorkflow):
             scan_ports = ports if ports else self.common_ports
             
             for port in scan_ports:
-                for scheme in ['http', 'https']:
+                # Try HTTP first for common HTTP ports
+                if port in [80, 8080, 8000]:
+                    schemes = ['http', 'https']
+                elif port in [443, 8443]:
+                    schemes = ['https', 'http']
+                else:
+                    schemes = ['http', 'https']
+                    
+                for scheme in schemes:
                     url = f"{scheme}://{target}:{port}"
                     
                     curl_cmd = [
                         "curl", "-I", "-s", "-m", "5",
+                        "-k",  # Allow insecure connections
+                        "-L",  # Follow redirects
                         "-H", f"User-Agent: {self.user_agents[0]}",
                         url
                     ]
@@ -271,11 +281,25 @@ class HTTPAdvancedScanner(BaseWorkflow):
     
     async def _scan_http_service(self, target: str, port: int) -> Optional[HTTPService]:
         """Scan a single HTTP/HTTPS service"""
-        for scheme in ['https', 'http']:
+        # Determine scheme order based on port
+        if port == 443 or port == 8443:
+            schemes = ['https', 'http']
+        elif port == 80 or port == 8080 or port == 8000:
+            schemes = ['http', 'https']
+        else:
+            schemes = ['http', 'https']  # Try HTTP first for unknown ports
+            
+        for scheme in schemes:
             url = f"{scheme}://{target}:{port}"
             
             try:
-                async with httpx.AsyncClient(verify=False, timeout=self.timeout) as client:
+                # Use more specific timeouts
+                timeout = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
+                async with httpx.AsyncClient(
+                    verify=False, 
+                    timeout=timeout,
+                    limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+                ) as client:
                     response = await client.get(
                         url,
                         headers={"User-Agent": self.user_agents[0]},
@@ -293,11 +317,21 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     )
                     
                     # Get response body for analysis
-                    service.response_body = response.text[:10000]  # First 10KB
+                    try:
+                        service.response_body = response.text[:10000]  # First 10KB
+                    except:
+                        service.response_body = ""
                     
                     return service
                     
-            except:
+            except httpx.ConnectError:
+                # Connection refused or timeout - try next scheme
+                continue
+            except httpx.TimeoutException:
+                # Timeout - try next scheme
+                continue
+            except Exception:
+                # Other errors - try next scheme
                 continue
                 
         return None
