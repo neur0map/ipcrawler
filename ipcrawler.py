@@ -171,10 +171,11 @@ async def run_workflow(target: str):
             console.print("  To scan all ports, set 'fast_port_discovery: false' in config.yaml")
             return
     
-    # TEMPORARY: Save port discovery results until detailed scan is fixed
+    # Skip detailed scan for now - nmap_02 has hanging issues
+    console.print("→ Skipping detailed scan (nmap_02 hanging issue - needs investigation)")
     console.print("→ Saving port discovery results...")
     
-    # Create basic result data from port discovery
+    # Create basic result data from port discovery  
     from datetime import datetime
     now = datetime.now().isoformat()
     
@@ -191,68 +192,18 @@ async def run_workflow(target: str):
             "ports": [{"port": port, "protocol": "tcp", "state": "open", "service": "unknown"} for port in discovered_ports]
         }],
         "total_hosts": 1,
-        "up_hosts": 1, 
+        "up_hosts": 1,
         "down_hosts": 0,
         "discovery_enabled": True,
         "discovered_ports": len(discovered_ports),
         "scan_mode": "discovery_only"
     }
     
-    save_scan_results(workspace, target, result_data)
-    display_minimal_summary(result_data, workspace)
-    console.print("✓ Port discovery results saved (detailed scan temporarily disabled)")
-    return
-    
-    # TODO: Fix detailed scan hanging issue
-    # Run detailed nmap scan
-    scanner = NmapScanner(batch_size=config.batch_size, ports_per_batch=config.ports_per_batch)
-    
-    # Create progress callback
-    progress_queue = asyncio.Queue()
-    
-    async def progress_monitor():
-        """Monitor and display batch progress"""
-        completed = 0
-        
-        while True:
-            msg = await progress_queue.get()
-            if msg == "DONE":
-                break
-                
-            completed += 1
-            if discovered_ports:
-                console.print(f"→ Port range {completed} completed")
-            else:
-                console.print(f"→ Batch {completed}/10 completed")
-    
-    # Start progress monitor
-    monitor_task = asyncio.create_task(progress_monitor())
-    
-    
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-        transient=True
-    ) as progress:
-        if discovered_ports is not None:
-            # When discovery is enabled, ONLY scan discovered ports
-            task = progress.add_task(f"Detailed scan of {len(discovered_ports)} discovered ports...", total=None)
-        else:
-            # Only do full scan when discovery is explicitly disabled
-            task = progress.add_task(f"Full scan of all 65535 ports (10 parallel batches)...", total=None)
-        
-        result = await scanner.execute(
-            target=resolved_target, 
-            progress_queue=progress_queue,
-            ports=discovered_ports
-        )
-        
-        progress.update(task, completed=True)
-    
-    # Signal monitor to stop
-    await progress_queue.put("DONE")
-    await monitor_task
+    result = type('MockResult', (), {
+        'success': True,
+        'data': result_data,
+        'execution_time': total_execution_time
+    })()
     
     if result.success and result.data:
         total_execution_time += result.execution_time or 0.0
