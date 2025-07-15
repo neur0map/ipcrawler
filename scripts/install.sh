@@ -21,8 +21,9 @@ CROSS="▪"
 ARROW="▸"
 INFO="◆"
 
-# Installation directory
-INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Installation directory - get parent directory since script is in scripts/
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Print colored output
 print_color() {

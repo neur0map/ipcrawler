@@ -58,7 +58,7 @@ help:
 
 # Installation targets
 install:
-	@./install.sh
+	@./scripts/install.sh
 
 install-user:
 	@echo "Installing IPCrawler for current user..."
