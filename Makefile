@@ -19,7 +19,7 @@ else
 	PYTHON_CMD = python3
 endif
 
-.PHONY: install uninstall clean clean-install test help
+.PHONY: install uninstall clean clean-install fix-deps test help
 
 # Default target
 all: help
@@ -32,6 +32,7 @@ help:
 	@echo "  make install      - Install IPCrawler system-wide (with cleanup)"
 	@echo "  make uninstall    - Remove IPCrawler from system"
 	@echo "  make clean-install - Clean all existing IPCrawler installations"
+	@echo "  make fix-deps     - Fix Python dependencies for sudo access"
 	@echo "  make clean        - Clean Python cache files"
 	@echo "  make test         - Test installation"
 	@echo ""
@@ -73,15 +74,20 @@ install:
 	@echo "✓ Cleanup completed"
 	@chmod +x ipcrawler.py
 	@echo "Installing Python dependencies..."
-	@if $(PYTHON_CMD) -m pip install --user -r requirements.txt 2>/dev/null; then \
-		echo "✓ Dependencies installed successfully"; \
+	@# Try system-wide installation first (works with sudo)
+	@if sudo $(PYTHON_CMD) -m pip install -r requirements.txt 2>/dev/null; then \
+		echo "✓ Dependencies installed system-wide (works with sudo)"; \
+	elif sudo $(PYTHON_CMD) -m pip install --break-system-packages -r requirements.txt 2>/dev/null; then \
+		echo "✓ Dependencies installed system-wide with --break-system-packages"; \
+	elif $(PYTHON_CMD) -m pip install --user -r requirements.txt 2>/dev/null; then \
+		echo "✓ Dependencies installed for user only"; \
+		echo "⚠ Note: sudo ipcrawler may not work due to user-only installation"; \
+	elif $(PYTHON_CMD) -m pip install --user --break-system-packages -r requirements.txt 2>/dev/null; then \
+		echo "✓ Dependencies installed for user only (with --break-system-packages)"; \
+		echo "⚠ Note: sudo ipcrawler may not work due to user-only installation"; \
 	else \
-		echo "Retrying with --break-system-packages..."; \
-		if $(PYTHON_CMD) -m pip install --user --break-system-packages -r requirements.txt; then \
-			echo "✓ Dependencies installed (with --break-system-packages)"; \
-		else \
-			echo "⚠ Failed to install dependencies - HTTP scanner will use fallback mode"; \
-		fi; \
+		echo "⚠ Failed to install dependencies - HTTP scanner will use fallback mode"; \
+		echo "⚠ You may need to install dependencies manually"; \
 	fi
 	@if [ ! -f ipcrawler ]; then \
 		echo "Creating wrapper script..."; \
@@ -157,9 +163,17 @@ uninstall:
 	@find $(USER_HOME) -name ".ipcrawler*" -type f -delete 2>/dev/null || true
 	@echo "✓ All IPCrawler installations removed"
 	@echo "Uninstalling Python dependencies..."
-	@if $(PYTHON_CMD) -m pip uninstall -y -r requirements.txt 2>/dev/null; then \
-		echo "✓ Dependencies uninstalled successfully"; \
-	else \
+	@# Try to uninstall both system-wide and user installations
+	@UNINSTALLED=false; \
+	if sudo $(PYTHON_CMD) -m pip uninstall -y -r requirements.txt 2>/dev/null; then \
+		echo "✓ System-wide dependencies uninstalled"; \
+		UNINSTALLED=true; \
+	fi; \
+	if $(PYTHON_CMD) -m pip uninstall -y -r requirements.txt 2>/dev/null; then \
+		echo "✓ User dependencies uninstalled"; \
+		UNINSTALLED=true; \
+	fi; \
+	if [ "$$UNINSTALLED" = "false" ]; then \
 		echo "⚠ Some dependencies may not have been uninstalled"; \
 	fi
 	@echo "✓ IPCrawler completely uninstalled"
@@ -188,6 +202,26 @@ clean-install:
 	@rm -rf /tmp/ipcrawler_cache_* 2>/dev/null || true
 	@find $(USER_HOME) -name ".ipcrawler*" -type f -delete 2>/dev/null || true
 	@echo "✓ All existing IPCrawler installations cleaned"
+
+fix-deps:
+	@echo "Fixing Python dependencies for both user and sudo access..."
+	@echo "Installing dependencies system-wide (requires sudo)..."
+	@if sudo $(PYTHON_CMD) -m pip install -r requirements.txt; then \
+		echo "✓ Dependencies installed system-wide successfully"; \
+		echo "✓ Both 'ipcrawler' and 'sudo ipcrawler' should now work"; \
+	elif sudo $(PYTHON_CMD) -m pip install --break-system-packages -r requirements.txt; then \
+		echo "✓ Dependencies installed system-wide with --break-system-packages"; \
+		echo "✓ Both 'ipcrawler' and 'sudo ipcrawler' should now work"; \
+	else \
+		echo "✗ Failed to install system-wide dependencies"; \
+		echo "Installing for user only..."; \
+		if $(PYTHON_CMD) -m pip install --user -r requirements.txt; then \
+			echo "✓ User dependencies installed"; \
+			echo "⚠ Only 'ipcrawler' will work, 'sudo ipcrawler' may fail"; \
+		else \
+			echo "✗ Failed to install dependencies"; \
+		fi; \
+	fi
 
 clean:
 	@echo "Cleaning Python cache files..."
