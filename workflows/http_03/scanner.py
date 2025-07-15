@@ -181,31 +181,31 @@ class HTTPAdvancedScanner(BaseWorkflow):
                             )
                             
                             if result.returncode == 0 and result.stdout:
-                            service = {
-                                "port": port,
-                                "scheme": scheme,
-                                "url": url,
-                                "headers": {},
-                                "status_code": None,
-                                "server": None,
-                                "technologies": []
-                            }
-                            
-                            # Parse headers
-                            lines = result.stdout.strip().split('\n')
-                            if lines:
-                                status_match = re.match(r'HTTP/[\d.]+ (\d+)', lines[0])
-                                if status_match:
-                                    service["status_code"] = int(status_match.group(1))
-                            
-                            for line in lines[1:]:
-                                if ':' in line:
-                                    key, value = line.split(':', 1)
-                                    service["headers"][key.strip()] = value.strip()
-                                    
-                                    if key.lower() == 'server':
-                                        service["server"] = value.strip()
-                            
+                                service = {
+                                    "port": port,
+                                    "scheme": scheme,
+                                    "url": url,
+                                    "headers": {},
+                                    "status_code": None,
+                                    "server": None,
+                                    "technologies": []
+                                }
+                                
+                                # Parse headers
+                                lines = result.stdout.strip().split('\n')
+                                if lines:
+                                    status_match = re.match(r'HTTP/[\d.]+ (\d+)', lines[0])
+                                    if status_match:
+                                        service["status_code"] = int(status_match.group(1))
+                                
+                                for line in lines[1:]:
+                                    if ':' in line:
+                                        key, value = line.split(':', 1)
+                                        service["headers"][key.strip()] = value.strip()
+                                        
+                                        if key.lower() == 'server':
+                                            service["server"] = value.strip()
+                                
                                 results["services"].append(service)
                                 
                                 # Basic vulnerability checks
