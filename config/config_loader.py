@@ -7,7 +7,12 @@ class Config:
     """Configuration manager for IP Crawler"""
     
     def __init__(self, config_path: str = "config.yaml"):
-        self.config_path = Path(config_path)
+        # If relative path, make it relative to project root (parent of config dir)
+        if not Path(config_path).is_absolute():
+            project_root = Path(__file__).parent.parent
+            self.config_path = project_root / config_path
+        else:
+            self.config_path = Path(config_path)
         self._config = self._load_config()
     
     def _load_config(self) -> Dict[str, Any]:

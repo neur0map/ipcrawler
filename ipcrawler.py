@@ -1,13 +1,31 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+sys.dont_write_bytecode = True
+
+# Self-cleaning: Remove any cached bytecode to ensure fresh execution
+import shutil
+from pathlib import Path
+
+def clean_cache():
+    """Remove all __pycache__ directories in the project"""
+    try:
+        project_root = Path(__file__).parent
+        for cache_dir in project_root.rglob('__pycache__'):
+            if cache_dir.is_dir():
+                shutil.rmtree(cache_dir, ignore_errors=True)
+    except Exception:
+        pass  # Fail silently if cache cleanup fails
+
+# Clean cache before imports
+clean_cache()
 
 import asyncio
 import json
 import tempfile
 from datetime import datetime
-from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -16,7 +34,10 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
-from config_loader import config
+from config import config
+
+# Clean cache after imports to ensure no stale cache for next run
+clean_cache()
 
 app = typer.Typer(
     name="ipcrawler",
@@ -154,7 +175,7 @@ async def run_workflow(target: str):
     total_execution_time = 0.0
     
     if config.fast_port_discovery:
-        console.print(f"→ Starting fast port discovery on {target}...")
+        console.print(f"→ Starting fast port discovery on [cyan]{target}[/cyan]...")
         
         # Run port discovery
         discovery_scanner = NmapFastScanner()

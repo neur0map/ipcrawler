@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Tuple
 from workflows.core.base import BaseWorkflow, WorkflowResult
 from workflows.core.output_cleaner import OutputCleaner
 from workflows.nmap_02.models import NmapScanResult, NmapHost, NmapPort
-from config_loader import config
+from config import config
 
 
 class NmapScanner(BaseWorkflow):
@@ -79,7 +79,7 @@ class NmapScanner(BaseWorkflow):
             is_root = self._is_root()
             
             # Import config to check real-time saving
-            from config_loader import config
+            from config import config
             
             # If specific ports are provided, choose scan method based on real-time setting
             if ports:
