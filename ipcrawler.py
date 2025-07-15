@@ -37,6 +37,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
+from workflows.http_03.scanner import HTTPAdvancedScanner
 from config import config
 
 app = typer.Typer(
@@ -250,7 +251,7 @@ async def run_workflow(target: str):
     
     if result.success and result.data:
         total_execution_time += result.execution_time or 0.0
-        console.print(f"✓ Scan completed in {total_execution_time:.2f}s total")
+        console.print(f"✓ Nmap scan completed in {total_execution_time:.2f}s")
         
         # Add discovery info to results
         if discovered_ports is not None:
@@ -259,9 +260,59 @@ async def run_workflow(target: str):
         else:
             result.data['discovery_enabled'] = False
         
-        # Save final scan results to workspace
+        # Save nmap scan results
         save_scan_results(workspace, target, result.data)
         
+        # Extract HTTP/HTTPS ports from scan results
+        http_ports = []
+        for host in result.data.get('hosts', []):
+            for port in host.get('ports', []):
+                port_num = port.get('port')
+                service = port.get('service', '')
+                # Check if it's an HTTP service
+                if port_num and (
+                    port_num in [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000] or
+                    'http' in service.lower() or
+                    'https' in service.lower() or
+                    'web' in service.lower()
+                ):
+                    http_ports.append(port_num)
+        
+        # Run HTTP advanced scan if HTTP services found
+        if http_ports:
+            http_ports = list(set(http_ports))  # Remove duplicates
+            console.print(f"\n→ Found {len(http_ports)} HTTP/HTTPS services. Starting advanced HTTP scan...")
+            
+            http_scanner = HTTPAdvancedScanner()
+            http_result = await http_scanner.execute(
+                target=resolved_target,
+                ports=http_ports
+            )
+            
+            if http_result.success and http_result.data:
+                total_execution_time += http_result.execution_time or 0.0
+                console.print(f"✓ HTTP scan completed in {http_result.execution_time:.2f}s")
+                
+                # Save HTTP scan results
+                http_results_file = workspace / "http_scan_results.json"
+                with open(http_results_file, 'w') as f:
+                    json.dump(http_result.data, f, indent=2)
+                
+                # Fix permissions if running as sudo
+                if os.geteuid() == 0:
+                    sudo_uid = os.environ.get('SUDO_UID')
+                    sudo_gid = os.environ.get('SUDO_GID')
+                    if sudo_uid and sudo_gid:
+                        import subprocess
+                        subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(http_results_file)], 
+                                      capture_output=True, check=False)
+                
+                # Display HTTP findings
+                display_http_summary(http_result.data)
+            else:
+                console.print(f"⚠ HTTP scan failed: {http_result.error}")
+        
+        console.print(f"\n✓ All scans completed in {total_execution_time:.2f}s total")
         
         # Display minimal summary only
         display_minimal_summary(result.data, workspace)
@@ -381,6 +432,50 @@ def display_minimal_summary(data: dict, workspace: Path):
     console.print("\n", summary, "\n")
     console.print("View detailed results in the workspace directory")
 
+
+
+def display_http_summary(http_data: dict):
+    """Display summary of HTTP scan findings"""
+    if not http_data:
+        return
+    
+    # Vulnerabilities summary
+    vuln_summary = http_data.get('summary', {}).get('severity_counts', {})
+    total_vulns = sum(vuln_summary.values())
+    
+    if total_vulns > 0:
+        console.print(f"\n[yellow]⚠ Found {total_vulns} potential vulnerabilities:[/yellow]")
+        if vuln_summary.get('critical', 0) > 0:
+            console.print(f"  [red]● Critical: {vuln_summary['critical']}[/red]")
+        if vuln_summary.get('high', 0) > 0:
+            console.print(f"  [red]● High: {vuln_summary['high']}[/red]")
+        if vuln_summary.get('medium', 0) > 0:
+            console.print(f"  [yellow]● Medium: {vuln_summary['medium']}[/yellow]")
+        if vuln_summary.get('low', 0) > 0:
+            console.print(f"  [blue]● Low: {vuln_summary['low']}[/blue]")
+    
+    # Technologies detected
+    techs = http_data.get('summary', {}).get('technologies', [])
+    if techs:
+        console.print(f"\n[cyan]Technologies detected:[/cyan] {', '.join(techs)}")
+    
+    # Discovered paths
+    paths = http_data.get('summary', {}).get('discovered_paths', [])
+    if paths:
+        console.print(f"\n[green]Discovered {len(paths)} paths[/green]")
+        for path in paths[:5]:  # Show first 5
+            console.print(f"  • {path}")
+        if len(paths) > 5:
+            console.print(f"  ... and {len(paths) - 5} more")
+    
+    # Subdomains
+    subdomains = http_data.get('subdomains', [])
+    if subdomains:
+        console.print(f"\n[magenta]Found {len(subdomains)} subdomains[/magenta]")
+        for subdomain in subdomains[:5]:  # Show first 5
+            console.print(f"  • {subdomain}")
+        if len(subdomains) > 5:
+            console.print(f"  ... and {len(subdomains) - 5} more")
 
 
 def generate_text_report(target: str, data: dict, is_live: bool = False) -> str:
