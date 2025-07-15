@@ -81,6 +81,21 @@ class TextFormatter(BaseFormatter):
             report.append("HTTP/HTTPS SCAN RESULTS")
             report.append("=" * 80)
             
+            # Check if HTTP scan has any data
+            has_data = any([
+                http_data.get('services'),
+                http_data.get('vulnerabilities'),
+                http_data.get('dns_records'),
+                http_data.get('subdomains')
+            ])
+            
+            if not has_data:
+                report.append("\nNo HTTP scan data collected. This may be due to:")
+                report.append("  • HTTP scanner dependencies not installed (httpx, dnspython)")
+                report.append("  • Target not responding to HTTP requests")
+                report.append("  • Scanner configuration issues")
+                report.append("\nTo enable full HTTP scanning, install: pip install httpx dnspython")
+            
             # HTTP Services
             services = http_data.get('services', [])
             if services:
@@ -278,6 +293,23 @@ class HTMLFormatter(BaseFormatter):
             http_data = data['http_scan']
             html.append('<div class="summary">')
             html.append('<h2>HTTP/HTTPS Scan Results</h2>')
+            
+            # Check if HTTP scan has any data
+            has_data = any([
+                http_data.get('services'),
+                http_data.get('vulnerabilities'),
+                http_data.get('dns_records'),
+                http_data.get('subdomains')
+            ])
+            
+            if not has_data:
+                html.append('<p style="color: #ffff00;">⚠ No HTTP scan data collected. This may be due to:</p>')
+                html.append('<ul>')
+                html.append('<li>HTTP scanner dependencies not installed (httpx, dnspython)</li>')
+                html.append('<li>Target not responding to HTTP requests</li>')
+                html.append('<li>Scanner configuration issues</li>')
+                html.append('</ul>')
+                html.append('<p>To enable full HTTP scanning, install: <code>pip install httpx dnspython</code></p>')
             
             # Services
             services = http_data.get('services', [])

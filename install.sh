@@ -168,10 +168,22 @@ install_python_deps() {
     PYTHON_VERSION=$(python3 --version)
     print_color "Runtime: $PYTHON_VERSION" "${SMOKE}"
     
-    # Install requirements with break-system-packages flag
-    python3 -m pip install --break-system-packages -r "${INSTALL_DIR}/requirements.txt"
+    # Try normal installation first
+    if python3 -m pip install -r "${INSTALL_DIR}/requirements.txt" 2>/dev/null; then
+        print_success "Python dependencies installed"
+    else
+        # If normal installation fails, try with break-system-packages flag
+        print_info "Retrying with --break-system-packages flag..."
+        if python3 -m pip install --break-system-packages -r "${INSTALL_DIR}/requirements.txt"; then
+            print_success "Python dependencies installed (with break-system-packages)"
+        else
+            print_error "Failed to install Python dependencies"
+            print_info "Try manually: pip install -r ${INSTALL_DIR}/requirements.txt"
+            exit 1
+        fi
+    fi
     
-    print_success "Python dependencies installed"
+    print_info "Including HTTP scanner dependencies (httpx, dnspython)"
 }
 
 
@@ -320,18 +332,19 @@ main() {
         echo
         print_color "[${VOLT}INSTALLING${NC}] System-wide Python dependencies..." "${GHOST}"
         if command_exists pip3; then
-            sudo pip3 install typer rich pydantic
+            # Install all dependencies from requirements.txt
+            sudo pip3 install -r "${INSTALL_DIR}/requirements.txt"
             echo
             print_color "[${NEON}SUCCESS${NC}] System dependencies installed" "${GHOST}"
             print_color "You can now use: ${VOLT}sudo ipcrawler <target>${NC}" "${STEEL}"
         else
             print_color "[${VOLT}WARNING${NC}] pip3 not found" "${GHOST}"
-            print_color "Install manually: ${VOLT}sudo pip3 install typer rich pydantic${NC}" "${STEEL}"
+            print_color "Install manually: ${VOLT}sudo pip3 install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
         fi
     else
         echo
         print_color "[${VOLT}SKIPPED${NC}] System-wide installation" "${GHOST}"
-        print_color "For sudo usage: ${VOLT}sudo pip3 install typer rich pydantic${NC}" "${STEEL}"
+        print_color "For sudo usage: ${VOLT}sudo pip3 install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
         print_color "Or use: ${VOLT}sudo \$(which python3) ipcrawler.py <target>${NC}" "${STEEL}"
     fi
     echo
