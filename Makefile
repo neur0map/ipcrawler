@@ -69,11 +69,25 @@ install-user:
 
 install-system:
 	@echo "Installing IPCrawler system-wide (requires sudo)..."
-	@sudo python3 -m pip install -r requirements.txt
-	@echo "System-wide dependencies installed"
+	@echo "Installing Python dependencies..."
+	@if sudo python3 -m pip install -r requirements.txt 2>/dev/null; then \
+		echo "✓ System-wide dependencies installed"; \
+	elif sudo python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null; then \
+		echo "✓ System-wide dependencies installed (with --break-system-packages)"; \
+	else \
+		echo "⚠ Warning: Failed to install system-wide Python dependencies"; \
+		echo "  IPCrawler will still work but may have limited functionality with sudo"; \
+		echo "  Try manually: sudo pip3 install --break-system-packages -r requirements.txt"; \
+	fi
 	@echo "Creating system-wide command..."
-	@sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler
-	@echo "System command installed to /usr/local/bin/ipcrawler"
+	@sudo mkdir -p /usr/local/bin
+	@if sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler; then \
+		echo "✓ System command installed to /usr/local/bin/ipcrawler"; \
+		echo "You can now use: sudo ipcrawler <target>"; \
+	else \
+		echo "✗ Failed to create system command"; \
+		echo "Try manually: sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler"; \
+	fi
 
 # Quick fix for sudo command
 fix-sudo:

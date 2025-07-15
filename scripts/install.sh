@@ -308,69 +308,43 @@ main() {
     print_color "           ${VOLT}ipcrawler 10.0.0.1${NC}" "${SMOKE}"
     echo
     
-    # Ask about system-wide Python dependencies for sudo usage
-    print_color "For privileged scans (${VOLT}sudo ipcrawler${NC}), install Python deps system-wide?" "${STEEL}"
-    printf "${STEEL}Install system-wide dependencies? [y/N]: ${NC}"
-    read -r install_system_deps
+    # Ask about system-wide command for sudo usage
+    print_color "Enable sudo usage (${VOLT}sudo ipcrawler${NC}) by creating system-wide command?" "${STEEL}"
+    printf "${STEEL}Create system-wide command? [Y/n]: ${NC}"
+    read -r create_system_cmd
     
-    if [[ "$install_system_deps" =~ ^[Yy]$ ]]; then
+    if [[ ! "$create_system_cmd" =~ ^[Nn]$ ]]; then
         echo
-        print_color "[${VOLT}INSTALLING${NC}] System-wide Python dependencies..." "${GHOST}"
-        print_info "This requires sudo access to install for all users"
+        print_step "Creating system-wide command..."
+        SYSTEM_BIN="/usr/local/bin"
         
-        if command_exists pip3; then
-            # Install all dependencies from requirements.txt system-wide
-            print_info "Running: sudo pip3 install -r ${INSTALL_DIR}/requirements.txt"
-            echo
-            
-            if sudo pip3 install -r "${INSTALL_DIR}/requirements.txt"; then
-                echo
-                print_success "System dependencies installed successfully"
-                
-                # Verify installation
-                if sudo python3 -c "import httpx, dns.resolver" 2>/dev/null; then
-                    print_success "HTTP scanner dependencies verified"
-                    
-                    # Create system-wide command symlink
-                    print_step "Creating system-wide command..."
-                    SYSTEM_BIN="/usr/local/bin"
-                    
-                    # Create /usr/local/bin if it doesn't exist
-                    if [ ! -d "$SYSTEM_BIN" ]; then
-                        sudo mkdir -p "$SYSTEM_BIN"
-                    fi
-                    
-                    # Create system symlink
-                    if sudo ln -sf "${INSTALL_DIR}/ipcrawler" "$SYSTEM_BIN/ipcrawler"; then
-                        print_success "System-wide command installed to $SYSTEM_BIN/ipcrawler"
-                        print_color "You can now use: ${VOLT}sudo ipcrawler <target>${NC}" "${STEEL}"
-                    else
-                        print_error "Failed to create system-wide command"
-                        print_info "Try manually: ${VOLT}sudo ln -sf ${INSTALL_DIR}/ipcrawler /usr/local/bin/ipcrawler${NC}"
-                    fi
-                else
-                    print_error "Dependencies installed but verification failed"
-                    print_info "Try running: sudo pip3 list | grep -E 'httpx|dnspython'"
-                fi
+        # Create /usr/local/bin if it doesn't exist
+        if [ ! -d "$SYSTEM_BIN" ]; then
+            if sudo mkdir -p "$SYSTEM_BIN" 2>/dev/null; then
+                print_info "Created $SYSTEM_BIN directory"
             else
-                echo
-                print_error "Failed to install system-wide dependencies"
-                print_info "Common issues:"
-                print_info "  - pip3 might not be available for sudo"
-                print_info "  - System python might have restrictions"
-                print_info "Try these alternatives:"
-                print_color "  1. ${VOLT}sudo $(which pip3) install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
-                print_color "  2. ${VOLT}sudo python3 -m pip install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
+                print_error "Failed to create $SYSTEM_BIN directory"
+                print_info "Try manually: ${VOLT}sudo mkdir -p $SYSTEM_BIN${NC}"
             fi
-        else
-            print_error "pip3 not found in PATH"
-            print_info "Install pip3 first, then run: ${VOLT}sudo pip3 install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
         fi
+        
+        # Create system symlink
+        if sudo ln -sf "${INSTALL_DIR}/ipcrawler" "$SYSTEM_BIN/ipcrawler" 2>/dev/null; then
+            print_success "System-wide command installed to $SYSTEM_BIN/ipcrawler"
+            print_color "You can now use: ${VOLT}sudo ipcrawler <target>${NC}" "${STEEL}"
+        else
+            print_error "Failed to create system-wide command"
+            print_info "Try manually: ${VOLT}sudo ln -sf ${INSTALL_DIR}/ipcrawler /usr/local/bin/ipcrawler${NC}"
+        fi
+        
+        echo
+        print_color "Note: For optimal sudo performance, install Python deps system-wide:" "${STEEL}"
+        print_color "  ${VOLT}sudo pip3 install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
+        print_color "  Or: ${VOLT}sudo python3 -m pip install --break-system-packages -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
     else
         echo
-        print_color "[${VOLT}SKIPPED${NC}] System-wide installation" "${GHOST}"
-        print_color "For sudo usage: ${VOLT}sudo pip3 install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
-        print_color "Or use: ${VOLT}sudo \$(which python3) ipcrawler.py <target>${NC}" "${STEEL}"
+        print_color "[${VOLT}SKIPPED${NC}] System-wide command creation" "${GHOST}"
+        print_color "For sudo usage: ${VOLT}sudo \$(which python3) ${INSTALL_DIR}/ipcrawler.py <target>${NC}" "${STEEL}"
     fi
     echo
     print_color "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓" "${SMOKE}"
