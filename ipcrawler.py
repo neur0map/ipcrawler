@@ -171,39 +171,40 @@ async def run_workflow(target: str):
             console.print("  To scan all ports, set 'fast_port_discovery: false' in config.yaml")
             return
     
-    # Skip detailed scan for now - nmap_02 has hanging issues
-    console.print("→ Skipping detailed scan (nmap_02 hanging issue - needs investigation)")
-    console.print("→ Saving port discovery results...")
+    # Run detailed nmap scan
+    console.print("→ Starting detailed scan...")
+    scanner = NmapScanner(batch_size=config.batch_size, ports_per_batch=config.ports_per_batch)
     
-    # Create basic result data from port discovery  
-    from datetime import datetime
-    now = datetime.now().isoformat()
+    # Create simple progress callback without queue to avoid hanging
+    progress_count = 0
     
-    result_data = {
-        "tool": "nmap-fast",
-        "target": resolved_target,
-        "start_time": discovery_result.data.get("start_time", now),
-        "end_time": discovery_result.data.get("end_time", now),
-        "duration": total_execution_time,
-        "hosts": [{
-            "ip": resolved_target,
-            "hostname": target if target != resolved_target else "",
-            "state": "up",
-            "ports": [{"port": port, "protocol": "tcp", "state": "open", "service": "unknown"} for port in discovered_ports]
-        }],
-        "total_hosts": 1,
-        "up_hosts": 1,
-        "down_hosts": 0,
-        "discovery_enabled": True,
-        "discovered_ports": len(discovered_ports),
-        "scan_mode": "discovery_only"
-    }
+    def simple_progress_callback():
+        nonlocal progress_count
+        progress_count += 1
+        if discovered_ports:
+            console.print(f"→ Port range {progress_count} completed")
+        else:
+            console.print(f"→ Batch {progress_count}/10 completed")
     
-    result = type('MockResult', (), {
-        'success': True,
-        'data': result_data,
-        'execution_time': total_execution_time
-    })()
+    # Execute with simple progress tracking
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True
+    ) as progress:
+        if discovered_ports is not None:
+            task = progress.add_task(f"Detailed scan of {len(discovered_ports)} discovered ports...", total=None)
+        else:
+            task = progress.add_task(f"Full scan of all 65535 ports (10 parallel batches)...", total=None)
+        
+        # Run scanner without progress_queue to avoid hanging
+        result = await scanner.execute(
+            target=resolved_target,
+            ports=discovered_ports
+        )
+        
+        progress.update(task, completed=True)
     
     if result.success and result.data:
         total_execution_time += result.execution_time or 0.0

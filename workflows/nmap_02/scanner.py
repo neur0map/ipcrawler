@@ -35,11 +35,9 @@ class NmapScanner(BaseWorkflow):
                 "nmap",
                 "-sS",     # SYN scan (requires root)
                 "-sV",     # Version detection
-                "-sC",     # Default scripts
-                "-A",      # Aggressive scan
+                "-sC",     # Default scripts only (fast)
                 "-T4",     # Aggressive timing
                 f"-p{port_spec}",  # Port specification
-                "--script=vuln,exploit,discovery,auth,brute",
                 "-oX", "-" # Output XML to stdout
             ]
         else:
@@ -47,10 +45,9 @@ class NmapScanner(BaseWorkflow):
                 "nmap",
                 "-sT",     # TCP connect scan
                 "-sV",     # Version detection
-                "-sC",     # Default scripts
+                "-sC",     # Default scripts only (fast)
                 "-T4",     # Aggressive timing
                 f"-p{port_spec}",  # Port specification
-                "--script=discovery,safe",
                 "-oX", "-" # Output XML to stdout
             ]
         
