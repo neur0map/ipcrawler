@@ -1,52 +1,40 @@
-# Workflow Execution Order
+# IPCrawler Workflows
 
-IP Crawler executes workflows in a specific order to maximize efficiency and accuracy.
+## Workflow Execution Order
 
-## DEFAULT BEHAVIOR: TARGETED SCANNING
+Workflows are executed in sequential order based on their naming convention: `tool_XX` where XX determines the execution order.
 
-**By default, IP Crawler ONLY scans ports that are discovered to be open.**
+### Current Workflow Order:
 
-## Scan Workflow Order
+1. **nmap_fast_01** - Fast port discovery
+   - Quickly identifies open ports (SYN scan if privileged, TCP connect if not)
+   - Execution time: ~10-60 seconds
+   - Output: List of open port numbers
 
-### 1. `nmap_fast_01` - Fast Port Discovery (Default: ENABLED)
-- **Purpose**: ONLY discovers which ports are open (does NOT perform vulnerability scanning)
-- **When**: Runs first when `fast_port_discovery: true` in config.yaml (DEFAULT)
-- **Tool**: Fast nmap scan (`-p- -T4 --min-rate 1000 --open -Pn -n`)
-- **Duration**: ~10-60 seconds (privileged: faster, unprivileged: slower)
-- **Output**: List of open port numbers ONLY
-- **Accuracy**: 100% - scans all 65535 ports quickly
-- **IMPORTANT**: If no ports are found, the scan stops here
+2. **nmap_02** - Detailed vulnerability scanning  
+   - Performs service detection and vulnerability scanning
+   - Uses discovered ports from _01 or scans all ports if discovery is disabled
+   - Execution time: Variable based on number of ports
+   - Output: Detailed host, service, and vulnerability information
 
-### 2. `nmap_02` - Detailed Vulnerability Scanning
-- **Purpose**: Comprehensive vulnerability and service scanning
-- **When**: Always runs after port discovery
-- **Modes**:
-  - **DEFAULT - Targeted scan**: ONLY scans the specific ports found by nmap_fast_01
-  - **Full scan**: ONLY when `fast_port_discovery: false` (scans all 65535 ports)
-- **Duration**: 
-  - Targeted: ~30 seconds to 2 minutes (depends on number of open ports)
-  - Full scan: ~5-10 minutes (parallel batch scanning)
+3. **http_03** - Advanced HTTP/HTTPS discovery
+   - Automatically triggered when HTTP/HTTPS services are detected
+   - Performs DNS enumeration, path discovery, header analysis, and vulnerability detection
+   - No wordlists required - uses intelligent discovery techniques
+   - Execution time: Typically 10-30 seconds
+   - Output: HTTP-specific vulnerabilities and discovered paths/subdomains
 
-## Workflow Naming Convention
+## Adding New Workflows
 
-Workflows are numbered with the pattern: `tool_XX`
-- `XX` represents the execution order (01, 02, etc.)
-- This ensures workflows run in the correct sequence
-- Makes it easy to add new workflows in the future
+To add a new workflow:
 
-## Configuration
+1. Create a new directory: `/workflows/tool_XX/`
+2. The XX number determines execution order (e.g., _04 would run after _03)
+3. Implement scanner inheriting from `BaseWorkflow`
+4. Import and integrate in `ipcrawler.py`
 
-Control workflow behavior in `config.yaml`:
+## Workflow Dependencies
 
-```yaml
-scan:
-  fast_port_discovery: true  # Enable/disable nuclei_01 workflow
-  max_detailed_ports: 1000   # Limit ports for nmap_02 if too many found
-```
-
-## Why This Order?
-
-1. **Efficiency**: Fast port discovery takes ~30 seconds vs detailed scan taking 10+ minutes
-2. **Accuracy**: 100% accurate port discovery using nmap, then focused detailed scanning
-3. **Speed**: Privileged scans are significantly faster than unprivileged
-4. **Flexibility**: Can disable discovery for comprehensive scanning when needed
+- Each workflow can use results from previous workflows
+- The _03 workflow uses port information from _02 to identify HTTP services
+- Results are passed through the scanning pipeline automatically

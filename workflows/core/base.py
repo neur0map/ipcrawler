@@ -8,6 +8,7 @@ class WorkflowResult(BaseModel):
     success: bool
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    errors: Optional[list] = None  # For compatibility
     execution_time: Optional[float] = None
 
 

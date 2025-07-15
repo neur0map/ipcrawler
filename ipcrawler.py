@@ -310,7 +310,8 @@ async def run_workflow(target: str):
                 # Display HTTP findings
                 display_http_summary(http_result.data)
             else:
-                console.print(f"⚠ HTTP scan failed: {http_result.error}")
+                error_msg = http_result.error or (http_result.errors[0] if http_result.errors else "Unknown error")
+                console.print(f"⚠ HTTP scan failed: {error_msg}")
         
         console.print(f"\n✓ All scans completed in {total_execution_time:.2f}s total")
         
