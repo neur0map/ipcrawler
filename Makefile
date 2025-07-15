@@ -3,7 +3,6 @@
 
 # Detect OS and set paths dynamically
 UNAME_S := $(shell uname -s)
-CURRENT_DIR := $(shell pwd)
 USER_HOME := $(shell echo $$HOME)
 
 ifeq ($(UNAME_S),Darwin)
@@ -20,7 +19,7 @@ else
 	PYTHON_CMD = python3
 endif
 
-.PHONY: install uninstall clean test help
+.PHONY: install uninstall clean clean-install test help
 
 # Default target
 all: help
@@ -30,16 +29,17 @@ help:
 	@echo "====================="
 	@echo ""
 	@echo "Commands:"
-	@echo "  make install   - Install IPCrawler system-wide"
-	@echo "  make uninstall - Remove IPCrawler from system"
-	@echo "  make clean     - Clean Python cache files"
-	@echo "  make test      - Test installation"
+	@echo "  make install      - Install IPCrawler system-wide (with cleanup)"
+	@echo "  make uninstall    - Remove IPCrawler from system"
+	@echo "  make clean-install - Clean all existing IPCrawler installations"
+	@echo "  make clean        - Clean Python cache files"
+	@echo "  make test         - Test installation"
 	@echo ""
 	@echo "System info:"
 	@echo "  OS: $(OS_TYPE)"
 	@echo "  System bin: $(SYSTEM_BIN)"
 	@echo "  Python: $(PYTHON_CMD)"
-	@echo "  Current dir: $(CURRENT_DIR)"
+	@echo "  Current dir: $$(pwd)"
 	@echo "  User home: $(USER_HOME)"
 	@echo ""
 	@echo "Usage after install:"
@@ -48,6 +48,29 @@ help:
 
 install:
 	@echo "Installing IPCrawler..."
+	@echo "Performing complete cleanup of existing installations..."
+	@# Remove from common system locations
+	@sudo rm -f /usr/local/bin/ipcrawler 2>/dev/null || true
+	@sudo rm -f /usr/bin/ipcrawler 2>/dev/null || true
+	@sudo rm -f /opt/local/bin/ipcrawler 2>/dev/null || true
+	@# Remove from user local locations
+	@rm -f $(USER_HOME)/.local/bin/ipcrawler 2>/dev/null || true
+	@rm -f $(USER_HOME)/bin/ipcrawler 2>/dev/null || true
+	@# Check for and remove any other ipcrawler in PATH
+	@for cmd in $$(which -a ipcrawler 2>/dev/null | head -10); do \
+		if [ -f "$$cmd" ] || [ -L "$$cmd" ]; then \
+			echo "  Removing: $$cmd"; \
+			if [ -w "$$(dirname "$$cmd")" ]; then \
+				rm -f "$$cmd"; \
+			else \
+				sudo rm -f "$$cmd"; \
+			fi; \
+		fi; \
+	done 2>/dev/null || true
+	@# Clean cache and temporary files
+	@rm -rf /tmp/ipcrawler_cache_* 2>/dev/null || true
+	@find $(USER_HOME) -name ".ipcrawler*" -type f -delete 2>/dev/null || true
+	@echo "✓ Cleanup completed"
 	@chmod +x ipcrawler.py
 	@echo "Installing Python dependencies..."
 	@if $(PYTHON_CMD) -m pip install --user -r requirements.txt 2>/dev/null; then \
@@ -92,7 +115,7 @@ install:
 	@chmod +x ipcrawler
 	@echo "Creating system symlink..."
 	@sudo rm -f $(SYSTEM_BIN)/ipcrawler
-	@sudo ln -sf $(CURRENT_DIR)/ipcrawler $(SYSTEM_BIN)/ipcrawler
+	@sudo ln -sf "$$(pwd)/ipcrawler" $(SYSTEM_BIN)/ipcrawler
 	@echo "Verifying installation..."
 	@if [ -L $(SYSTEM_BIN)/ipcrawler ]; then \
 		echo "  Symlink target: $$(readlink $(SYSTEM_BIN)/ipcrawler)"; \
@@ -110,14 +133,61 @@ install:
 
 uninstall:
 	@echo "Uninstalling IPCrawler..."
-	@sudo rm -f $(SYSTEM_BIN)/ipcrawler
+	@echo "Performing complete cleanup of all installations..."
+	@# Remove from common system locations
+	@sudo rm -f /usr/local/bin/ipcrawler 2>/dev/null || true
+	@sudo rm -f /usr/bin/ipcrawler 2>/dev/null || true
+	@sudo rm -f /opt/local/bin/ipcrawler 2>/dev/null || true
+	@# Remove from user local locations
+	@rm -f $(USER_HOME)/.local/bin/ipcrawler 2>/dev/null || true
+	@rm -f $(USER_HOME)/bin/ipcrawler 2>/dev/null || true
+	@# Check for and remove any other ipcrawler in PATH
+	@for cmd in $$(which -a ipcrawler 2>/dev/null | head -10); do \
+		if [ -f "$$cmd" ] || [ -L "$$cmd" ]; then \
+			echo "  Removing: $$cmd"; \
+			if [ -w "$$(dirname "$$cmd")" ]; then \
+				rm -f "$$cmd"; \
+			else \
+				sudo rm -f "$$cmd"; \
+			fi; \
+		fi; \
+	done 2>/dev/null || true
+	@# Clean cache and temporary files
+	@rm -rf /tmp/ipcrawler_cache_* 2>/dev/null || true
+	@find $(USER_HOME) -name ".ipcrawler*" -type f -delete 2>/dev/null || true
+	@echo "✓ All IPCrawler installations removed"
 	@echo "Uninstalling Python dependencies..."
 	@if $(PYTHON_CMD) -m pip uninstall -y -r requirements.txt 2>/dev/null; then \
 		echo "✓ Dependencies uninstalled successfully"; \
 	else \
 		echo "⚠ Some dependencies may not have been uninstalled"; \
 	fi
-	@echo "✓ IPCrawler uninstalled"
+	@echo "✓ IPCrawler completely uninstalled"
+
+clean-install:
+	@echo "Performing complete cleanup of existing IPCrawler installations..."
+	@# Remove from common system locations
+	@sudo rm -f /usr/local/bin/ipcrawler 2>/dev/null || true
+	@sudo rm -f /usr/bin/ipcrawler 2>/dev/null || true
+	@sudo rm -f /opt/local/bin/ipcrawler 2>/dev/null || true
+	@# Remove from user local locations
+	@rm -f $(USER_HOME)/.local/bin/ipcrawler 2>/dev/null || true
+	@rm -f $(USER_HOME)/bin/ipcrawler 2>/dev/null || true
+	@# Check for and remove any other ipcrawler in PATH
+	@for cmd in $$(which -a ipcrawler 2>/dev/null | head -10); do \
+		if [ -f "$$cmd" ] || [ -L "$$cmd" ]; then \
+			echo "  Removing: $$cmd"; \
+			if [ -w "$$(dirname "$$cmd")" ]; then \
+				rm -f "$$cmd"; \
+			else \
+				sudo rm -f "$$cmd"; \
+			fi; \
+		fi; \
+	done 2>/dev/null || true
+	@# Clean cache and temporary files
+	@rm -rf /tmp/ipcrawler_cache_* 2>/dev/null || true
+	@find $(USER_HOME) -name ".ipcrawler*" -type f -delete 2>/dev/null || true
+	@echo "✓ All existing IPCrawler installations cleaned"
 
 clean:
 	@echo "Cleaning Python cache files..."
@@ -130,7 +200,7 @@ test:
 	@echo "Testing IPCrawler installation..."
 	@echo "OS: $(OS_TYPE)"
 	@echo "System bin: $(SYSTEM_BIN)"
-	@echo "Current dir: $(CURRENT_DIR)"
+	@echo "Current dir: $$(pwd)"
 	@echo "User home: $(USER_HOME)"
 	@echo ""
 	@echo -n "Command location: "
