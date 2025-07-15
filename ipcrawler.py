@@ -35,9 +35,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from config import config
-
-# Clean cache after imports to ensure no stale cache for next run
-clean_cache()
+from utils.async_file_writer import write_results_async, get_async_writer
 
 app = typer.Typer(
     name="ipcrawler",
@@ -57,22 +55,17 @@ def main(
     asyncio.run(run_workflow(target))
 
 
-def save_live_results(workspace: Path, target: str, accumulated_data: dict, scan_mode: str = "unknown"):
-    """Save live/partial scan results during scanning"""
-    # Save live JSON format
-    live_json_file = workspace / "live_results.json"
-    with open(live_json_file, 'w') as f:
-        json.dump(accumulated_data, f, indent=2)
+async def save_live_results(workspace: Path, target: str, accumulated_data: dict):
+    """Save live/partial scan results during scanning asynchronously"""
+    # Create a copy and finalize for output (don't modify original)
+    output_data = finalize_scan_data(accumulated_data.copy())
     
-    # Save live text report
-    live_txt_file = workspace / "live_report.txt"
-    with open(live_txt_file, 'w') as f:
-        f.write(generate_text_report(target, accumulated_data, is_live=True))
-    
-    # Save live HTML report
-    live_html_file = workspace / "live_report.html"
-    with open(live_html_file, 'w') as f:
-        f.write(generate_html_report(target, accumulated_data, is_live=True))
+    # Use async writer for non-blocking file operations
+    await write_results_async(
+        workspace, target, output_data,
+        generate_text_report, generate_html_report,
+        is_live=True
+    )
     
     # Fix file permissions if running as sudo
     if os.geteuid() == 0:  # Running as root
@@ -82,13 +75,18 @@ def save_live_results(workspace: Path, target: str, accumulated_data: dict, scan
         if sudo_uid and sudo_gid:
             import subprocess
             # Change ownership of all created files
-            for file in [live_json_file, live_txt_file, live_html_file]:
+            files = [
+                workspace / "live_results.json",
+                workspace / "live_report.txt", 
+                workspace / "live_report.html"
+            ]
+            for file in files:
                 subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(file)], 
                               capture_output=True, check=False)
 
 
 def merge_scan_data(accumulated: dict, new_result) -> dict:
-    """Merge new scan results with accumulated data"""
+    """Optimized merge of new scan results with accumulated data"""
     if not new_result or not new_result.hosts:
         return accumulated
     
@@ -99,6 +97,7 @@ def merge_scan_data(accumulated: dict, new_result) -> dict:
             "target": new_result.hosts[0].ip if new_result.hosts else "unknown",
             "start_time": new_result.start_time,
             "hosts": [],
+            "hosts_index": {},  # Add index for O(1) lookups
             "total_hosts": 0,
             "up_hosts": 0,
             "down_hosts": 0,
@@ -111,30 +110,39 @@ def merge_scan_data(accumulated: dict, new_result) -> dict:
     accumulated["duration"] = getattr(new_result, 'duration', 0)
     accumulated["batches_completed"] = accumulated.get("batches_completed", 0) + 1
     
-    # Merge hosts
-    existing_hosts = {host.get("ip", ""): host for host in accumulated["hosts"]}
+    # Use existing index or create it
+    hosts_index = accumulated.get("hosts_index", {})
+    if not hosts_index and accumulated["hosts"]:
+        # Build index if missing (backwards compatibility)
+        hosts_index = {host["ip"]: i for i, host in enumerate(accumulated["hosts"])}
+        accumulated["hosts_index"] = hosts_index
     
+    # Merge hosts efficiently
     for new_host in new_result.hosts:
         host_ip = new_host.ip
         
-        if host_ip not in existing_hosts:
+        if host_ip not in hosts_index:
             # New host
             host_dict = new_host.model_dump()
             accumulated["hosts"].append(host_dict)
-            existing_hosts[host_ip] = host_dict
+            hosts_index[host_ip] = len(accumulated["hosts"]) - 1
         else:
-            # Merge ports for existing host
-            existing_host = existing_hosts[host_ip]
-            existing_ports = {port.get("port", 0): port for port in existing_host.get("ports", [])}
+            # Existing host - merge ports
+            existing_host = accumulated["hosts"][hosts_index[host_ip]]
+            
+            # Build port index for efficient merging
+            existing_ports = {p["port"]: i for i, p in enumerate(existing_host.get("ports", []))}
             
             for new_port in new_host.ports:
                 port_num = new_port.port
+                new_port_dict = new_port.model_dump()
+                
                 if port_num not in existing_ports:
-                    existing_host["ports"].append(new_port.model_dump())
+                    existing_host.setdefault("ports", []).append(new_port_dict)
                 else:
-                    # Update with more detailed info if available
-                    existing_port = existing_ports[port_num]
-                    new_port_dict = new_port.model_dump()
+                    # Update existing port
+                    port_idx = existing_ports[port_num]
+                    existing_port = existing_host["ports"][port_idx]
                     
                     # Merge service information
                     if new_port_dict.get("service") and not existing_port.get("service"):
@@ -144,22 +152,21 @@ def merge_scan_data(accumulated: dict, new_result) -> dict:
                     if new_port_dict.get("scripts"):
                         existing_port.setdefault("scripts", []).extend(new_port_dict["scripts"])
             
-            # Sort ports
-            existing_host["ports"].sort(key=lambda p: p.get("port", 0))
-            
-            # Update OS info if better
+            # Update OS info if better accuracy
             if (new_host.os and 
                 (not existing_host.get("os") or 
                  (new_host.os_accuracy or 0) > existing_host.get("os_accuracy", 0))):
                 existing_host["os"] = new_host.os
                 existing_host["os_accuracy"] = new_host.os_accuracy
-                existing_host["os_details"] = new_host.os_details
+                existing_host["os_details"] = getattr(new_host, 'os_details', None)
     
-    # Update host counts
+    # Update host counts once at the end
     up_hosts = sum(1 for host in accumulated["hosts"] if host.get("state") == "up")
     accumulated["total_hosts"] = len(accumulated["hosts"])
     accumulated["up_hosts"] = up_hosts
     accumulated["down_hosts"] = accumulated["total_hosts"] - up_hosts
+    
+    # Note: Port sorting is deferred to final output generation for performance
     
     return accumulated
 
@@ -243,7 +250,7 @@ async def run_workflow(target: str):
                 if config.real_time_save and result:
                     try:
                         accumulated_results = merge_scan_data(accumulated_results, result)
-                        save_live_results(workspace, target, accumulated_results)
+                        await save_live_results(workspace, target, accumulated_results)
                         
                         # Show file update notification
                         open_ports = sum(
@@ -317,6 +324,13 @@ async def run_workflow(target: str):
     else:
         console.print(f"\n✗ Scan failed: {result.error}")
         raise typer.Exit(1)
+    
+    # Cleanup async writer
+    try:
+        writer = await get_async_writer()
+        await writer.stop()
+    except:
+        pass  # Ignore cleanup errors
 
 
 def create_workspace(target: str) -> Path:
@@ -346,8 +360,25 @@ def create_workspace(target: str) -> Path:
     return workspace_path
 
 
+def finalize_scan_data(data: dict) -> dict:
+    """Finalize scan data by sorting ports and removing internal indexes"""
+    # Sort ports for each host
+    for host in data.get("hosts", []):
+        if "ports" in host and host["ports"]:
+            host["ports"].sort(key=lambda p: p.get("port", 0))
+    
+    # Remove internal index
+    if "hosts_index" in data:
+        del data["hosts_index"]
+    
+    return data
+
+
 def save_scan_results(workspace: Path, target: str, data: dict):
     """Save scan results in multiple formats"""
+    # Finalize data before saving
+    data = finalize_scan_data(data)
+    
     # Save JSON format
     json_file = workspace / "scan_results.json"
     with open(json_file, 'w') as f:

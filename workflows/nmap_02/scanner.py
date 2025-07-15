@@ -28,6 +28,37 @@ class NmapScanner(BaseWorkflow):
         """Check if running with root privileges"""
         return os.geteuid() == 0
     
+    def _build_nmap_command(self, is_root: bool, port_spec: str, flags: Optional[List[str]] = None) -> List[str]:
+        """Build nmap command based on privileges and port specification"""
+        if is_root:
+            cmd = [
+                "nmap",
+                "-sS",     # SYN scan (requires root)
+                "-sV",     # Version detection
+                "-sC",     # Default scripts
+                "-A",      # Aggressive scan
+                "-T4",     # Aggressive timing
+                f"-p{port_spec}",  # Port specification
+                "--script=vuln,exploit,discovery,auth,brute",
+                "-oX", "-" # Output XML to stdout
+            ]
+        else:
+            cmd = [
+                "nmap",
+                "-sT",     # TCP connect scan
+                "-sV",     # Version detection
+                "-sC",     # Default scripts
+                "-T4",     # Aggressive timing
+                f"-p{port_spec}",  # Port specification
+                "--script=discovery,safe",
+                "-oX", "-" # Output XML to stdout
+            ]
+        
+        if flags:
+            cmd.extend(flags)
+        
+        return cmd
+    
     def _create_port_ranges(self, total_ports: int = 65535) -> List[Tuple[int, int]]:
         """Create port ranges for parallel scanning"""
         ranges = []
@@ -36,33 +67,6 @@ class NmapScanner(BaseWorkflow):
             ranges.append((start, end))
         return ranges
     
-    def _create_specific_port_ranges(self, ports: List[int]) -> List[Tuple[int, int]]:
-        """Create port ranges from specific port list"""
-        if not ports:
-            return []
-        
-        # Sort ports
-        sorted_ports = sorted(set(ports))
-        
-        # Group consecutive ports into ranges
-        ranges = []
-        start = sorted_ports[0]
-        end = sorted_ports[0]
-        
-        for port in sorted_ports[1:]:
-            if port == end + 1:
-                # Consecutive port, extend range
-                end = port
-            else:
-                # Non-consecutive, save current range and start new
-                ranges.append((start, end))
-                start = port
-                end = port
-        
-        # Add final range
-        ranges.append((start, end))
-        
-        return ranges
     
     async def execute(self, target: str, flags: Optional[List[str]] = None, progress_queue: Optional[asyncio.Queue] = None, ports: Optional[List[int]] = None, **kwargs) -> WorkflowResult:
         """Execute nmap scan on target"""
@@ -77,9 +81,6 @@ class NmapScanner(BaseWorkflow):
         
         try:
             is_root = self._is_root()
-            
-            # Import config to check real-time saving
-            from config import config
             
             # If specific ports are provided, choose scan method based on real-time setting
             if ports:
@@ -108,33 +109,7 @@ class NmapScanner(BaseWorkflow):
             port_spec = ','.join(map(str, ports))
             
             # Build nmap command
-            if is_root:
-                cmd = [
-                    "nmap",
-                    "-sS",     # SYN scan
-                    "-sV",     # Version detection
-                    "-sC",     # Default scripts
-                    "-A",      # Aggressive scan
-                    "-T4",     # Aggressive timing
-                    f"-p{port_spec}",  # Specific ports
-                    "--script=vuln,exploit,discovery,auth,brute",
-                    "-oX", "-"
-                ]
-            else:
-                cmd = [
-                    "nmap",
-                    "-sT",     # TCP connect scan
-                    "-sV",     # Version detection
-                    "-sC",     # Default scripts
-                    "-T4",     # Aggressive timing
-                    f"-p{port_spec}",  # Specific ports
-                    "--script=discovery,safe",
-                    "-oX", "-"
-                ]
-            
-            if flags:
-                cmd.extend(flags)
-            
+            cmd = self._build_nmap_command(is_root, port_spec, flags)
             cmd.append(target)
             
             # Execute nmap
@@ -353,33 +328,7 @@ class NmapScanner(BaseWorkflow):
             port_spec = ','.join(map(str, ports))
             
             # Build command for these specific ports
-            if is_root:
-                cmd = [
-                    "nmap", 
-                    "-sS",     # SYN scan (requires root)
-                    "-sV",     # Version detection
-                    "-sC",     # Default NSE scripts
-                    "-A",      # Aggressive scan
-                    "-T4",     # Aggressive timing
-                    f"-p{port_spec}",  # Specific ports
-                    "--script=vuln,exploit,discovery,auth,brute",
-                    "-oX", "-" # Output XML to stdout
-                ]
-            else:
-                cmd = [
-                    "nmap",
-                    "-sT",     # TCP connect scan
-                    "-sV",     # Version detection
-                    "-sC",     # Default NSE scripts
-                    "-T4",     # Aggressive timing
-                    f"-p{port_spec}",  # Specific ports
-                    "--script=discovery,safe",
-                    "-oX", "-" # Output XML to stdout
-                ]
-            
-            if flags:
-                cmd.extend(flags)
-            
+            cmd = self._build_nmap_command(is_root, port_spec, flags)
             cmd.append(target)
             
             # Execute nmap
@@ -409,32 +358,8 @@ class NmapScanner(BaseWorkflow):
         """Execute nmap scan for a specific port range"""
         try:
             # Build command for this port range
-            if is_root:
-                cmd = [
-                    "nmap", 
-                    "-sS",     # SYN scan (requires root)
-                    "-sV",     # Version detection
-                    "-sC",     # Default NSE scripts
-                    "-T4",     # Aggressive timing
-                    f"-p{start_port}-{end_port}",  # Specific port range
-                    "--script=vuln,exploit,discovery,auth,brute",
-                    "-oX", "-" # Output XML to stdout
-                ]
-            else:
-                cmd = [
-                    "nmap",
-                    "-sT",     # TCP connect scan
-                    "-sV",     # Version detection
-                    "-sC",     # Default NSE scripts
-                    "-T4",     # Aggressive timing
-                    f"-p{start_port}-{end_port}",  # Specific port range
-                    "--script=discovery,safe",
-                    "-oX", "-" # Output XML to stdout
-                ]
-            
-            if flags:
-                cmd.extend(flags)
-            
+            port_spec = f"{start_port}-{end_port}"
+            cmd = self._build_nmap_command(is_root, port_spec, flags)
             cmd.append(target)
             
             # Execute nmap
@@ -691,9 +616,12 @@ class NmapScanner(BaseWorkflow):
                         for elem in script.findall("elem")
                     ]
                 }
-                # Clean script output if configured
-                cleaned_script = OutputCleaner.clean_script_output(script_data, config.raw_output)
-                scripts.append(cleaned_script)
+                # Clean script output only if needed
+                if config.raw_output:
+                    scripts.append(script_data)
+                else:
+                    cleaned_script = OutputCleaner.clean_script_output(script_data, config.raw_output)
+                    scripts.append(cleaned_script)
         
         # Parse traceroute
         traceroute = []
@@ -770,9 +698,12 @@ class NmapScanner(BaseWorkflow):
                     for elem in script.findall("elem")
                 ]
             }
-            # Clean script output if configured
-            cleaned_script = OutputCleaner.clean_script_output(script_data, config.raw_output)
-            scripts.append(cleaned_script)
+            # Clean script output only if needed
+            if config.raw_output:
+                scripts.append(script_data)
+            else:
+                cleaned_script = OutputCleaner.clean_script_output(script_data, config.raw_output)
+                scripts.append(cleaned_script)
         
         return NmapPort(
             port=port_num,

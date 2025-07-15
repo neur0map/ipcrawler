@@ -3,7 +3,7 @@ import os
 import re
 import time
 import tempfile
-from typing import Set, List
+from typing import List
 from pathlib import Path
 
 from rich.console import Console

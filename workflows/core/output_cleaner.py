@@ -92,28 +92,3 @@ class OutputCleaner:
         cleaned_port['scripts'] = cleaned_scripts
         return cleaned_port
     
-    @staticmethod
-    def clean_host_data(host_data: Dict[str, Any], raw_output: bool = False) -> Dict[str, Any]:
-        """Clean all script outputs in host data"""
-        if raw_output:
-            return host_data
-        
-        cleaned_host = host_data.copy()
-        
-        # Clean host scripts
-        if 'scripts' in host_data:
-            cleaned_scripts = []
-            for script in host_data['scripts']:
-                cleaned_script = OutputCleaner.clean_script_output(script, raw_output)
-                cleaned_scripts.append(cleaned_script)
-            cleaned_host['scripts'] = cleaned_scripts
-        
-        # Clean port scripts
-        if 'ports' in host_data:
-            cleaned_ports = []
-            for port in host_data['ports']:
-                cleaned_port = OutputCleaner.clean_port_scripts(port, raw_output)
-                cleaned_ports.append(cleaned_port)
-            cleaned_host['ports'] = cleaned_ports
-        
-        return cleaned_host
