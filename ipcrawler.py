@@ -36,7 +36,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from config import config
-from utils.async_file_writer import write_results_async, get_async_writer
 
 app = typer.Typer(
     name="ipcrawler",
@@ -58,120 +57,7 @@ def main(
     asyncio.run(run_workflow(target))
 
 
-async def save_live_results(workspace: Path, target: str, accumulated_data: dict):
-    """Save live/partial scan results during scanning asynchronously"""
-    # Create a copy and finalize for output (don't modify original)
-    output_data = finalize_scan_data(accumulated_data.copy())
-    
-    # Use async writer for non-blocking file operations
-    await write_results_async(
-        workspace, target, output_data,
-        generate_text_report, generate_html_report,
-        is_live=True
-    )
-    
-    # Fix file permissions if running as sudo
-    if os.geteuid() == 0:  # Running as root
-        sudo_uid = os.environ.get('SUDO_UID')
-        sudo_gid = os.environ.get('SUDO_GID')
-        
-        if sudo_uid and sudo_gid:
-            import subprocess
-            # Change ownership of all created files
-            files = [
-                workspace / "live_results.json",
-                workspace / "live_report.txt", 
-                workspace / "live_report.html"
-            ]
-            for file in files:
-                subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(file)], 
-                              capture_output=True, check=False)
 
-
-def merge_scan_data(accumulated: dict, new_result) -> dict:
-    """Optimized merge of new scan results with accumulated data"""
-    if not new_result or not new_result.hosts:
-        return accumulated
-    
-    # Initialize accumulated data if empty
-    if not accumulated:
-        accumulated = {
-            "tool": "nmap",
-            "target": new_result.hosts[0].ip if new_result.hosts else "unknown",
-            "start_time": new_result.start_time,
-            "hosts": [],
-            "hosts_index": {},  # Add index for O(1) lookups
-            "total_hosts": 0,
-            "up_hosts": 0,
-            "down_hosts": 0,
-            "scan_progress": "in_progress",
-            "batches_completed": 0
-        }
-    
-    # Update timing info
-    accumulated["end_time"] = new_result.end_time
-    accumulated["duration"] = getattr(new_result, 'duration', 0)
-    accumulated["batches_completed"] = accumulated.get("batches_completed", 0) + 1
-    
-    # Use existing index or create it
-    hosts_index = accumulated.get("hosts_index", {})
-    if not hosts_index and accumulated["hosts"]:
-        # Build index if missing (backwards compatibility)
-        hosts_index = {host["ip"]: i for i, host in enumerate(accumulated["hosts"])}
-        accumulated["hosts_index"] = hosts_index
-    
-    # Merge hosts efficiently
-    for new_host in new_result.hosts:
-        host_ip = new_host.ip
-        
-        if host_ip not in hosts_index:
-            # New host
-            host_dict = new_host.model_dump()
-            accumulated["hosts"].append(host_dict)
-            hosts_index[host_ip] = len(accumulated["hosts"]) - 1
-        else:
-            # Existing host - merge ports
-            existing_host = accumulated["hosts"][hosts_index[host_ip]]
-            
-            # Build port index for efficient merging
-            existing_ports = {p["port"]: i for i, p in enumerate(existing_host.get("ports", []))}
-            
-            for new_port in new_host.ports:
-                port_num = new_port.port
-                new_port_dict = new_port.model_dump()
-                
-                if port_num not in existing_ports:
-                    existing_host.setdefault("ports", []).append(new_port_dict)
-                else:
-                    # Update existing port
-                    port_idx = existing_ports[port_num]
-                    existing_port = existing_host["ports"][port_idx]
-                    
-                    # Merge service information
-                    if new_port_dict.get("service") and not existing_port.get("service"):
-                        existing_port["service"] = new_port_dict["service"]
-                    if new_port_dict.get("version") and not existing_port.get("version"):
-                        existing_port["version"] = new_port_dict["version"]
-                    if new_port_dict.get("scripts"):
-                        existing_port.setdefault("scripts", []).extend(new_port_dict["scripts"])
-            
-            # Update OS info if better accuracy
-            if (new_host.os and 
-                (not existing_host.get("os") or 
-                 (new_host.os_accuracy or 0) > existing_host.get("os_accuracy", 0))):
-                existing_host["os"] = new_host.os
-                existing_host["os_accuracy"] = new_host.os_accuracy
-                existing_host["os_details"] = getattr(new_host, 'os_details', None)
-    
-    # Update host counts once at the end
-    up_hosts = sum(1 for host in accumulated["hosts"] if host.get("state") == "up")
-    accumulated["total_hosts"] = len(accumulated["hosts"])
-    accumulated["up_hosts"] = up_hosts
-    accumulated["down_hosts"] = accumulated["total_hosts"] - up_hosts
-    
-    # Note: Port sorting is deferred to final output generation for performance
-    
-    return accumulated
 
 
 async def resolve_target(target: str) -> str:
@@ -258,6 +144,22 @@ async def run_workflow(target: str):
             
             if port_count == 0:
                 console.print("⚠ No open ports found. Skipping detailed scan.")
+                # Save empty results
+                empty_data = {
+                    "tool": "nmap",
+                    "target": resolved_target,
+                    "start_time": discovery_result.data.get("start_time"),
+                    "end_time": discovery_result.data.get("end_time"), 
+                    "duration": total_execution_time,
+                    "hosts": [],
+                    "total_hosts": 0,
+                    "up_hosts": 0,
+                    "down_hosts": 0,
+                    "discovery_enabled": True,
+                    "discovered_ports": 0
+                }
+                save_scan_results(workspace, target, empty_data)
+                display_minimal_summary(empty_data, workspace)
                 return
             
             if port_count > config.max_detailed_ports:
@@ -269,16 +171,47 @@ async def run_workflow(target: str):
             console.print("  To scan all ports, set 'fast_port_discovery: false' in config.yaml")
             return
     
+    # TEMPORARY: Save port discovery results until detailed scan is fixed
+    console.print("→ Saving port discovery results...")
+    
+    # Create basic result data from port discovery
+    from datetime import datetime
+    now = datetime.now().isoformat()
+    
+    result_data = {
+        "tool": "nmap-fast",
+        "target": resolved_target,
+        "start_time": discovery_result.data.get("start_time", now),
+        "end_time": discovery_result.data.get("end_time", now),
+        "duration": total_execution_time,
+        "hosts": [{
+            "ip": resolved_target,
+            "hostname": target if target != resolved_target else "",
+            "state": "up",
+            "ports": [{"port": port, "protocol": "tcp", "state": "open", "service": "unknown"} for port in discovered_ports]
+        }],
+        "total_hosts": 1,
+        "up_hosts": 1, 
+        "down_hosts": 0,
+        "discovery_enabled": True,
+        "discovered_ports": len(discovered_ports),
+        "scan_mode": "discovery_only"
+    }
+    
+    save_scan_results(workspace, target, result_data)
+    display_minimal_summary(result_data, workspace)
+    console.print("✓ Port discovery results saved (detailed scan temporarily disabled)")
+    return
+    
+    # TODO: Fix detailed scan hanging issue
     # Run detailed nmap scan
     scanner = NmapScanner(batch_size=config.batch_size, ports_per_batch=config.ports_per_batch)
     
-    # Create progress callback and live result tracking
+    # Create progress callback
     progress_queue = asyncio.Queue()
-    accumulated_results = {}
     
     async def progress_monitor():
-        """Monitor and display batch progress with optional real-time file saving"""
-        nonlocal accumulated_results
+        """Monitor and display batch progress"""
         completed = 0
         
         while True:
@@ -286,46 +219,15 @@ async def run_workflow(target: str):
             if msg == "DONE":
                 break
                 
-            # Handle structured messages with results
-            if isinstance(msg, dict):
-                completed += 1
-                result = msg.get("result")
-                
-                # Show progress
-                if discovered_ports:
-                    console.print(f"→ Port range {completed} completed")
-                else:
-                    console.print(f"→ Batch {completed}/10 completed")
-                
-                # Save live results if enabled
-                if config.real_time_save and result:
-                    try:
-                        accumulated_results = merge_scan_data(accumulated_results, result)
-                        await save_live_results(workspace, target, accumulated_results)
-                        
-                        # Show file update notification
-                        open_ports = sum(
-                            len([p for p in host.get("ports", []) if p.get("state") == "open"])
-                            for host in accumulated_results.get("hosts", [])
-                        )
-                        console.print(f"  → Live results updated: {open_ports} services discovered so far")
-                        
-                    except Exception as e:
-                        console.print(f"  ⚠ Failed to save live results: {str(e)}")
+            completed += 1
+            if discovered_ports:
+                console.print(f"→ Port range {completed} completed")
             else:
-                # Handle legacy string messages
-                completed += 1
-                if discovered_ports:
-                    console.print(f"→ Port range {completed} completed")
-                else:
-                    console.print(f"→ Batch {completed}/10 completed")
+                console.print(f"→ Batch {completed}/10 completed")
     
     # Start progress monitor
     monitor_task = asyncio.create_task(progress_monitor())
     
-    # Initialize live results if real-time saving is enabled
-    if config.real_time_save:
-        console.print(f"→ Real-time results will be saved to: {workspace}/live_*.{'{json,txt,html}'}")
     
     with Progress(
         SpinnerColumn(),
@@ -366,9 +268,6 @@ async def run_workflow(target: str):
         # Save final scan results to workspace
         save_scan_results(workspace, target, result.data)
         
-        # If real-time saving was enabled, notify about final results
-        if config.real_time_save:
-            console.print(f"→ Final results saved alongside live results in: {workspace}")
         
         # Display minimal summary only
         display_minimal_summary(result.data, workspace)
@@ -376,12 +275,6 @@ async def run_workflow(target: str):
         console.print(f"✗ Scan failed: {result.error}")
         raise typer.Exit(1)
     
-    # Cleanup async writer
-    try:
-        writer = await get_async_writer()
-        await writer.stop()
-    except:
-        pass  # Ignore cleanup errors
 
 
 def create_workspace(target: str) -> Path:

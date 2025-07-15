@@ -85,7 +85,7 @@ class NmapScanner(BaseWorkflow):
             # If specific ports are provided, choose scan method based on real-time setting
             if ports:
                 # Use batched scanning for real-time results, single scan otherwise
-                if config.real_time_save and len(ports) > 5:
+                if len(ports) > 5:
                     return await self._batched_port_scan(target, ports, is_root, flags, progress_queue, start_time)
                 else:
                     return await self._single_scan(target, ports, is_root, flags, start_time, progress_queue)
@@ -137,13 +137,9 @@ class NmapScanner(BaseWorkflow):
             scan_result_dict['scan_mode'] = '[bold green]privileged[/bold green]' if is_root else '[bold orange1]unprivileged[/bold orange1]'
             scan_result_dict['scan_type'] = 'targeted'
             
-            # Send results for real-time file saving
+            # Send progress notification
             if progress_queue:
-                await progress_queue.put({
-                    "type": "single_scan_complete", 
-                    "range": f"targeted-{len(ports)}-ports",
-                    "result": scan_result
-                })
+                await progress_queue.put("batch_complete")
             
             return WorkflowResult(
                 success=True,
@@ -292,12 +288,8 @@ class NmapScanner(BaseWorkflow):
         async with semaphore:
             result = await self._scan_port_range(target, start_port, end_port, is_root, flags)
             if progress_queue:
-                # Send batch completion with results for real-time processing
-                await progress_queue.put({
-                    "type": "batch_complete",
-                    "range": f"{start_port}-{end_port}",
-                    "result": result
-                })
+                # Send batch completion notification
+                await progress_queue.put("batch_complete")
             return result
     
     async def _scan_port_batch_with_semaphore(
@@ -309,13 +301,8 @@ class NmapScanner(BaseWorkflow):
         async with semaphore:
             result = await self._scan_specific_ports(target, port_batch, is_root, flags)
             if progress_queue:
-                # Send batch completion with results for real-time processing
-                port_range_str = f"{min(port_batch)}-{max(port_batch)}" if len(port_batch) > 1 else str(port_batch[0])
-                await progress_queue.put({
-                    "type": "batch_complete",
-                    "range": f"ports-{port_range_str}",
-                    "result": result
-                })
+                # Send batch completion notification
+                await progress_queue.put("batch_complete")
             return result
     
     async def _scan_specific_ports(

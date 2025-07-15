@@ -94,9 +94,12 @@ class NmapFastScanner(BaseWorkflow):
                     stderr=asyncio.subprocess.PIPE
                 )
                 
-                # Read output line by line for real-time port discovery
-                stdout_lines = []
+                # Read output with proper async handling
                 if progress_callback:
+                    # Read stdout line by line for real-time updates
+                    stdout_lines = []
+                    stderr_task = asyncio.create_task(process.stderr.read())
+                    
                     while True:
                         line = await process.stdout.readline()
                         if not line:
@@ -111,8 +114,8 @@ class NmapFastScanner(BaseWorkflow):
                                 port, protocol = match.groups()
                                 progress_callback(int(port), protocol)
                     
-                    # Wait for process to finish
-                    stderr_data = await process.stderr.read()
+                    # Wait for both streams and process
+                    stderr_data = await stderr_task
                     await process.wait()
                     stdout_data = '\n'.join(stdout_lines)
                     stderr_data = stderr_data.decode()
