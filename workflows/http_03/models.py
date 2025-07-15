@@ -40,6 +40,7 @@ class HTTPService:
     technologies: List[str] = field(default_factory=list)
     discovered_paths: List[str] = field(default_factory=list)
     response_body: Optional[str] = None
+    actual_target: Optional[str] = None  # The target that actually worked
     
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

@@ -27,7 +27,9 @@ import tempfile
 import socket
 import signal
 import sys
+import re
 from datetime import datetime
+from urllib.parse import urlparse
 
 import typer
 from rich.console import Console
@@ -260,12 +262,33 @@ async def run_workflow(target: str):
         else:
             result.data['discovery_enabled'] = False
         
-        # Extract HTTP/HTTPS ports from scan results
+        # Extract HTTP/HTTPS ports and discovered hostnames from scan results
         http_ports = []
+        discovered_hostnames = set()  # Use set to avoid duplicates
+        
         for host in result.data.get('hosts', []):
+            # Add main hostname if available
+            if host.get('hostname'):
+                discovered_hostnames.add(host['hostname'])
+            
             for port in host.get('ports', []):
                 port_num = port.get('port')
                 service = port.get('service', '')
+                
+                # Extract hostnames from script outputs
+                for script in port.get('scripts', []):
+                    if script.get('id') == 'http-title' and script.get('output'):
+                        # Look for redirect patterns in http-title output
+                        import re
+                        redirect_match = re.search(r'redirect to ([^\s]+)', script['output'])
+                        if redirect_match:
+                            redirect_url = redirect_match.group(1)
+                            # Extract hostname from URL
+                            from urllib.parse import urlparse
+                            parsed = urlparse(redirect_url)
+                            if parsed.hostname:
+                                discovered_hostnames.add(parsed.hostname)
+                
                 # Check if it's an HTTP service
                 if port_num and (
                     port_num in [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000] or
@@ -279,12 +302,17 @@ async def run_workflow(target: str):
         http_scan_data = None
         if http_ports:
             http_ports = list(set(http_ports))  # Remove duplicates
+            hostnames_list = list(discovered_hostnames)
+            
             console.print(f"\n→ Found {len(http_ports)} HTTP/HTTPS services. Starting advanced HTTP scan...")
+            if discovered_hostnames:
+                console.print(f"  → Discovered hostnames: {', '.join(hostnames_list)}")
             
             http_scanner = HTTPAdvancedScanner()
             http_result = await http_scanner.execute(
                 target=resolved_target,
-                ports=http_ports
+                ports=http_ports,
+                discovered_hostnames=hostnames_list
             )
             
             if http_result.success and http_result.data:

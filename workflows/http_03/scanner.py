@@ -40,9 +40,10 @@ class HTTPAdvancedScanner(BaseWorkflow):
     async def execute(self, target: str, ports: Optional[List[int]] = None, **kwargs) -> WorkflowResult:
         """Execute advanced HTTP scanning workflow"""
         start_time = datetime.now()
+        discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
         if not DEPS_AVAILABLE:
-            return await self._execute_fallback(target, ports, **kwargs)
+            return await self._execute_fallback(target, ports, discovered_hostnames=discovered_hostnames, **kwargs)
         
         try:
             results = HTTPScanResult(target=target)
@@ -56,10 +57,19 @@ class HTTPAdvancedScanner(BaseWorkflow):
             scan_ports = ports if ports else self.common_ports
             
             # HTTP service discovery
+            # Try discovered hostnames first, then fall back to IP
+            targets_to_try = discovered_hostnames + [target]
+            
             for port in scan_ports:
-                service = await self._scan_http_service(target, port)
-                if service:
-                    results.services.append(service)
+                service = None
+                # Try each target until one works
+                for try_target in targets_to_try:
+                    service = await self._scan_http_service(try_target, port)
+                    if service:
+                        # Store which target worked
+                        service.actual_target = try_target
+                        results.services.append(service)
+                        break
             
             # Advanced discovery techniques
             for service in results.services:
@@ -101,6 +111,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
     async def _execute_fallback(self, target: str, ports: Optional[List[int]] = None, **kwargs) -> WorkflowResult:
         """Fallback implementation using curl and system tools"""
         start_time = datetime.now()
+        discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
         try:
             results = {
@@ -141,26 +152,35 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 else:
                     schemes = ['http', 'https']
                     
+                # Try discovered hostnames first, then IP
+                targets_to_try = discovered_hostnames + [target]
+                
                 for scheme in schemes:
-                    url = f"{scheme}://{target}:{port}"
-                    
-                    curl_cmd = [
-                        "curl", "-I", "-s", "-m", "5",
-                        "-k",  # Allow insecure connections
-                        "-L",  # Follow redirects
-                        "-H", f"User-Agent: {self.user_agents[0]}",
-                        url
-                    ]
-                    
-                    try:
-                        result = subprocess.run(
-                            curl_cmd,
-                            capture_output=True,
-                            text=True,
-                            timeout=10
-                        )
+                    for try_target in targets_to_try:
+                        url = f"{scheme}://{try_target}:{port}"
                         
-                        if result.returncode == 0 and result.stdout:
+                        curl_cmd = [
+                            "curl", "-I", "-s", "-m", "5",
+                            "-k",  # Allow insecure connections
+                            "-L",  # Follow redirects
+                            "-H", f"User-Agent: {self.user_agents[0]}",
+                        ]
+                        
+                        # Add Host header if using IP with discovered hostname
+                        if try_target in discovered_hostnames and target not in discovered_hostnames:
+                            curl_cmd.extend(["-H", f"Host: {try_target}"])
+                        
+                        curl_cmd.append(url)
+                        
+                        try:
+                            result = subprocess.run(
+                                curl_cmd,
+                                capture_output=True,
+                                text=True,
+                                timeout=10
+                            )
+                            
+                            if result.returncode == 0 and result.stdout:
                             service = {
                                 "port": port,
                                 "scheme": scheme,
@@ -186,14 +206,21 @@ class HTTPAdvancedScanner(BaseWorkflow):
                                     if key.lower() == 'server':
                                         service["server"] = value.strip()
                             
-                            results["services"].append(service)
-                            
-                            # Basic vulnerability checks
-                            vulns = self._check_basic_vulnerabilities(service)
-                            results["vulnerabilities"].extend(vulns)
-                            
-                    except:
-                        continue
+                                results["services"].append(service)
+                                
+                                # Basic vulnerability checks
+                                vulns = self._check_basic_vulnerabilities(service)
+                                results["vulnerabilities"].extend(vulns)
+                                
+                                # Found a working target, skip remaining
+                                break
+                                
+                        except:
+                            continue
+                    
+                    # If we found a working service, skip trying other schemes
+                    if results["services"] and results["services"][-1]["port"] == port:
+                        break
             
             execution_time = (datetime.now() - start_time).total_seconds()
             
@@ -300,9 +327,15 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     timeout=timeout,
                     limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
                 ) as client:
+                    # Set proper Host header
+                    headers = {
+                        "User-Agent": self.user_agents[0],
+                        "Host": target  # Important for virtual hosting
+                    }
+                    
                     response = await client.get(
                         url,
-                        headers={"User-Agent": self.user_agents[0]},
+                        headers=headers,
                         follow_redirects=True
                     )
                     
