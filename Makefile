@@ -22,6 +22,27 @@ help:
 install:
 	@echo "Installing IPCrawler..."
 	@chmod +x ipcrawler.py
+	@if [ ! -f ipcrawler ]; then \
+		echo "Creating wrapper script..."; \
+		echo '#!/usr/bin/env bash' > ipcrawler; \
+		echo '# IPCrawler - Direct execution wrapper script' >> ipcrawler; \
+		echo 'export PYTHONDONTWRITEBYTECODE=1' >> ipcrawler; \
+		echo 'export PYTHONPYCACHEPREFIX=/tmp/ipcrawler_cache_$$' >> ipcrawler; \
+		echo 'SCRIPT_DIR="$$(cd "$$(dirname "$${BASH_SOURCE[0]}")" && pwd)"' >> ipcrawler; \
+		echo 'find "$${SCRIPT_DIR}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true' >> ipcrawler; \
+		echo 'PYTHON_CMD=""' >> ipcrawler; \
+		echo 'for py in python3 python3.12 python3.11 python3.10 python3.9 python; do' >> ipcrawler; \
+		echo '    if command -v "$$py" >/dev/null 2>&1; then' >> ipcrawler; \
+		echo '        PYTHON_CMD="$$py"' >> ipcrawler; \
+		echo '        break' >> ipcrawler; \
+		echo '    fi' >> ipcrawler; \
+		echo 'done' >> ipcrawler; \
+		echo 'if [ -z "$$PYTHON_CMD" ]; then' >> ipcrawler; \
+		echo '    echo "Error: No Python interpreter found"' >> ipcrawler; \
+		echo '    exit 1' >> ipcrawler; \
+		echo 'fi' >> ipcrawler; \
+		echo 'exec "$$PYTHON_CMD" -B -u "$${SCRIPT_DIR}/ipcrawler.py" "$$@"' >> ipcrawler; \
+	fi
 	@chmod +x ipcrawler
 	@sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler
 	@echo "✓ IPCrawler installed successfully"
