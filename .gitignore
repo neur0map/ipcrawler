@@ -65,3 +65,5 @@ logs/
 *.pfx
 credentials.json
 secrets.yaml
+# Generated installer files
+ipcrawler
