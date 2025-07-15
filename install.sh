@@ -169,16 +169,17 @@ install_python_deps() {
     print_color "Runtime: $PYTHON_VERSION" "${SMOKE}"
     
     # Try normal installation first
-    if python3 -m pip install -r "${INSTALL_DIR}/requirements.txt" 2>/dev/null; then
-        print_success "Python dependencies installed"
+    print_info "Installing to user environment..."
+    if python3 -m pip install --user -r "${INSTALL_DIR}/requirements.txt" 2>/dev/null; then
+        print_success "Python dependencies installed to user environment"
     else
         # If normal installation fails, try with break-system-packages flag
         print_info "Retrying with --break-system-packages flag..."
-        if python3 -m pip install --break-system-packages -r "${INSTALL_DIR}/requirements.txt"; then
+        if python3 -m pip install --user --break-system-packages -r "${INSTALL_DIR}/requirements.txt"; then
             print_success "Python dependencies installed (with break-system-packages)"
         else
             print_error "Failed to install Python dependencies"
-            print_info "Try manually: pip install -r ${INSTALL_DIR}/requirements.txt"
+            print_info "Try manually: pip install --user -r ${INSTALL_DIR}/requirements.txt"
             exit 1
         fi
     fi
@@ -331,15 +332,38 @@ main() {
     if [[ "$install_system_deps" =~ ^[Yy]$ ]]; then
         echo
         print_color "[${VOLT}INSTALLING${NC}] System-wide Python dependencies..." "${GHOST}"
+        print_info "This requires sudo access to install for all users"
+        
         if command_exists pip3; then
-            # Install all dependencies from requirements.txt
-            sudo pip3 install -r "${INSTALL_DIR}/requirements.txt"
+            # Install all dependencies from requirements.txt system-wide
+            print_info "Running: sudo pip3 install -r ${INSTALL_DIR}/requirements.txt"
             echo
-            print_color "[${NEON}SUCCESS${NC}] System dependencies installed" "${GHOST}"
-            print_color "You can now use: ${VOLT}sudo ipcrawler <target>${NC}" "${STEEL}"
+            
+            if sudo pip3 install -r "${INSTALL_DIR}/requirements.txt"; then
+                echo
+                print_success "System dependencies installed successfully"
+                
+                # Verify installation
+                if sudo python3 -c "import httpx, dns.resolver" 2>/dev/null; then
+                    print_success "HTTP scanner dependencies verified"
+                    print_color "You can now use: ${VOLT}sudo ipcrawler <target>${NC}" "${STEEL}"
+                else
+                    print_error "Dependencies installed but verification failed"
+                    print_info "Try running: sudo pip3 list | grep -E 'httpx|dnspython'"
+                fi
+            else
+                echo
+                print_error "Failed to install system-wide dependencies"
+                print_info "Common issues:"
+                print_info "  - pip3 might not be available for sudo"
+                print_info "  - System python might have restrictions"
+                print_info "Try these alternatives:"
+                print_color "  1. ${VOLT}sudo $(which pip3) install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
+                print_color "  2. ${VOLT}sudo python3 -m pip install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
+            fi
         else
-            print_color "[${VOLT}WARNING${NC}] pip3 not found" "${GHOST}"
-            print_color "Install manually: ${VOLT}sudo pip3 install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
+            print_error "pip3 not found in PATH"
+            print_info "Install pip3 first, then run: ${VOLT}sudo pip3 install -r ${INSTALL_DIR}/requirements.txt${NC}" "${STEEL}"
         fi
     else
         echo
