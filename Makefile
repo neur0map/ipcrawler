@@ -58,14 +58,7 @@ help:
 
 # Installation targets
 install:
-	@if [ -f ./scripts/install.sh ]; then \
-		./scripts/install.sh; \
-	elif [ -f ./install.sh ]; then \
-		./install.sh; \
-	else \
-		echo "Error: install.sh not found"; \
-		exit 1; \
-	fi
+	@./install.sh
 
 install-user:
 	@echo "Installing IPCrawler for current user..."
