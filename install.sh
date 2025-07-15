@@ -238,12 +238,32 @@ final_setup() {
     # Make ipcrawler.py executable
     chmod +x "${INSTALL_DIR}/ipcrawler.py"
     
-    # Create a launcher script that ensures no cache
+    # Create a robust launcher script that works on all Linux systems
     cat > "${INSTALL_DIR}/ipcrawler" << 'EOF'
 #!/usr/bin/env bash
 export PYTHONDONTWRITEBYTECODE=1
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-python3 "${SCRIPT_DIR}/ipcrawler.py" "$@"
+
+# Cross-platform symlink resolution
+if [ -L "${BASH_SOURCE[0]}" ]; then
+    # Linux/Unix systems - resolve symlink with readlink
+    if command -v readlink >/dev/null 2>&1; then
+        SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+    else
+        # Fallback for systems without readlink -f
+        SCRIPT_PATH="${BASH_SOURCE[0]}"
+        while [ -L "$SCRIPT_PATH" ]; do
+            SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+            SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+            [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+        done
+        SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+    fi
+else
+    # Not a symlink - direct execution
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+exec python3 "${SCRIPT_DIR}/ipcrawler.py" "$@"
 EOF
     
     chmod +x "${INSTALL_DIR}/ipcrawler"
