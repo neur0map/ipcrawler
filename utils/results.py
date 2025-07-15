@@ -90,11 +90,22 @@ class TextFormatter(BaseFormatter):
             ])
             
             if not has_data:
-                report.append("\nNo HTTP scan data collected. This may be due to:")
-                report.append("  • HTTP scanner dependencies not installed (httpx, dnspython)")
-                report.append("  • Target not responding to HTTP requests")
-                report.append("  • Scanner configuration issues")
-                report.append("\nTo enable full HTTP scanning, install: pip install httpx dnspython")
+                # Check if this was a fallback mode scan
+                if http_data.get('fallback_mode'):
+                    report.append("\nHTTP scan completed using fallback mode (curl+nslookup).")
+                    report.append("No HTTP services found or target not responding to HTTP requests.")
+                else:
+                    report.append("\nNo HTTP scan data collected. This may be due to:")
+                    report.append("  • Target not responding to HTTP requests")
+                    report.append("  • Scanner configuration issues")
+                    report.append("  • Network connectivity problems")
+            else:
+                # Add scan engine info if available
+                scan_engine = http_data.get('scan_engine', 'unknown')
+                if http_data.get('fallback_mode'):
+                    report.append(f"\nHTTP scan completed using fallback mode ({scan_engine})")
+                else:
+                    report.append(f"\nHTTP scan completed using {scan_engine}")
             
             # HTTP Services
             services = http_data.get('services', [])
@@ -303,13 +314,24 @@ class HTMLFormatter(BaseFormatter):
             ])
             
             if not has_data:
-                html.append('<p style="color: #ffff00;">⚠ No HTTP scan data collected. This may be due to:</p>')
-                html.append('<ul>')
-                html.append('<li>HTTP scanner dependencies not installed (httpx, dnspython)</li>')
-                html.append('<li>Target not responding to HTTP requests</li>')
-                html.append('<li>Scanner configuration issues</li>')
-                html.append('</ul>')
-                html.append('<p>To enable full HTTP scanning, install: <code>pip install httpx dnspython</code></p>')
+                # Check if this was a fallback mode scan
+                if http_data.get('fallback_mode'):
+                    html.append('<p style="color: #ffff00;">ℹ HTTP scan completed using fallback mode (curl+nslookup).</p>')
+                    html.append('<p>No HTTP services found or target not responding to HTTP requests.</p>')
+                else:
+                    html.append('<p style="color: #ffff00;">⚠ No HTTP scan data collected. This may be due to:</p>')
+                    html.append('<ul>')
+                    html.append('<li>Target not responding to HTTP requests</li>')
+                    html.append('<li>Scanner configuration issues</li>')
+                    html.append('<li>Network connectivity problems</li>')
+                    html.append('</ul>')
+            else:
+                # Add scan engine info if available
+                scan_engine = http_data.get('scan_engine', 'unknown')
+                if http_data.get('fallback_mode'):
+                    html.append(f'<p style="color: #00ff00;">✓ HTTP scan completed using fallback mode ({scan_engine})</p>')
+                else:
+                    html.append(f'<p style="color: #00ff00;">✓ HTTP scan completed using {scan_engine}</p>')
             
             # Services
             services = http_data.get('services', [])

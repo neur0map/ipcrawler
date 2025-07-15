@@ -11,6 +11,18 @@ import base64
 import hashlib
 from datetime import datetime
 
+def check_dependencies():
+    """Check if HTTP scanner dependencies are available at runtime"""
+    try:
+        import httpx
+        import dns.resolver
+        import dns.zone
+        import dns.query
+        return True
+    except ImportError:
+        return False
+
+# Try to import dependencies for global use
 try:
     import httpx
     import dns.resolver
@@ -18,7 +30,7 @@ try:
     import dns.query
     DEPS_AVAILABLE = True
 except ImportError as e:
-    print(f"[DEBUG] HTTP scanner import error: {e}")
+    print(f"[DEBUG] HTTP scanner dependencies not available at import: {e}")
     DEPS_AVAILABLE = False
 
 from workflows.core.base import BaseWorkflow, WorkflowResult
@@ -43,8 +55,11 @@ class HTTPAdvancedScanner(BaseWorkflow):
         start_time = datetime.now()
         discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
-        if not DEPS_AVAILABLE:
-            print(f"[DEBUG] Using fallback implementation. Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
+        # Check dependencies at runtime for more accurate detection
+        runtime_deps_available = check_dependencies()
+        
+        if not runtime_deps_available:
+            print(f"[DEBUG] Dependencies not available at runtime. Using fallback implementation. Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
             return await self._execute_fallback(target, ports, discovered_hostnames=discovered_hostnames, **kwargs)
         
         try:
@@ -98,9 +113,14 @@ class HTTPAdvancedScanner(BaseWorkflow):
             
             execution_time = (datetime.now() - start_time).total_seconds()
             
+            # Add scan metadata
+            result_dict = results.to_dict()
+            result_dict['fallback_mode'] = False
+            result_dict['scan_engine'] = 'httpx+dnspython'
+            
             return WorkflowResult(
                 success=True,
-                data=results.to_dict(),
+                data=result_dict,
                 execution_time=execution_time
             )
             
@@ -117,12 +137,16 @@ class HTTPAdvancedScanner(BaseWorkflow):
         discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
         try:
+            print(f"[DEBUG] Fallback mode - Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
+            
             results = {
                 "target": target,
                 "services": [],
                 "vulnerabilities": [],
                 "dns_records": [],
-                "subdomains": []
+                "subdomains": [],
+                "fallback_mode": True,  # Flag to indicate fallback was used
+                "scan_engine": "curl+nslookup"  # Indicate what tools were used
             }
             
             # Basic DNS lookup
@@ -250,6 +274,8 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     'technologies': [],
                     'discovered_paths': []
                 }
+            
+            print(f"[DEBUG] Fallback mode complete - Final results: {len(results.get('services', []))} services, execution_time: {execution_time:.2f}s")
             
             return WorkflowResult(
                 success=True,
