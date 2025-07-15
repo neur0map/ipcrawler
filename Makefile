@@ -1,8 +1,11 @@
 # IPCrawler Makefile - Simple Direct Execution Installation
 # Universal for macOS and Linux
 
-# Detect OS
+# Detect OS and set paths dynamically
 UNAME_S := $(shell uname -s)
+CURRENT_DIR := $(shell pwd)
+USER_HOME := $(shell echo $$HOME)
+
 ifeq ($(UNAME_S),Darwin)
 	OS_TYPE = macos
 	SYSTEM_BIN = /usr/local/bin
@@ -36,6 +39,8 @@ help:
 	@echo "  OS: $(OS_TYPE)"
 	@echo "  System bin: $(SYSTEM_BIN)"
 	@echo "  Python: $(PYTHON_CMD)"
+	@echo "  Current dir: $(CURRENT_DIR)"
+	@echo "  User home: $(USER_HOME)"
 	@echo ""
 	@echo "Usage after install:"
 	@echo "  ipcrawler <target>       - Run as user"
@@ -85,7 +90,16 @@ install:
 		echo 'exec "$$PYTHON_CMD" -B -u "$${SCRIPT_DIR}/ipcrawler.py" "$$@"' >> ipcrawler; \
 	fi
 	@chmod +x ipcrawler
-	@sudo ln -sf $(shell pwd)/ipcrawler $(SYSTEM_BIN)/ipcrawler
+	@sudo ln -sf $(CURRENT_DIR)/ipcrawler $(SYSTEM_BIN)/ipcrawler
+	@echo "Verifying installation..."
+	@if [ -L $(SYSTEM_BIN)/ipcrawler ]; then \
+		echo "  Symlink target: $$(readlink $(SYSTEM_BIN)/ipcrawler)"; \
+		if [ -f "$$(readlink $(SYSTEM_BIN)/ipcrawler)" ]; then \
+			echo "  ✓ Symlink target exists"; \
+		else \
+			echo "  ✗ Symlink target missing"; \
+		fi; \
+	fi
 	@echo "✓ IPCrawler installed successfully"
 	@echo ""
 	@echo "You can now use:"
@@ -114,6 +128,8 @@ test:
 	@echo "Testing IPCrawler installation..."
 	@echo "OS: $(OS_TYPE)"
 	@echo "System bin: $(SYSTEM_BIN)"
+	@echo "Current dir: $(CURRENT_DIR)"
+	@echo "User home: $(USER_HOME)"
 	@echo ""
 	@echo -n "Command location: "
 	@which ipcrawler 2>/dev/null || echo "Not found"
