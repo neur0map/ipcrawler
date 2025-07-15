@@ -90,6 +90,8 @@ install:
 		echo 'exec "$$PYTHON_CMD" -B -u "$${SCRIPT_DIR}/ipcrawler.py" "$$@"' >> ipcrawler; \
 	fi
 	@chmod +x ipcrawler
+	@echo "Creating system symlink..."
+	@sudo rm -f $(SYSTEM_BIN)/ipcrawler
 	@sudo ln -sf $(CURRENT_DIR)/ipcrawler $(SYSTEM_BIN)/ipcrawler
 	@echo "Verifying installation..."
 	@if [ -L $(SYSTEM_BIN)/ipcrawler ]; then \
