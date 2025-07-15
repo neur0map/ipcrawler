@@ -1,218 +1,187 @@
-# IPCrawler Makefile
-# Commands for installation, running, and cleaning
+# IPCrawler Makefile - Complete Rewrite for Reliability
+# Handles all installation, caching, and PATH issues
 
-# OS Detection
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
+# Colors for output
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[0;33m
+BLUE := \033[0;34m
+NC := \033[0m # No Color
 
-# Platform-specific paths
-ifeq ($(UNAME_S),Darwin)
-    # macOS
-    OS_TYPE = macos
-    SYSTEM_BIN_PATHS = /usr/local/bin /opt/homebrew/bin /opt/local/bin
-    PIP_CACHE_DIR = ~/Library/Caches/pip
-    PYTHON_SITE_PACKAGES = $(shell python3 -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
-else ifeq ($(UNAME_S),Linux)
-    # Linux
-    OS_TYPE = linux
-    SYSTEM_BIN_PATHS = /usr/local/bin /usr/bin /opt/bin
-    PIP_CACHE_DIR = ~/.cache/pip
-    PYTHON_SITE_PACKAGES = $(shell python3 -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
-    
-    # Detect Linux distribution
-    ifneq ($(wildcard /etc/os-release),)
-        DISTRO := $(shell . /etc/os-release && echo $$ID)
-    else ifneq ($(wildcard /etc/debian_version),)
-        DISTRO := debian
-    else ifneq ($(wildcard /etc/redhat-release),)
-        DISTRO := rhel
-    else
-        DISTRO := unknown
-    endif
-else
-    # Other (Windows WSL, etc)
-    OS_TYPE = other
-    SYSTEM_BIN_PATHS = /usr/local/bin /usr/bin
-    PIP_CACHE_DIR = ~/.cache/pip
-endif
+# Get absolute path of current directory
+ROOT_DIR := $(shell pwd)
 
-# User paths (cross-platform)
-USER_BIN_PATHS = ~/.local/bin ~/bin
+# Python interpreter detection
+PYTHON := $(shell which python3 2>/dev/null || which python 2>/dev/null)
+PIP := $(PYTHON) -m pip
 
-.PHONY: install install-user install-system run check clean clean-cache clean-install clean-system clean-quick help os-info
+# Standard targets
+.PHONY: all install clean uninstall test help
+.PHONY: clean-all clean-cache fix-sudo deps-check deps-install
+.PHONY: install-user install-system quick-fix
 
 # Default target
+all: help
+
 help:
-	@echo "IPCrawler Makefile Commands:"
-	@echo "  make install        - Full installation (user + prompt for system)"
-	@echo "  make install-user   - Install for current user only"
-	@echo "  make install-system - Install system-wide (requires sudo)"
-	@echo "  make fix-sudo       - Quick fix to enable 'sudo ipcrawler' command"
-	@echo "  make run TARGET=<ip> - Run IPCrawler on target"
-	@echo "  make check          - Check dependency installation"
-	@echo "  make clean          - Complete cleanup of IPCrawler (interactive)"
-	@echo "  make clean-quick    - Quick cleanup without prompts"
-	@echo "  make clean-cache    - Clean Python cache only"
-	@echo "  make clean-install  - Remove installed commands only"
-	@echo "  make os-info        - Show detected OS and paths"
+	@echo "$(BLUE)IPCrawler Installation System$(NC)"
+	@echo "=============================="
+	@echo ""
+	@echo "$(GREEN)Quick Start:$(NC)"
+	@echo "  make quick-fix     - Fast fix for 'sudo ipcrawler' command"
+	@echo "  make install       - Complete installation"
+	@echo ""
+	@echo "$(GREEN)Installation Options:$(NC)"
+	@echo "  make install-user  - Install for current user only"
+	@echo "  make install-system- Install system-wide (requires sudo)"
+	@echo "  make fix-sudo      - Just create the sudo command link"
+	@echo ""
+	@echo "$(GREEN)Maintenance:$(NC)"
+	@echo "  make clean-all     - Remove ALL caches and reinstall deps"
+	@echo "  make clean-cache   - Remove Python cache files only"
+	@echo "  make deps-check    - Check if dependencies are installed"
+	@echo "  make deps-install  - Force reinstall all dependencies"
+	@echo "  make uninstall     - Completely remove IPCrawler"
+	@echo ""
+	@echo "$(GREEN)Testing:$(NC)"
+	@echo "  make test          - Test the installation"
+	@echo ""
 
-# Installation targets
-install:
-	@./scripts/install.sh
+# Quick fix for sudo command - most common issue
+quick-fix: clean-cache fix-sudo
+	@echo "$(GREEN)✓ Quick fix applied!$(NC)"
+	@echo "You can now use: $(YELLOW)sudo ipcrawler <target>$(NC)"
 
+# Complete installation
+install: clean-all install-user install-system test
+	@echo "$(GREEN)✓ Complete installation finished!$(NC)"
+
+# Install for current user
 install-user:
-	@echo "Installing IPCrawler for current user..."
-	@python3 -m pip install --user -r requirements.txt
-	@mkdir -p ~/.local/bin
-	@ln -sf $$(pwd)/ipcrawler ~/.local/bin/ipcrawler
-	@echo "Installation complete. IPCrawler installed to ~/.local/bin/"
-
-install-system:
-	@echo "Installing IPCrawler system-wide (requires sudo)..."
+	@echo "$(BLUE)Installing IPCrawler for current user...$(NC)"
+	@# Make scripts executable
+	@chmod +x $(ROOT_DIR)/ipcrawler.py
+	@chmod +x $(ROOT_DIR)/ipcrawler
+	@# Install Python dependencies with no cache
 	@echo "Installing Python dependencies..."
-	@if sudo python3 -m pip install -r requirements.txt 2>/dev/null; then \
-		echo "✓ System-wide dependencies installed"; \
-	elif sudo python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null; then \
-		echo "✓ System-wide dependencies installed (with --break-system-packages)"; \
-	else \
-		echo "⚠ Warning: Failed to install system-wide Python dependencies"; \
-		echo "  IPCrawler will still work but may have limited functionality with sudo"; \
-		echo "  Try manually: sudo pip3 install --break-system-packages -r requirements.txt"; \
+	@$(PIP) install --user --no-cache-dir -r requirements.txt 2>/dev/null || \
+		$(PIP) install --user --no-cache-dir --break-system-packages -r requirements.txt || \
+		(echo "$(RED)Failed to install dependencies$(NC)" && exit 1)
+	@# Create user bin directory
+	@mkdir -p ~/.local/bin
+	@# Create symlink
+	@ln -sf $(ROOT_DIR)/ipcrawler ~/.local/bin/ipcrawler
+	@echo "$(GREEN)✓ User installation complete$(NC)"
+	@# Check PATH
+	@if ! echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \
+		echo "$(YELLOW)⚠ Add to your shell config:$(NC)"; \
+		echo '  export PATH="$$HOME/.local/bin:$$PATH"'; \
 	fi
+
+# Install system-wide
+install-system:
+	@echo "$(BLUE)Installing IPCrawler system-wide...$(NC)"
+	@# Install system Python dependencies
+	@echo "Installing system Python dependencies..."
+	@sudo $(PIP) install --no-cache-dir -r requirements.txt 2>/dev/null || \
+		sudo $(PIP) install --no-cache-dir --break-system-packages -r requirements.txt 2>/dev/null || \
+		echo "$(YELLOW)⚠ System deps failed (will use user deps with sudo)$(NC)"
+	@# Create system command
+	@sudo mkdir -p /usr/local/bin
+	@sudo ln -sf $(ROOT_DIR)/ipcrawler /usr/local/bin/ipcrawler
+	@sudo chmod +x /usr/local/bin/ipcrawler
+	@echo "$(GREEN)✓ System installation complete$(NC)"
+
+# Just fix the sudo command
+fix-sudo:
 	@echo "Creating system-wide command..."
 	@sudo mkdir -p /usr/local/bin
-	@if sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler; then \
-		echo "✓ System command installed to /usr/local/bin/ipcrawler"; \
-		echo "You can now use: sudo ipcrawler <target>"; \
-	else \
-		echo "✗ Failed to create system command"; \
-		echo "Try manually: sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler"; \
-	fi
+	@sudo ln -sf $(ROOT_DIR)/ipcrawler /usr/local/bin/ipcrawler
+	@sudo chmod +x /usr/local/bin/ipcrawler
+	@echo "$(GREEN)✓ System command created$(NC)"
 
-# Quick fix for sudo command
-fix-sudo:
-	@echo "Creating system-wide command for sudo usage..."
-	@sudo mkdir -p /usr/local/bin
-	@sudo ln -sf $(shell pwd)/ipcrawler /usr/local/bin/ipcrawler
-	@echo "Done! You can now use: sudo ipcrawler <target>"
-
-# Run IPCrawler
-run:
-	@if [ -z "$(TARGET)" ]; then \
-		echo "Error: Please specify TARGET"; \
-		echo "Usage: make run TARGET=<ip_or_hostname>"; \
-		exit 1; \
-	fi
-	@python3 ipcrawler.py $(TARGET)
-
-# Check dependencies
-check:
-	@if [ -f ./check_deps.sh ]; then \
-		./check_deps.sh; \
-	else \
-		echo "Creating dependency check script..."; \
-		echo '#!/usr/bin/env bash' > check_deps.sh; \
-		echo 'echo "User environment:"' >> check_deps.sh; \
-		echo 'python3 -c "import httpx; print(\"  httpx: installed\")" 2>/dev/null || echo "  httpx: NOT installed"' >> check_deps.sh; \
-		echo 'python3 -c "import dns.resolver; print(\"  dnspython: installed\")" 2>/dev/null || echo "  dnspython: NOT installed"' >> check_deps.sh; \
-		chmod +x check_deps.sh; \
-		./check_deps.sh; \
-	fi
-
-# Complete cleanup - removes everything
-clean:
-	@if [ -f ./scripts/deep_clean.sh ]; then \
-		./scripts/deep_clean.sh; \
-	else \
-		echo "Running inline cleanup..."; \
-		$(MAKE) clean-cache clean-install clean-system; \
-	fi
-
-# Clean Python cache
-clean-cache:
-	@echo "Cleaning Python cache for $(OS_TYPE)..."
-	@# Clean project cache
+# Deep clean everything including caches
+clean-all:
+	@echo "$(BLUE)Deep cleaning all caches...$(NC)"
+	@# Remove all Python caches
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	@find . -type f -name "*.pyo" -delete 2>/dev/null || true
 	@find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-	@rm -rf .pytest_cache 2>/dev/null || true
-	@rm -rf .mypy_cache 2>/dev/null || true
-	@# Clean pip cache (OS-specific)
-	@if [ -d "$(PIP_CACHE_DIR)" ]; then \
-		echo "  Cleaning pip cache at $(PIP_CACHE_DIR)"; \
-		rm -rf $(PIP_CACHE_DIR)/wheels 2>/dev/null || true; \
-		rm -rf $(PIP_CACHE_DIR)/http 2>/dev/null || true; \
+	@find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	@rm -rf .mypy_cache build dist 2>/dev/null || true
+	@# Clear pip cache
+	@$(PIP) cache purge 2>/dev/null || true
+	@# Clear system pip cache if we have sudo
+	@sudo $(PIP) cache purge 2>/dev/null || true
+	@# Remove compiled Python files from site-packages
+	@find ~/.local/lib -name "*httpx*.pyc" -delete 2>/dev/null || true
+	@find ~/.local/lib -name "*dns*.pyc" -delete 2>/dev/null || true
+	@# Force Python to ignore bytecode
+	@export PYTHONDONTWRITEBYTECODE=1
+	@echo "$(GREEN)✓ Deep clean complete$(NC)"
+
+# Clean only Python cache
+clean-cache:
+	@echo "Cleaning Python cache..."
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@export PYTHONDONTWRITEBYTECODE=1
+
+# Check dependencies
+deps-check:
+	@echo "$(BLUE)Checking dependencies...$(NC)"
+	@echo -n "Core deps: "
+	@$(PYTHON) -c "import typer, rich, pydantic; print('$(GREEN)✓$(NC)')" 2>/dev/null || echo "$(RED)✗$(NC)"
+	@echo -n "HTTP deps: "
+	@$(PYTHON) -c "import httpx, dns.resolver; print('$(GREEN)✓$(NC)')" 2>/dev/null || echo "$(RED)✗$(NC)"
+	@echo -n "nmap: "
+	@which nmap >/dev/null 2>&1 && echo "$(GREEN)✓$(NC)" || echo "$(RED)✗$(NC)"
+	@echo ""
+	@echo "$(BLUE)Checking with sudo...$(NC)"
+	@echo -n "System HTTP deps: "
+	@sudo $(PYTHON) -c "import httpx, dns.resolver; print('$(GREEN)✓$(NC)')" 2>/dev/null || echo "$(RED)✗$(NC)"
+
+# Force reinstall dependencies
+deps-install: clean-all
+	@echo "$(BLUE)Force reinstalling all dependencies...$(NC)"
+	@$(PIP) uninstall -y httpx dnspython typer rich pydantic pyyaml 2>/dev/null || true
+	@$(PIP) install --user --no-cache-dir --force-reinstall -r requirements.txt || \
+		$(PIP) install --user --no-cache-dir --force-reinstall --break-system-packages -r requirements.txt
+
+# Test installation
+test:
+	@echo "$(BLUE)Testing installation...$(NC)"
+	@echo -n "ipcrawler command: "
+	@if which ipcrawler >/dev/null 2>&1; then \
+		echo "$(GREEN)✓$(NC) Found at $$(which ipcrawler)"; \
+	else \
+		echo "$(RED)✗$(NC) Not found"; \
 	fi
-	@# Clean user site-packages remnants
-	@rm -rf ~/.local/lib/python*/site-packages/ipcrawler* 2>/dev/null || true
-	@echo "Python cache cleaned"
-
-# Clean installed commands and links
-clean-install:
-	@echo "Removing IPCrawler commands from detected paths..."
-	@echo "OS Type: $(OS_TYPE)"
-	@# Remove from user paths
-	@for path in $(USER_BIN_PATHS); do \
-		if [ -f $$path/ipcrawler ] || [ -L $$path/ipcrawler ]; then \
-			rm -f $$path/ipcrawler 2>/dev/null && echo "  Removed: $$path/ipcrawler" || true; \
-		fi; \
-	done
-	@# Remove from system paths (requires sudo)
-	@for path in $(SYSTEM_BIN_PATHS); do \
-		if [ -f $$path/ipcrawler ] || [ -L $$path/ipcrawler ]; then \
-			sudo rm -f $$path/ipcrawler 2>/dev/null && echo "  Removed: $$path/ipcrawler" || true; \
-		fi; \
-	done
-	@echo "Commands removed"
-
-# Deep system cleanup (requires sudo)
-clean-system:
-	@echo "Performing deep system cleanup..."
-	@# Remove pip packages (user)
-	@python3 -m pip uninstall -y httpx dnspython typer rich pydantic pyyaml 2>/dev/null || true
-	@# Remove pip packages (system)
-	@sudo python3 -m pip uninstall -y httpx dnspython typer rich pydantic pyyaml 2>/dev/null || true
-	@# Clean pip cache
-	@python3 -m pip cache purge 2>/dev/null || true
-	@sudo python3 -m pip cache purge 2>/dev/null || true
-	@# Remove any workspace directories
-	@rm -rf workspaces 2>/dev/null || true
-	@# Remove test files
-	@rm -f test_*.py debug_*.py 2>/dev/null || true
-	@rm -f check_deps.sh 2>/dev/null || true
-	@echo "System cleanup complete"
-
-# Quick cleanup without prompts
-clean-quick: clean-cache clean-install
-	@echo "Quick cleanup..."
-	@# Remove workspaces
-	@rm -rf workspaces 2>/dev/null || true
-	@# Remove test files
-	@rm -f test_*.py debug_*.py check_deps.sh 2>/dev/null || true
-	@# Uninstall packages (user only, no sudo)
-	@python3 -m pip uninstall -y httpx dnspython typer rich pydantic pyyaml 2>/dev/null || true
-	@echo "Quick cleanup complete"
-
-# Show OS detection info
-os-info:
-	@echo "=== OS Detection Info ==="
-	@echo "OS Type: $(OS_TYPE)"
-	@echo "Platform: $(UNAME_S) $(UNAME_M)"
-ifeq ($(OS_TYPE),linux)
-	@echo "Linux Distro: $(DISTRO)"
-endif
+	@echo -n "sudo ipcrawler: "
+	@if sudo which ipcrawler >/dev/null 2>&1; then \
+		echo "$(GREEN)✓$(NC) Works"; \
+	else \
+		echo "$(RED)✗$(NC) Not found"; \
+	fi
+	@echo -n "Dependencies: "
+	@if $(PYTHON) -c "import httpx, dns.resolver" 2>/dev/null; then \
+		echo "$(GREEN)✓$(NC) All present"; \
+	else \
+		echo "$(YELLOW)⚠$(NC) Fallback mode"; \
+	fi
 	@echo ""
-	@echo "=== Path Configuration ==="
-	@echo "User bin paths: $(USER_BIN_PATHS)"
-	@echo "System bin paths: $(SYSTEM_BIN_PATHS)"
-	@echo "Pip cache dir: $(PIP_CACHE_DIR)"
-	@echo "Python site-packages: $(PYTHON_SITE_PACKAGES)"
-	@echo ""
-	@echo "=== Current Installation ==="
-	@echo -n "IPCrawler in PATH: "
-	@which ipcrawler 2>/dev/null || echo "Not found"
-	@echo -n "Python3 location: "
-	@which python3
-	@echo -n "Pip3 location: "
-	@which pip3 2>/dev/null || echo "Not found"
+	@echo "$(BLUE)Debug info:$(NC)"
+	@$(PYTHON) $(ROOT_DIR)/ipcrawler.py --help >/dev/null 2>&1 && echo "Script works: $(GREEN)✓$(NC)" || echo "Script error: $(RED)✗$(NC)"
+
+# Complete uninstall
+uninstall:
+	@echo "$(BLUE)Uninstalling IPCrawler...$(NC)"
+	@# Remove commands
+	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
+	@sudo rm -f /usr/local/bin/ipcrawler 2>/dev/null || true
+	@# Remove Python packages
+	@$(PIP) uninstall -y httpx dnspython typer rich pydantic pyyaml 2>/dev/null || true
+	@# Clean caches
+	@$(MAKE) clean-all
+	@echo "$(GREEN)✓ Uninstall complete$(NC)"
