@@ -185,7 +185,20 @@ install_python_deps() {
         fi
     fi
     
-    print_info "Including HTTP scanner dependencies (httpx, dnspython)"
+    # Explicitly verify HTTP scanner dependencies
+    print_info "Verifying HTTP scanner dependencies..."
+    if python3 -c "import httpx, dns.resolver" 2>/dev/null; then
+        print_success "HTTP scanner dependencies verified (httpx, dnspython)"
+    else
+        print_info "Installing HTTP scanner dependencies explicitly..."
+        if python3 -m pip install --user httpx dnspython 2>/dev/null || \
+           python3 -m pip install --user --break-system-packages httpx dnspython 2>/dev/null; then
+            print_success "HTTP scanner dependencies installed"
+        else
+            print_error "Failed to install HTTP scanner dependencies"
+            print_info "HTTP scanning will use fallback mode (limited functionality)"
+        fi
+    fi
 }
 
 
@@ -251,36 +264,6 @@ final_setup() {
     
     # Make ipcrawler.py executable
     chmod +x "${INSTALL_DIR}/ipcrawler.py"
-    
-    # Create a robust launcher script that works on all Linux systems
-    cat > "${INSTALL_DIR}/ipcrawler" << 'EOF'
-#!/usr/bin/env bash
-export PYTHONDONTWRITEBYTECODE=1
-
-# Cross-platform symlink resolution
-if [ -L "${BASH_SOURCE[0]}" ]; then
-    # Linux/Unix systems - resolve symlink with readlink
-    if command -v readlink >/dev/null 2>&1; then
-        SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-    else
-        # Fallback for systems without readlink -f
-        SCRIPT_PATH="${BASH_SOURCE[0]}"
-        while [ -L "$SCRIPT_PATH" ]; do
-            SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
-            SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
-            [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
-        done
-        SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
-    fi
-else
-    # Not a symlink - direct execution
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-fi
-
-exec python3 "${SCRIPT_DIR}/ipcrawler.py" "$@"
-EOF
-    
-    chmod +x "${INSTALL_DIR}/ipcrawler"
     
     print_success "Installation completed"
 }
