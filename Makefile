@@ -87,6 +87,12 @@ install:
 uninstall:
 	@echo "Uninstalling IPCrawler..."
 	@sudo rm -f $(SYSTEM_BIN)/ipcrawler
+	@echo "Uninstalling Python dependencies..."
+	@if $(PYTHON_CMD) -m pip uninstall -y -r requirements.txt 2>/dev/null; then \
+		echo "✓ Dependencies uninstalled successfully"; \
+	else \
+		echo "⚠ Some dependencies may not have been uninstalled"; \
+	fi
 	@echo "✓ IPCrawler uninstalled"
 
 clean:
