@@ -1,0 +1,94 @@
+name: Test Workflow Compatibility
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'workflows/**'
+      - 'ipcrawler.py'
+      - '.github/workflows/test-workflow-compatibility.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'workflows/**'
+      - 'ipcrawler.py'
+  workflow_dispatch:
+
+jobs:
+  test-workflow-compatibility:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nmap curl nslookup dnsutils
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio pytest-cov pytest-mock
+    
+    - name: Run workflow compatibility tests
+      run: |
+        python -m pytest tests/test_workflow_compatibility.py -v --cov=workflows --cov-report=xml
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: workflow-tests
+        name: workflow-compatibility-py${{ matrix.python-version }}
+
+  test-workflow-sequence:
+    runs-on: ubuntu-latest
+    needs: test-workflow-compatibility
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nmap curl dnsutils
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Test workflow startup sequence
+      run: |
+        # Test that workflows start in correct order
+        python -c "from tests.test_workflow_sequence import test_workflow_order; test_workflow_order()"
+    
+    - name: Test data passing between workflows
+      run: |
+        # Test with a mock target
+        python tests/test_workflow_integration.py
+    
+    - name: Generate compatibility report
+      if: always()
+      run: |
+        python tests/generate_compatibility_report.py > workflow-compatibility-report.md
+        cat workflow-compatibility-report.md
+    
+    - name: Upload compatibility report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: workflow-compatibility-report
+        path: workflow-compatibility-report.md
