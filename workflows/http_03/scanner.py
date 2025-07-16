@@ -30,11 +30,11 @@ try:
     import dns.query
     DEPS_AVAILABLE = True
 except ImportError as e:
-    print(f"[DEBUG] HTTP scanner dependencies not available at import: {e}")
     DEPS_AVAILABLE = False
 
 from workflows.core.base import BaseWorkflow, WorkflowResult
 from .models import HTTPScanResult, HTTPService, HTTPVulnerability, DNSRecord
+from utils.debug import debug_print
 
 
 class HTTPAdvancedScanner(BaseWorkflow):
@@ -62,7 +62,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
         runtime_deps_available = check_dependencies()
         
         if not runtime_deps_available:
-            print(f"[DEBUG] Dependencies not available at runtime. Using fallback implementation. Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
+            debug_print(f"Dependencies not available at runtime. Using fallback implementation. Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
             return await self._execute_fallback(target, ports, discovered_hostnames=discovered_hostnames, **kwargs)
         
         try:
@@ -78,7 +78,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
             
             # Determine ports to scan
             scan_ports = ports if ports else self.common_ports
-            print(f"[DEBUG] HTTP scanner execute - ports: {scan_ports}, testing {len(all_hostnames)} hostnames: {all_hostnames}")
+            debug_print(f"HTTP scanner execute - ports: {scan_ports}, testing {len(all_hostnames)} hostnames: {all_hostnames}")
             
             # HTTP service discovery - test ALL hostname combinations
             for port in scan_ports:
@@ -94,12 +94,12 @@ class HTTPAdvancedScanner(BaseWorkflow):
                         # Check if this is a unique service (different from existing ones)
                         if self._is_unique_service(service, results.services):
                             results.services.append(service)
-                            print(f"[DEBUG] Found unique service: {service.url} (hostname: {hostname})")
+                            debug_print(f"Found unique service: {service.url} (hostname: {hostname})")
                             
                             # Extract additional hostnames from response
                             new_hostnames = self._extract_hostnames_from_response(service)
                             if new_hostnames:
-                                print(f"[DEBUG] Discovered additional hostnames: {new_hostnames}")
+                                debug_print(f"Discovered additional hostnames: {new_hostnames}")
                                 # Test newly discovered hostnames on this port
                                 for new_hostname in new_hostnames:
                                     if new_hostname not in all_hostnames:
@@ -108,7 +108,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
                                         if service and self._is_unique_service(service, results.services):
                                             service.actual_target = new_hostname
                                             results.services.append(service)
-                                            print(f"[DEBUG] Found service via discovered hostname: {service.url}")
+                                            debug_print(f"Found service via discovered hostname: {service.url}")
 
             # Advanced discovery techniques for all services
             for service in results.services:
@@ -162,7 +162,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
         original_ip = target
         
         try:
-            print(f"[DEBUG] Fallback mode - Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
+            debug_print(f"Fallback mode - Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
             
             results = {
                 "target": target,
@@ -197,7 +197,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
             
             # Scan ports with curl
             scan_ports = ports if ports else self.common_ports
-            print(f"[DEBUG] Fallback mode scanning ports: {scan_ports}, testing {len(all_hostnames)} hostnames")
+            debug_print(f"Fallback mode scanning ports: {scan_ports}, testing {len(all_hostnames)} hostnames")
             
             for port in scan_ports:
                 # Try HTTP first for common HTTP ports
@@ -240,10 +240,10 @@ class HTTPAdvancedScanner(BaseWorkflow):
                                 timeout=10
                             )
                             
-                            print(f"[DEBUG] curl command: {' '.join(curl_cmd)}")
-                            print(f"[DEBUG] curl return code: {result.returncode}")
-                            print(f"[DEBUG] curl stdout length: {len(result.stdout) if result.stdout else 0}")
-                            print(f"[DEBUG] curl stderr: {result.stderr[:200] if result.stderr else 'None'}")
+                            debug_print(f"curl command: {' '.join(curl_cmd)}")
+                            debug_print(f"curl return code: {result.returncode}")
+                            debug_print(f"curl stdout length: {len(result.stdout) if result.stdout else 0}")
+                            debug_print(f"curl stderr: {result.stderr[:200] if result.stderr else 'None'}")
                             
                             if result.returncode == 0 and result.stdout:
                                 service = {
@@ -283,19 +283,19 @@ class HTTPAdvancedScanner(BaseWorkflow):
                                 
                                 if is_unique:
                                     results["services"].append(service)
-                                    print(f"[DEBUG] Found unique service in fallback: {url} (hostname: {try_target})")
+                                    debug_print(f"Found unique service in fallback: {url} (hostname: {try_target})")
                                     
                                     # Basic vulnerability checks
                                     vulns = self._check_basic_vulnerabilities(service)
                                     results["vulnerabilities"].extend(vulns)
                                 
                         except Exception as e:
-                            print(f"[DEBUG] curl error for {url}: {e}")
+                            debug_print(f"curl error for {url}: {e}")
                             continue
             
             execution_time = (datetime.now() - start_time).total_seconds()
             
-            print(f"[DEBUG] Fallback scan results: {len(results['services'])} services found")
+            debug_print(f"Fallback scan results: {len(results['services'])} services found")
             
             # Add tested hostnames to results
             results['tested_hostnames'] = all_hostnames
@@ -311,7 +311,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     'discovered_paths': []
                 }
             
-            print(f"[DEBUG] Fallback mode complete - Final results: {len(results.get('services', []))} services, execution_time: {execution_time:.2f}s")
+            debug_print(f"Fallback mode complete - Final results: {len(results.get('services', []))} services, execution_time: {execution_time:.2f}s")
             
             return WorkflowResult(
                 success=True,

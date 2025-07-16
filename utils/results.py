@@ -16,7 +16,7 @@ class BaseFormatter(ABC):
     """Abstract base class for result formatters."""
     
     @abstractmethod
-    def format(self, target: str, data: Dict, is_live: bool = False) -> str:
+    def format(self, target: str, data: Dict) -> str:
         """Format scan data into the specific output format."""
         pass
 
@@ -24,7 +24,7 @@ class BaseFormatter(ABC):
 class JSONFormatter(BaseFormatter):
     """Formats scan results as JSON."""
     
-    def format(self, target: str, data: Dict, is_live: bool = False) -> str:
+    def format(self, target: str, data: Dict) -> str:
         """Format scan data as JSON string."""
         return json.dumps(data, indent=2)
 
@@ -32,17 +32,15 @@ class JSONFormatter(BaseFormatter):
 class TextFormatter(BaseFormatter):
     """Formats scan results as human-readable text report."""
     
-    def format(self, target: str, data: Dict, is_live: bool = False) -> str:
+    def format(self, target: str, data: Dict) -> str:
         """Generate detailed text report."""
         report = []
-        report.append(f"IP CRAWLER SCAN REPORT{'S (LIVE - IN PROGRESS)' if is_live else ''}")
+        report.append("IP CRAWLER SCAN REPORT")
         report.append(f"Target: {target}")
         report.append(f"Scan Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         report.append(f"Command: {data.get('command', 'N/A')}")
         report.append(f"Duration: {data.get('duration', 0):.2f} seconds")
         report.append(f"Hosts: {data.get('total_hosts', 0)} total, {data.get('up_hosts', 0)} up, {data.get('down_hosts', 0)} down")
-        if is_live:
-            report.append(f"Progress: {data.get('batches_completed', 0)} batches completed")
         report.append("=" * 80)
         
         for host in data.get('hosts', []):
@@ -156,7 +154,7 @@ class TextFormatter(BaseFormatter):
 class HTMLFormatter(BaseFormatter):
     """Formats scan results as HTML report."""
     
-    def format(self, target: str, data: Dict, is_live: bool = False) -> str:
+    def format(self, target: str, data: Dict) -> str:
         """Generate HTML report with inline CSS."""
         html = []
         html.append('<!DOCTYPE html>')
@@ -248,7 +246,7 @@ class HTMLFormatter(BaseFormatter):
         
         # Header
         html.append('<div class="header">')
-        html.append(f'<h1>IPCrawler Scan Report{" (LIVE - IN PROGRESS)" if is_live else ""}</h1>')
+        html.append('<h1>IPCrawler Scan Report</h1>')
         html.append(f'<p>Target: {target}</p>')
         html.append(f'<p>Scan Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>')
         html.append('</div>')
@@ -261,8 +259,6 @@ class HTMLFormatter(BaseFormatter):
         html.append(f'<p>Total Hosts: {data.get("total_hosts", 0)}</p>')
         html.append(f'<p>Hosts Up: {data.get("up_hosts", 0)}</p>')
         html.append(f'<p>Hosts Down: {data.get("down_hosts", 0)}</p>')
-        if is_live:
-            html.append(f'<p>Progress: {data.get("batches_completed", 0)} batches completed</p>')
         html.append('</div>')
         
         # Hosts
@@ -421,7 +417,7 @@ class ResultManager:
         return data
     
     def save_results(self, workspace: Path, target: str, data: Dict, 
-                    formats: Optional[List[str]] = None, is_live: bool = False) -> None:
+                    formats: Optional[List[str]] = None) -> None:
         """Save scan results in specified formats."""
         # Default to all formats if none specified
         if formats is None:
@@ -431,7 +427,7 @@ class ResultManager:
         data = self.finalize_scan_data(data)
         
         # Determine file prefix
-        prefix = "live_" if is_live else "scan_"
+        prefix = "scan_"
         
         # Save in each requested format
         files_created = []
@@ -452,7 +448,7 @@ class ResultManager:
             filepath = workspace / filename
             
             # Format data
-            formatted_content = self.formatters[fmt].format(target, data, is_live)
+            formatted_content = self.formatters[fmt].format(target, data)
             
             # Write file with UTF-8 encoding
             with open(filepath, 'w', encoding='utf-8') as f:
@@ -472,11 +468,11 @@ class ResultManager:
                                   capture_output=True, check=False)
     
     async def save_results_async(self, workspace: Path, target: str, data: Dict, 
-                               formats: Optional[List[str]] = None, is_live: bool = False) -> None:
+                               formats: Optional[List[str]] = None) -> None:
         """Asynchronously save scan results (wrapper for compatibility)."""
         # For now, just call the sync version
         # This can be enhanced later to use true async I/O if needed
-        self.save_results(workspace, target, data, formats, is_live)
+        self.save_results(workspace, target, data, formats)
 
 
 # Create global instance for convenience

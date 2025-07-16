@@ -3,7 +3,7 @@ import os
 import re
 import time
 import tempfile
-from typing import List, Optional, Callable, Set, Tuple
+from typing import List, Optional, Set, Tuple
 from pathlib import Path
 
 from rich.console import Console
@@ -31,7 +31,7 @@ class NmapFastScanner(BaseWorkflow):
         return os.geteuid() == 0
     
     
-    async def execute(self, target: str, progress_callback: Optional[Callable] = None, **kwargs) -> WorkflowResult:
+    async def execute(self, target: str, **kwargs) -> WorkflowResult:
         """Execute fast nmap scan for port discovery with hostname discovery"""
         start_time = time.time()
         
@@ -102,36 +102,10 @@ class NmapFastScanner(BaseWorkflow):
                 except:
                     pass  # Ignore if running_processes not available
                 
-                # Read output with proper async handling
-                if progress_callback and process.stdout and process.stderr:
-                    # Read stdout line by line for real-time updates
-                    stdout_lines = []
-                    stderr_task = asyncio.create_task(process.stderr.read())
-                    
-                    while True:
-                        line = await process.stdout.readline()
-                        if not line:
-                            break
-                        line_str = line.decode().strip()
-                        stdout_lines.append(line_str)
-                        
-                        # Check for discovered open ports
-                        if "Discovered open port" in line_str:
-                            match = re.search(r'Discovered open port (\d+)/(\w+)', line_str)
-                            if match:
-                                port, protocol = match.groups()
-                                progress_callback(int(port), protocol)
-                    
-                    # Wait for both streams and process
-                    stderr_data = await stderr_task
-                    await process.wait()
-                    stdout_data = '\n'.join(stdout_lines)
-                    stderr_data = stderr_data.decode()
-                else:
-                    # No callback, just get all output
-                    stdout_data, stderr_data = await process.communicate()
-                    stdout_data = stdout_data.decode()
-                    stderr_data = stderr_data.decode()
+                # Read output without progress tracking
+                stdout_data, stderr_data = await process.communicate()
+                stdout_data = stdout_data.decode()
+                stderr_data = stderr_data.decode()
                 
                 if process.returncode != 0:
                     return WorkflowResult(

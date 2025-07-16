@@ -93,10 +93,11 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 @app.command()
 def main(
-    target: str = typer.Argument(..., help="Target IP address or hostname to scan")
+    target: str = typer.Argument(..., help="Target IP address or hostname to scan"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug output")
 ):
     """Run reconnaissance workflow on target"""
-    asyncio.run(run_workflow(target))
+    asyncio.run(run_workflow(target, debug))
 
 
 
@@ -224,8 +225,12 @@ async def check_and_offer_sudo_escalation():
         console.print("→ Continuing with user privileges...")
 
 
-async def run_workflow(target: str):
+async def run_workflow(target: str, debug: bool = False):
     """Execute reconnaissance workflow on target"""
+    # Set debug mode
+    from utils.debug import set_debug
+    set_debug(debug)
+    
     # Clean up any existing nmap processes first
     cleanup_existing_nmap_processes()
     
@@ -248,19 +253,10 @@ async def run_workflow(target: str):
     if config.fast_port_discovery:
         console.print("→ Starting fast port discovery...")
         
-        # Track discovered ports for real-time display
-        discovered_ports_live = []
-        
-        def port_discovered(port: int, protocol: str):
-            """Callback for when a port is discovered"""
-            discovered_ports_live.append(port)
-            console.print(f"  ✓ Found open port: [green]{port}/{protocol}[/green]")
-        
-        # Run port discovery with live updates
+        # Run port discovery
         discovery_scanner = NmapFastScanner()
         discovery_result = await discovery_scanner.execute(
-            target=resolved_target,
-            progress_callback=port_discovered
+            target=resolved_target
         )
         
         if discovery_result.success and discovery_result.data:
@@ -304,16 +300,6 @@ async def run_workflow(target: str):
     console.print("→ Starting detailed scan...")
     scanner = NmapScanner(batch_size=config.batch_size, ports_per_batch=config.ports_per_batch)
     
-    # Create simple progress callback without queue to avoid hanging
-    progress_count = 0
-    
-    def simple_progress_callback():
-        nonlocal progress_count
-        progress_count += 1
-        if discovered_ports:
-            console.print(f"→ Port range {progress_count} completed")
-        else:
-            console.print(f"→ Batch {progress_count}/10 completed")
     
     # Execute with simple progress tracking
     with Progress(
