@@ -315,17 +315,17 @@ class NmapFastScanner(BaseWorkflow):
             r'hostname["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']'
         ]
         
-                 for pattern in patterns:
-             matches = re.findall(pattern, nmap_output, re.IGNORECASE | re.MULTILINE)
-                          for match in matches:
-                 # Handle tuple matches (from complex patterns)
-                 if isinstance(match, tuple) and len(match) > 0:
-                     hostname = match[1] if len(match) > 1 and match[1] else match[0]
-                 else:
-                     hostname = match
-                 
-                 if hostname and hostname != target and self._is_valid_hostname(hostname):
-                     hostnames.append(hostname)
+        for pattern in patterns:
+            matches = re.findall(pattern, nmap_output, re.IGNORECASE | re.MULTILINE)
+            for match in matches:
+                # Handle tuple matches (from complex patterns)
+                if isinstance(match, tuple) and len(match) > 0:
+                    hostname = match[1] if len(match) > 1 and match[1] else match[0]
+                else:
+                    hostname = match
+                
+                if hostname and hostname != target and self._is_valid_hostname(hostname):
+                    hostnames.append(hostname)
                     
         return list(set(hostnames))
     
