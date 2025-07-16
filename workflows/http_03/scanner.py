@@ -55,6 +55,9 @@ class HTTPAdvancedScanner(BaseWorkflow):
         start_time = datetime.now()
         discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
+        # Store the original IP target for connection purposes
+        self.original_ip = target
+        
         # Check dependencies at runtime for more accurate detection
         runtime_deps_available = check_dependencies()
         
@@ -82,7 +85,9 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 service = None
                 # Try each target until one works
                 for try_target in targets_to_try:
-                    service = await self._scan_http_service(try_target, port)
+                    # If trying a hostname, pass the original IP for connection
+                    use_ip = self.original_ip if try_target != self.original_ip else None
+                    service = await self._scan_http_service(try_target, port, use_ip=use_ip)
                     if service:
                         # Store which target worked
                         service.actual_target = try_target
@@ -136,6 +141,9 @@ class HTTPAdvancedScanner(BaseWorkflow):
         start_time = datetime.now()
         discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
+        # Store the original IP target
+        original_ip = target
+        
         try:
             print(f"[DEBUG] Fallback mode - Target: {target}, Ports: {ports}, Hostnames: {discovered_hostnames}")
             
@@ -185,11 +193,14 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 
                 for scheme in schemes:
                     for try_target in targets_to_try:
+                        # Determine what to connect to
+                        connect_to = original_ip if try_target in discovered_hostnames else try_target
+                        
                         # Don't include port for standard ports
                         if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
-                            url = f"{scheme}://{try_target}"
+                            url = f"{scheme}://{connect_to}"
                         else:
-                            url = f"{scheme}://{try_target}:{port}"
+                            url = f"{scheme}://{connect_to}:{port}"
                         
                         curl_cmd = [
                             "curl", "-I", "-s", "-m", "5",
@@ -198,8 +209,8 @@ class HTTPAdvancedScanner(BaseWorkflow):
                             "-H", f"User-Agent: {self.user_agents[0]}",
                         ]
                         
-                        # Add Host header if using IP with discovered hostname
-                        if try_target in discovered_hostnames and target not in discovered_hostnames:
+                        # Always add Host header when using a hostname
+                        if try_target in discovered_hostnames:
                             curl_cmd.extend(["-H", f"Host: {try_target}"])
                         
                         curl_cmd.append(url)
@@ -359,7 +370,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
         except:
             return subdomain, False
     
-    async def _scan_http_service(self, target: str, port: int) -> Optional[HTTPService]:
+    async def _scan_http_service(self, target: str, port: int, use_ip: Optional[str] = None) -> Optional[HTTPService]:
         """Scan a single HTTP/HTTPS service"""
         # Determine scheme order based on port
         if port == 443 or port == 8443:
@@ -370,11 +381,14 @@ class HTTPAdvancedScanner(BaseWorkflow):
             schemes = ['http', 'https']  # Try HTTP first for unknown ports
             
         for scheme in schemes:
+            # Use IP for connection if provided, otherwise use target
+            connect_to = use_ip if use_ip else target
+            
             # Don't include port for standard ports
             if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
-                url = f"{scheme}://{target}"
+                url = f"{scheme}://{connect_to}"
             else:
-                url = f"{scheme}://{target}:{port}"
+                url = f"{scheme}://{connect_to}:{port}"
             
             try:
                 # Use more specific timeouts
@@ -384,10 +398,10 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     timeout=timeout,
                     limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
                 ) as client:
-                    # Set proper Host header
+                    # Set proper Host header with the target (which might be a hostname)
                     headers = {
                         "User-Agent": self.user_agents[0],
-                        "Host": target  # Important for virtual hosting
+                        "Host": target  # Use the target (hostname) for Host header
                     }
                     
                     response = await client.get(
