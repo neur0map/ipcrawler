@@ -1,5 +1,6 @@
 # Scan Results and Workspaces
 workspaces/
+local-files/
 
 # Python
 .pytest_cache/

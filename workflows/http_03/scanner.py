@@ -73,28 +73,44 @@ class HTTPAdvancedScanner(BaseWorkflow):
             results.dns_records = dns_info['records']
             results.subdomains = dns_info['subdomains']
             
+            # Combine all possible hostnames
+            all_hostnames = self._build_hostname_list(target, discovered_hostnames, results.subdomains)
+            
             # Determine ports to scan
             scan_ports = ports if ports else self.common_ports
-            print(f"[DEBUG] HTTP scanner execute - ports: {scan_ports}, hostnames: {discovered_hostnames}")
+            print(f"[DEBUG] HTTP scanner execute - ports: {scan_ports}, testing {len(all_hostnames)} hostnames: {all_hostnames}")
             
-            # HTTP service discovery
-            # Try discovered hostnames first, then fall back to IP
-            targets_to_try = discovered_hostnames + [target]
-            
+            # HTTP service discovery - test ALL hostname combinations
             for port in scan_ports:
-                service = None
-                # Try each target until one works
-                for try_target in targets_to_try:
-                    # If trying a hostname, pass the original IP for connection
-                    use_ip = self.original_ip if try_target != self.original_ip else None
-                    service = await self._scan_http_service(try_target, port, use_ip=use_ip)
+                # Test each hostname for this port
+                for hostname in all_hostnames:
+                    # Determine connection target (IP if hostname differs from target)
+                    use_ip = self.original_ip if hostname != self.original_ip else None
+                    service = await self._scan_http_service(hostname, port, use_ip=use_ip)
                     if service:
-                        # Store which target worked
-                        service.actual_target = try_target
-                        results.services.append(service)
-                        break
-            
-            # Advanced discovery techniques
+                        # Store which hostname worked
+                        service.actual_target = hostname
+                        
+                        # Check if this is a unique service (different from existing ones)
+                        if self._is_unique_service(service, results.services):
+                            results.services.append(service)
+                            print(f"[DEBUG] Found unique service: {service.url} (hostname: {hostname})")
+                            
+                            # Extract additional hostnames from response
+                            new_hostnames = self._extract_hostnames_from_response(service)
+                            if new_hostnames:
+                                print(f"[DEBUG] Discovered additional hostnames: {new_hostnames}")
+                                # Test newly discovered hostnames on this port
+                                for new_hostname in new_hostnames:
+                                    if new_hostname not in all_hostnames:
+                                        all_hostnames.append(new_hostname)
+                                        service = await self._scan_http_service(new_hostname, port, use_ip=self.original_ip)
+                                        if service and self._is_unique_service(service, results.services):
+                                            service.actual_target = new_hostname
+                                            results.services.append(service)
+                                            print(f"[DEBUG] Found service via discovered hostname: {service.url}")
+
+            # Advanced discovery techniques for all services
             for service in results.services:
                 # Path discovery without wordlists
                 discovered_paths = await self._discover_paths(service)
@@ -122,6 +138,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
             result_dict = results.to_dict()
             result_dict['fallback_mode'] = False
             result_dict['scan_engine'] = 'httpx+dnspython'
+            result_dict['tested_hostnames'] = all_hostnames
             
             return WorkflowResult(
                 success=True,
@@ -175,9 +192,12 @@ class HTTPAdvancedScanner(BaseWorkflow):
             except:
                 pass
             
+            # Build comprehensive hostname list for fallback mode
+            all_hostnames = self._build_hostname_list(target, discovered_hostnames, [])
+            
             # Scan ports with curl
             scan_ports = ports if ports else self.common_ports
-            print(f"[DEBUG] Scanning ports: {scan_ports}")
+            print(f"[DEBUG] Fallback mode scanning ports: {scan_ports}, testing {len(all_hostnames)} hostnames")
             
             for port in scan_ports:
                 # Try HTTP first for common HTTP ports
@@ -187,12 +207,9 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     schemes = ['https', 'http']
                 else:
                     schemes = ['http', 'https']
-                    
-                # Try discovered hostnames first, then IP
-                targets_to_try = discovered_hostnames + [target]
                 
                 for scheme in schemes:
-                    for try_target in targets_to_try:
+                    for try_target in all_hostnames:
                         # Determine what to connect to
                         connect_to = original_ip if try_target in discovered_hostnames else try_target
                         
@@ -254,26 +271,34 @@ class HTTPAdvancedScanner(BaseWorkflow):
                                         if key.lower() == 'server':
                                             service["server"] = value.strip()
                                 
-                                results["services"].append(service)
+                                # Check if this is unique before adding
+                                is_unique = True
+                                for existing in results["services"]:
+                                    if (existing["port"] == service["port"] and 
+                                        existing["scheme"] == service["scheme"] and
+                                        existing.get("status_code") == service.get("status_code") and
+                                        existing.get("server") == service.get("server")):
+                                        is_unique = False
+                                        break
                                 
-                                # Basic vulnerability checks
-                                vulns = self._check_basic_vulnerabilities(service)
-                                results["vulnerabilities"].extend(vulns)
-                                
-                                # Found a working target, skip remaining
-                                break
+                                if is_unique:
+                                    results["services"].append(service)
+                                    print(f"[DEBUG] Found unique service in fallback: {url} (hostname: {try_target})")
+                                    
+                                    # Basic vulnerability checks
+                                    vulns = self._check_basic_vulnerabilities(service)
+                                    results["vulnerabilities"].extend(vulns)
                                 
                         except Exception as e:
                             print(f"[DEBUG] curl error for {url}: {e}")
                             continue
-                    
-                    # If we found a working service, skip trying other schemes
-                    if results["services"] and results["services"][-1]["port"] == port:
-                        break
             
             execution_time = (datetime.now() - start_time).total_seconds()
             
             print(f"[DEBUG] Fallback scan results: {len(results['services'])} services found")
+            
+            # Add tested hostnames to results
+            results['tested_hostnames'] = all_hostnames
             
             # Add summary if we found services
             if results['services']:
@@ -730,3 +755,121 @@ class HTTPAdvancedScanner(BaseWorkflow):
             errors.append("Invalid target format")
         
         return len(errors) == 0, errors
+
+    def _build_hostname_list(self, target: str, discovered_hostnames: List[str], subdomains: List[str]) -> List[str]:
+        """Build comprehensive list of hostnames to test"""
+        hostnames = [target]  # Start with original target
+        
+        # Add discovered hostnames from nmap
+        hostnames.extend(discovered_hostnames)
+        
+        # Add DNS subdomains
+        hostnames.extend(subdomains)
+        
+        # Generate additional hostname patterns based on target
+        if '.' in target and not target.replace('.', '').isdigit():  # If it's a domain, not IP
+            base_domain = target
+            additional_patterns = [
+                f"www.{base_domain}",
+                f"mail.{base_domain}",
+                f"admin.{base_domain}",
+                f"api.{base_domain}",
+                f"portal.{base_domain}",
+                f"secure.{base_domain}",
+                f"app.{base_domain}",
+                f"web.{base_domain}",
+                f"dev.{base_domain}",
+                f"staging.{base_domain}",
+                f"test.{base_domain}",
+                f"prod.{base_domain}"
+            ]
+            hostnames.extend(additional_patterns)
+        
+        # Remove duplicates and empty strings, preserve order
+        seen = set()
+        unique_hostnames = []
+        for hostname in hostnames:
+            if hostname and hostname not in seen:
+                seen.add(hostname)
+                unique_hostnames.append(hostname)
+        
+        return unique_hostnames
+    
+    def _is_unique_service(self, new_service: HTTPService, existing_services: List[HTTPService]) -> bool:
+        """Check if service is unique (different content/headers from existing ones)"""
+        for existing in existing_services:
+            if (existing.port == new_service.port and 
+                existing.scheme == new_service.scheme):
+                
+                # Compare key indicators of uniqueness
+                same_status = existing.status_code == new_service.status_code
+                same_server = existing.server == new_service.server
+                same_title = self._extract_title(existing.response_body) == self._extract_title(new_service.response_body)
+                same_content_length = len(existing.response_body or '') == len(new_service.response_body or '')
+                
+                # If all key indicators are the same, consider it duplicate
+                if same_status and same_server and same_title and same_content_length:
+                    return False
+        
+        return True
+    
+    def _extract_title(self, response_body: Optional[str]) -> str:
+        """Extract title from HTML response"""
+        if not response_body:
+            return ""
+        
+        title_match = re.search(r'<title[^>]*>([^<]+)</title>', response_body, re.IGNORECASE)
+        return title_match.group(1).strip() if title_match else ""
+    
+    def _extract_hostnames_from_response(self, service: HTTPService) -> List[str]:
+        """Extract additional hostnames from HTTP response"""
+        hostnames = []
+        
+        # From redirects in Location header
+        location = service.headers.get('location', '')
+        if location:
+            parsed = urlparse(location)
+            if parsed.hostname:
+                hostnames.append(parsed.hostname)
+        
+        # From HTML content
+        if service.response_body:
+            # Find links with different hostnames
+            link_pattern = r'https?://([^/\s"\']+)'
+            for match in re.finditer(link_pattern, service.response_body):
+                hostname = match.group(1)
+                if '.' in hostname and not hostname.replace('.', '').isdigit():
+                    hostnames.append(hostname)
+            
+            # Extract from specific HTML elements
+            patterns = [
+                r'href=["\']https?://([^/\s"\']+)',
+                r'src=["\']https?://([^/\s"\']+)',
+                r'action=["\']https?://([^/\s"\']+)'
+            ]
+            
+            for pattern in patterns:
+                for match in re.finditer(pattern, service.response_body):
+                    hostname = match.group(1)
+                    if '.' in hostname and not hostname.replace('.', '').isdigit():
+                        hostnames.append(hostname)
+        
+        # Remove duplicates and filter relevant hostnames
+        unique_hostnames = list(set(hostnames))
+        
+        # Filter to only include hostnames that might be related to the target
+        filtered = []
+        target_parts = self.original_ip.split('.')
+        
+        for hostname in unique_hostnames:
+            # Skip obviously unrelated domains
+            if any(skip in hostname.lower() for skip in ['google', 'facebook', 'twitter', 'cdn', 'googleapis']):
+                continue
+            
+            # Include if it shares domain components with target or is a subdomain
+            if any(part in hostname for part in target_parts if len(part) > 2):
+                filtered.append(hostname)
+            elif '.' in self.original_ip and hostname.endswith(self.original_ip.split('.', 1)[1]):
+                filtered.append(hostname)
+        
+        return filtered[:10]  # Limit to prevent excessive discoveries
