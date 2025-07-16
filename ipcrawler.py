@@ -36,7 +36,6 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from workflows.redirect_discovery_00.scanner import RedirectDiscoveryScanner
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from workflows.http_03.scanner import HTTPAdvancedScanner
@@ -236,22 +235,7 @@ async def run_workflow(target: str):
     # Resolve target first
     resolved_target = await resolve_target(target)
     
-    # WORKFLOW 00: Quick redirect discovery and hostname mapping
-    console.print("\n→ [bold]Starting Workflow 00: Redirect Discovery[/bold]")
-    redirect_scanner = RedirectDiscoveryScanner()
-    redirect_result = await redirect_scanner.execute(target=resolved_target)
-    
-    hostname_mappings = []
-    if redirect_result.success and redirect_result.data:
-        hostname_mappings = redirect_result.data.get('discovered_mappings', [])
-        if redirect_result.data.get('etc_hosts_updated'):
-            console.print("✓ Hostname mappings added to /etc/hosts - subsequent workflows optimized")
-        elif hostname_mappings:
-            console.print(f"ℹ Found {len(hostname_mappings)} hostnames but no sudo access - consider rerunning with sudo")
-    else:
-        console.print(f"⚠ Redirect discovery failed: {redirect_result.error}")
-        
-    console.print("→ Proceeding to port discovery...")
+    console.print("→ Starting port discovery with hostname discovery...")
     
     # Create workspace directory
     workspace = result_manager.create_workspace(target)
