@@ -1,0 +1,2448 @@
+{
+  "21": {
+    "name": "FTP - File Transfer Protocol",
+    "protocol": "tcp",
+    "default_service": "ftp",
+    "alternative_services": [
+      "vsftpd",
+      "proftpd",
+      "pure-ftpd"
+    ],
+    "description": "File Transfer Protocol often misconfigured with anonymous access or weak credentials in CTF challenges.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "vsftpd/proftpd",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        21
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "220",
+        "vsftpd",
+        "ProFTPD",
+        "Pure-FTPd"
+      ]
+    },
+    "classification": {
+      "category": "file-transfer",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "ftp-users.txt",
+        "ftp-passwords.txt"
+      ],
+      "medium": [
+        "common-users.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "anonymous_enabled": 1.0,
+      "banner_version_exposed": 0.8,
+      "port_21_open": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "22": {
+    "name": "SSH - Secure Shell",
+    "protocol": "tcp",
+    "default_service": "ssh",
+    "alternative_services": [
+      "openssh",
+      "dropbear"
+    ],
+    "description": "Secure Shell service, often targeted for brute force attacks or exploiting weak keys in CTFs.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "OpenSSH",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        22
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "SSH-",
+        "OpenSSH",
+        "dropbear"
+      ]
+    },
+    "classification": {
+      "category": "remote-access",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "ssh-users.txt",
+        "ssh-passwords.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "unix-users.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "version_exposed": 0.8,
+      "port_22_open": 1.0,
+      "password_auth_enabled": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "23": {
+    "name": "Telnet",
+    "protocol": "tcp",
+    "default_service": "telnet",
+    "alternative_services": [
+      "telnetd"
+    ],
+    "description": "Unencrypted remote access protocol, commonly found in IoT and legacy system CTF challenges.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "telnetd",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        23
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "Login:",
+        "Password:",
+        "telnetd"
+      ]
+    },
+    "classification": {
+      "category": "remote-access",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "telnet-users.txt",
+        "iot-default-creds.txt"
+      ],
+      "medium": [
+        "router-passwords.txt"
+      ],
+      "fallback": [
+        "common-passwords.txt"
+      ]
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "telnet_active": 1.0,
+      "cleartext_protocol": 1.0,
+      "legacy_service": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "25": {
+    "name": "SMTP - Simple Mail Transfer Protocol",
+    "protocol": "tcp",
+    "default_service": "smtp",
+    "alternative_services": [
+      "postfix",
+      "sendmail",
+      "exim"
+    ],
+    "description": "Email service often vulnerable to user enumeration and relay attacks in CTF scenarios.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "Postfix/Sendmail",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        25
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "220",
+        "ESMTP",
+        "Postfix",
+        "Sendmail"
+      ]
+    },
+    "classification": {
+      "category": "mail-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "smtp-users.txt",
+        "email-addresses.txt"
+      ],
+      "medium": [
+        "common-users.txt"
+      ],
+      "fallback": [
+        "names.txt"
+      ]
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "vrfy_enabled": 1.0,
+      "open_relay": 1.0,
+      "user_enum_possible": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "53": {
+    "name": "DNS - Domain Name System",
+    "protocol": "tcp/udp",
+    "default_service": "dns",
+    "alternative_services": [
+      "bind",
+      "dnsmasq",
+      "powerdns"
+    ],
+    "description": "DNS service vulnerable to zone transfers and cache poisoning in CTF challenges.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "BIND",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        53
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "BIND",
+        "dnsmasq"
+      ]
+    },
+    "classification": {
+      "category": "network-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "dns-subdomains.txt",
+        "dns-records.txt"
+      ],
+      "medium": [
+        "subdomains.txt"
+      ],
+      "fallback": [
+        "common-names.txt"
+      ]
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "zone_transfer_enabled": 1.0,
+      "recursion_enabled": 0.8,
+      "version_exposed": 0.7
+    },
+    "last_updated": "2025-07-16"
+  },
+  "80": {
+    "name": "HTTP - HyperText Transfer Protocol",
+    "protocol": "tcp",
+    "default_service": "http",
+    "alternative_services": [
+      "apache",
+      "nginx",
+      "iis"
+    ],
+    "description": "Standard web service port, primary target for web application vulnerabilities in CTFs.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "Apache/Nginx/IIS",
+      "http_stack": "HTTP/1.1"
+    },
+    "indicators": {
+      "ports": [
+        80
+      ],
+      "headers": [
+        "Server",
+        "X-Powered-By",
+        "Content-Type"
+      ],
+      "paths": [
+        "/",
+        "/index.html",
+        "/robots.txt"
+      ],
+      "banners": [
+        "Apache",
+        "nginx",
+        "Microsoft-IIS"
+      ]
+    },
+    "classification": {
+      "category": "web-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "common-web.txt",
+        "directory-list-2.3-medium.txt"
+      ],
+      "medium": [
+        "common.txt",
+        "big.txt"
+      ],
+      "fallback": [
+        "quickhits.txt"
+      ]
+    },
+    "path_recommendations": {
+      "/robots.txt": {
+        "confidence": 0.9,
+        "risk": "low",
+        "reason": "Often reveals hidden directories"
+      },
+      "/.git/": {
+        "confidence": 0.7,
+        "risk": "critical",
+        "reason": "Git repository exposure"
+      },
+      "/admin/": {
+        "confidence": 0.8,
+        "risk": "high",
+        "reason": "Common admin panel location"
+      }
+    },
+    "scoring_modifiers": {
+      "http_active": 1.0,
+      "server_header_exposed": 0.8,
+      "default_page_present": 0.7
+    },
+    "last_updated": "2025-07-16"
+  },
+  "110": {
+    "name": "POP3 - Post Office Protocol v3",
+    "protocol": "tcp",
+    "default_service": "pop3",
+    "alternative_services": [
+      "dovecot",
+      "courier"
+    ],
+    "description": "Email retrieval protocol, often vulnerable to brute force and plaintext auth in CTFs.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "Dovecot/Courier",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        110
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "+OK",
+        "POP3",
+        "ready",
+        "Dovecot"
+      ]
+    },
+    "classification": {
+      "category": "mail-service",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "medium"
+    },
+    "associated_wordlists": {
+      "high": [
+        "email-users.txt",
+        "pop3-users.txt"
+      ],
+      "medium": [
+        "common-users.txt"
+      ],
+      "fallback": [
+        "usernames.txt"
+      ]
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "plaintext_auth": 1.0,
+      "user_enum_possible": 0.8,
+      "version_exposed": 0.7
+    },
+    "last_updated": "2025-07-16"
+  },
+  "111": {
+    "name": "RPCbind",
+    "protocol": "tcp/udp",
+    "default_service": "rpcbind",
+    "alternative_services": [
+      "portmapper"
+    ],
+    "description": "RPC service mapper, reveals available RPC services and often leads to NFS enumeration.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "rpcbind",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        111
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "rpcbind",
+        "portmapper"
+      ]
+    },
+    "classification": {
+      "category": "network-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "rpc-services.txt"
+      ],
+      "medium": [
+        "nfs-shares.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "rpc_exposed": 1.0,
+      "nfs_available": 0.9,
+      "service_enum_possible": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "135": {
+    "name": "MS-RPC - Microsoft RPC",
+    "protocol": "tcp",
+    "default_service": "msrpc",
+    "alternative_services": [
+      "epmap",
+      "dcerpc"
+    ],
+    "description": "Microsoft RPC endpoint mapper, critical for Windows enumeration and SMB attacks.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "Windows RPC",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        135
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "ncacn_http",
+        "epmap"
+      ]
+    },
+    "classification": {
+      "category": "windows-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "windows-rpc.txt"
+      ],
+      "medium": [
+        "smb-enum.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "windows_target": 1.0,
+      "rpc_accessible": 0.9,
+      "domain_controller": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "139": {
+    "name": "NetBIOS-SSN",
+    "protocol": "tcp",
+    "default_service": "netbios-ssn",
+    "alternative_services": [
+      "smb",
+      "samba"
+    ],
+    "description": "NetBIOS Session Service, used for SMB file sharing and often vulnerable to null sessions.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "Samba/Windows SMB",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        139
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "Samba",
+        "Windows"
+      ]
+    },
+    "classification": {
+      "category": "file-sharing",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "smb-shares.txt",
+        "windows-users.txt"
+      ],
+      "medium": [
+        "common-shares.txt"
+      ],
+      "fallback": [
+        "common-users.txt"
+      ]
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "null_session_allowed": 1.0,
+      "shares_enumerable": 0.9,
+      "netbios_active": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "143": {
+    "name": "IMAP - Internet Message Access Protocol",
+    "protocol": "tcp",
+    "default_service": "imap",
+    "alternative_services": [
+      "dovecot",
+      "courier-imap"
+    ],
+    "description": "Email access protocol allowing mailbox manipulation, often misconfigured in CTFs.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "Dovecot/Courier",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        143
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "* OK",
+        "IMAP4",
+        "Dovecot",
+        "ready"
+      ]
+    },
+    "classification": {
+      "category": "mail-service",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "medium"
+    },
+    "associated_wordlists": {
+      "high": [
+        "email-users.txt",
+        "imap-users.txt"
+      ],
+      "medium": [
+        "common-users.txt"
+      ],
+      "fallback": [
+        "usernames.txt"
+      ]
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "plaintext_auth": 1.0,
+      "mailbox_access": 0.9,
+      "version_exposed": 0.7
+    },
+    "last_updated": "2025-07-16"
+  },
+  "161": {
+    "name": "SNMP - Simple Network Management Protocol",
+    "protocol": "udp",
+    "default_service": "snmp",
+    "alternative_services": [
+      "snmpd"
+    ],
+    "description": "Network management protocol often using default community strings, goldmine for enumeration.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "net-snmp",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        161
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "SNMPv"
+      ]
+    },
+    "classification": {
+      "category": "network-management",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "snmp-communities.txt",
+        "snmp-strings.txt"
+      ],
+      "medium": [
+        "common-snmp.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "default_community": 1.0,
+      "writable_oids": 0.9,
+      "system_info_exposed": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "389": {
+    "name": "LDAP - Lightweight Directory Access Protocol",
+    "protocol": "tcp",
+    "default_service": "ldap",
+    "alternative_services": [
+      "openldap",
+      "active-directory"
+    ],
+    "description": "Directory service protocol, often allows anonymous binds revealing user/group information.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "OpenLDAP/AD",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        389
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "objectClass",
+        "namingContexts"
+      ]
+    },
+    "classification": {
+      "category": "directory-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "ldap-attributes.txt",
+        "ad-users.txt"
+      ],
+      "medium": [
+        "common-users.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "anonymous_bind": 1.0,
+      "user_enum_possible": 0.9,
+      "active_directory": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "443": {
+    "name": "HTTPS - HTTP over SSL/TLS",
+    "protocol": "tcp",
+    "default_service": "https",
+    "alternative_services": [
+      "apache-ssl",
+      "nginx-ssl",
+      "iis-ssl"
+    ],
+    "description": "Encrypted web service, target for certificate issues and web vulnerabilities.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "Apache/Nginx/IIS",
+      "http_stack": "HTTP/2"
+    },
+    "indicators": {
+      "ports": [
+        443
+      ],
+      "headers": [
+        "Server",
+        "X-Powered-By",
+        "Strict-Transport-Security"
+      ],
+      "paths": [
+        "/",
+        "/robots.txt",
+        "/.well-known/"
+      ],
+      "banners": [
+        "Apache",
+        "nginx",
+        "Microsoft-IIS"
+      ]
+    },
+    "classification": {
+      "category": "web-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "common-web.txt",
+        "api-endpoints.txt"
+      ],
+      "medium": [
+        "directory-list-2.3-medium.txt"
+      ],
+      "fallback": [
+        "quickhits.txt"
+      ]
+    },
+    "path_recommendations": {
+      "/.well-known/security.txt": {
+        "confidence": 0.7,
+        "risk": "low",
+        "reason": "Security disclosure policy"
+      },
+      "/api/v1/": {
+        "confidence": 0.8,
+        "risk": "medium",
+        "reason": "Common API endpoint"
+      },
+      "/.git/config": {
+        "confidence": 0.6,
+        "risk": "critical",
+        "reason": "Git configuration exposure"
+      }
+    },
+    "scoring_modifiers": {
+      "https_active": 1.0,
+      "weak_ssl": 0.9,
+      "certificate_issues": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "445": {
+    "name": "SMB - Server Message Block",
+    "protocol": "tcp",
+    "default_service": "microsoft-ds",
+    "alternative_services": [
+      "smb",
+      "samba",
+      "netbios-ssn"
+    ],
+    "description": "Modern SMB/CIFS port, primary target for file share enumeration and exploitation.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "Samba/Windows SMB",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        445
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "Windows",
+        "Samba",
+        "SMB"
+      ]
+    },
+    "classification": {
+      "category": "file-sharing",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "smb-shares.txt",
+        "windows-shares.txt"
+      ],
+      "medium": [
+        "common-shares.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "null_session": 1.0,
+      "guest_access": 0.9,
+      "share_enumeration": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "512": {
+    "name": "rexec",
+    "protocol": "tcp",
+    "default_service": "exec",
+    "alternative_services": [
+      "rexecd"
+    ],
+    "description": "Remote execution service, legacy unencrypted protocol for command execution.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "rexecd",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        512
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "rexecd"
+      ]
+    },
+    "classification": {
+      "category": "remote-execution",
+      "exposure": "internal",
+      "auth_required": true,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "unix-users.txt",
+        "rservices-users.txt"
+      ],
+      "medium": [
+        "common-users.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "legacy_service": 1.0,
+      "unencrypted": 1.0,
+      "remote_exec": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "513": {
+    "name": "rlogin",
+    "protocol": "tcp",
+    "default_service": "login",
+    "alternative_services": [
+      "rlogind"
+    ],
+    "description": "Remote login service, legacy protocol often with trust relationships.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "rlogind",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        513
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "rlogind"
+      ]
+    },
+    "classification": {
+      "category": "remote-access",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "unix-users.txt",
+        "rservices-users.txt"
+      ],
+      "medium": [
+        "common-users.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "rhosts_trust": 1.0,
+      "no_auth_required": 1.0,
+      "legacy_protocol": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "514": {
+    "name": "rsh/syslog",
+    "protocol": "tcp/udp",
+    "default_service": "shell",
+    "alternative_services": [
+      "rshd",
+      "syslog"
+    ],
+    "description": "Remote shell or syslog service, often exposes sensitive logs or allows command execution.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "rshd/rsyslog",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        514
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "rshd",
+        "syslog"
+      ]
+    },
+    "classification": {
+      "category": "remote-execution",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "unix-users.txt"
+      ],
+      "medium": [
+        "common-users.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "rsh_enabled": 1.0,
+      "syslog_exposed": 0.9,
+      "log_injection": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "515": {
+    "name": "LPD - Line Printer Daemon",
+    "protocol": "tcp",
+    "default_service": "printer",
+    "alternative_services": [
+      "lpd",
+      "cups-lpd"
+    ],
+    "description": "Print server daemon, often allows arbitrary file access through print jobs.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "lpd/CUPS",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        515
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "lpd",
+        "CUPS"
+      ]
+    },
+    "classification": {
+      "category": "print-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "medium"
+    },
+    "associated_wordlists": {
+      "high": [
+        "printer-names.txt"
+      ],
+      "medium": [],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "file_access": 0.9,
+      "print_jobs_readable": 0.8,
+      "legacy_lpd": 0.7
+    },
+    "last_updated": "2025-07-16"
+  },
+  "548": {
+    "name": "AFP - Apple Filing Protocol",
+    "protocol": "tcp",
+    "default_service": "afp",
+    "alternative_services": [
+      "afpovertcp"
+    ],
+    "description": "Apple file sharing protocol, often misconfigured with guest access.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "netatalk/macOS",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        548
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "AFP",
+        "Apple"
+      ]
+    },
+    "classification": {
+      "category": "file-sharing",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "afp-shares.txt",
+        "mac-users.txt"
+      ],
+      "medium": [
+        "common-shares.txt"
+      ],
+      "fallback": []
+    },
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "guest_access": 1.0,
+      "time_machine_backups": 0.9,
+      "share_enumeration": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "1433": {
+    "name": "MSSQL - Microsoft SQL Server",
+    "protocol": "tcp",
+    "default_service": "mssql",
+    "alternative_services": [
+      "sqlserver",
+      "mssqlserver",
+      "microsoft-ds"
+    ],
+    "description": "Microsoft SQL Server, critical in Windows CTF/HTB environments for xp_cmdshell execution, linked server attacks, and domain escalation.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "SQL Server"
+    },
+    "indicators": {
+      "ports": [
+        1433
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "Microsoft SQL Server",
+        "MSSQL",
+        "SQL Server",
+        "SQLEXPRESS"
+      ]
+    },
+    "classification": {
+      "category": "database",
+      "exposure": "internal",
+      "auth_required": true,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "mssql-users.txt",
+        "mssql-passwords.txt",
+        "windows-users.txt"
+      ],
+      "medium": [
+        "common-passwords.txt",
+        "rockyou.txt"
+      ],
+      "fallback": [
+        "10-million-password-list-top-100000.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "xp_cmdshell_enabled": 1.0,
+      "sa_default_password": 0.98,
+      "windows_auth": 0.9,
+      "linked_servers": 0.95
+    },
+    "last_updated": "2025-07-16"
+  },
+  "1521": {
+    "name": "Oracle - Database TNS Listener",
+    "protocol": "tcp",
+    "default_service": "oracle",
+    "alternative_services": [
+      "oracle-tns",
+      "tnslsnr"
+    ],
+    "description": "Oracle TNS Listener, enterprise database often vulnerable to TNS poisoning, default credentials, and complex privilege escalation in advanced CTFs.",
+    "tech_stack": {
+      "language": "C/C++",
+      "framework": "Oracle Database"
+    },
+    "indicators": {
+      "ports": [
+        1521
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "Oracle",
+        "TNS",
+        "TNSLSNR",
+        "XDB"
+      ]
+    },
+    "classification": {
+      "category": "database",
+      "exposure": "internal",
+      "auth_required": true,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "oracle-sids.txt",
+        "oracle-users.txt",
+        "oracle-passwords.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "db-passwords.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "default_credentials": 1.0,
+      "tns_poisoning": 0.9,
+      "sid_enumeration": 0.85,
+      "xml_db_enabled": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "3306": {
+    "name": "MySQL - Database Server",
+    "protocol": "tcp",
+    "default_service": "mysql",
+    "alternative_services": [
+      "mariadb",
+      "percona",
+      "mysql-server"
+    ],
+    "description": "MySQL database server, ubiquitous in CTF web challenges with SQL injection, UDF exploitation, and file system access vulnerabilities.",
+    "tech_stack": {
+      "language": "C/C++",
+      "framework": "MySQL/MariaDB"
+    },
+    "indicators": {
+      "ports": [
+        3306
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "mysql",
+        "MySQL",
+        "MariaDB",
+        "5.7",
+        "8.0",
+        "10."
+      ]
+    },
+    "classification": {
+      "category": "database",
+      "exposure": "internal",
+      "auth_required": true,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "mysql-users.txt",
+        "mysql-passwords.txt",
+        "db-common.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "rockyou.txt"
+      ],
+      "fallback": [
+        "10-million-password-list-top-1000000.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "default_credentials": 1.0,
+      "version_disclosure": 0.9,
+      "file_privileges": 0.95,
+      "udf_enabled": 0.98
+    },
+    "last_updated": "2025-07-16"
+  },
+  "3389": {
+    "name": "RDP - Remote Desktop Protocol",
+    "protocol": "tcp",
+    "default_service": "rdp",
+    "alternative_services": [
+      "mstsc",
+      "terminal-server",
+      "ms-wbt-server"
+    ],
+    "description": "Remote Desktop Protocol, critical Windows service often vulnerable to BlueKeep, credential attacks, and lateral movement in CTF scenarios.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "Windows Terminal Services"
+    },
+    "indicators": {
+      "ports": [
+        3389
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "Remote Desktop",
+        "RDP",
+        "Terminal Services",
+        "Microsoft Terminal"
+      ]
+    },
+    "classification": {
+      "category": "remote-access",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "windows-users.txt",
+        "windows-passwords.txt",
+        "admin-passwords.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "rockyou.txt"
+      ],
+      "fallback": [
+        "10-million-password-list-top-1000000.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "nla_disabled": 1.0,
+      "default_credentials": 0.95,
+      "bluekeep_vulnerable": 0.98,
+      "weak_passwords": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "5432": {
+    "name": "PostgreSQL - Database Server",
+    "protocol": "tcp",
+    "default_service": "postgresql",
+    "alternative_services": [
+      "postgres",
+      "pgsql"
+    ],
+    "description": "PostgreSQL database, common in modern CTF challenges with SQL injection, privilege escalation through extensions, and command execution capabilities.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "PostgreSQL"
+    },
+    "indicators": {
+      "ports": [
+        5432
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "PostgreSQL",
+        "postgres",
+        "PGSQL",
+        "accepting connections"
+      ]
+    },
+    "classification": {
+      "category": "database",
+      "exposure": "internal",
+      "auth_required": true,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "postgres-users.txt",
+        "postgres-passwords.txt",
+        "postgresql-common.txt"
+      ],
+      "medium": [
+        "db-users.txt",
+        "common-passwords.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "default_postgres_user": 1.0,
+      "trust_authentication": 0.95,
+      "extension_creation": 0.9,
+      "large_objects": 0.85
+    },
+    "last_updated": "2025-07-16"
+  },
+  "5900": {
+    "name": "VNC - Virtual Network Computing",
+    "protocol": "tcp",
+    "default_service": "vnc",
+    "alternative_services": [
+      "vnc-server",
+      "rfb"
+    ],
+    "description": "VNC remote desktop service, often weakly protected with simple passwords or authentication bypass vulnerabilities in CTF challenges.",
+    "tech_stack": {
+      "language": "C/C++",
+      "framework": "VNC Server"
+    },
+    "indicators": {
+      "ports": [
+        5900
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "RFB",
+        "VNC",
+        "RealVNC",
+        "TightVNC"
+      ]
+    },
+    "classification": {
+      "category": "remote-access",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "vnc-passwords.txt",
+        "simple-passwords.txt"
+      ],
+      "medium": [
+        "common-passwords.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "weak_authentication": 1.0,
+      "no_encryption": 0.9,
+      "password_only": 0.85,
+      "default_settings": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "5985": {
+    "name": "WinRM - Windows Remote Management (HTTP)",
+    "protocol": "tcp",
+    "default_service": "winrm",
+    "alternative_services": [
+      "wsman",
+      "windows-remote-management"
+    ],
+    "description": "Windows Remote Management over HTTP, critical for PowerShell remoting and lateral movement in Windows domain CTF environments.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "Windows WinRM",
+      "http_stack": "HTTP/1.1"
+    },
+    "indicators": {
+      "ports": [
+        5985
+      ],
+      "headers": [
+        "Server: Microsoft-HTTPAPI"
+      ],
+      "paths": [
+        "/wsman"
+      ],
+      "banners": [
+        "Microsoft-HTTPAPI",
+        "WinRM"
+      ]
+    },
+    "classification": {
+      "category": "windows-service",
+      "exposure": "internal",
+      "auth_required": true,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "windows-users.txt",
+        "domain-users.txt",
+        "admin-users.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "windows-passwords.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/wsman": {
+        "confidence": 0.9,
+        "risk": "high",
+        "reason": "WinRM management endpoint"
+      }
+    },
+    "scoring_modifiers": {
+      "basic_auth_enabled": 1.0,
+      "domain_joined": 0.9,
+      "kerberos_enabled": 0.85,
+      "powershell_access": 0.95
+    },
+    "last_updated": "2025-07-16"
+  },
+  "5986": {
+    "name": "WinRM - Windows Remote Management (HTTPS)",
+    "protocol": "tcp",
+    "default_service": "winrm-ssl",
+    "alternative_services": [
+      "wsman-ssl",
+      "windows-remote-management-ssl"
+    ],
+    "description": "Encrypted Windows Remote Management, used for secure PowerShell remoting and often indicates enterprise Windows environments in CTFs.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "Windows WinRM",
+      "http_stack": "HTTPS"
+    },
+    "indicators": {
+      "ports": [
+        5986
+      ],
+      "headers": [
+        "Server: Microsoft-HTTPAPI"
+      ],
+      "paths": [
+        "/wsman"
+      ],
+      "banners": [
+        "Microsoft-HTTPAPI",
+        "WinRM",
+        "SSL/TLS"
+      ]
+    },
+    "classification": {
+      "category": "windows-service",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "high"
+    },
+    "associated_wordlists": {
+      "high": [
+        "windows-users.txt",
+        "domain-users.txt",
+        "admin-users.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "windows-passwords.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/wsman": {
+        "confidence": 0.9,
+        "risk": "high",
+        "reason": "Secure WinRM management endpoint"
+      }
+    },
+    "scoring_modifiers": {
+      "certificate_auth": 0.8,
+      "domain_joined": 0.9,
+      "kerberos_enabled": 0.85,
+      "secure_channel": 0.7
+    },
+    "last_updated": "2025-07-16"
+  },
+  "6379": {
+    "name": "Redis - In-Memory Data Structure Store",
+    "protocol": "tcp",
+    "default_service": "redis",
+    "alternative_services": [
+      "redis-server"
+    ],
+    "description": "Redis key-value store, frequently misconfigured without authentication leading to data exposure, SSH key injection, and RCE in CTF challenges.",
+    "tech_stack": {
+      "language": "C",
+      "framework": "Redis"
+    },
+    "indicators": {
+      "ports": [
+        6379
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "redis",
+        "Redis",
+        "$",
+        "+OK",
+        "+PONG"
+      ]
+    },
+    "classification": {
+      "category": "database",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "redis-commands.txt"
+      ],
+      "medium": [],
+      "fallback": []
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "no_authentication": 1.0,
+      "config_exposed": 0.95,
+      "ssh_key_writable": 0.98,
+      "lua_scripting": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "27017": {
+    "name": "MongoDB - NoSQL Database",
+    "protocol": "tcp",
+    "default_service": "mongodb",
+    "alternative_services": [
+      "mongod"
+    ],
+    "description": "MongoDB NoSQL database, often exposed without authentication allowing database dumping and JavaScript injection in CTF scenarios.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "MongoDB"
+    },
+    "indicators": {
+      "ports": [
+        27017
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "MongoDB",
+        "mongo",
+        "It looks like you are trying to access MongoDB"
+      ]
+    },
+    "classification": {
+      "category": "database",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "associated_wordlists": {
+      "high": [
+        "mongodb-databases.txt",
+        "nosql-injections.txt"
+      ],
+      "medium": [
+        "common-collections.txt"
+      ],
+      "fallback": []
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "no_authentication": 1.0,
+      "default_databases": 0.9,
+      "javascript_enabled": 0.85,
+      "admin_access": 0.95
+    },
+    "last_updated": "2025-07-16"
+  },
+  "993": {
+    "name": "IMAPS - Secure IMAP",
+    "protocol": "tcp",
+    "default_service": "imaps",
+    "alternative_services": [
+      "imap-ssl",
+      "secure-imap",
+      "dovecot-ssl"
+    ],
+    "description": "Secure IMAP email service over SSL/TLS, common target for credential brute-forcing and mail data extraction in CTF challenges involving mail servers.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "Dovecot/Courier/Exchange",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        993
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "* OK",
+        "IMAP4rev1",
+        "Dovecot",
+        "ready",
+        "SSL",
+        "TLS"
+      ]
+    },
+    "classification": {
+      "category": "mail-service",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "medium"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "email-users.txt",
+        "corporate-emails.txt",
+        "mail-passwords.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "top-usernames.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "ssl_enabled": 0.7,
+      "plaintext_auth_over_ssl": 0.9,
+      "mailbox_access": 0.85,
+      "version_exposed": 0.8
+    },
+    "last_updated": "2025-07-16"
+  },
+  "995": {
+    "name": "POP3S - Secure POP3",
+    "protocol": "tcp",
+    "default_service": "pop3s",
+    "alternative_services": [
+      "pop3-ssl",
+      "secure-pop3",
+      "dovecot-pop3s"
+    ],
+    "description": "Secure POP3 email retrieval over SSL/TLS, often misconfigured with weak passwords allowing email harvesting in CTF mail server challenges.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "Dovecot/Courier/Exchange",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        995
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "+OK",
+        "POP3",
+        "ready",
+        "SSL",
+        "TLS",
+        "Dovecot"
+      ]
+    },
+    "classification": {
+      "category": "mail-service",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "medium"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "email-users.txt",
+        "pop3-users.txt",
+        "mail-passwords.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "email-common.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {},
+    "scoring_modifiers": {
+      "ssl_enabled": 0.7,
+      "user_enum_possible": 0.8,
+      "version_exposed": 0.75,
+      "weak_ciphers": 0.9
+    },
+    "last_updated": "2025-07-16"
+  },
+  "8761": {
+    "name": "Eureka Server - Spring Cloud Discovery",
+    "protocol": "tcp",
+    "default_service": "eureka",
+    "alternative_services": [
+      "spring-eureka",
+      "netflix-eureka",
+      "eureka-server"
+    ],
+    "description": "Spring Cloud Eureka service discovery server, critical for microservices enumeration and often exposes internal service URLs and actuator endpoints in CTF cloud challenges.",
+    "tech_stack": {
+      "language": "Java",
+      "framework": "Spring Cloud Netflix",
+      "http_stack": "HTTP/1.1"
+    },
+    "indicators": {
+      "ports": [
+        8761
+      ],
+      "headers": [
+        "Content-Type: text/html",
+        "X-Content-Type-Options: nosniff"
+      ],
+      "paths": [
+        "/",
+        "/eureka/apps",
+        "/actuator",
+        "/health"
+      ],
+      "banners": [
+        "Eureka",
+        "Spring",
+        "Netflix"
+      ]
+    },
+    "classification": {
+      "category": "cloud-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "spring-boot-actuators.txt",
+        "eureka-endpoints.txt",
+        "microservices.txt"
+      ],
+      "medium": [
+        "api-endpoints.txt",
+        "spring-paths.txt"
+      ],
+      "fallback": [
+        "common.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/eureka/apps": {
+        "confidence": 0.95,
+        "risk": "high",
+        "reason": "Lists all registered microservices and their endpoints"
+      },
+      "/actuator": {
+        "confidence": 0.9,
+        "risk": "critical",
+        "reason": "Spring Boot actuator endpoints often expose sensitive info"
+      },
+      "/actuator/env": {
+        "confidence": 0.85,
+        "risk": "critical",
+        "reason": "Environment variables including credentials"
+      }
+    },
+    "scoring_modifiers": {
+      "service_registry_exposed": 1.0,
+      "actuator_endpoints": 0.95,
+      "no_authentication": 0.9,
+      "internal_urls_exposed": 0.85
+    },
+    "last_updated": "2025-07-16"
+  },
+  "3000": {
+    "name": "Gitea/Node.js Development Server",
+    "protocol": "tcp",
+    "default_service": "gitea",
+    "alternative_services": [
+      "nodejs",
+      "grafana",
+      "react-dev",
+      "express"
+    ],
+    "description": "Common port for Gitea git service, Node.js development servers, and various web applications. Prime target for git repository exposure and development environment misconfigurations in CTF challenges.",
+    "tech_stack": {
+      "language": "Go/JavaScript",
+      "framework": "Gitea/Express/React",
+      "http_stack": "HTTP/1.1"
+    },
+    "indicators": {
+      "ports": [
+        3000
+      ],
+      "headers": [
+        "Server: Gitea",
+        "X-Powered-By: Express",
+        "X-Frame-Options"
+      ],
+      "paths": [
+        "/",
+        "/api/v1/",
+        "/user/login",
+        "/explore/repos",
+        "/.git/"
+      ],
+      "banners": [
+        "Gitea",
+        "Node.js",
+        "Express",
+        "React"
+      ]
+    },
+    "classification": {
+      "category": "web-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "gitea-paths.txt",
+        "git-files.txt",
+        "nodejs-routes.txt"
+      ],
+      "medium": [
+        "api-endpoints.txt",
+        "common-web.txt"
+      ],
+      "fallback": [
+        "directory-list-2.3-medium.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/api/v1/repos/search": {
+        "confidence": 0.9,
+        "risk": "high",
+        "reason": "Gitea API endpoint lists public repositories"
+      },
+      "/explore/users": {
+        "confidence": 0.85,
+        "risk": "medium",
+        "reason": "User enumeration in Gitea"
+      },
+      "/.git/config": {
+        "confidence": 0.7,
+        "risk": "critical",
+        "reason": "Exposed git repository in development servers"
+      }
+    },
+    "scoring_modifiers": {
+      "gitea_instance": 0.9,
+      "public_repos": 0.85,
+      "dev_server": 0.95,
+      "source_code_exposed": 1.0
+    },
+    "last_updated": "2025-07-16"
+  },
+  "8080": {
+    "name": "HTTP Proxy/Application Server",
+    "protocol": "tcp",
+    "default_service": "http-proxy",
+    "alternative_services": [
+      "tomcat",
+      "jenkins",
+      "jboss",
+      "http-alt"
+    ],
+    "description": "Alternative HTTP port commonly used by Jenkins, Tomcat, JBoss, and proxy servers. Critical target for admin panel access, Java deserialization, and proxy abuse in CTF enterprise challenges.",
+    "tech_stack": {
+      "language": "Java/Various",
+      "framework": "Tomcat/Jenkins/JBoss",
+      "http_stack": "HTTP/1.1"
+    },
+    "indicators": {
+      "ports": [
+        8080
+      ],
+      "headers": [
+        "Server: Apache-Coyote",
+        "X-Jenkins",
+        "X-Hudson",
+        "Server: Jetty"
+      ],
+      "paths": [
+        "/",
+        "/manager/html",
+        "/jenkins",
+        "/admin",
+        "/console"
+      ],
+      "banners": [
+        "Apache Tomcat",
+        "Jenkins",
+        "JBoss",
+        "Jetty"
+      ]
+    },
+    "classification": {
+      "category": "web-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "tomcat-users.txt",
+        "jenkins-paths.txt",
+        "java-endpoints.txt"
+      ],
+      "medium": [
+        "admin-panels.txt",
+        "common-web.txt"
+      ],
+      "fallback": [
+        "directory-list-2.3-medium.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/manager/html": {
+        "confidence": 0.9,
+        "risk": "critical",
+        "reason": "Tomcat manager often has default credentials"
+      },
+      "/jenkins": {
+        "confidence": 0.85,
+        "risk": "high",
+        "reason": "Jenkins CI/CD often misconfigured"
+      },
+      "/invoker/readonly": {
+        "confidence": 0.8,
+        "risk": "critical",
+        "reason": "Apache Struts RCE endpoint"
+      }
+    },
+    "scoring_modifiers": {
+      "default_credentials": 0.95,
+      "admin_panel_exposed": 0.9,
+      "java_deserialization": 1.0,
+      "proxy_abuse": 0.85
+    },
+    "last_updated": "2025-07-16"
+  },
+  "8000": {
+    "name": "HTTP Alternative/Development Server",
+    "protocol": "tcp",
+    "default_service": "http-alt",
+    "alternative_services": [
+      "python-http",
+      "django-dev",
+      "gitweb",
+      "splunk"
+    ],
+    "description": "Alternative HTTP port used by Python development servers, Django, Git web interfaces, and various applications. Common in CTF challenges with development environment exposures.",
+    "tech_stack": {
+      "language": "Python/Various",
+      "framework": "Django/Flask/SimpleHTTP",
+      "http_stack": "HTTP/1.1"
+    },
+    "indicators": {
+      "ports": [
+        8000
+      ],
+      "headers": [
+        "Server: SimpleHTTP",
+        "X-Powered-By: Django",
+        "Server: WSGIServer"
+      ],
+      "paths": [
+        "/",
+        "/admin",
+        "/debug",
+        "/.git/",
+        "/api/"
+      ],
+      "banners": [
+        "Python",
+        "Django",
+        "SimpleHTTPServer",
+        "Werkzeug"
+      ]
+    },
+    "classification": {
+      "category": "web-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "django-paths.txt",
+        "python-endpoints.txt",
+        "debug-panels.txt"
+      ],
+      "medium": [
+        "api-endpoints.txt",
+        "common-web.txt"
+      ],
+      "fallback": [
+        "quickhits.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/admin": {
+        "confidence": 0.9,
+        "risk": "high",
+        "reason": "Django admin panel often accessible"
+      },
+      "/__debug__": {
+        "confidence": 0.8,
+        "risk": "critical",
+        "reason": "Werkzeug debugger allows code execution"
+      },
+      "/.git/HEAD": {
+        "confidence": 0.7,
+        "risk": "high",
+        "reason": "Exposed git repository"
+      }
+    },
+    "scoring_modifiers": {
+      "debug_enabled": 1.0,
+      "development_server": 0.95,
+      "admin_accessible": 0.9,
+      "source_exposed": 0.85
+    },
+    "last_updated": "2025-07-16"
+  },
+  "5000": {
+    "name": "Flask Development Server",
+    "protocol": "tcp",
+    "default_service": "flask",
+    "alternative_services": [
+      "python-flask",
+      "docker-registry",
+      "synology-dsm"
+    ],
+    "description": "Flask development server default port, also used by Docker Registry and various Python applications. Often misconfigured with debug mode enabled allowing RCE in CTF web challenges.",
+    "tech_stack": {
+      "language": "Python",
+      "framework": "Flask/Werkzeug",
+      "http_stack": "HTTP/1.1"
+    },
+    "indicators": {
+      "ports": [
+        5000
+      ],
+      "headers": [
+        "Server: Werkzeug",
+        "X-Powered-By: Flask",
+        "Content-Type: application/json"
+      ],
+      "paths": [
+        "/",
+        "/console",
+        "/api",
+        "/v2/",
+        "/debug"
+      ],
+      "banners": [
+        "Werkzeug",
+        "Flask",
+        "Python"
+      ]
+    },
+    "classification": {
+      "category": "web-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "high"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "flask-endpoints.txt",
+        "werkzeug-console.txt",
+        "docker-registry.txt"
+      ],
+      "medium": [
+        "api-endpoints.txt",
+        "python-paths.txt"
+      ],
+      "fallback": [
+        "common.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/console": {
+        "confidence": 0.9,
+        "risk": "critical",
+        "reason": "Werkzeug debug console allows Python code execution"
+      },
+      "/v2/_catalog": {
+        "confidence": 0.8,
+        "risk": "high",
+        "reason": "Docker Registry API lists all images"
+      },
+      "/api/v1/": {
+        "confidence": 0.7,
+        "risk": "medium",
+        "reason": "Common API endpoint structure"
+      }
+    },
+    "scoring_modifiers": {
+      "debug_mode_enabled": 1.0,
+      "console_accessible": 0.95,
+      "docker_registry": 0.9,
+      "api_exposed": 0.85
+    },
+    "last_updated": "2025-07-16"
+  },
+  "8443": {
+    "name": "HTTPS Alternative",
+    "protocol": "tcp",
+    "default_service": "https-alt",
+    "alternative_services": [
+      "tomcat-ssl",
+      "plesk",
+      "synology-ssl"
+    ],
+    "description": "Alternative HTTPS port used by various web services, admin panels, and applications. Common in CTF challenges for SSL/TLS misconfigurations and certificate vulnerabilities.",
+    "tech_stack": {
+      "language": "Various",
+      "framework": "Apache/Nginx/Tomcat",
+      "http_stack": "HTTPS"
+    },
+    "indicators": {
+      "ports": [
+        8443
+      ],
+      "headers": [
+        "Server",
+        "Strict-Transport-Security",
+        "X-Frame-Options"
+      ],
+      "paths": [
+        "/",
+        "/admin",
+        "/manager",
+        "/plesk"
+      ],
+      "banners": [
+        "Apache",
+        "nginx",
+        "Tomcat",
+        "Plesk"
+      ]
+    },
+    "classification": {
+      "category": "web-service",
+      "exposure": "external",
+      "auth_required": false,
+      "misuse_potential": "medium"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "admin-panels.txt",
+        "ssl-vulns.txt",
+        "tomcat-ssl.txt"
+      ],
+      "medium": [
+        "common-web.txt",
+        "directory-list-2.3-small.txt"
+      ],
+      "fallback": [
+        "quickhits.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/admin": {
+        "confidence": 0.8,
+        "risk": "high",
+        "reason": "Admin panel often on alternative HTTPS ports"
+      },
+      "/manager/html": {
+        "confidence": 0.7,
+        "risk": "high",
+        "reason": "Tomcat manager on HTTPS"
+      }
+    },
+    "scoring_modifiers": {
+      "weak_ssl_config": 0.9,
+      "self_signed_cert": 0.8,
+      "admin_panel": 0.85,
+      "ssl_vulnerabilities": 0.95
+    },
+    "last_updated": "2025-07-16"
+  },
+  "10000": {
+    "name": "Webmin - System Administration",
+    "protocol": "tcp",
+    "default_service": "webmin",
+    "alternative_services": [
+      "virtualmin",
+      "usermin",
+      "ndmp"
+    ],
+    "description": "Webmin web-based system administration interface, frequently vulnerable to authenticated RCE and privilege escalation in CTF Linux challenges.",
+    "tech_stack": {
+      "language": "Perl",
+      "framework": "Webmin",
+      "http_stack": "HTTPS"
+    },
+    "indicators": {
+      "ports": [
+        10000
+      ],
+      "headers": [
+        "Server: MiniServ",
+        "Content-Type: text/html"
+      ],
+      "paths": [
+        "/",
+        "/session_login.cgi",
+        "/favicon.ico"
+      ],
+      "banners": [
+        "MiniServ",
+        "Webmin",
+        "Virtualmin"
+      ]
+    },
+    "classification": {
+      "category": "linux-service",
+      "exposure": "external",
+      "auth_required": true,
+      "misuse_potential": "high"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "webmin-users.txt",
+        "linux-admins.txt",
+        "webmin-vulns.txt"
+      ],
+      "medium": [
+        "common-users.txt",
+        "admin-passwords.txt"
+      ],
+      "fallback": [
+        "rockyou.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/session_login.cgi": {
+        "confidence": 0.95,
+        "risk": "high",
+        "reason": "Webmin login page, check for default creds"
+      },
+      "/file/show.cgi": {
+        "confidence": 0.8,
+        "risk": "critical",
+        "reason": "File manager often allows arbitrary file read"
+      },
+      "/password_change.cgi": {
+        "confidence": 0.7,
+        "risk": "high",
+        "reason": "Password reset vulnerabilities"
+      }
+    },
+    "scoring_modifiers": {
+      "default_credentials": 0.9,
+      "outdated_version": 0.95,
+      "file_manager_enabled": 0.85,
+      "root_access": 1.0
+    },
+    "last_updated": "2025-07-16"
+  },
+  "9200": {
+    "name": "Elasticsearch - Search and Analytics",
+    "protocol": "tcp",
+    "default_service": "elasticsearch",
+    "alternative_services": [
+      "elastic",
+      "elasticsearch-rest"
+    ],
+    "description": "Elasticsearch REST API, often exposed without authentication leading to data leaks and server compromise through script execution in CTF data storage challenges.",
+    "tech_stack": {
+      "language": "Java",
+      "framework": "Elasticsearch",
+      "http_stack": "HTTP/1.1"
+    },
+    "indicators": {
+      "ports": [
+        9200
+      ],
+      "headers": [
+        "Content-Type: application/json",
+        "X-Elastic-Product: Elasticsearch"
+      ],
+      "paths": [
+        "/",
+        "/_cat/indices",
+        "/_search",
+        "/_cluster/health"
+      ],
+      "banners": [
+        "Elasticsearch",
+        "You Know, for Search",
+        "lucene"
+      ]
+    },
+    "classification": {
+      "category": "database",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "attack_vectors": null,
+    "ctf_scenarios": null,
+    "associated_wordlists": {
+      "high": [
+        "elasticsearch-indices.txt",
+        "elastic-queries.txt",
+        "nosql-injections.txt"
+      ],
+      "medium": [
+        "api-endpoints.txt",
+        "database-names.txt"
+      ],
+      "fallback": [
+        "common.txt"
+      ]
+    },
+    "exploitation_paths": {},
+    "common_vulnerabilities": [],
+    "path_recommendations": {
+      "/_cat/indices?v": {
+        "confidence": 0.95,
+        "risk": "high",
+        "reason": "Lists all indices with document counts"
+      },
+      "/_search": {
+        "confidence": 0.9,
+        "risk": "critical",
+        "reason": "Search endpoint can dump all data"
+      },
+      "/_cluster/settings": {
+        "confidence": 0.85,
+        "risk": "high",
+        "reason": "Cluster settings may reveal sensitive config"
+      },
+      "/_scripts": {
+        "confidence": 0.8,
+        "risk": "critical",
+        "reason": "Script execution for RCE (older versions)"
+      }
+    },
+    "scoring_modifiers": {
+      "no_authentication": 1.0,
+      "data_exposed": 0.95,
+      "script_execution": 0.98,
+      "version_vulnerable": 0.9
+    },
+    "last_updated": "2025-07-16"
+  }
+}
