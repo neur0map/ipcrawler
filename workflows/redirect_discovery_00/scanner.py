@@ -105,17 +105,16 @@ class RedirectDiscoveryScanner(BaseWorkflow):
             )
             
     async def _discover_redirects_on_port(self, target: str, port: int) -> Set[Tuple[str, str]]:
-        """Discover redirects on a specific port using curl"""
+        """Discover redirects on a specific port using curl with full response analysis"""
         mappings = set()
         
         for scheme in ['http', 'https']:
             try:
-                # Use curl to follow redirects and capture all URLs
+                # Get FULL response (not just headers) to analyze content
                 cmd = [
                     'curl',
                     '-s',                           # Silent
                     '-L',                           # Follow redirects  
-                    '-I',                           # Head request only
                     '--max-redirs', '5',            # Max 5 redirects
                     '--connect-timeout', '3',       # Quick timeout
                     '--max-time', '10',             # Total timeout
@@ -134,9 +133,28 @@ class RedirectDiscoveryScanner(BaseWorkflow):
                 if process.returncode == 0:
                     output = stdout.decode().strip()
                     
-                    # Extract hostnames from URLs in curl output
-                    url_pattern = r'https?://([^:/\s]+)'
+                    # Extract hostnames from URLs in curl output (headers + body)
+                    url_pattern = r'https?://([^:/\s\'"<>]+)'
                     urls = re.findall(url_pattern, output)
+                    
+                    # Also extract hostnames from HTML content patterns
+                    html_patterns = [
+                        r'href=["\']https?://([^/\s"\'<>]+)',
+                        r'src=["\']https?://([^/\s"\'<>]+)',
+                        r'action=["\']https?://([^/\s"\'<>]+)',
+                        r'window\.location[^"\']*["\']https?://([^/\s"\'<>]+)',
+                        r'document\.domain\s*=\s*["\']([^"\'<>]+)["\']',
+                        # HTB-specific patterns
+                        r'([a-zA-Z0-9-]+\.htb)',  # Direct .htb domain references
+                        r'hostname["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']',  # hostname variables
+                        r'domain["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']',    # domain variables
+                        r'Host:\s*([^"\'\s<>\r\n]+)',                        # Host headers in content
+                        r'SERVER_NAME["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']' # Server name variables
+                    ]
+                    
+                    for pattern in html_patterns:
+                        html_matches = re.findall(pattern, output, re.IGNORECASE)
+                        urls.extend(html_matches)
                     
                     for hostname in urls:
                         if hostname != target and self._is_valid_hostname(hostname):
@@ -145,9 +163,19 @@ class RedirectDiscoveryScanner(BaseWorkflow):
                                 ip = await self._resolve_hostname(hostname)
                                 if ip:
                                     mappings.add((ip, hostname))
+                                    console.print(f"  → Found hostname: [cyan]{hostname}[/cyan] → {ip}")
                             except:
                                 # If can't resolve, try using target IP
                                 mappings.add((target, hostname))
+                                console.print(f"  → Found hostname: [cyan]{hostname}[/cyan] → {target} (DNS failed)")
+                
+                # Also try with different Host headers for virtual host discovery
+                if not mappings:
+                    # Generate potential hostnames and test them
+                    potential_hostnames = self._generate_potential_hostnames(target)
+                    for potential_hostname in potential_hostnames:
+                        host_mappings = await self._test_virtual_host(target, port, scheme, potential_hostname)
+                        mappings.update(host_mappings)
                                 
             except asyncio.TimeoutError:
                 continue
@@ -262,13 +290,105 @@ class RedirectDiscoveryScanner(BaseWorkflow):
         if not hostname or len(hostname) > 255:
             return False
             
-        # Basic hostname validation
-        if hostname.replace('.', '').replace('-', '').isalnum():
+        # Skip obviously invalid hostnames
+        if hostname.startswith('.') or hostname.endswith('.'):
+            return False
+            
+        # Skip localhost and common non-targets
+        skip_patterns = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com', 'test.com']
+        if any(skip in hostname.lower() for skip in skip_patterns):
+            return False
+            
+        # HTB (HackTheBox) domains are valid targets (.htb extension)
+        if hostname.endswith('.htb'):
             return True
             
-        return False
+        # Basic hostname validation - must contain at least one dot
+        if '.' not in hostname:
+            return False
+            
+        # Check for valid characters
+        valid_chars = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-')
+        if not all(c in valid_chars for c in hostname):
+            return False
+            
+        # Must not be just numbers (IP address)
+        if hostname.replace('.', '').isdigit():
+            return False
+            
+        return True
         
     def _is_ip_address(self, target: str) -> bool:
         """Check if target is an IP address"""
         ip_pattern = r'^\d+\.\d+\.\d+\.\d+$'
-        return bool(re.match(ip_pattern, target)) 
+        return bool(re.match(ip_pattern, target))
+        
+    def _generate_potential_hostnames(self, target: str) -> List[str]:
+        """Generate potential hostnames based on target"""
+        hostnames = []
+        
+        # If target is an IP, can't generate hostnames
+        if self._is_ip_address(target):
+            return hostnames
+            
+        # Generate common subdomain patterns
+        base_domain = target
+        potential_patterns = [
+            'www', 'mail', 'ftp', 'admin', 'portal', 'api', 'app', 'dev',
+            'staging', 'test', 'prod', 'secure', 'vpn', 'remote', 'blog',
+            'shop', 'store', 'demo', 'beta', 'cms', 'dashboard'
+        ]
+        
+        for pattern in potential_patterns:
+            hostnames.append(f"{pattern}.{base_domain}")
+            
+        return hostnames
+        
+    async def _test_virtual_host(self, target: str, port: int, scheme: str, hostname: str) -> Set[Tuple[str, str]]:
+        """Test virtual host by sending Host header"""
+        mappings = set()
+        
+        try:
+            # Use curl with explicit Host header
+            url = f'{scheme}://{target}:{port}/'
+            cmd = [
+                'curl',
+                '-s',
+                '--connect-timeout', '3',
+                '--max-time', '5',
+                '-H', f'Host: {hostname}',
+                '-I',  # Just headers for virtual host testing
+                url
+            ]
+            
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                output = stdout.decode().strip()
+                
+                # Check if we get a different response (indicates virtual host exists)
+                if output and 'HTTP/' in output:
+                    # Look for signs this is a valid virtual host
+                    status_line = output.split('\n')[0] if output else ''
+                    if '200' in status_line or '301' in status_line or '302' in status_line:
+                        # Check if hostname resolves, if not map to target IP
+                        try:
+                            ip = await self._resolve_hostname(hostname)
+                            if ip:
+                                mappings.add((ip, hostname))
+                            else:
+                                mappings.add((target, hostname))
+                            console.print(f"  → Virtual host found: [cyan]{hostname}[/cyan]")
+                        except:
+                            mappings.add((target, hostname))
+                            
+        except Exception:
+            pass
+            
+        return mappings 

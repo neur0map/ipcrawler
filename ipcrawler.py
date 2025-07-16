@@ -195,6 +195,7 @@ async def check_and_offer_sudo_escalation():
         console.print("  ✓ Advanced timing optimizations")
         console.print("  ✓ Raw socket access")
         console.print("  ✓ Port range scanning optimizations")
+        console.print("  ✓ Automatic /etc/hosts updates for hostname mapping")
         
         console.print("\n[yellow]Current limitations:[/yellow]")
         console.print("  • TCP connect scans only (slower)")
