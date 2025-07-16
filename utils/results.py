@@ -119,7 +119,8 @@ class TextFormatter(BaseFormatter):
                         report.append(f"    Technologies: {', '.join(service['technologies'])}")
                     if service.get('discovered_paths'):
                         report.append(f"    Discovered Paths: {len(service['discovered_paths'])}")
-                        for path in service['discovered_paths'][:5]:
+                        # Show all paths in saved results, but terminal output is limited elsewhere
+                        for path in service['discovered_paths']:
                             report.append(f"      • {path}")
             
             # Vulnerabilities
