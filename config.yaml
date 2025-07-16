@@ -1,5 +1,8 @@
 # IP Crawler Configuration
 
+# Application Version
+version: "1.0.0-alpha.1"
+
 # Scan Settings
 scan:
   # DEFAULT BEHAVIOR: ONLY SCAN DISCOVERED OPEN PORTS

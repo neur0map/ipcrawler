@@ -89,14 +89,32 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 
+def version_callback(value: bool):
+    """Handle --version flag"""
+    if value:
+        # Read ASCII art
+        ascii_art_path = Path(__file__).parent / "media" / "ascii-art.txt"
+        if ascii_art_path.exists():
+            with open(ascii_art_path, 'r') as f:
+                ascii_art = f.read()
+                console.print(ascii_art, style="cyan")
+        
+        # Display version from config
+        console.print(f"\n[bold]ipcrawler[/bold] version [green]{config.version}[/green]")
+        console.print("CLI orchestrator for reconnaissance workflows\n")
+        raise typer.Exit()
 
 
 @app.command()
 def main(
-    target: str = typer.Argument(..., help="Target IP address or hostname to scan"),
-    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug output")
+    target: str = typer.Argument(None, help="Target IP address or hostname to scan"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug output"),
+    version: bool = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version information")
 ):
     """Run reconnaissance workflow on target"""
+    if target is None:
+        console.print("[red]Error:[/red] Target is required")
+        raise typer.Exit(1)
     asyncio.run(run_workflow(target, debug))
 
 

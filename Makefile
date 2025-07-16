@@ -136,6 +136,9 @@ install:
 	@echo "You can now use:"
 	@echo "  ipcrawler <target>       - Run as user"
 	@echo "  sudo ipcrawler <target>  - Run with privileges"
+	@echo ""
+	@echo "Testing installation..."
+	@ipcrawler --version || echo "⚠ Failed to run ipcrawler --version"
 
 uninstall:
 	@echo "Uninstalling IPCrawler..."

@@ -31,6 +31,7 @@ class Config:
     def _get_default_config(self) -> Dict[str, Any]:
         """Get default configuration"""
         return {
+            "version": "1.0.0",
             "scan": {
                 "fast_port_discovery": True,
                 "max_detailed_ports": 1000
@@ -109,6 +110,11 @@ class Config:
     def auto_escalate(self) -> bool:
         """Whether to automatically escalate to sudo"""
         return self._config.get("privileges", {}).get("auto_escalate", False)
+    
+    @property
+    def version(self) -> str:
+        """Get application version"""
+        return self.get("version", "1.0.0")
 
 
 # Global config instance
