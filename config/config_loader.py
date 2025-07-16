@@ -35,6 +35,10 @@ class Config:
                 "fast_port_discovery": True,
                 "max_detailed_ports": 1000
             },
+            "privileges": {
+                "prompt_for_sudo": True,
+                "auto_escalate": False
+            },
             "parallel": {
                 "batch_size": 10,
                 "ports_per_batch": 6553
@@ -94,6 +98,17 @@ class Config:
     def real_time_save(self) -> bool:
         """Check if real-time file saving is enabled"""
         return self.get("output.real_time_save", True)
+
+    # Privilege settings
+    @property
+    def prompt_for_sudo(self) -> bool:
+        """Whether to prompt for sudo escalation"""
+        return self._config.get("privileges", {}).get("prompt_for_sudo", True)
+    
+    @property
+    def auto_escalate(self) -> bool:
+        """Whether to automatically escalate to sudo"""
+        return self._config.get("privileges", {}).get("auto_escalate", False)
 
 
 # Global config instance

@@ -18,6 +18,18 @@ scan:
   # If more ports are discovered, only top N will be scanned
   max_detailed_ports: 1000
 
+# Privilege Settings
+privileges:
+  # Prompt for sudo escalation when running without root privileges
+  # When true (DEFAULT): Ask user if they want to restart with sudo
+  # When false: Never prompt, continue with current privileges
+  prompt_for_sudo: true
+  
+  # Auto-escalate to sudo without prompting (for automation)
+  # When true: Automatically restart with sudo if available
+  # When false: Follow prompt_for_sudo setting
+  auto_escalate: false
+
 # Parallel Processing
 parallel:
   # Number of concurrent scan processes

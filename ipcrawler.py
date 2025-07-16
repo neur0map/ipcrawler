@@ -36,6 +36,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from workflows.redirect_discovery_00.scanner import RedirectDiscoveryScanner
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from workflows.http_03.scanner import HTTPAdvancedScanner
@@ -145,13 +146,111 @@ async def resolve_target(target: str) -> str:
         return target  # Let nmap handle it
 
 
+async def check_and_offer_sudo_escalation():
+    """Check current privileges and offer sudo escalation if beneficial"""
+    import os
+    import subprocess
+    import sys
+    
+    # Skip if already running as root
+    if os.geteuid() == 0:
+        console.print("✓ Running with [green]root privileges[/green] - Enhanced scanning capabilities enabled")
+        return
+    
+    # Check configuration settings
+    if not config.prompt_for_sudo and not config.auto_escalate:
+        console.print("ℹ Running with [yellow]user privileges[/yellow] - sudo escalation disabled in config")
+        return
+    
+    # Check if sudo is available
+    try:
+        # Check if sudo command exists
+        subprocess.run(['which', 'sudo'], capture_output=True, check=True)
+        
+        # Check if user is in sudoers (can use sudo with or without password)
+        # This approach assumes sudo is available if the command exists and user is not root
+        # We'll let the actual escalation handle password prompts
+        sudo_available = True
+        
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        sudo_available = False
+    
+    if not sudo_available:
+        console.print("ℹ Running with [yellow]user privileges[/yellow] - sudo not available")
+        console.print("  → TCP connect scans (slower than SYN scans)")
+        console.print("  → No OS detection capabilities")
+        console.print("  → Limited timing optimizations")
+        return
+    
+    # Auto-escalate if configured
+    if config.auto_escalate:
+        console.print("→ Auto-escalating to sudo (configured in config.yaml)")
+        escalate = True
+    else:
+        # Offer escalation
+        console.print("\n🔒 [bold]Privilege Escalation Available[/bold]")
+        console.print("\n[green]Enhanced capabilities with sudo:[/green]")
+        console.print("  ✓ SYN stealth scanning (faster, stealthier)")
+        console.print("  ✓ OS detection and fingerprinting") 
+        console.print("  ✓ Advanced timing optimizations")
+        console.print("  ✓ Raw socket access")
+        console.print("  ✓ Port range scanning optimizations")
+        
+        console.print("\n[yellow]Current limitations:[/yellow]")
+        console.print("  • TCP connect scans only (slower)")
+        console.print("  • No OS detection")
+        console.print("  • Limited nmap capabilities")
+        
+        # Get user choice
+        escalate = typer.confirm("\nWould you like to restart with sudo for enhanced scanning?", default=True)
+    
+    if escalate:
+        # Build the correct sudo command based on how script was called
+        script_path = os.path.abspath(__file__)
+        original_args = sys.argv[1:]  # Get arguments without script name
+        
+        # Build sudo command with explicit Python execution
+        sudo_cmd = ['sudo', sys.executable, script_path] + original_args
+        
+        console.print(f"\n→ Restarting with sudo: [dim]{' '.join(sudo_cmd)}[/dim]")
+        
+        # Execute with sudo
+        try:
+            os.execvp('sudo', sudo_cmd)
+        except Exception as e:
+            console.print(f"✗ Failed to escalate privileges: {e}")
+            console.print("→ Continuing with user privileges...")
+    else:
+        console.print("→ Continuing with user privileges...")
+
+
 async def run_workflow(target: str):
     """Execute reconnaissance workflow on target"""
     # Clean up any existing nmap processes first
     cleanup_existing_nmap_processes()
     
+    # Check if we should offer sudo escalation BEFORE starting any workflows
+    await check_and_offer_sudo_escalation()
+    
     # Resolve target first
     resolved_target = await resolve_target(target)
+    
+    # WORKFLOW 00: Quick redirect discovery and hostname mapping
+    console.print("\n→ [bold]Starting Workflow 00: Redirect Discovery[/bold]")
+    redirect_scanner = RedirectDiscoveryScanner()
+    redirect_result = await redirect_scanner.execute(target=resolved_target)
+    
+    hostname_mappings = []
+    if redirect_result.success and redirect_result.data:
+        hostname_mappings = redirect_result.data.get('discovered_mappings', [])
+        if redirect_result.data.get('etc_hosts_updated'):
+            console.print("✓ Hostname mappings added to /etc/hosts - subsequent workflows optimized")
+        elif hostname_mappings:
+            console.print(f"ℹ Found {len(hostname_mappings)} hostnames but no sudo access - consider rerunning with sudo")
+    else:
+        console.print(f"⚠ Redirect discovery failed: {redirect_result.error}")
+        
+    console.print("→ Proceeding to port discovery...")
     
     # Create workspace directory
     workspace = result_manager.create_workspace(target)
