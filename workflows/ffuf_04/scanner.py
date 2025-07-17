@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from workflows.core.base import BaseWorkflow
-from database.scorer.scorer_engine import score_wordlists
+from database.scorer.scorer_engine import score_wordlists, get_wordlist_paths
 from database.scorer.models import ScoringContext
 from database.scorer.cache import ScorerCache
 
@@ -221,6 +221,19 @@ class FfufScanner(BaseWorkflow):
             selected_wordlist = recommendation.wordlists[0]
             logger.info(f"Selected wordlist: {selected_wordlist} (confidence: {recommendation.confidence}, score: {recommendation.score:.2f})")
             
+            # Resolve wordlist name to actual file path
+            try:
+                wordlist_paths = get_wordlist_paths([selected_wordlist], tech=context.tech, port=context.port)
+                if wordlist_paths:
+                    wordlist_path = wordlist_paths[0]
+                    logger.info(f"Resolved wordlist path: {wordlist_path}")
+                else:
+                    logger.warning(f"Could not resolve wordlist path for {selected_wordlist}, skipping...")
+                    continue
+            except Exception as e:
+                logger.error(f"Error resolving wordlist path: {e}")
+                continue
+            
             # Save selection to cache
             cache_entry_id = self.cache.save_selection(context, recommendation)
             
@@ -237,7 +250,7 @@ class FfufScanner(BaseWorkflow):
                 extensions = ['.php', '.html', '.txt', '.xml']
             
             # Run ffuf
-            scan_result = self._run_ffuf(target_url, selected_wordlist, extensions)
+            scan_result = self._run_ffuf(target_url, wordlist_path, extensions)
             
             # Process results
             findings = []
