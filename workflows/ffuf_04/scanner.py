@@ -332,6 +332,116 @@ class FfufScanner(BaseWorkflow):
             logger.error(f"Failed to get catalog wordlists: {e}")
             return []
     
+    def _get_intelligent_wordlists(self, context: ScoringContext) -> List[str]:
+        """
+        Get wordlists using full intelligence: port database + scorer + catalog.
+        This provides complete visibility into the recommendation process.
+        """
+        try:
+            logger.info("🧠 Starting intelligent wordlist selection...")
+            logger.info(f"📊 Context: {context.target}:{context.port} | Tech: {context.tech} | Service: {context.service}")
+            
+            # Step 1: Check port database for specific recommendations
+            port_recommendations = self._get_port_database_recommendations(context)
+            logger.info(f"🔌 Port database recommendations: {port_recommendations}")
+            
+            # Step 2: Get scorer recommendations with catalog integration
+            scorer_recommendations = self._get_scorer_recommendations(context)
+            logger.info(f"🎯 Scorer recommendations: {scorer_recommendations}")
+            
+            # Step 3: Get catalog wordlists as fallback
+            catalog_recommendations = self._get_catalog_wordlists_direct(context)
+            logger.info(f"📚 Catalog fallback: {catalog_recommendations[:3]}...")
+            
+            # Step 4: Combine intelligently with priority
+            final_wordlists = []
+            
+            # Priority 1: Port database high-priority wordlists
+            if port_recommendations.get('high'):
+                final_wordlists.extend(port_recommendations['high'])
+                logger.info(f"✅ Added port database HIGH priority: {port_recommendations['high']}")
+            
+            # Priority 2: Scorer recommendations (if available)
+            if scorer_recommendations:
+                for wl in scorer_recommendations[:3]:  # Top 3 scorer picks
+                    if wl not in final_wordlists:
+                        final_wordlists.append(wl)
+                logger.info(f"✅ Added scorer top picks: {scorer_recommendations[:3]}")
+            
+            # Priority 3: Port database medium-priority
+            if port_recommendations.get('medium'):
+                for wl in port_recommendations['medium']:
+                    if wl not in final_wordlists:
+                        final_wordlists.append(wl)
+                logger.info(f"✅ Added port database MEDIUM priority: {port_recommendations['medium']}")
+            
+            # Priority 4: Catalog recommendations as fallback
+            for wl in catalog_recommendations[:3]:
+                if wl not in final_wordlists:
+                    final_wordlists.append(wl)
+            logger.info(f"✅ Added catalog fallback: {[w for w in catalog_recommendations[:3] if w not in final_wordlists]}")
+            
+            # Ensure we have at least one wordlist
+            if not final_wordlists:
+                final_wordlists = catalog_recommendations[:1]
+                logger.warning("⚠️ No intelligent recommendations found, using catalog fallback")
+            
+            logger.info(f"🎉 Final intelligent selection: {final_wordlists}")
+            return final_wordlists
+            
+        except Exception as e:
+            logger.error(f"❌ Intelligence system failed: {e}")
+            return self._get_catalog_wordlists_direct(context)
+    
+    def _get_port_database_recommendations(self, context: ScoringContext) -> Dict[str, List[str]]:
+        """Get wordlist recommendations from the port database."""
+        try:
+            import json
+            with open('database/ports/port_db.json', 'r') as f:
+                port_db = json.load(f)
+            
+            port_str = str(context.port)
+            if port_str in port_db:
+                port_info = port_db[port_str]
+                wordlists = port_info.get('associated_wordlists', {})
+                
+                # Log port intelligence
+                tech_stack = port_info.get('tech_stack', {})
+                classification = port_info.get('classification', {})
+                logger.info(f"🔍 Port {context.port} intelligence:")
+                logger.info(f"  📋 Classification: {classification.get('category', 'unknown')}")
+                logger.info(f"  ⚙️ Tech stack: {tech_stack}")
+                logger.info(f"  📝 Description: {port_info.get('description', 'N/A')[:100]}...")
+                
+                return wordlists
+            else:
+                logger.info(f"ℹ️ No specific intelligence for port {context.port}")
+                return {}
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to load port database: {e}")
+            return {}
+    
+    def _get_scorer_recommendations(self, context: ScoringContext) -> List[str]:
+        """Get recommendations from the scorer system."""
+        try:
+            from database.scorer.scorer_engine import score_wordlists_with_catalog
+            result = score_wordlists_with_catalog(context)
+            
+            if result and result.wordlists:
+                logger.info(f"📈 Scorer analysis:")
+                logger.info(f"  🎯 Score: {result.score:.2f} | Confidence: {result.confidence}")
+                logger.info(f"  📐 Rules matched: {result.matched_rules}")
+                logger.info(f"  🔄 Fallback used: {result.fallback_used}")
+                return result.wordlists
+            else:
+                logger.info("ℹ️ Scorer returned no recommendations")
+                return []
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Scorer system failed: {e}")
+            return []
+    
     async def execute(self, target: str, previous_results: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """Execute ffuf scanning with intelligent wordlist selection."""
         if not self.validate_input(target=target):
@@ -367,16 +477,16 @@ class FfufScanner(BaseWorkflow):
             # Build scoring context
             context = self._build_scoring_context(service, previous_results)
             
-            # Get wordlist recommendation directly from catalog
-            catalog_wordlists = self._get_catalog_wordlists_direct(context)
+            # Get wordlist recommendation using full intelligence system
+            intelligent_wordlists = self._get_intelligent_wordlists(context)
             
-            if not catalog_wordlists:
-                logger.warning("No catalog wordlists found, skipping service...")
+            if not intelligent_wordlists:
+                logger.warning("No intelligent wordlists found, skipping service...")
                 continue
             
-            # Use the first wordlist from catalog
-            selected_wordlist = catalog_wordlists[0]
-            logger.info(f"Selected catalog wordlist: {selected_wordlist}")
+            # Use the first wordlist from intelligent system
+            selected_wordlist = intelligent_wordlists[0]
+            logger.info(f"🎯 Selected intelligent wordlist: {selected_wordlist}")
             
             # Resolve wordlist name to actual file path
             try:
