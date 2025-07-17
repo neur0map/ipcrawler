@@ -75,9 +75,29 @@ class FfufScanner(BaseWorkflow):
         if 'http' in previous_results:
             http_data = previous_results['http'].get('data', {})
             for service in http_data.get('services', []):
-                if service not in http_services:
-                    http_services.append(service)
+                # Convert HTTP service format to expected format
+                if 'actual_target' in service or 'url' in service:
+                    # Extract host from actual_target or url
+                    host = service.get('actual_target')
+                    if not host and 'url' in service:
+                        # Parse host from URL
+                        from urllib.parse import urlparse
+                        parsed = urlparse(service['url'])
+                        host = parsed.hostname
                     
+                    if host:
+                        # Convert to expected format
+                        converted_service = {
+                            'host': host,
+                            'port': service.get('port', 80),
+                            'service': 'https' if service.get('is_https') else 'http',
+                            'ssl': service.get('is_https', False)
+                        }
+                        
+                        # Avoid duplicates
+                        if converted_service not in http_services:
+                            http_services.append(converted_service)
+        
         return http_services
     
     def _build_scoring_context(self, service: Dict[str, Any], previous_results: Dict[str, Any]) -> ScoringContext:
@@ -90,13 +110,25 @@ class FfufScanner(BaseWorkflow):
         if 'http' in previous_results:
             http_data = previous_results['http'].get('data', {})
             for http_service in http_data.get('services', []):
-                if (http_service.get('host') == service['host'] and 
-                    http_service.get('port') == service['port']):
+                # Compare using actual_target or parsed URL since we normalized the data
+                service_host = service.get('host')
+                http_host = http_service.get('actual_target')
+                if not http_host and 'url' in http_service:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(http_service['url'])
+                    http_host = parsed.hostname
+                
+                if (http_host == service_host and 
+                    http_service.get('port') == service.get('port')):
                     headers = http_service.get('headers', {})
                     # Extract server header as tech
-                    if 'Server' in headers:
+                    if 'server' in headers:
+                        tech = headers['server']
+                    elif 'Server' in headers:
                         tech = headers['Server']
                     # Extract powered-by header as tech (fallback)
+                    elif 'x-powered-by' in headers:
+                        tech = headers['x-powered-by']
                     elif 'X-Powered-By' in headers:
                         tech = headers['X-Powered-By']
         
