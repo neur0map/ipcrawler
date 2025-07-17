@@ -419,12 +419,22 @@ class ResultManager:
     def save_results(self, workspace: Path, target: str, data: Dict, 
                     formats: Optional[List[str]] = None) -> None:
         """Save scan results in specified formats."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"🔍 save_results called:")
+        logger.info(f"  📂 Workspace: {workspace}")
+        logger.info(f"  🎯 Target: {target}")
+        logger.info(f"  📊 Data keys: {list(data.keys()) if data else 'None'}")
+        logger.info(f"  📝 Formats: {formats}")
+        
         # Default to all formats if none specified
         if formats is None:
             formats = ['json', 'txt', 'html']
         
         # Finalize data before saving
         data = self.finalize_scan_data(data)
+        logger.info(f"  ✅ Data finalized, keys: {list(data.keys()) if data else 'None'}")
         
         # Determine file prefix
         prefix = "scan_"
@@ -433,6 +443,7 @@ class ResultManager:
         files_created = []
         for fmt in formats:
             if fmt not in self.formatters:
+                logger.warning(f"  ❌ Unknown format: {fmt}")
                 continue
             
             # Determine filename
@@ -443,18 +454,30 @@ class ResultManager:
             elif fmt == 'html':
                 filename = f"{prefix}report.html"
             else:
+                logger.warning(f"  ❌ Unhandled format: {fmt}")
                 continue
             
             filepath = workspace / filename
+            logger.info(f"  📄 Creating {fmt}: {filepath}")
             
-            # Format data
-            formatted_content = self.formatters[fmt].format(target, data)
-            
-            # Write file with UTF-8 encoding
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(formatted_content)
-            
-            files_created.append(filepath)
+            try:
+                # Format data
+                formatted_content = self.formatters[fmt].format(target, data)
+                logger.info(f"  📏 {fmt} content length: {len(formatted_content)} chars")
+                
+                # Write file with UTF-8 encoding
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(formatted_content)
+                
+                files_created.append(filepath)
+                logger.info(f"  ✅ Successfully created: {filepath}")
+                
+            except Exception as e:
+                logger.error(f"  ❌ Failed to create {fmt} file: {e}")
+                import traceback
+                logger.error(f"  📍 Traceback: {traceback.format_exc()}")
+        
+        logger.info(f"  🎉 Total files created: {len(files_created)}")
         
         # Fix file permissions if running as sudo
         if os.geteuid() == 0:  # Running as root
@@ -462,10 +485,20 @@ class ResultManager:
             sudo_gid = os.environ.get('SUDO_GID')
             
             if sudo_uid and sudo_gid:
+                logger.info(f"  🔐 Fixing permissions for sudo user {sudo_uid}:{sudo_gid}")
                 # Change ownership of all created files
                 for file in files_created:
-                    subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(file)], 
-                                  capture_output=True, check=False)
+                    try:
+                        result = subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(file)], 
+                                      capture_output=True, check=False)
+                        if result.returncode != 0:
+                            logger.warning(f"  ⚠️ chown failed for {file}: {result.stderr}")
+                    except Exception as e:
+                        logger.error(f"  ❌ Permission fix failed for {file}: {e}")
+            else:
+                logger.info(f"  ℹ️ No SUDO_UID/SUDO_GID found, skipping permission fix")
+        else:
+            logger.info(f"  ℹ️ Not running as root, no permission fix needed")
     
     async def save_results_async(self, workspace: Path, target: str, data: Dict, 
                                formats: Optional[List[str]] = None) -> None:
