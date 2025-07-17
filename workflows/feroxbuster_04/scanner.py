@@ -161,7 +161,6 @@ class FeroxbusterScanner(BaseWorkflow):
                 '--json',          # JSON output for parsing
                 '--silent',        # Reduce noise
                 '--no-recursion',  # Don't recurse directories for initial scan
-                '--filter-status', '404',  # Filter out 404s
                 '--filter-size', '0'       # Filter out zero-byte responses
             ]
             
@@ -173,7 +172,7 @@ class FeroxbusterScanner(BaseWorkflow):
                     cmd.extend(['--extensions', ext.lstrip('.')])  # Remove leading dot
             
             logger.info(f"Running feroxbuster on {target_url} with wordlist: {wordlist_path}")
-            logger.info(f"🎯 Filtering: 200,301,302,403,405 status codes, excluding 404s and zero-byte files")
+            logger.info(f"🎯 Filtering: 200,301,302,403,405 status codes, excluding zero-byte files")
             if extensions:
                 logger.info(f"Extensions: {extensions[:5]}")
                 
@@ -201,9 +200,10 @@ class FeroxbusterScanner(BaseWorkflow):
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
                     
-                    # Clear current line and print timer with wordlist name
-                    timer_text = f'  → Scanning with feroxbuster using {wordlist_name}... {minutes:02d}:{seconds:02d} elapsed'
-                    sys.stdout.write(f'\r{timer_text}' + ' ' * 20)  # Add padding to clear old text
+                    # Clear current line and print timer with wordlist name (truncate if too long)
+                    display_name = wordlist_name if len(wordlist_name) <= 30 else wordlist_name[:27] + "..."
+                    timer_text = f'  → Scanning with feroxbuster using {display_name}... {minutes:02d}:{seconds:02d} elapsed'
+                    sys.stdout.write(f'\r{timer_text}' + ' ' * 50)  # More padding to clear old text
                     sys.stdout.write(f'\r{timer_text}')  # Write the actual text
                     sys.stdout.flush()
                     
