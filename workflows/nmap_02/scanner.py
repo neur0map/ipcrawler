@@ -102,7 +102,6 @@ class NmapScanner(BaseWorkflow):
                           progress_queue: Optional[asyncio.Queue] = None) -> WorkflowResult:
         """Execute a single nmap scan on ONLY the specific discovered ports"""
         try:
-            # Create port specification from discovered ports ONLY
             port_spec = ','.join(map(str, ports))
             
             # Build nmap command
@@ -129,7 +128,6 @@ class NmapScanner(BaseWorkflow):
             xml_output = stdout.decode()
             scan_result = self._parse_xml_output(xml_output, " ".join(cmd))
             
-            # Add scan mode info
             scan_result_dict = scan_result.model_dump()
             scan_result_dict['scan_mode'] = '[bold green]privileged[/bold green]' if is_root else '[bold orange1]unprivileged[/bold orange1]'
             scan_result_dict['scan_type'] = 'targeted'
@@ -155,13 +153,11 @@ class NmapScanner(BaseWorkflow):
                             progress_queue: Optional[asyncio.Queue], start_time: float) -> WorkflowResult:
         """Execute parallel batch scanning for all ports"""
         try:
-            # Create port ranges for all ports
             port_ranges = self._create_port_ranges()
             
-            # Create semaphore to limit concurrent processes
+            # Limit concurrent processes with semaphore
             semaphore = asyncio.Semaphore(self.batch_size)
             
-            # Create tasks for all port ranges
             tasks = []
             for start_port, end_port in port_ranges:
                 task = self._scan_port_range_with_semaphore(
@@ -192,7 +188,6 @@ class NmapScanner(BaseWorkflow):
             # Merge all scan results
             merged_result = self._merge_scan_results(successful_scans, target, is_root)
             
-            # Add scan mode info
             merged_result_dict = merged_result.model_dump()
             merged_result_dict['scan_mode'] = '[bold green]privileged[/bold green]' if is_root else '[bold orange1]unprivileged[/bold orange1]'
             merged_result_dict['parallel_scans'] = len(successful_scans)
@@ -223,10 +218,9 @@ class NmapScanner(BaseWorkflow):
                 batch = ports[i:i + batch_size]
                 port_batches.append(batch)
             
-            # Create semaphore to limit concurrent processes
+            # Limit concurrent processes with semaphore  
             semaphore = asyncio.Semaphore(min(3, len(port_batches)))  # Max 3 concurrent batches
             
-            # Create tasks for all port batches
             tasks = []
             for batch in port_batches:
                 task = self._scan_port_batch_with_semaphore(
@@ -257,7 +251,6 @@ class NmapScanner(BaseWorkflow):
             # Merge all scan results
             merged_result = self._merge_scan_results(successful_scans, target, is_root)
             
-            # Add scan mode info
             merged_result_dict = merged_result.model_dump()
             merged_result_dict['scan_mode'] = '[bold green]privileged[/bold green]' if is_root else '[bold orange1]unprivileged[/bold orange1]'
             merged_result_dict['scan_type'] = 'targeted_batched'
@@ -308,7 +301,6 @@ class NmapScanner(BaseWorkflow):
     ) -> Optional[NmapScanResult]:
         """Execute nmap scan for specific ports"""
         try:
-            # Create port specification
             port_spec = ','.join(map(str, ports))
             
             # Build command for these specific ports
@@ -368,7 +360,6 @@ class NmapScanner(BaseWorkflow):
     
     def _merge_scan_results(self, results: List[NmapScanResult], target: str, is_root: bool) -> NmapScanResult:
         """Merge multiple scan results into one comprehensive result"""
-        # Initialize merged result
         merged_hosts: Dict[str, NmapHost] = {}
         total_duration = 0.0
         all_warnings = []
@@ -391,7 +382,6 @@ class NmapScanner(BaseWorkflow):
                         if port.port not in existing_ports:
                             existing_host.ports.append(port)
                         else:
-                            # Update with more detailed info if available
                             existing_port = existing_ports[port.port]
                             if not existing_port.service and port.service:
                                 existing_port.service = port.service
@@ -400,7 +390,6 @@ class NmapScanner(BaseWorkflow):
                             if port.scripts:
                                 existing_port.scripts.extend(port.scripts)
                     
-                    # Update OS info if better accuracy
                     if host.os and (not existing_host.os or 
                                    (host.os_accuracy or 0) > (existing_host.os_accuracy or 0)):
                         existing_host.os = host.os
@@ -411,7 +400,6 @@ class NmapScanner(BaseWorkflow):
         for host in merged_hosts.values():
             host.ports.sort(key=lambda p: p.port)
         
-        # Create merged result
         scan_type = "syn" if is_root else "connect"
         command = f"nmap -s{scan_type.upper()[0]} -sV -sC -T4 -p- {target} (parallel batch scan)"
         
@@ -507,7 +495,7 @@ class NmapScanner(BaseWorkflow):
             )
             
         except ET.ParseError:
-            # Return minimal result if XML parsing fails
+            # Fallback for XML parsing errors
             return NmapScanResult(
                 command=command,
                 scan_type="unknown",

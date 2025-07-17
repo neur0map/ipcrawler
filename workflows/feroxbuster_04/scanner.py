@@ -35,7 +35,6 @@ class FeroxbusterScanner(BaseWorkflow):
         """Extract HTTP/HTTPS services from previous scan results."""
         http_services = []
         
-        # Check nmap results for web services
         if 'nmap_fast' in previous_results:
             nmap_data = previous_results['nmap_fast'].get('data', {})
             for host_data in nmap_data.get('hosts', []):
@@ -46,7 +45,6 @@ class FeroxbusterScanner(BaseWorkflow):
                     if not isinstance(port_data, dict):
                         continue
                         
-                    # Handle both string and dict formats for service field
                     service = port_data.get('service', '')
                     if isinstance(service, dict):
                         service = service.get('name', '')
@@ -55,7 +53,7 @@ class FeroxbusterScanner(BaseWorkflow):
                     
                     port = port_data.get('port')
                     
-                    # Handle both string and dict formats for state field  
+                    # Support both string and dict formats for state field
                     state = port_data.get('state', '')
                     if isinstance(state, dict):
                         state = state.get('state', '')
@@ -76,16 +74,13 @@ class FeroxbusterScanner(BaseWorkflow):
                                 'ssl': 'https' in service.lower() or port == 443
                             })
         
-        # Check HTTP workflow results
         if 'http' in previous_results:
             http_data = previous_results['http'].get('data', {})
             for service in http_data.get('services', []):
                 # Convert HTTP service format to expected format
                 if 'actual_target' in service or 'url' in service:
-                    # Extract host from actual_target or url
                     host = service.get('actual_target')
                     if not host and 'url' in service:
-                        # Parse host from URL
                         from urllib.parse import urlparse
                         parsed = urlparse(service['url'])
                         host = parsed.hostname
@@ -107,11 +102,9 @@ class FeroxbusterScanner(BaseWorkflow):
     
     def _build_scoring_context(self, service: Dict[str, Any], previous_results: Dict[str, Any]) -> ScoringContext:
         """Build scoring context from service information and previous results."""
-        # Extract technology information
         tech = None
         headers = {}
         
-        # Get HTTP response data if available
         if 'http' in previous_results:
             http_data = previous_results['http'].get('data', {})
             for http_service in http_data.get('services', []):
@@ -126,12 +119,10 @@ class FeroxbusterScanner(BaseWorkflow):
                 if (http_host == service_host and 
                     http_service.get('port') == service.get('port')):
                     headers = http_service.get('headers', {})
-                    # Extract server header as tech
                     if 'server' in headers:
                         tech = headers['server']
                     elif 'Server' in headers:
                         tech = headers['Server']
-                    # Extract powered-by header as tech (fallback)
                     elif 'x-powered-by' in headers:
                         tech = headers['x-powered-by']
                     elif 'X-Powered-By' in headers:
@@ -148,28 +139,41 @@ class FeroxbusterScanner(BaseWorkflow):
     def _run_feroxbuster(self, target_url: str, wordlist_path: str, extensions: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run feroxbuster with the selected wordlist."""
         try:
+            try:
+                subprocess.run(['feroxbuster', '--version'], capture_output=True, check=True, timeout=5)
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                logger.error("feroxbuster not found or not working. Please install feroxbuster.")
+                return {'error': 'feroxbuster not available'}
+            
             # Prepare feroxbuster command with performance optimizations and proper filtering
             cmd = [
                 'feroxbuster',
                 '--url', target_url,
                 '--wordlist', wordlist_path,
                 '--status-codes', '200,301,302,403,405',  # Include useful status codes
-                '--threads', '50',  # High thread count for speed
-                '--timeout', '8',   # 8 second timeout
+                '--threads', '10',  # Reduce threads for stability
+                '--timeout', '10',  # Increase timeout
                 '--user-agent', 'Mozilla/5.0 (compatible; ipcrawler/1.0)',
                 '--output', '-',    # Output to stdout
                 '--json',          # JSON output for parsing
-                '--silent',        # Reduce noise
                 '--no-recursion',  # Don't recurse directories for initial scan
                 '--filter-size', '0'       # Filter out zero-byte responses
             ]
             
-            # Add extensions if specified
             if extensions:
                 # Limit to 5 extensions max to avoid command line issues
                 limited_extensions = extensions[:5]
                 for ext in limited_extensions:
-                    cmd.extend(['--extensions', ext.lstrip('.')])  # Remove leading dot
+                    cmd.extend(['--extensions', ext.lstrip('.')])
+            
+            # Test if target is reachable
+            logger.info(f"Testing connectivity to {target_url}")
+            try:
+                import requests
+                test_response = requests.get(target_url, timeout=10, verify=False)
+                logger.info(f"Target connectivity test: HTTP {test_response.status_code}")
+            except Exception as e:
+                logger.warning(f"Target connectivity issue: {e} - proceeding anyway")
             
             logger.info(f"Running feroxbuster on {target_url} with wordlist: {wordlist_path}")
             logger.info(f"🎯 Filtering: 200,301,302,403,405 status codes, excluding zero-byte files")
@@ -180,7 +184,7 @@ class FeroxbusterScanner(BaseWorkflow):
             try:
                 wordlist_size = sum(1 for _ in open(wordlist_path, 'r', errors='ignore'))
                 total_requests = wordlist_size * len(extensions) if extensions else wordlist_size
-                expected_time = total_requests / (50 * 8)  # rough estimate: 50 threads * ~8 req/sec/thread
+                expected_time = total_requests / (10 * 5)  # rough estimate: 10 threads * ~5 req/sec/thread
                 logger.info(f"Wordlist size: {wordlist_size:,} entries, ~{total_requests:,} total requests, estimated {expected_time:.0f}s")
             except:
                 pass
@@ -190,7 +194,6 @@ class FeroxbusterScanner(BaseWorkflow):
             timer_running.set()
             start_time = time.time()
             
-            # Extract wordlist filename for display
             wordlist_name = os.path.basename(wordlist_path)
             
             def live_timer():
@@ -235,6 +238,13 @@ class FeroxbusterScanner(BaseWorkflow):
             
             if result.stderr:
                 logger.warning(f"feroxbuster stderr: {result.stderr[:500]}")
+                
+            # Enhanced debugging - show first few lines of stdout for diagnosis
+            if result.stdout:
+                lines = result.stdout.strip().split('\n')[:5]  # First 5 lines
+                logger.debug(f"feroxbuster stdout preview: {lines}")
+            else:
+                logger.warning("feroxbuster produced no stdout output")
             
             if result.returncode == 0:
                 if result.stdout.strip():
@@ -244,7 +254,6 @@ class FeroxbusterScanner(BaseWorkflow):
                         if line.strip():
                             try:
                                 json_obj = json.loads(line)
-                                # Additional filtering to remove noise
                                 if self._is_valid_finding(json_obj):
                                     results.append(json_obj)
                             except json.JSONDecodeError as e:
@@ -344,7 +353,6 @@ class FeroxbusterScanner(BaseWorkflow):
             ]
             
             sorted_wordlists = []
-            # First add small/fast wordlists
             for pattern, size in priority_patterns:
                 if size == 'small':
                     matches = [w for w in wordlist_names if pattern in w.lower()]
@@ -352,14 +360,14 @@ class FeroxbusterScanner(BaseWorkflow):
                     # Remove matches from remaining list
                     wordlist_names = [w for w in wordlist_names if w not in matches]
             
-            # Then add medium wordlists
+            # Add medium wordlists
             for pattern, size in priority_patterns:
                 if size == 'medium':
                     matches = [w for w in wordlist_names if pattern in w.lower()]
                     sorted_wordlists.extend(matches)
                     wordlist_names = [w for w in wordlist_names if w not in matches]
             
-            # Finally add large wordlists (only if needed)
+            # Add large wordlists
             for pattern, size in priority_patterns:
                 if size == 'large':
                     matches = [w for w in wordlist_names if pattern in w.lower()]
@@ -367,7 +375,7 @@ class FeroxbusterScanner(BaseWorkflow):
                     wordlist_names = [w for w in wordlist_names if w not in matches]
             
             logger.info(f"Found {len(sorted_wordlists)} catalog wordlists: {sorted_wordlists[:3]}...")
-            return sorted_wordlists[:10]  # Return top 10
+            return sorted_wordlists[:10]
             
         except Exception as e:
             logger.error(f"Failed to get catalog wordlists: {e}")
@@ -382,19 +390,19 @@ class FeroxbusterScanner(BaseWorkflow):
             logger.info("🧠 Starting intelligent wordlist selection...")
             logger.info(f"📊 Context: {context.target}:{context.port} | Tech: {context.tech} | Service: {context.service}")
             
-            # Step 1: Check port database for specific recommendations
+            # Check port database for specific recommendations
             port_recommendations = self._get_port_database_recommendations(context)
             logger.info(f"🔌 Port database recommendations: {port_recommendations}")
             
-            # Step 2: Get scorer recommendations with catalog integration
+            # Get scorer recommendations with catalog integration
             scorer_recommendations = self._get_scorer_recommendations(context)
             logger.info(f"🎯 Scorer recommendations: {scorer_recommendations}")
             
-            # Step 3: Get catalog wordlists as fallback
+            # Get catalog wordlists as fallback
             catalog_recommendations = self._get_catalog_wordlists_direct(context)
             logger.info(f"📚 Catalog fallback: {catalog_recommendations[:3]}...")
             
-            # Step 4: Combine intelligently with priority
+            # Combine recommendations with priority
             final_wordlists = []
             
             # Priority 1: Port database high-priority wordlists
@@ -483,47 +491,7 @@ class FeroxbusterScanner(BaseWorkflow):
             logger.warning(f"⚠️ Scorer system failed: {e}")
             return []
     
-    def _write_scan_reports(self, results: List[Dict[str, Any]], workspace_path: Path) -> None:
-        """Write feroxbuster scan results to scan_reports.txt."""
-        try:
-            scan_reports_path = workspace_path / "scan_reports.txt"
-            
-            with open(scan_reports_path, 'w', encoding='utf-8') as f:
-                f.write("# Feroxbuster Scan Results\n")
-                f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("# Format: [STATUS] URL (SIZE bytes) - WORDLIST\n\n")
-                
-                total_findings = 0
-                for result_entry in results:
-                    target = result_entry.get('target', 'unknown')
-                    wordlist = result_entry.get('wordlist', 'unknown')
-                    findings = result_entry.get('findings', [])
-                    
-                    if findings:
-                        f.write(f"## Target: {target}\n")
-                        f.write(f"## Wordlist: {wordlist}\n")
-                        f.write(f"## Findings: {len(findings)}\n\n")
-                        
-                        for finding in findings:
-                            status = finding.get('status', 'unknown')
-                            url = finding.get('url', 'unknown')
-                            size = finding.get('content_length', 0)
-                            
-                            # Format: [200] http://example.com/admin (1234 bytes) - directory-list-small
-                            f.write(f"[{status}] {url} ({size} bytes) - {wordlist}\n")
-                            total_findings += 1
-                        
-                        f.write("\n")
-                
-                f.write(f"\n# Total findings: {total_findings}\n")
-                f.write(f"# Targets scanned: {len(results)}\n")
-            
-            logger.info(f"📝 Scan results written to {scan_reports_path}")
-            return scan_reports_path
-            
-        except Exception as e:
-            logger.error(f"Failed to write scan reports: {e}")
-            return None
+
     
     async def execute(self, target: str, previous_results: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """Execute feroxbuster scanning with intelligent wordlist selection."""
@@ -575,6 +543,15 @@ class FeroxbusterScanner(BaseWorkflow):
                 if wordlist_paths:
                     wordlist_path = wordlist_paths[0]
                     logger.info(f"Resolved wordlist path: {wordlist_path}")
+                    
+                    # Check if wordlist file actually exists
+                    if not Path(wordlist_path).exists():
+                        logger.error(f"Wordlist file does not exist: {wordlist_path}")
+                        continue
+                    
+                    # Check wordlist file size for debugging
+                    file_size = Path(wordlist_path).stat().st_size
+                    logger.debug(f"Wordlist file size: {file_size} bytes")
                 else:
                     logger.warning(f"Could not resolve wordlist path for {selected_wordlist}, skipping...")
                     continue
@@ -637,18 +614,6 @@ class FeroxbusterScanner(BaseWorkflow):
                 except Exception as e:
                     logger.warning(f"Failed to update cache outcome: {e}")
         
-        # Write scan reports to scan_reports.txt
-        workspace_path = kwargs.get('workspace_path')
-        if workspace_path:
-            self._write_scan_reports(results, Path(workspace_path))
-        else:
-            # Try to get workspace from result manager
-            try:
-                from utils.results import result_manager
-                workspace = result_manager.create_workspace(target)
-                self._write_scan_reports(results, workspace)
-            except Exception as e:
-                logger.warning(f"Could not write scan reports: {e}")
         
         # Log final summary
         total_findings = sum(len(r.get('findings', [])) for r in results)
@@ -660,7 +625,6 @@ class FeroxbusterScanner(BaseWorkflow):
         logger.info(f"  🎯 Total paths found: {total_findings}")
         
         if total_findings > 0:
-            logger.info(f"  💾 Results saved to scan_reports.txt")
             # Log a few example findings for verification
             for result_entry in results[:2]:  # Show first 2 services
                 if result_entry.get('findings'):

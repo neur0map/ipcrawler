@@ -447,7 +447,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     
                     # Get response body for analysis
                     try:
-                        service.response_body = response.text[:10000]  # First 10KB
+                        service.response_body = response.text[:10000]
                     except:
                         service.response_body = ""
                     
@@ -556,7 +556,6 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     evidence=f"{header}: {value}"
                 ))
         
-        # Weak configurations
         if 'access-control-allow-origin' in [h.lower() for h in service.headers.keys()]:
             value = next((v for k, v in service.headers.items() if k.lower() == 'access-control-allow-origin'), '')
             if value == '*':

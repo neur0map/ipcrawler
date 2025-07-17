@@ -49,7 +49,6 @@ class NmapFastScanner(BaseWorkflow):
                 
                 is_root = self._is_root()
                 
-                # Build fast nmap command for port discovery
                 if is_root:
                     # Privileged scan - faster SYN scan
                     cmd = [
@@ -114,7 +113,6 @@ class NmapFastScanner(BaseWorkflow):
                         execution_time=time.time() - start_time
                     )
                 
-                # Parse grepable output to extract open ports
                 open_ports = set()
                 
                 if temp_output.exists():
@@ -122,7 +120,7 @@ class NmapFastScanner(BaseWorkflow):
                         with open(temp_output, 'r') as f:
                             content = f.read()
                             
-                        # Extract ports using regex pattern for grepable output
+                        # Regex pattern for grepable output
                         # Pattern matches: 22/open/tcp, 80/open/tcp, etc.
                         port_pattern = r'(\d+)/open'
                         matches = re.findall(port_pattern, content)
@@ -221,7 +219,6 @@ class NmapFastScanner(BaseWorkflow):
             with tempfile.NamedTemporaryFile(mode='w+', suffix='.nmap', prefix=f'nmap_http_{target.replace(".", "_")}_', delete=True) as temp_file:
                 temp_output = Path(temp_file.name)
                 
-                # Build port list for nmap
                 port_list = ','.join(map(str, http_ports))
                 
                 # Use nmap HTTP scripts to discover hostnames
@@ -247,11 +244,9 @@ class NmapFastScanner(BaseWorkflow):
                 stdout, stderr = await process.communicate()
                 
                 if process.returncode == 0 and temp_output.exists():
-                    # Parse nmap output for hostnames
                     with open(temp_output, 'r') as f:
                         nmap_output = f.read()
                     
-                    # Extract hostnames from nmap script output
                     hostnames = self._extract_hostnames_from_nmap_output(nmap_output, target)
                     
                     for hostname in hostnames:
@@ -292,7 +287,6 @@ class NmapFastScanner(BaseWorkflow):
         for pattern in patterns:
             matches = re.findall(pattern, nmap_output, re.IGNORECASE | re.MULTILINE)
             for match in matches:
-                # Handle tuple matches (from complex patterns)
                 if isinstance(match, tuple) and len(match) > 0:
                     hostname = match[1] if len(match) > 1 and match[1] else match[0]
                 else:
@@ -349,7 +343,7 @@ class NmapFastScanner(BaseWorkflow):
             with open('/etc/hosts', 'r') as f:
                 current_content = f.read()
                 
-            # Check if we already have ipcrawler entries
+            # Skip if ipcrawler entries already exist
             if '# IPCrawler entries' in current_content:
                 # Remove existing ipcrawler entries
                 lines = current_content.split('\n')
@@ -404,11 +398,11 @@ class NmapFastScanner(BaseWorkflow):
         if hostname.endswith('.htb'):
             return True
             
-        # Basic hostname validation - must contain at least one dot
+        # Hostname must contain at least one dot
         if '.' not in hostname:
             return False
             
-        # Check for valid characters
+        # Validate characters
         valid_chars = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-')
         if not all(c in valid_chars for c in hostname):
             return False

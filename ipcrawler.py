@@ -155,7 +155,7 @@ async def resolve_target(target: str) -> str:
         if result:
             ip = result[0][4][0]
             console.print(f"  → Resolved to [green]{ip}[/green]")
-            return target  # Return original hostname for nmap
+            return target
         else:
             console.print(f"  ✗ Failed to resolve {target}")
             return target
@@ -188,7 +188,7 @@ async def check_and_offer_sudo_escalation():
         
         # Check if user is in sudoers (can use sudo with or without password)
         # This approach assumes sudo is available if the command exists and user is not root
-        # We'll let the actual escalation handle password prompts
+        # sudo availability check assumes user can use sudo if command exists
         sudo_available = True
         
     except (FileNotFoundError, subprocess.CalledProcessError):
@@ -234,7 +234,6 @@ async def check_and_offer_sudo_escalation():
         
         console.print(f"\n→ Restarting with sudo: [dim]{' '.join(sudo_cmd)}[/dim]")
         
-        # Execute with sudo
         try:
             os.execvp('sudo', sudo_cmd)
         except Exception as e:
@@ -261,7 +260,6 @@ async def run_workflow(target: str, debug: bool = False):
     
     console.print("→ Starting port discovery with hostname discovery...")
     
-    # Create workspace directory
     workspace = result_manager.create_workspace(target)
     
     # IMPORTANT: Default behavior is to scan ONLY discovered ports
@@ -272,7 +270,6 @@ async def run_workflow(target: str, debug: bool = False):
     if config.fast_port_discovery:
         console.print("→ Starting fast port discovery...")
         
-        # Run port discovery
         discovery_scanner = NmapFastScanner()
         discovery_result = await discovery_scanner.execute(
             target=resolved_target
@@ -288,7 +285,6 @@ async def run_workflow(target: str, debug: bool = False):
             
             if port_count == 0:
                 console.print("⚠ No open ports found. Skipping detailed scan.")
-                # Save empty results
                 empty_data = {
                     "tool": "nmap",
                     "target": resolved_target,
@@ -315,12 +311,10 @@ async def run_workflow(target: str, debug: bool = False):
             console.print("  To scan all ports, set 'fast_port_discovery: false' in config.yaml")
             return
     
-    # Run detailed nmap scan
     console.print("→ Starting detailed scan...")
     scanner = NmapScanner(batch_size=config.batch_size, ports_per_batch=config.ports_per_batch)
     
     
-    # Execute with simple progress tracking
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -332,7 +326,6 @@ async def run_workflow(target: str, debug: bool = False):
         else:
             task = progress.add_task(f"Full scan of all 65535 ports (10 parallel batches)...", total=None)
         
-        # Run scanner without progress_queue to avoid hanging
         result = await scanner.execute(
             target=resolved_target,
             ports=discovered_ports
@@ -344,7 +337,6 @@ async def run_workflow(target: str, debug: bool = False):
         total_execution_time += result.execution_time or 0.0
         console.print(f"✓ Nmap scan completed in {total_execution_time:.2f}s")
         
-        # Add discovery info to results
         if discovered_ports is not None:
             result.data['discovery_enabled'] = True
             result.data['discovered_ports'] = len(discovered_ports)
@@ -356,7 +348,6 @@ async def run_workflow(target: str, debug: bool = False):
         discovered_hostnames = set()  # Use set to avoid duplicates
         
         for host in result.data.get('hosts', []):
-            # Add main hostname if available
             if host.get('hostname'):
                 discovered_hostnames.add(host['hostname'])
             
@@ -387,10 +378,9 @@ async def run_workflow(target: str, debug: bool = False):
                 ):
                     http_ports.append(port_num)
         
-        # Run HTTP advanced scan if HTTP services found
         http_scan_data = None
         if http_ports:
-            http_ports = list(set(http_ports))  # Remove duplicates
+            http_ports = list(set(http_ports))
             hostnames_list = list(discovered_hostnames)
             
             console.print(f"\n→ Found {len(http_ports)} HTTP/HTTPS services. Starting advanced HTTP scan...")
@@ -415,9 +405,8 @@ async def run_workflow(target: str, debug: bool = False):
                 error_msg = http_result.error or (http_result.errors[0] if http_result.errors else "Unknown error")
                 console.print(f"⚠ HTTP scan failed: {error_msg}")
         
-        # Run feroxbuster workflow if HTTP services were found
         feroxbuster_scan_data = None
-        if http_ports:  # Run feroxbuster when HTTP services found
+        if http_ports:
             console.print(f"\n→ Starting intelligent web fuzzing with feroxbuster...")
             # Note: Timer will be displayed by the feroxbuster scanner itself
             
@@ -450,7 +439,6 @@ async def run_workflow(target: str, debug: bool = False):
         # Merge all scan results
         result.data['total_execution_time'] = total_execution_time
         
-        # Add HTTP scan results to main data
         if http_scan_data:
             result.data['http_scan'] = http_scan_data
             
@@ -463,11 +451,9 @@ async def run_workflow(target: str, debug: bool = False):
             result.data['summary']['discovered_subdomains'] = len(http_scan_data.get('subdomains', []))
             result.data['summary']['discovered_paths'] = len(http_scan_data.get('summary', {}).get('discovered_paths', []))
         
-        # Add feroxbuster scan results to main data
         if feroxbuster_scan_data:
             result.data['feroxbuster_scan'] = feroxbuster_scan_data
             
-            # Add feroxbuster findings to summary
             if 'summary' not in result.data:
                 result.data['summary'] = {}
             
@@ -477,7 +463,6 @@ async def run_workflow(target: str, debug: bool = False):
         
         console.print(f"\n✓ All scans completed in {total_execution_time:.2f}s total")
         
-        # Save consolidated results
         result_manager.save_results(workspace, target, result.data)
         
         # Display minimal summary only

@@ -382,11 +382,10 @@ class ResultManager:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         workspace_name = f"scan_{target.replace('.', '_')}_{timestamp}"
         
-        # Create workspaces directory with proper ownership
+        # Ensure workspaces directory has correct ownership
         base_path = Path("workspaces")
         workspace_path = base_path / workspace_name
         
-        # Create directories
         workspace_path.mkdir(parents=True, exist_ok=True)
         
         # If running as sudo, change ownership to the real user
@@ -508,5 +507,5 @@ class ResultManager:
         self.save_results(workspace, target, data, formats)
 
 
-# Create global instance for convenience
+# Global instance
 result_manager = ResultManager()
