@@ -57,17 +57,7 @@ install:
 	@# Remove from user local locations
 	@rm -f $(USER_HOME)/.local/bin/ipcrawler 2>/dev/null || true
 	@rm -f $(USER_HOME)/bin/ipcrawler 2>/dev/null || true
-	@# Check for and remove any other ipcrawler in PATH
-	@for cmd in $$(which -a ipcrawler 2>/dev/null | head -10); do \
-		if [ -f "$$cmd" ] || [ -L "$$cmd" ]; then \
-			echo "  Removing: $$cmd"; \
-			if [ -w "$$(dirname "$$cmd")" ]; then \
-				rm -f "$$cmd"; \
-			else \
-				sudo rm -f "$$cmd"; \
-			fi; \
-		fi; \
-	done 2>/dev/null || true
+	@# Skip dynamic cleanup to avoid hanging issues - explicit removal above should be sufficient
 	@# Clean cache and temporary files
 	@rm -rf /tmp/ipcrawler_cache_* 2>/dev/null || true
 	@find $(USER_HOME) -name ".ipcrawler*" -type f -delete 2>/dev/null || true
@@ -161,17 +151,7 @@ uninstall:
 	@# Remove from user local locations
 	@rm -f $(USER_HOME)/.local/bin/ipcrawler 2>/dev/null || true
 	@rm -f $(USER_HOME)/bin/ipcrawler 2>/dev/null || true
-	@# Check for and remove any other ipcrawler in PATH
-	@for cmd in $$(which -a ipcrawler 2>/dev/null | head -10); do \
-		if [ -f "$$cmd" ] || [ -L "$$cmd" ]; then \
-			echo "  Removing: $$cmd"; \
-			if [ -w "$$(dirname "$$cmd")" ]; then \
-				rm -f "$$cmd"; \
-			else \
-				sudo rm -f "$$cmd"; \
-			fi; \
-		fi; \
-	done 2>/dev/null || true
+	@# Skip dynamic cleanup to avoid hanging issues - explicit removal above should be sufficient
 	@# Clean cache and temporary files
 	@rm -rf /tmp/ipcrawler_cache_* 2>/dev/null || true
 	@find $(USER_HOME) -name ".ipcrawler*" -type f -delete 2>/dev/null || true
@@ -201,17 +181,7 @@ clean-install:
 	@# Remove from user local locations
 	@rm -f $(USER_HOME)/.local/bin/ipcrawler 2>/dev/null || true
 	@rm -f $(USER_HOME)/bin/ipcrawler 2>/dev/null || true
-	@# Check for and remove any other ipcrawler in PATH
-	@for cmd in $$(which -a ipcrawler 2>/dev/null | head -10); do \
-		if [ -f "$$cmd" ] || [ -L "$$cmd" ]; then \
-			echo "  Removing: $$cmd"; \
-			if [ -w "$$(dirname "$$cmd")" ]; then \
-				rm -f "$$cmd"; \
-			else \
-				sudo rm -f "$$cmd"; \
-			fi; \
-		fi; \
-	done 2>/dev/null || true
+	@# Skip dynamic cleanup to avoid hanging issues - explicit removal above should be sufficient
 	@# Clean cache and temporary files
 	@rm -rf /tmp/ipcrawler_cache_* 2>/dev/null || true
 	@find $(USER_HOME) -name ".ipcrawler*" -type f -delete 2>/dev/null || true
