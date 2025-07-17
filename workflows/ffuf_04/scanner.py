@@ -34,18 +34,42 @@ class FfufScanner(BaseWorkflow):
         if 'nmap_fast' in previous_results:
             nmap_data = previous_results['nmap_fast'].get('data', {})
             for host_data in nmap_data.get('hosts', []):
+                if not isinstance(host_data, dict):
+                    continue
+                    
                 for port_data in host_data.get('ports', []):
-                    service = port_data.get('service', {}).get('name', '')
+                    if not isinstance(port_data, dict):
+                        continue
+                        
+                    # Handle both string and dict formats for service field
+                    service = port_data.get('service', '')
+                    if isinstance(service, dict):
+                        service = service.get('name', '')
+                    elif not isinstance(service, str):
+                        service = str(service) if service else ''
+                    
                     port = port_data.get('port')
-                    state = port_data.get('state', {}).get('state', '')
+                    
+                    # Handle both string and dict formats for state field  
+                    state = port_data.get('state', '')
+                    if isinstance(state, dict):
+                        state = state.get('state', '')
+                    elif not isinstance(state, str):
+                        state = str(state) if state else ''
+                    
+                    # Ensure we have valid data before processing
+                    if not service or not port or not state:
+                        continue
                     
                     if state == 'open' and any(svc in service.lower() for svc in ['http', 'https', 'web']):
-                        http_services.append({
-                            'host': host_data.get('address'),
-                            'port': port,
-                            'service': service,
-                            'ssl': 'https' in service.lower() or port == 443
-                        })
+                        host_ip = host_data.get('ip') or host_data.get('address')
+                        if host_ip:
+                            http_services.append({
+                                'host': host_ip,
+                                'port': port,
+                                'service': service,
+                                'ssl': 'https' in service.lower() or port == 443
+                            })
         
         # Check HTTP workflow results
         if 'http' in previous_results:
