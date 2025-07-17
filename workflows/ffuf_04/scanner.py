@@ -146,15 +146,15 @@ class FfufScanner(BaseWorkflow):
     def _run_ffuf(self, target_url: str, wordlist_path: str, extensions: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run ffuf with the selected wordlist."""
         try:
-            # Prepare ffuf command with careful argument construction
+            # Prepare ffuf command with performance optimizations
             cmd = [
                 'ffuf',
                 '-u', f"{target_url}/FUZZ",
                 '-w', wordlist_path,
                 '-mc', 'all',  # Match all status codes
                 '-fc', '404',  # Filter out 404s
-                '-t', '10',    # Reduced threads for stability
-                '-timeout', '10',
+                '-t', '50',    # Increased threads for faster scanning
+                '-timeout', '8',  # Shorter timeout for faster overall scan
                 '-H', 'User-Agent: Mozilla/5.0 (compatible; ipcrawler/1.0)',
                 '-json',       # Use -json flag instead of -of json
                 '-s'           # Silent mode
@@ -170,11 +170,25 @@ class FfufScanner(BaseWorkflow):
             logger.info(f"Running ffuf on {target_url} with wordlist: {wordlist_path}")
             if extensions:
                 logger.info(f"Extensions: {extensions[:4]}")
+                
+            # Log wordlist size for performance expectations
+            try:
+                import os
+                wordlist_size = sum(1 for _ in open(wordlist_path, 'r', errors='ignore'))
+                total_requests = wordlist_size * len(extensions) if extensions else wordlist_size
+                expected_time = total_requests / (50 * 10)  # rough estimate: 50 threads * ~10 req/sec/thread
+                logger.info(f"Wordlist size: {wordlist_size:,} entries, ~{total_requests:,} total requests, estimated {expected_time:.0f}s")
+            except:
+                pass
             
             # Live timer setup
             timer_running = threading.Event()
             timer_running.set()
             start_time = time.time()
+            
+            # Extract wordlist filename for display
+            import os
+            wordlist_name = os.path.basename(wordlist_path)
             
             def live_timer():
                 """Display live elapsed time while ffuf runs."""
@@ -183,8 +197,8 @@ class FfufScanner(BaseWorkflow):
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
                     
-                    # Clear current line and print timer with padding
-                    timer_text = f'  → Scanning with ffuf... {minutes:02d}:{seconds:02d} elapsed'
+                    # Clear current line and print timer with wordlist name
+                    timer_text = f'  → Scanning with ffuf using {wordlist_name}... {minutes:02d}:{seconds:02d} elapsed'
                     sys.stdout.write(f'\r{timer_text}' + ' ' * 20)  # Add padding to clear old text
                     sys.stdout.write(f'\r{timer_text}')  # Write the actual text
                     sys.stdout.flush()
@@ -199,8 +213,8 @@ class FfufScanner(BaseWorkflow):
             logger.info(f"Running ffuf command: {' '.join(cmd)}")
             
             try:
-                # Run ffuf with explicit encoding
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, encoding='utf-8', errors='replace')
+                # Run ffuf with explicit encoding and reasonable timeout
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, encoding='utf-8', errors='replace')  # 2 minute max
             finally:
                 # Stop timer and clear line
                 timer_running.clear()
@@ -278,24 +292,38 @@ class FfufScanner(BaseWorkflow):
             # Convert to list and sort by preference
             wordlist_names = list(all_matches)
             
-            # Prioritize common good wordlists
+            # Prioritize common good wordlists by size and effectiveness
             priority_patterns = [
-                'directory-list-2.3-medium',
-                'directory-list-lowercase',
-                'raft-medium-directories',
-                'common',
-                'all.txt'
+                ('directory-list-2.3-small', 'small'),           # ~87k entries - fast
+                ('raft-small-directories', 'small'),             # Small wordlist
+                ('directory-list-lowercase-2.3-small', 'small'), # ~87k entries - fast
+                ('raft-medium-directories', 'medium'),           # Medium size
+                ('directory-list-2.3-medium', 'large'),          # ~220k entries - slow
+                ('directory-list-lowercase-2.3-medium', 'large') # ~220k entries - slow
             ]
             
             sorted_wordlists = []
-            for pattern in priority_patterns:
-                matches = [w for w in wordlist_names if pattern in w.lower()]
-                sorted_wordlists.extend(matches)
-                # Remove matches from remaining list
-                wordlist_names = [w for w in wordlist_names if w not in matches]
+            # First add small/fast wordlists
+            for pattern, size in priority_patterns:
+                if size == 'small':
+                    matches = [w for w in wordlist_names if pattern in w.lower()]
+                    sorted_wordlists.extend(matches)
+                    # Remove matches from remaining list
+                    wordlist_names = [w for w in wordlist_names if w not in matches]
             
-            # Add remaining wordlists
-            sorted_wordlists.extend(wordlist_names)
+            # Then add medium wordlists
+            for pattern, size in priority_patterns:
+                if size == 'medium':
+                    matches = [w for w in wordlist_names if pattern in w.lower()]
+                    sorted_wordlists.extend(matches)
+                    wordlist_names = [w for w in wordlist_names if w not in matches]
+            
+            # Finally add large wordlists (only if needed)
+            for pattern, size in priority_patterns:
+                if size == 'large':
+                    matches = [w for w in wordlist_names if pattern in w.lower()]
+                    sorted_wordlists.extend(matches)
+                    wordlist_names = [w for w in wordlist_names if w not in matches]
             
             logger.info(f"Found {len(sorted_wordlists)} catalog wordlists: {sorted_wordlists[:3]}...")
             return sorted_wordlists[:10]  # Return top 10
@@ -323,9 +351,18 @@ class FfufScanner(BaseWorkflow):
         results = []
         
         for service in http_services:
-            # Build target URL
+            # Build target URL using discovered hostname (not IP)
+            hostname = service.get('host')  # This comes from actual_target
+            port = service.get('port', 80)
             protocol = 'https' if service.get('ssl') else 'http'
-            target_url = f"{protocol}://{service['host']}:{service['port']}"
+            
+            # Only include port for non-standard ports
+            if (protocol == 'https' and port == 443) or (protocol == 'http' and port == 80):
+                target_url = f"{protocol}://{hostname}"
+            else:
+                target_url = f"{protocol}://{hostname}:{port}"
+            
+            logger.info(f"Targeting discovered hostname: {target_url}")
             
             # Build scoring context
             context = self._build_scoring_context(service, previous_results)
