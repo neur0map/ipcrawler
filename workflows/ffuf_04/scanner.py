@@ -24,10 +24,9 @@ logger = logging.getLogger(__name__)
 class FfufScanner(BaseWorkflow):
     """Ffuf web fuzzing scanner with intelligent wordlist selection."""
     
-    def __init__(self, target: str):
-        super().__init__(target)
+    def __init__(self):
+        super().__init__("ffuf")
         self.cache = ScorerCache()
-        self.result_manager = ResultManager("ffuf", self.target)
         
     def _get_http_services(self, previous_results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract HTTP/HTTPS services from previous scan results."""
@@ -131,10 +130,13 @@ class FfufScanner(BaseWorkflow):
             logger.error(f"ffuf error for {target_url}: {str(e)}")
             return {'error': str(e)}
     
-    async def execute(self, previous_results: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def execute(self, target: str, previous_results: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """Execute ffuf scanning with intelligent wordlist selection."""
-        if not self.validate_input():
+        if not self.validate_input(target=target):
             return self._create_result(False, error="Invalid target")
+        
+        # Create result manager for this target
+        result_manager = ResultManager("ffuf", target)
         
         if not previous_results:
             return self._create_result(False, error="No previous results available for service detection")
@@ -218,7 +220,7 @@ class FfufScanner(BaseWorkflow):
                 logger.warning(f"Failed to update cache: {e}")
         
         # Save results
-        self.result_manager.save_result({
+        result_manager.save_result({
             'services_scanned': len(results),
             'results': results
         })
@@ -228,6 +230,14 @@ class FfufScanner(BaseWorkflow):
             'results': results
         })
     
-    def validate_input(self) -> bool:
+    def validate_input(self, target: str = None, **kwargs) -> bool:
         """Validate scanner input."""
-        return bool(self.target and isinstance(self.target, str))
+        return bool(target and isinstance(target, str))
+    
+    def _create_result(self, success: bool, data: Dict[str, Any] = None, error: str = None) -> Dict[str, Any]:
+        """Create a standardized result dictionary."""
+        return {
+            'success': success,
+            'data': data or {},
+            'error': error
+        }

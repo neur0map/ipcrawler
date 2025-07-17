@@ -427,8 +427,8 @@ async def run_workflow(target: str, debug: bool = False):
                 'http': {'data': http_scan_data} if http_scan_data else {}
             }
             
-            ffuf_scanner = FfufScanner(resolved_target)
-            ffuf_result = await ffuf_scanner.execute(previous_results)
+            ffuf_scanner = FfufScanner()
+            ffuf_result = await ffuf_scanner.execute(target=resolved_target, previous_results=previous_results)
             
             if ffuf_result['success'] and ffuf_result.get('data'):
                 total_execution_time += ffuf_result.get('execution_time', 0.0)
