@@ -8,15 +8,13 @@ and service context for web fuzzing with ffuf.
 import subprocess
 import json
 import logging
+from datetime import datetime
 from typing import Dict, Any, List, Optional
-from pathlib import Path
-import tempfile
 
 from workflows.core.base import BaseWorkflow
 from database.scorer.scorer_engine import score_wordlists
 from database.scorer.models import ScoringContext
 from database.scorer.cache import ScorerCache
-from utils.results import result_manager
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +84,7 @@ class FfufScanner(BaseWorkflow):
             headers=headers
         )
     
-    def _run_ffuf(self, target_url: str, wordlist_path: str, extensions: List[str] = None) -> Dict[str, Any]:
+    def _run_ffuf(self, target_url: str, wordlist_path: str, extensions: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run ffuf with the selected wordlist."""
         try:
             # Prepare ffuf command
@@ -167,6 +165,9 @@ class FfufScanner(BaseWorkflow):
             selected_wordlist = recommendation.wordlists[0]
             logger.info(f"Selected wordlist: {selected_wordlist} (confidence: {recommendation.confidence}, score: {recommendation.score:.2f})")
             
+            # Save selection to cache
+            cache_entry_id = self.cache.save_selection(context, recommendation)
+            
             # Determine extensions based on context
             extensions = []
             tech_lower = (context.tech or '').lower()
@@ -209,12 +210,13 @@ class FfufScanner(BaseWorkflow):
             # Update cache with outcome
             success = len(findings) > 0 and 'error' not in scan_result
             try:
-                self.cache.record_outcome(
-                    context=context,
-                    wordlist_id=selected_wordlist,
-                    outcome='success' if success else 'failure',
-                    details={'findings_count': len(findings)}
-                )
+                outcome_data = {
+                    'success': success,
+                    'findings_count': len(findings),
+                    'wordlist_used': selected_wordlist,
+                    'scan_timestamp': datetime.now().isoformat()
+                }
+                self.cache.update_outcome(cache_entry_id, outcome_data)
             except Exception as e:
                 logger.warning(f"Failed to update cache: {e}")
         
@@ -226,11 +228,11 @@ class FfufScanner(BaseWorkflow):
             'results': results
         })
     
-    def validate_input(self, target: str = None, **kwargs) -> bool:
+    def validate_input(self, target: Optional[str] = None, **kwargs) -> bool:
         """Validate scanner input."""
         return bool(target and isinstance(target, str))
     
-    def _create_result(self, success: bool, data: Dict[str, Any] = None, error: str = None) -> Dict[str, Any]:
+    def _create_result(self, success: bool, data: Optional[Dict[str, Any]] = None, error: Optional[str] = None) -> Dict[str, Any]:
         """Create a standardized result dictionary."""
         return {
             'success': success,
