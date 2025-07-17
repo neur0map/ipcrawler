@@ -330,35 +330,16 @@ def _score_with_catalog(context: ScoringContext) -> ScoringResult:
     if scored_entries:
         enhanced_rules.append(f"catalog_enhanced:{len(scored_entries)}_matches")
     
-    # Create enhanced result
+    # Create enhanced result with catalog wordlists
     enhanced_result = ScoringResult(
         score=enhanced_score,
         explanation=breakdown,
         wordlists=final_wordlists,
         matched_rules=enhanced_rules,
         fallback_used=rule_result.fallback_used,
-        cache_key=context.get_cache_key(),
+        cache_key=rule_result.cache_key,
         confidence=_determine_confidence(enhanced_score, rule_result.fallback_used, enhanced_rules)
     )
-    
-    # Add catalog metadata to result (custom field)
-    enhanced_result.catalog_metadata = {
-        "wordlist_paths": wordlist_paths,
-        "catalog_entries_count": len(all_catalog_entries),
-        "avg_relevance_score": sum(score for _, score in scored_entries[:5]) / min(5, len(scored_entries)) if scored_entries else 0.0,
-        "catalog_enhanced": True
-    }
-    
-    logger.info(
-        f"Enhanced scoring: {len(final_wordlists)} wordlists for {context.target}:{context.port} "
-        f"(score: {enhanced_score:.3f}, catalog entries: {len(all_catalog_entries)})"
-    )
-    
-    # Cache the enhanced selection
-    try:
-        cache_selection(context, enhanced_result)
-    except Exception as e:
-        logger.warning(f"Failed to cache enhanced selection: {e}")
     
     return enhanced_result
 

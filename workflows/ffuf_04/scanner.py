@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from workflows.core.base import BaseWorkflow
-from database.scorer.scorer_engine import score_wordlists, get_wordlist_paths
+from database.scorer.scorer_engine import score_wordlists_with_catalog, get_wordlist_paths
 from database.scorer.models import ScoringContext
 from database.scorer.cache import ScorerCache
 
@@ -190,6 +190,60 @@ class FfufScanner(BaseWorkflow):
             logger.error(f"ffuf error for {target_url}: {str(e)}")
             return {'error': str(e)}
     
+    def _get_catalog_wordlists_direct(self, context: ScoringContext) -> List[str]:
+        """
+        Direct catalog search to bypass broken category indexing.
+        Returns actual SecLists wordlist names for web content.
+        """
+        try:
+            from database.wordlists.resolver import resolver
+            
+            if not resolver.is_available():
+                logger.warning("Catalog not available")
+                return []
+            
+            # Direct search for directory-related wordlists
+            search_terms = ['directory', 'dirs', 'web', 'content']
+            all_matches = set()
+            
+            for term in search_terms:
+                matches = resolver.search_wordlists(term, max_results=20)
+                for entry in matches:
+                    # Filter for web-relevant wordlists
+                    if (entry.category.value == 'web-content' or 
+                        'directories' in entry.tags or
+                        any(port in [80, 443, 8080, 8443] for port in entry.port_compatibility)):
+                        all_matches.add(entry.name)
+            
+            # Convert to list and sort by preference
+            wordlist_names = list(all_matches)
+            
+            # Prioritize common good wordlists
+            priority_patterns = [
+                'directory-list-2.3-medium',
+                'directory-list-lowercase',
+                'raft-medium-directories',
+                'common',
+                'all.txt'
+            ]
+            
+            sorted_wordlists = []
+            for pattern in priority_patterns:
+                matches = [w for w in wordlist_names if pattern in w.lower()]
+                sorted_wordlists.extend(matches)
+                # Remove matches from remaining list
+                wordlist_names = [w for w in wordlist_names if w not in matches]
+            
+            # Add remaining wordlists
+            sorted_wordlists.extend(wordlist_names)
+            
+            logger.info(f"Found {len(sorted_wordlists)} catalog wordlists: {sorted_wordlists[:3]}...")
+            return sorted_wordlists[:10]  # Return top 10
+            
+        except Exception as e:
+            logger.error(f"Failed to get catalog wordlists: {e}")
+            return []
+    
     async def execute(self, target: str, previous_results: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """Execute ffuf scanning with intelligent wordlist selection."""
         if not self.validate_input(target=target):
@@ -216,16 +270,16 @@ class FfufScanner(BaseWorkflow):
             # Build scoring context
             context = self._build_scoring_context(service, previous_results)
             
-            # Get wordlist recommendation
-            recommendation = score_wordlists(context)
+            # Get wordlist recommendation directly from catalog
+            catalog_wordlists = self._get_catalog_wordlists_direct(context)
             
-            if not recommendation or not recommendation.wordlists:
-                logger.warning(f"No wordlist recommendation for {target_url}")
+            if not catalog_wordlists:
+                logger.warning("No catalog wordlists found, skipping service...")
                 continue
             
-            # Use the first recommended wordlist
-            selected_wordlist = recommendation.wordlists[0]
-            logger.info(f"Selected wordlist: {selected_wordlist} (confidence: {recommendation.confidence}, score: {recommendation.score:.2f})")
+            # Use the first wordlist from catalog
+            selected_wordlist = catalog_wordlists[0]
+            logger.info(f"Selected catalog wordlist: {selected_wordlist}")
             
             # Resolve wordlist name to actual file path
             try:
@@ -240,8 +294,9 @@ class FfufScanner(BaseWorkflow):
                 logger.error(f"Error resolving wordlist path: {e}")
                 continue
             
-            # Save selection to cache
-            cache_entry_id = self.cache.save_selection(context, recommendation)
+            # Save selection to cache (skip for catalog-based selection)
+            cache_entry_id = None
+            logger.debug("Skipping cache save for catalog-based selection")
             
             # Determine extensions based on context
             extensions = []
@@ -273,27 +328,26 @@ class FfufScanner(BaseWorkflow):
             result_entry = {
                 'target': target_url,
                 'wordlist': selected_wordlist,
-                'confidence': recommendation.confidence,
-                'score': recommendation.score,
-                'matched_rules': recommendation.matched_rules,
+                'confidence': 1.0, # Catalog search has no confidence score
+                'score': 0.0, # Catalog search has no score
+                'matched_rules': [], # Catalog search has no matched rules
                 'findings': findings,
                 'error': scan_result.get('error')
             }
             
             results.append(result_entry)
             
-            # Update cache with outcome
-            success = len(findings) > 0 and 'error' not in scan_result
-            try:
-                outcome_data = {
-                    'success': success,
-                    'findings_count': len(findings),
-                    'wordlist_used': selected_wordlist,
-                    'scan_timestamp': datetime.now().isoformat()
-                }
-                self.cache.update_outcome(cache_entry_id, outcome_data)
-            except Exception as e:
-                logger.warning(f"Failed to update cache: {e}")
+            # Update cache with scan outcome (if we have a cache entry)
+            if cache_entry_id:
+                try:
+                    self.cache.update_outcome(cache_entry_id, {
+                        'success': len(findings) > 0,
+                        'findings_count': len(findings),
+                        'error': scan_result.get('error'),
+                        'wordlist_used': selected_wordlist
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to update cache outcome: {e}")
         
         # Results will be saved by the main workflow coordinator
         # Individual workflows just return their data
