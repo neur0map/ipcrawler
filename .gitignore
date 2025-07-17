@@ -70,3 +70,6 @@ credentials.json
 secrets.yaml
 # Generated installer files
 ipcrawler
+.seclists_path
+database/wordlists/seclists_catalog.json
+database/scorer/cache/

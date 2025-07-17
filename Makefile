@@ -133,12 +133,23 @@ install:
 	fi
 	@echo "✓ IPCrawler installed successfully"
 	@echo ""
+	@echo "Testing installation..."
+	@ipcrawler --version || echo "⚠ Failed to run ipcrawler --version"
+	@echo ""
 	@echo "You can now use:"
 	@echo "  ipcrawler <target>       - Run as user"
 	@echo "  sudo ipcrawler <target>  - Run with privileges"
 	@echo ""
-	@echo "Testing installation..."
-	@ipcrawler --version || echo "⚠ Failed to run ipcrawler --version"
+	@echo "Checking SecLists installation in background..."
+	@nohup bash -c 'cd "$(pwd)" && AUTO_INSTALL=true ./scripts/check_seclists.sh > /tmp/seclists_install.log 2>&1 && \
+		if [ -f .seclists_path ] && [ -s .seclists_path ]; then \
+			source .seclists_path && \
+			if [ ! -z "$$SECLISTS_PATH" ]; then \
+				$(PYTHON_CMD) database/wordlists/generate_catalog.py >> /tmp/seclists_install.log 2>&1 || echo "⚠ Failed to generate wordlist catalog" >> /tmp/seclists_install.log; \
+			fi; \
+		fi; echo "SecLists installation completed" >> /tmp/seclists_install.log' & \
+		echo "  → SecLists check running in background (check /tmp/seclists_install.log for progress)" && \
+		echo "  → Installation complete! SecLists will be configured automatically."
 
 uninstall:
 	@echo "Uninstalling IPCrawler..."
