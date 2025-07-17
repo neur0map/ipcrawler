@@ -16,7 +16,7 @@ from workflows.core.base import BaseWorkflow
 from database.scorer.scorer_engine import score_wordlists
 from database.scorer.models import ScoringContext
 from database.scorer.cache import ScorerCache
-from utils.results import ResultManager
+from utils.results import result_manager
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +135,7 @@ class FfufScanner(BaseWorkflow):
         if not self.validate_input(target=target):
             return self._create_result(False, error="Invalid target")
         
-        # Create result manager for this target
-        result_manager = ResultManager("ffuf", target)
+        # We'll use the global result_manager, no need to create one
         
         if not previous_results:
             return self._create_result(False, error="No previous results available for service detection")
@@ -219,11 +218,8 @@ class FfufScanner(BaseWorkflow):
             except Exception as e:
                 logger.warning(f"Failed to update cache: {e}")
         
-        # Save results
-        result_manager.save_result({
-            'services_scanned': len(results),
-            'results': results
-        })
+        # Results will be saved by the main workflow coordinator
+        # Individual workflows just return their data
         
         return self._create_result(True, data={
             'services_scanned': len(results),
