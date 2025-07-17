@@ -419,6 +419,7 @@ async def run_workflow(target: str, debug: bool = False):
         ffuf_scan_data = None
         if http_ports and config.enable_ffuf:  # Check config property
             console.print(f"\n→ Starting intelligent web fuzzing with ffuf...")
+            # Note: Timer will be displayed by the ffuf scanner itself
             
             # Prepare previous results for ffuf scanner
             previous_results = {
@@ -432,10 +433,9 @@ async def run_workflow(target: str, debug: bool = False):
             
             if ffuf_result['success'] and ffuf_result.get('data'):
                 total_execution_time += ffuf_result.get('execution_time', 0.0)
-                console.print(f"✓ Ffuf scan completed in {ffuf_result.get('execution_time', 0.0):.2f}s")
                 ffuf_scan_data = ffuf_result['data']
                 
-                # Display ffuf findings summary
+                # Display ffuf findings summary (timer already shows completion time)
                 services_scanned = ffuf_scan_data.get('services_scanned', 0)
                 total_findings = sum(len(r.get('findings', [])) for r in ffuf_scan_data.get('results', []))
                 console.print(f"  → Scanned {services_scanned} services, found {total_findings} paths")

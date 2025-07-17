@@ -8,6 +8,9 @@ and service context for web fuzzing with ffuf.
 import subprocess
 import json
 import logging
+import threading
+import time
+import sys
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -143,45 +146,102 @@ class FfufScanner(BaseWorkflow):
     def _run_ffuf(self, target_url: str, wordlist_path: str, extensions: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run ffuf with the selected wordlist."""
         try:
-            # Prepare ffuf command
+            # Prepare ffuf command with careful argument construction
             cmd = [
                 'ffuf',
                 '-u', f"{target_url}/FUZZ",
                 '-w', wordlist_path,
                 '-mc', 'all',  # Match all status codes
                 '-fc', '404',  # Filter out 404s
-                '-t', '40',    # 40 threads
+                '-t', '10',    # Reduced threads for stability
                 '-timeout', '10',
                 '-H', 'User-Agent: Mozilla/5.0 (compatible; ipcrawler/1.0)',
-                '-o', '-',     # Output to stdout
-                '-of', 'json', # JSON output format
+                '-json',       # Use -json flag instead of -of json
                 '-s'           # Silent mode
             ]
             
-            # Add extensions if specified
+            # Add extensions if specified (but limit to avoid command line issues)
             if extensions:
-                ext_string = ','.join(extensions)
+                # Limit to 4 extensions max to avoid command line issues
+                limited_extensions = extensions[:4]
+                ext_string = ','.join(limited_extensions)
                 cmd.extend(['-e', ext_string])
             
             logger.info(f"Running ffuf on {target_url} with wordlist: {wordlist_path}")
+            if extensions:
+                logger.info(f"Extensions: {extensions[:4]}")
+            
+            # Live timer setup
+            timer_running = threading.Event()
+            timer_running.set()
+            start_time = time.time()
+            
+            def live_timer():
+                """Display live elapsed time while ffuf runs."""
+                while timer_running.is_set():
+                    elapsed = time.time() - start_time
+                    minutes = int(elapsed // 60)
+                    seconds = int(elapsed % 60)
+                    
+                    # Clear current line and print timer with padding
+                    timer_text = f'  → Scanning with ffuf... {minutes:02d}:{seconds:02d} elapsed'
+                    sys.stdout.write(f'\r{timer_text}' + ' ' * 20)  # Add padding to clear old text
+                    sys.stdout.write(f'\r{timer_text}')  # Write the actual text
+                    sys.stdout.flush()
+                    
+                    time.sleep(1)
+            
+            # Start timer thread
+            timer_thread = threading.Thread(target=live_timer, daemon=True)
+            timer_thread.start()
             
             # Run ffuf
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            logger.info(f"Running ffuf command: {' '.join(cmd)}")
+            
+            try:
+                # Run ffuf with explicit encoding
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, encoding='utf-8', errors='replace')
+            finally:
+                # Stop timer and clear line
+                timer_running.clear()
+                elapsed = time.time() - start_time
+                completion_text = f'  ✓ Ffuf scan completed in {elapsed:.2f}s'
+                sys.stdout.write(f'\r{completion_text}' + ' ' * 20)  # Clear any remaining timer text
+                sys.stdout.write(f'\r{completion_text}\n')  # Write completion message
+                sys.stdout.flush()
+            
+            # Debug logging
+            logger.debug(f"ffuf return code: {result.returncode}")
+            logger.debug(f"ffuf stdout length: {len(result.stdout)}")
+            logger.debug(f"ffuf stderr length: {len(result.stderr)}")
+            
+            if result.stderr:
+                logger.warning(f"ffuf stderr: {result.stderr[:500]}")
             
             if result.returncode == 0:
                 if result.stdout.strip():
-                    try:
-                        return json.loads(result.stdout)
-                    except json.JSONDecodeError:
-                        logger.error(f"Failed to parse ffuf JSON output. Raw output: {result.stdout[:500]}")
-                        # Return empty results structure when no valid JSON but command succeeded
-                        return {'results': [], 'error': None}
+                    # Parse newline-delimited JSON records (from -json flag)
+                    results = []
+                    for line in result.stdout.strip().split('\n'):
+                        if line.strip():
+                            try:
+                                json_obj = json.loads(line)
+                                results.append(json_obj)
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Failed to parse JSON line: {e}")
+                                logger.error(f"Problematic line: {line[:200]}")
+                                continue
+                    
+                    logger.info(f"ffuf found {len(results)} results")
+                    return {'results': results}
                 else:
                     # No output typically means no findings
-                    logger.info("ffuf returned no output - likely no findings")
+                    logger.info("ffuf returned no output - no findings")
                     return {'results': []}
             else:
-                return {'error': result.stderr or 'ffuf failed', 'returncode': result.returncode}
+                error_msg = result.stderr or 'ffuf command failed'
+                logger.error(f"ffuf failed with return code {result.returncode}: {error_msg}")
+                return {'error': error_msg, 'returncode': result.returncode}
                 
         except subprocess.TimeoutExpired:
             logger.warning(f"ffuf timeout for {target_url}")
