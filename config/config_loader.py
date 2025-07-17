@@ -53,6 +53,9 @@ class Config:
             "tools": {
                 "nmap_path": "",
                 "nuclei_path": ""
+            },
+            "fuzzing": {
+                "enable_ffuf": True
             }
         }
     
@@ -115,6 +118,11 @@ class Config:
     def version(self) -> str:
         """Get application version"""
         return self.get("version", "1.0.0")
+    
+    @property
+    def enable_ffuf(self) -> bool:
+        """Check if ffuf fuzzing is enabled"""
+        return self.get("fuzzing.enable_ffuf", True)
 
 
 # Global config instance

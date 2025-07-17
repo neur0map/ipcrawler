@@ -39,6 +39,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from workflows.http_03.scanner import HTTPAdvancedScanner
+from workflows.ffuf_04.scanner import FfufScanner
 from config import config
 from utils.results import result_manager
 
@@ -414,6 +415,34 @@ async def run_workflow(target: str, debug: bool = False):
                 error_msg = http_result.error or (http_result.errors[0] if http_result.errors else "Unknown error")
                 console.print(f"⚠ HTTP scan failed: {error_msg}")
         
+        # Run ffuf workflow if HTTP services were found
+        ffuf_scan_data = None
+        if http_ports and config.enable_ffuf:  # Check config property
+            console.print(f"\n→ Starting intelligent web fuzzing with ffuf...")
+            
+            # Prepare previous results for ffuf scanner
+            previous_results = {
+                'nmap_fast': {'data': result.data} if config.fast_port_discovery else {},
+                'nmap': {'data': result.data},
+                'http': {'data': http_scan_data} if http_scan_data else {}
+            }
+            
+            ffuf_scanner = FfufScanner(resolved_target)
+            ffuf_result = await ffuf_scanner.execute(previous_results)
+            
+            if ffuf_result['success'] and ffuf_result.get('data'):
+                total_execution_time += ffuf_result.get('execution_time', 0.0)
+                console.print(f"✓ Ffuf scan completed in {ffuf_result.get('execution_time', 0.0):.2f}s")
+                ffuf_scan_data = ffuf_result['data']
+                
+                # Display ffuf findings summary
+                services_scanned = ffuf_scan_data.get('services_scanned', 0)
+                total_findings = sum(len(r.get('findings', [])) for r in ffuf_scan_data.get('results', []))
+                console.print(f"  → Scanned {services_scanned} services, found {total_findings} paths")
+            else:
+                error_msg = ffuf_result.get('error', 'Unknown error')
+                console.print(f"⚠ Ffuf scan failed: {error_msg}")
+        
         # Merge all scan results
         result.data['total_execution_time'] = total_execution_time
         
@@ -429,6 +458,18 @@ async def run_workflow(target: str, debug: bool = False):
             result.data['summary']['http_services'] = len(http_scan_data.get('services', []))
             result.data['summary']['discovered_subdomains'] = len(http_scan_data.get('subdomains', []))
             result.data['summary']['discovered_paths'] = len(http_scan_data.get('summary', {}).get('discovered_paths', []))
+        
+        # Add ffuf scan results to main data
+        if ffuf_scan_data:
+            result.data['ffuf_scan'] = ffuf_scan_data
+            
+            # Add ffuf findings to summary
+            if 'summary' not in result.data:
+                result.data['summary'] = {}
+            
+            result.data['summary']['ffuf_paths_discovered'] = sum(
+                len(r.get('findings', [])) for r in ffuf_scan_data.get('results', [])
+            )
         
         console.print(f"\n✓ All scans completed in {total_execution_time:.2f}s total")
         

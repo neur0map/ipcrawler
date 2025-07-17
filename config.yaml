@@ -62,3 +62,10 @@ output:
 # Tool Paths (leave empty to use system PATH)
 tools:
   nmap_path: ""
+
+# Web Fuzzing Settings
+fuzzing:
+  # Enable ffuf web fuzzing workflow
+  # When true: Run intelligent wordlist-based fuzzing on discovered web services
+  # When false: Skip ffuf scanning
+  enable_ffuf: true
