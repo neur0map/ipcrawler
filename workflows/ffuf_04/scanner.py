@@ -146,13 +146,13 @@ class FfufScanner(BaseWorkflow):
     def _run_ffuf(self, target_url: str, wordlist_path: str, extensions: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run ffuf with the selected wordlist."""
         try:
-            # Prepare ffuf command with performance optimizations
+            # Prepare ffuf command with performance optimizations and proper filtering
             cmd = [
                 'ffuf',
                 '-u', f"{target_url}/FUZZ",
                 '-w', wordlist_path,
-                '-mc', 'all',  # Match all status codes
-                '-fc', '404',  # Filter out 404s
+                '-mc', '200',  # Only match HTTP 200 status codes
+                '-fs', '0',    # Filter out zero-byte responses
                 '-t', '50',    # Increased threads for faster scanning
                 '-timeout', '8',  # Shorter timeout for faster overall scan
                 '-H', 'User-Agent: Mozilla/5.0 (compatible; ipcrawler/1.0)',
@@ -168,6 +168,7 @@ class FfufScanner(BaseWorkflow):
                 cmd.extend(['-e', ext_string])
             
             logger.info(f"Running ffuf on {target_url} with wordlist: {wordlist_path}")
+            logger.info(f"🎯 Filtering: Only HTTP 200 responses, excluding zero-byte files")
             if extensions:
                 logger.info(f"Extensions: {extensions[:4]}")
                 
@@ -198,7 +199,7 @@ class FfufScanner(BaseWorkflow):
                     seconds = int(elapsed % 60)
                     
                     # Clear current line and print timer with wordlist name
-                    timer_text = f'  → Scanning with ffuf using {wordlist_name}... {minutes:02d}:{seconds:02d} elapsed'
+                    timer_text = f'  → Scanning with ffuf using {wordlist_name}... {minutes:02d}:{seconds:02d} elapsed (200 only)'
                     sys.stdout.write(f'\r{timer_text}' + ' ' * 20)  # Add padding to clear old text
                     sys.stdout.write(f'\r{timer_text}')  # Write the actual text
                     sys.stdout.flush()
@@ -220,7 +221,7 @@ class FfufScanner(BaseWorkflow):
                 timer_running.clear()
                 elapsed = time.time() - start_time
                 completion_text = f'  ✓ Ffuf scan completed in {elapsed:.2f}s'
-                sys.stdout.write(f'\r{completion_text}' + ' ' * 20)  # Clear any remaining timer text
+                sys.stdout.write(f'\r{completion_text}' + ' ' * 30)  # Clear any remaining timer text
                 sys.stdout.write(f'\r{completion_text}\n')  # Write completion message
                 sys.stdout.flush()
             
@@ -240,17 +241,19 @@ class FfufScanner(BaseWorkflow):
                         if line.strip():
                             try:
                                 json_obj = json.loads(line)
-                                results.append(json_obj)
+                                # Additional filtering to remove noise
+                                if self._is_valid_finding(json_obj):
+                                    results.append(json_obj)
                             except json.JSONDecodeError as e:
                                 logger.error(f"Failed to parse JSON line: {e}")
                                 logger.error(f"Problematic line: {line[:200]}")
                                 continue
                     
-                    logger.info(f"ffuf found {len(results)} results")
+                    logger.info(f"ffuf found {len(results)} valid HTTP 200 paths")
                     return {'results': results}
                 else:
                     # No output typically means no findings
-                    logger.info("ffuf returned no output - no findings")
+                    logger.info("ffuf returned no output - no HTTP 200 findings")
                     return {'results': []}
             else:
                 error_msg = result.stderr or 'ffuf command failed'
@@ -263,6 +266,39 @@ class FfufScanner(BaseWorkflow):
         except Exception as e:
             logger.error(f"ffuf error for {target_url}: {str(e)}")
             return {'error': str(e)}
+    
+    def _is_valid_finding(self, finding: Dict[str, Any]) -> bool:
+        """Filter out noise and low-value findings."""
+        try:
+            url = finding.get('url', '')
+            status = finding.get('status', 0)
+            length = finding.get('length', 0)
+            words = finding.get('words', 0)
+            
+            # Only accept HTTP 200 (should already be filtered by ffuf)
+            if status != 200:
+                return False
+            
+            # Filter out very small responses (likely error pages)
+            if length < 50:
+                return False
+            
+            # Filter out very common false positives
+            url_lower = url.lower()
+            false_positives = [
+                'error', 'notfound', '404', 'invalid', 'missing',
+                'default', 'empty', 'blank', 'placeholder'
+            ]
+            
+            for fp in false_positives:
+                if fp in url_lower:
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.debug(f"Error validating finding: {e}")
+            return True  # Be permissive if validation fails
     
     def _get_catalog_wordlists_direct(self, context: ScoringContext) -> List[str]:
         """
@@ -559,8 +595,31 @@ class FfufScanner(BaseWorkflow):
         # Results will be saved by the main workflow coordinator
         # Individual workflows just return their data
         
+        # Log final summary
+        total_findings = sum(len(r.get('findings', [])) for r in results)
+        services_with_findings = len([r for r in results if r.get('findings')])
+        
+        logger.info(f"🎉 Ffuf scan summary:")
+        logger.info(f"  📊 Services scanned: {len(results)}")
+        logger.info(f"  ✅ Services with findings: {services_with_findings}")
+        logger.info(f"  🎯 Total HTTP 200 paths found: {total_findings}")
+        
+        if total_findings > 0:
+            logger.info(f"  💾 Results will be saved to workspace by main coordinator")
+            # Log a few example findings for verification
+            for result_entry in results[:2]:  # Show first 2 services
+                if result_entry.get('findings'):
+                    target = result_entry.get('target', 'unknown')
+                    findings_count = len(result_entry.get('findings', []))
+                    logger.info(f"    📂 {target}: {findings_count} paths")
+                    for finding in result_entry.get('findings', [])[:3]:  # Show first 3 paths
+                        url = finding.get('url', '')
+                        length = finding.get('length', 0)
+                        logger.info(f"      🔗 {url} ({length} bytes)")
+        
         return self._create_result(True, data={
             'services_scanned': len(results),
+            'total_findings': total_findings,
             'results': results
         })
     
