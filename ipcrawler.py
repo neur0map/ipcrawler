@@ -39,7 +39,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from workflows.http_03.scanner import HTTPAdvancedScanner
-from workflows.ffuf_04.scanner import FfufScanner
+from workflows.feroxbuster_04.scanner import FeroxbusterScanner
 from config import config
 from utils.results import result_manager
 
@@ -415,33 +415,37 @@ async def run_workflow(target: str, debug: bool = False):
                 error_msg = http_result.error or (http_result.errors[0] if http_result.errors else "Unknown error")
                 console.print(f"⚠ HTTP scan failed: {error_msg}")
         
-        # Run ffuf workflow if HTTP services were found
-        ffuf_scan_data = None
-        if http_ports and config.enable_ffuf:  # Check config property
-            console.print(f"\n→ Starting intelligent web fuzzing with ffuf...")
-            # Note: Timer will be displayed by the ffuf scanner itself
+        # Run feroxbuster workflow if HTTP services were found
+        feroxbuster_scan_data = None
+        if http_ports:  # Run feroxbuster when HTTP services found
+            console.print(f"\n→ Starting intelligent web fuzzing with feroxbuster...")
+            # Note: Timer will be displayed by the feroxbuster scanner itself
             
-            # Prepare previous results for ffuf scanner
+            # Prepare previous results for feroxbuster scanner
             previous_results = {
                 'nmap_fast': {'data': result.data} if config.fast_port_discovery else {},
                 'nmap': {'data': result.data},
                 'http': {'data': http_scan_data} if http_scan_data else {}
             }
             
-            ffuf_scanner = FfufScanner()
-            ffuf_result = await ffuf_scanner.execute(target=resolved_target, previous_results=previous_results)
+            feroxbuster_scanner = FeroxbusterScanner()
+            feroxbuster_result = await feroxbuster_scanner.execute(
+                target=resolved_target, 
+                previous_results=previous_results,
+                workspace_path=workspace
+            )
             
-            if ffuf_result['success'] and ffuf_result.get('data'):
-                total_execution_time += ffuf_result.get('execution_time', 0.0)
-                ffuf_scan_data = ffuf_result['data']
+            if feroxbuster_result['success'] and feroxbuster_result.get('data'):
+                total_execution_time += feroxbuster_result.get('execution_time', 0.0)
+                feroxbuster_scan_data = feroxbuster_result['data']
                 
-                # Display ffuf findings summary (timer already shows completion time)
-                services_scanned = ffuf_scan_data.get('services_scanned', 0)
-                total_findings = sum(len(r.get('findings', [])) for r in ffuf_scan_data.get('results', []))
+                # Display feroxbuster findings summary (timer already shows completion time)
+                services_scanned = feroxbuster_scan_data.get('services_scanned', 0)
+                total_findings = sum(len(r.get('findings', [])) for r in feroxbuster_scan_data.get('results', []))
                 console.print(f"  → Scanned {services_scanned} services, found {total_findings} paths")
             else:
-                error_msg = ffuf_result.get('error', 'Unknown error')
-                console.print(f"⚠ Ffuf scan failed: {error_msg}")
+                error_msg = feroxbuster_result.get('error', 'Unknown error')
+                console.print(f"⚠ Feroxbuster scan failed: {error_msg}")
         
         # Merge all scan results
         result.data['total_execution_time'] = total_execution_time
@@ -459,16 +463,16 @@ async def run_workflow(target: str, debug: bool = False):
             result.data['summary']['discovered_subdomains'] = len(http_scan_data.get('subdomains', []))
             result.data['summary']['discovered_paths'] = len(http_scan_data.get('summary', {}).get('discovered_paths', []))
         
-        # Add ffuf scan results to main data
-        if ffuf_scan_data:
-            result.data['ffuf_scan'] = ffuf_scan_data
+        # Add feroxbuster scan results to main data
+        if feroxbuster_scan_data:
+            result.data['feroxbuster_scan'] = feroxbuster_scan_data
             
-            # Add ffuf findings to summary
+            # Add feroxbuster findings to summary
             if 'summary' not in result.data:
                 result.data['summary'] = {}
             
-            result.data['summary']['ffuf_paths_discovered'] = sum(
-                len(r.get('findings', [])) for r in ffuf_scan_data.get('results', [])
+            result.data['summary']['feroxbuster_paths_discovered'] = sum(
+                len(r.get('findings', [])) for r in feroxbuster_scan_data.get('results', [])
             )
         
         console.print(f"\n✓ All scans completed in {total_execution_time:.2f}s total")

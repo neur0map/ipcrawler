@@ -1,8 +1,8 @@
 """
-Ffuf Scanner with Intelligent Wordlist Selection
+Feroxbuster Scanner with Intelligent Wordlist Selection
 
 Uses the wordlist scorer to select optimal wordlists based on previous scan results
-and service context for web fuzzing with ffuf.
+and service context for web directory and file discovery with feroxbuster.
 """
 
 import subprocess
@@ -11,8 +11,10 @@ import logging
 import threading
 import time
 import sys
+import os
 from datetime import datetime
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 
 from workflows.core.base import BaseWorkflow
 from database.scorer.scorer_engine import score_wordlists_with_catalog, get_wordlist_paths
@@ -22,11 +24,11 @@ from database.scorer.cache import ScorerCache
 logger = logging.getLogger(__name__)
 
 
-class FfufScanner(BaseWorkflow):
-    """Ffuf web fuzzing scanner with intelligent wordlist selection."""
+class FeroxbusterScanner(BaseWorkflow):
+    """Feroxbuster web directory scanner with intelligent wordlist selection."""
     
     def __init__(self):
-        super().__init__("ffuf")
+        super().__init__("feroxbuster")
         self.cache = ScorerCache()
         
     def _get_http_services(self, previous_results: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -143,41 +145,43 @@ class FfufScanner(BaseWorkflow):
             headers=headers
         )
     
-    def _run_ffuf(self, target_url: str, wordlist_path: str, extensions: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Run ffuf with the selected wordlist."""
+    def _run_feroxbuster(self, target_url: str, wordlist_path: str, extensions: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Run feroxbuster with the selected wordlist."""
         try:
-            # Prepare ffuf command with performance optimizations and proper filtering
+            # Prepare feroxbuster command with performance optimizations and proper filtering
             cmd = [
-                'ffuf',
-                '-u', f"{target_url}/FUZZ",
-                '-w', wordlist_path,
-                '-mc', '200',  # Only match HTTP 200 status codes
-                '-fs', '0',    # Filter out zero-byte responses
-                '-t', '50',    # Increased threads for faster scanning
-                '-timeout', '8',  # Shorter timeout for faster overall scan
-                '-H', 'User-Agent: Mozilla/5.0 (compatible; ipcrawler/1.0)',
-                '-json',       # Use -json flag instead of -of json
-                '-s'           # Silent mode
+                'feroxbuster',
+                '--url', target_url,
+                '--wordlist', wordlist_path,
+                '--status-codes', '200,301,302,403,405',  # Include useful status codes
+                '--threads', '50',  # High thread count for speed
+                '--timeout', '8',   # 8 second timeout
+                '--user-agent', 'Mozilla/5.0 (compatible; ipcrawler/1.0)',
+                '--output', '-',    # Output to stdout
+                '--json',          # JSON output for parsing
+                '--silent',        # Reduce noise
+                '--no-recursion',  # Don't recurse directories for initial scan
+                '--filter-status', '404',  # Filter out 404s
+                '--filter-size', '0'       # Filter out zero-byte responses
             ]
             
-            # Add extensions if specified (but limit to avoid command line issues)
+            # Add extensions if specified
             if extensions:
-                # Limit to 4 extensions max to avoid command line issues
-                limited_extensions = extensions[:4]
-                ext_string = ','.join(limited_extensions)
-                cmd.extend(['-e', ext_string])
+                # Limit to 5 extensions max to avoid command line issues
+                limited_extensions = extensions[:5]
+                for ext in limited_extensions:
+                    cmd.extend(['--extensions', ext.lstrip('.')])  # Remove leading dot
             
-            logger.info(f"Running ffuf on {target_url} with wordlist: {wordlist_path}")
-            logger.info(f"🎯 Filtering: Only HTTP 200 responses, excluding zero-byte files")
+            logger.info(f"Running feroxbuster on {target_url} with wordlist: {wordlist_path}")
+            logger.info(f"🎯 Filtering: 200,301,302,403,405 status codes, excluding 404s and zero-byte files")
             if extensions:
-                logger.info(f"Extensions: {extensions[:4]}")
+                logger.info(f"Extensions: {extensions[:5]}")
                 
             # Log wordlist size for performance expectations
             try:
-                import os
                 wordlist_size = sum(1 for _ in open(wordlist_path, 'r', errors='ignore'))
                 total_requests = wordlist_size * len(extensions) if extensions else wordlist_size
-                expected_time = total_requests / (50 * 10)  # rough estimate: 50 threads * ~10 req/sec/thread
+                expected_time = total_requests / (50 * 8)  # rough estimate: 50 threads * ~8 req/sec/thread
                 logger.info(f"Wordlist size: {wordlist_size:,} entries, ~{total_requests:,} total requests, estimated {expected_time:.0f}s")
             except:
                 pass
@@ -188,18 +192,17 @@ class FfufScanner(BaseWorkflow):
             start_time = time.time()
             
             # Extract wordlist filename for display
-            import os
             wordlist_name = os.path.basename(wordlist_path)
             
             def live_timer():
-                """Display live elapsed time while ffuf runs."""
+                """Display live elapsed time while feroxbuster runs."""
                 while timer_running.is_set():
                     elapsed = time.time() - start_time
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
                     
                     # Clear current line and print timer with wordlist name
-                    timer_text = f'  → Scanning with ffuf using {wordlist_name}... {minutes:02d}:{seconds:02d} elapsed (200 only)'
+                    timer_text = f'  → Scanning with feroxbuster using {wordlist_name}... {minutes:02d}:{seconds:02d} elapsed'
                     sys.stdout.write(f'\r{timer_text}' + ' ' * 20)  # Add padding to clear old text
                     sys.stdout.write(f'\r{timer_text}')  # Write the actual text
                     sys.stdout.flush()
@@ -210,32 +213,32 @@ class FfufScanner(BaseWorkflow):
             timer_thread = threading.Thread(target=live_timer, daemon=True)
             timer_thread.start()
             
-            # Run ffuf
-            logger.info(f"Running ffuf command: {' '.join(cmd)}")
+            # Run feroxbuster
+            logger.info(f"Running feroxbuster command: {' '.join(cmd)}")
             
             try:
-                # Run ffuf with explicit encoding and reasonable timeout
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, encoding='utf-8', errors='replace')  # 2 minute max
+                # Run feroxbuster with explicit encoding and reasonable timeout
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, encoding='utf-8', errors='replace')  # 5 minute max
             finally:
                 # Stop timer and clear line
                 timer_running.clear()
                 elapsed = time.time() - start_time
-                completion_text = f'  ✓ Ffuf scan completed in {elapsed:.2f}s'
+                completion_text = f'  ✓ Feroxbuster scan completed in {elapsed:.2f}s'
                 sys.stdout.write(f'\r{completion_text}' + ' ' * 30)  # Clear any remaining timer text
                 sys.stdout.write(f'\r{completion_text}\n')  # Write completion message
                 sys.stdout.flush()
             
             # Debug logging
-            logger.debug(f"ffuf return code: {result.returncode}")
-            logger.debug(f"ffuf stdout length: {len(result.stdout)}")
-            logger.debug(f"ffuf stderr length: {len(result.stderr)}")
+            logger.debug(f"feroxbuster return code: {result.returncode}")
+            logger.debug(f"feroxbuster stdout length: {len(result.stdout)}")
+            logger.debug(f"feroxbuster stderr length: {len(result.stderr)}")
             
             if result.stderr:
-                logger.warning(f"ffuf stderr: {result.stderr[:500]}")
+                logger.warning(f"feroxbuster stderr: {result.stderr[:500]}")
             
             if result.returncode == 0:
                 if result.stdout.strip():
-                    # Parse newline-delimited JSON records (from -json flag)
+                    # Parse newline-delimited JSON records
                     results = []
                     for line in result.stdout.strip().split('\n'):
                         if line.strip():
@@ -245,26 +248,29 @@ class FfufScanner(BaseWorkflow):
                                 if self._is_valid_finding(json_obj):
                                     results.append(json_obj)
                             except json.JSONDecodeError as e:
-                                logger.error(f"Failed to parse JSON line: {e}")
-                                logger.error(f"Problematic line: {line[:200]}")
+                                logger.debug(f"Failed to parse JSON line: {e}")
+                                logger.debug(f"Problematic line: {line[:200]}")
                                 continue
                     
-                    logger.info(f"ffuf found {len(results)} valid HTTP 200 paths")
+                    logger.info(f"feroxbuster found {len(results)} valid findings")
                     return {'results': results}
                 else:
                     # No output typically means no findings
-                    logger.info("ffuf returned no output - no HTTP 200 findings")
+                    logger.info("feroxbuster returned no output - no findings")
                     return {'results': []}
             else:
-                error_msg = result.stderr or 'ffuf command failed'
-                logger.error(f"ffuf failed with return code {result.returncode}: {error_msg}")
+                error_msg = result.stderr or 'feroxbuster command failed'
+                logger.error(f"feroxbuster failed with return code {result.returncode}: {error_msg}")
                 return {'error': error_msg, 'returncode': result.returncode}
                 
         except subprocess.TimeoutExpired:
-            logger.warning(f"ffuf timeout for {target_url}")
+            logger.warning(f"feroxbuster timeout for {target_url}")
             return {'error': 'Timeout expired'}
+        except FileNotFoundError:
+            logger.error("feroxbuster not found. Please install feroxbuster first.")
+            return {'error': 'feroxbuster not found'}
         except Exception as e:
-            logger.error(f"ffuf error for {target_url}: {str(e)}")
+            logger.error(f"feroxbuster error for {target_url}: {str(e)}")
             return {'error': str(e)}
     
     def _is_valid_finding(self, finding: Dict[str, Any]) -> bool:
@@ -272,18 +278,17 @@ class FfufScanner(BaseWorkflow):
         try:
             url = finding.get('url', '')
             status = finding.get('status', 0)
-            length = finding.get('length', 0)
-            words = finding.get('words', 0)
+            length = finding.get('content_length', 0)
             
-            # Only accept HTTP 200 (should already be filtered by ffuf)
-            if status != 200:
+            # Accept useful status codes
+            if status not in [200, 301, 302, 403, 405]:
                 return False
             
-            # Filter out very small responses (likely error pages)
-            if length < 50:
+            # Filter out very small responses for 200 status (likely error pages)
+            if status == 200 and length < 50:
                 return False
             
-            # Filter out very common false positives
+            # Filter out very common false positives in URL
             url_lower = url.lower()
             false_positives = [
                 'error', 'notfound', '404', 'invalid', 'missing',
@@ -478,12 +483,52 @@ class FfufScanner(BaseWorkflow):
             logger.warning(f"⚠️ Scorer system failed: {e}")
             return []
     
+    def _write_scan_reports(self, results: List[Dict[str, Any]], workspace_path: Path) -> None:
+        """Write feroxbuster scan results to scan_reports.txt."""
+        try:
+            scan_reports_path = workspace_path / "scan_reports.txt"
+            
+            with open(scan_reports_path, 'w', encoding='utf-8') as f:
+                f.write("# Feroxbuster Scan Results\n")
+                f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("# Format: [STATUS] URL (SIZE bytes) - WORDLIST\n\n")
+                
+                total_findings = 0
+                for result_entry in results:
+                    target = result_entry.get('target', 'unknown')
+                    wordlist = result_entry.get('wordlist', 'unknown')
+                    findings = result_entry.get('findings', [])
+                    
+                    if findings:
+                        f.write(f"## Target: {target}\n")
+                        f.write(f"## Wordlist: {wordlist}\n")
+                        f.write(f"## Findings: {len(findings)}\n\n")
+                        
+                        for finding in findings:
+                            status = finding.get('status', 'unknown')
+                            url = finding.get('url', 'unknown')
+                            size = finding.get('content_length', 0)
+                            
+                            # Format: [200] http://example.com/admin (1234 bytes) - directory-list-small
+                            f.write(f"[{status}] {url} ({size} bytes) - {wordlist}\n")
+                            total_findings += 1
+                        
+                        f.write("\n")
+                
+                f.write(f"\n# Total findings: {total_findings}\n")
+                f.write(f"# Targets scanned: {len(results)}\n")
+            
+            logger.info(f"📝 Scan results written to {scan_reports_path}")
+            return scan_reports_path
+            
+        except Exception as e:
+            logger.error(f"Failed to write scan reports: {e}")
+            return None
+    
     async def execute(self, target: str, previous_results: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
-        """Execute ffuf scanning with intelligent wordlist selection."""
+        """Execute feroxbuster scanning with intelligent wordlist selection."""
         if not self.validate_input(target=target):
             return self._create_result(False, error="Invalid target")
-        
-        # We'll use the global result_manager, no need to create one
         
         if not previous_results:
             return self._create_result(False, error="No previous results available for service detection")
@@ -553,8 +598,8 @@ class FfufScanner(BaseWorkflow):
             if not extensions:
                 extensions = ['.php', '.html', '.txt', '.xml']
             
-            # Run ffuf
-            scan_result = self._run_ffuf(target_url, wordlist_path, extensions)
+            # Run feroxbuster
+            scan_result = self._run_feroxbuster(target_url, wordlist_path, extensions)
             
             # Process results
             findings = []
@@ -563,9 +608,9 @@ class FfufScanner(BaseWorkflow):
                     findings.append({
                         'url': item.get('url'),
                         'status': item.get('status'),
-                        'length': item.get('length'),
-                        'words': item.get('words'),
-                        'lines': item.get('lines')
+                        'content_length': item.get('content_length'),
+                        'word_count': item.get('word_count'),
+                        'line_count': item.get('line_count')
                     })
             
             result_entry = {
@@ -592,20 +637,30 @@ class FfufScanner(BaseWorkflow):
                 except Exception as e:
                     logger.warning(f"Failed to update cache outcome: {e}")
         
-        # Results will be saved by the main workflow coordinator
-        # Individual workflows just return their data
+        # Write scan reports to scan_reports.txt
+        workspace_path = kwargs.get('workspace_path')
+        if workspace_path:
+            self._write_scan_reports(results, Path(workspace_path))
+        else:
+            # Try to get workspace from result manager
+            try:
+                from utils.results import result_manager
+                workspace = result_manager.create_workspace(target)
+                self._write_scan_reports(results, workspace)
+            except Exception as e:
+                logger.warning(f"Could not write scan reports: {e}")
         
         # Log final summary
         total_findings = sum(len(r.get('findings', [])) for r in results)
         services_with_findings = len([r for r in results if r.get('findings')])
         
-        logger.info(f"🎉 Ffuf scan summary:")
+        logger.info(f"🎉 Feroxbuster scan summary:")
         logger.info(f"  📊 Services scanned: {len(results)}")
         logger.info(f"  ✅ Services with findings: {services_with_findings}")
-        logger.info(f"  🎯 Total HTTP 200 paths found: {total_findings}")
+        logger.info(f"  🎯 Total paths found: {total_findings}")
         
         if total_findings > 0:
-            logger.info(f"  💾 Results will be saved to workspace by main coordinator")
+            logger.info(f"  💾 Results saved to scan_reports.txt")
             # Log a few example findings for verification
             for result_entry in results[:2]:  # Show first 2 services
                 if result_entry.get('findings'):
@@ -614,8 +669,9 @@ class FfufScanner(BaseWorkflow):
                     logger.info(f"    📂 {target}: {findings_count} paths")
                     for finding in result_entry.get('findings', [])[:3]:  # Show first 3 paths
                         url = finding.get('url', '')
-                        length = finding.get('length', 0)
-                        logger.info(f"      🔗 {url} ({length} bytes)")
+                        size = finding.get('content_length', 0)
+                        status = finding.get('status', 0)
+                        logger.info(f"      🔗 [{status}] {url} ({size} bytes)")
         
         return self._create_result(True, data={
             'services_scanned': len(results),
@@ -633,4 +689,4 @@ class FfufScanner(BaseWorkflow):
             'success': success,
             'data': data or {},
             'error': error
-        }
+        } 
