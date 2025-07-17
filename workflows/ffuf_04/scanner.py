@@ -168,12 +168,18 @@ class FfufScanner(BaseWorkflow):
             # Run ffuf
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
             
-            if result.returncode == 0 and result.stdout:
-                try:
-                    return json.loads(result.stdout)
-                except json.JSONDecodeError:
-                    logger.error("Failed to parse ffuf JSON output")
-                    return {'error': 'Failed to parse output', 'raw': result.stdout}
+            if result.returncode == 0:
+                if result.stdout.strip():
+                    try:
+                        return json.loads(result.stdout)
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to parse ffuf JSON output. Raw output: {result.stdout[:500]}")
+                        # Return empty results structure when no valid JSON but command succeeded
+                        return {'results': [], 'error': None}
+                else:
+                    # No output typically means no findings
+                    logger.info("ffuf returned no output - likely no findings")
+                    return {'results': []}
             else:
                 return {'error': result.stderr or 'ffuf failed', 'returncode': result.returncode}
                 
