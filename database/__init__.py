@@ -20,7 +20,6 @@ from .ports import (
     ServiceClassification,
     AttackVectors,
     CTFScenarios,
-    AssociatedWordlists,
     ExploitationPath,
     
     # Utility functions
@@ -49,7 +48,6 @@ __all__ = [
     'ServiceClassification',
     'AttackVectors',
     'CTFScenarios',
-    'AssociatedWordlists',
     'ExploitationPath',
     
     # Utility functions

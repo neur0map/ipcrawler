@@ -148,6 +148,49 @@ class TextFormatter(BaseFormatter):
                 for record in dns_records[:10]:
                     report.append(f"  {record.get('type', 'N/A')}: {record.get('value', 'N/A')}")
         
+        # SmartList Wordlist Recommendations
+        if 'smartlist' in data:
+            smartlist_data = data['smartlist']
+            report.append("\n" + "=" * 80)
+            report.append("SMARTLIST WORDLIST RECOMMENDATIONS")
+            report.append("=" * 80)
+            
+            summary = smartlist_data.get('summary', {})
+            report.append(f"\nAnalysis Summary:")
+            report.append(f"  Services Analyzed: {summary.get('total_services_analyzed', 0)}")
+            report.append(f"  Total Wordlists: {summary.get('total_wordlists_recommended', 0)}")
+            report.append(f"  High Confidence: {summary.get('high_confidence_services', 0)}")
+            report.append(f"  Technologies: {', '.join(summary.get('detected_technologies', []))}")
+            report.append(f"\nRecommendation: {summary.get('recommendation', 'None')}")
+            
+            # Wordlist recommendations by service
+            recommendations = smartlist_data.get('wordlist_recommendations', [])
+            if recommendations:
+                report.append("\nWordlist Recommendations by Service:")
+                for service_rec in recommendations:
+                    report.append(f"\n{service_rec['service']} ({service_rec['service_name']})")
+                    if service_rec.get('detected_technology'):
+                        report.append(f"  Technology: {service_rec['detected_technology']}")
+                    report.append(f"  Confidence: {service_rec['confidence']} (Score: {service_rec['total_score']})")
+                    
+                    # Top wordlists
+                    report.append("  Top Wordlists:")
+                    for i, wl in enumerate(service_rec.get('top_wordlists', [])[:3], 1):
+                        report.append(f"    {i}. {wl['wordlist']} (Score: {wl['score']})")
+                        report.append(f"       Confidence: {wl['confidence']}")
+                        report.append(f"       Reason: {wl['reason']}")
+                        if wl.get('matched_rule'):
+                            report.append(f"       Rule: {wl['matched_rule']}")
+                        if wl.get('path'):
+                            report.append(f"       Path: {wl['path']}")
+                    
+                    # Context information
+                    context = service_rec.get('context', {})
+                    if context.get('matched_rules'):
+                        report.append(f"  Matched Rules: {', '.join(context['matched_rules'])}")
+                    if context.get('fallback_used'):
+                        report.append("  ⚠ Generic fallback was used")
+        
         return "\n".join(report)
 
 
@@ -355,6 +398,57 @@ class HTMLFormatter(BaseFormatter):
                     html.append(f'<strong>{severity.upper()}</strong>: {vuln.get("description", "N/A")}')
                     if vuln.get('evidence'):
                         html.append(f'<br>Evidence: {vuln["evidence"]}')
+                    html.append('</div>')
+            
+            html.append('</div>')
+        
+        # SmartList Wordlist Recommendations
+        if 'smartlist' in data:
+            smartlist_data = data['smartlist']
+            html.append('<div class="summary">')
+            html.append('<h2>SmartList Wordlist Recommendations</h2>')
+            
+            # Summary
+            summary = smartlist_data.get('summary', {})
+            html.append('<div style="margin-bottom: 20px;">')
+            html.append(f'<p>Services Analyzed: {summary.get("total_services_analyzed", 0)}</p>')
+            html.append(f'<p>Total Wordlists: {summary.get("total_wordlists_recommended", 0)}</p>')
+            html.append(f'<p>High Confidence: {summary.get("high_confidence_services", 0)}</p>')
+            html.append(f'<p>Technologies: {", ".join(summary.get("detected_technologies", []))}</p>')
+            html.append(f'<p><strong>Recommendation:</strong> {summary.get("recommendation", "None")}</p>')
+            html.append('</div>')
+            
+            # Recommendations by service
+            recommendations = smartlist_data.get('wordlist_recommendations', [])
+            if recommendations:
+                html.append('<h3>Wordlist Recommendations by Service</h3>')
+                for service_rec in recommendations:
+                    html.append('<div class="host">')
+                    html.append(f'<h4>{service_rec["service"]} ({service_rec["service_name"]})</h4>')
+                    if service_rec.get('detected_technology'):
+                        html.append(f'<p>Technology: {service_rec["detected_technology"]}</p>')
+                    html.append(f'<p>Confidence: <span class="{service_rec["confidence"].lower()}">{service_rec["confidence"]}</span> (Score: {service_rec["total_score"]})</p>')
+                    
+                    # Top wordlists table
+                    html.append('<table>')
+                    html.append('<tr><th>#</th><th>Wordlist</th><th>Score</th><th>Confidence</th><th>Reason</th></tr>')
+                    for i, wl in enumerate(service_rec.get('top_wordlists', [])[:5], 1):
+                        html.append('<tr>')
+                        html.append(f'<td>{i}</td>')
+                        html.append(f'<td><code>{wl["wordlist"]}</code></td>')
+                        html.append(f'<td>{wl["score"]}</td>')
+                        html.append(f'<td>{wl["confidence"]}</td>')
+                        html.append(f'<td>{wl["reason"]}</td>')
+                        html.append('</tr>')
+                    html.append('</table>')
+                    
+                    # Context info
+                    context = service_rec.get('context', {})
+                    if context.get('matched_rules'):
+                        html.append(f'<p>Matched Rules: {", ".join(context["matched_rules"])}</p>')
+                    if context.get('fallback_used'):
+                        html.append('<p style="color: #ffff00;">⚠ Generic fallback was used</p>')
+                    
                     html.append('</div>')
             
             html.append('</div>')

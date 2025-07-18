@@ -9,6 +9,7 @@ from .scorer_engine import (
     score_wordlists, 
     score_wordlists_with_catalog,
     get_wordlist_paths,
+    get_port_context,
     explain_scoring, 
     get_scoring_stats
 )
@@ -21,6 +22,7 @@ __all__ = [
     "score_wordlists",
     "score_wordlists_with_catalog",
     "get_wordlist_paths",
+    "get_port_context",
     "explain_scoring", 
     "get_scoring_stats",
     "ScoringContext", 

@@ -1,6 +1,6 @@
 """
 Pydantic models for the ipcrawler port database.
-Supports both current structure and enhanced CTF/HTB/OSCP features.
+Supports CTF/HTB/OSCP focused service information without wordlist metadata.
 """
 
 from typing import Dict, List, Optional, Union, Any
@@ -103,13 +103,6 @@ class CTFScenarios(BaseModel):
     advanced: Optional[str] = Field(None, description="Advanced attack chains")
 
 
-class AssociatedWordlists(BaseModel):
-    """Wordlists for penetration testing."""
-    high: List[str] = Field(default_factory=list, description="High-priority specific wordlists")
-    medium: List[str] = Field(default_factory=list, description="Medium-priority common wordlists")
-    fallback: List[str] = Field(default_factory=list, description="Fallback generic wordlists")
-
-
 class ExploitationPath(BaseModel):
     """Specific exploitation path information."""
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence level (0.0-1.0)")
@@ -138,13 +131,8 @@ class PortEntry(BaseModel):
     ctf_scenarios: Optional[CTFScenarios] = Field(None, description="CTF scenario descriptions")
     
     # Penetration testing resources
-    associated_wordlists: AssociatedWordlists = Field(default_factory=AssociatedWordlists)
     exploitation_paths: Dict[str, ExploitationPath] = Field(default_factory=dict, description="Exploitation paths")
     common_vulnerabilities: List[str] = Field(default_factory=list, description="Known vulnerabilities and CVEs")
-    
-    # Legacy support
-    path_recommendations: Dict[str, Any] = Field(default_factory=dict, description="Legacy path recommendations")
-    scoring_modifiers: Dict[str, float] = Field(default_factory=dict, description="Scoring adjustment factors")
     
     # Metadata
     last_updated: Union[str, date] = Field(..., description="Last update date")
@@ -163,24 +151,63 @@ class PortEntry(BaseModel):
             raise ValueError("Description must be at least 20 characters")
         return v
 
-    @validator('scoring_modifiers')
-    def validate_scoring_modifiers(cls, v):
-        """Validate scoring modifier values."""
-        for key, value in v.items():
-            if not isinstance(value, (int, float)):
-                raise ValueError(f"Scoring modifier '{key}' must be numeric")
-            if not (0.0 <= value <= 1.0):
-                raise ValueError(f"Scoring modifier '{key}' must be between 0.0 and 1.0")
-        return v
-
     @validator('last_updated')
     def validate_last_updated(cls, v):
         """Validate and convert date format."""
         if isinstance(v, str):
             # Validate YYYY-MM-DD format
-            if not re.match(r'^\d{4}-\d{2}-\d{2}$', v):
+            try:
+                from datetime import datetime
+                datetime.strptime(v, '%Y-%m-%d')
+                return v
+            except ValueError:
                 raise ValueError("Date must be in YYYY-MM-DD format")
         return v
+
+    def get_primary_port(self) -> int:
+        """Get the primary port number for this service."""
+        return self.indicators.ports[0] if self.indicators.ports else 0
+
+    def is_web_service(self) -> bool:
+        """Check if this is a web-based service."""
+        return (
+            self.classification.category in [ServiceCategory.WEB_APPLICATION, ServiceCategory.WEB_SERVICE] or
+            self.tech_stack.http_stack is not None or
+            any(port in [80, 443, 8080, 8443] for port in self.indicators.ports)
+        )
+
+    def get_technology_stack(self) -> List[str]:
+        """Extract all technology information as a list."""
+        techs = []
+        
+        if self.tech_stack.language:
+            techs.append(self.tech_stack.language.lower())
+        
+        if self.tech_stack.framework:
+            # Split framework on common separators to extract multiple techs
+            framework_parts = self.tech_stack.framework.replace('/', ' ').replace('-', ' ').split()
+            techs.extend([part.lower() for part in framework_parts if len(part) > 2])
+        
+        if self.tech_stack.http_stack:
+            techs.append(self.tech_stack.http_stack.lower())
+        
+        # Extract from service name and alternatives
+        service_parts = self.default_service.replace('-', ' ').split()
+        techs.extend([part.lower() for part in service_parts if len(part) > 2])
+        
+        for alt_service in self.alternative_services:
+            alt_parts = alt_service.replace('-', ' ').split()
+            techs.extend([part.lower() for part in alt_parts if len(part) > 2])
+        
+        # Deduplicate and return
+        return list(set(techs))
+
+    def matches_technology(self, tech: str) -> bool:
+        """Check if this port entry matches a specific technology."""
+        tech_lower = tech.lower()
+        tech_stack = self.get_technology_stack()
+        
+        return tech_lower in tech_stack
 
 
 class PortDatabase(BaseModel):
@@ -254,6 +281,20 @@ class PortDatabase(BaseModel):
         """Get all critical risk ports."""
         return self.get_ports_by_risk(RiskLevel.CRITICAL)
 
+    def get_technologies_for_port(self, port: Union[int, str]) -> List[str]:
+        """Get all technologies associated with a specific port."""
+        port_entry = self.get_port(port)
+        if port_entry:
+            return port_entry.get_technology_stack()
+        return []
+
+    def find_ports_by_technology(self, tech: str) -> Dict[str, PortEntry]:
+        """Find all ports that match a specific technology."""
+        return {
+            port: entry for port, entry in self.ports.items()
+            if entry.matches_technology(tech)
+        }
+
     def get_completion_stats(self) -> Dict[str, Any]:
         """Get database completion statistics."""
         total_ports = len(self.ports)
@@ -290,21 +331,21 @@ def load_port_database(json_data: Dict[str, Any]) -> PortDatabase:
     return PortDatabase(ports=port_entries)
 
 
-def create_empty_port_entry(port: int, name: str, protocol: ProtocolType) -> PortEntry:
-    """Create a minimal port entry template for new ports."""
+def create_empty_port_entry(port: int, name: str, service: str) -> PortEntry:
+    """Create a minimal port entry for testing purposes."""
     return PortEntry(
         name=name,
-        protocol=protocol,
-        default_service=name.lower().split()[0],
-        description=f"{name} - CTF/HTB/OSCP context needed",
+        protocol=ProtocolType.TCP,
+        default_service=service,
+        description=f"{name} service on port {port}",
         indicators=ServiceIndicators(ports=[port]),
         classification=ServiceClassification(
-            category=ServiceCategory.NETWORK_APPLIANCE,  # Default category
+            category=ServiceCategory.NETWORK_SERVICE,
             exposure=ExposureType.EXTERNAL,
-            auth_required=True,
+            auth_required=False,
             misuse_potential=RiskLevel.MEDIUM
         ),
-        last_updated=date.today().isoformat()
+        last_updated="2025-01-01"
     )
 
 
@@ -312,7 +353,7 @@ def create_empty_port_entry(port: int, name: str, protocol: ProtocolType) -> Por
 __all__ = [
     'ProtocolType', 'ExposureType', 'RiskLevel', 'ServiceCategory',
     'TechStack', 'ServiceIndicators', 'ServiceClassification',
-    'AttackVectors', 'CTFScenarios', 'AssociatedWordlists', 'ExploitationPath',
+    'AttackVectors', 'CTFScenarios', 'ExploitationPath',
     'PortEntry', 'PortDatabase',
     'load_port_database', 'create_empty_port_entry'
 ] 

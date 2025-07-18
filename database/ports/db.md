@@ -1,10 +1,50 @@
-# Port Database Status and Instructions
+# Port Database Documentation
 
 ## **MISSION: Document Top 100 CTF, Hack the Box & OSCP Ports**
 
 **Current Status:** 43 ports documented | **Target:** 100 ports | **Progress:** 43%  
 **Last completed port:** 9200 (Elasticsearch - Search and Analytics Engine)  
-**Date last updated:** 2025-07-16
+**Date last updated:** 2025-01-14
+
+---
+
+## Database Scope and Purpose
+
+The **Port Database** provides comprehensive service and technology information for penetration testing environments. It focuses on:
+
+### ✅ **Service Intelligence**
+- **Technology Stack**: Languages, frameworks, and implementations
+- **Service Detection**: Banners, headers, and indicators
+- **Alternative Services**: Different implementations of the same service
+
+### ✅ **CTF/HTB/OSCP Context**
+- **Attack Vectors**: Primary and secondary exploitation methods
+- **Exploitation Paths**: Specific techniques with confidence levels
+- **Scenario Difficulty**: Beginner, intermediate, and advanced contexts
+
+### ✅ **Service Classification**
+- **Risk Assessment**: Exposure levels and misuse potential
+- **Categories**: Web, database, remote access, file transfer, etc.
+- **Authentication**: Whether services typically require authentication
+
+### ❌ **What's NOT in the Database**
+- **Wordlist Recommendations**: Handled by SecLists catalog system
+- **Path Suggestions**: Managed by intelligent wordlist selection
+- **Scoring Modifiers**: Part of the SmartList algorithm
+
+---
+
+## Integration with SmartList Algorithm
+
+The Port Database serves as a **technology and service context provider** for the SmartList algorithm:
+
+1. **Port → Technology Mapping**: Extract tech stack from service detection
+2. **Service Classification**: Categorize services for algorithm context
+3. **Risk Assessment**: Provide exploitation potential information
+
+**Wordlist selection is handled separately by:**
+- **Rule-based Scorer**: Hardcoded technology/port mappings
+- **SecLists Catalog**: Actual file paths and wordlist metadata
 
 ---
 

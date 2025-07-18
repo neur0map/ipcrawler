@@ -39,7 +39,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from workflows.http_03.scanner import HTTPAdvancedScanner
-from workflows.feroxbuster_04.scanner import FeroxbusterScanner
+
 from config import config
 from utils.results import result_manager
 
@@ -405,37 +405,7 @@ async def run_workflow(target: str, debug: bool = False):
                 error_msg = http_result.error or (http_result.errors[0] if http_result.errors else "Unknown error")
                 console.print(f"⚠ HTTP scan failed: {error_msg}")
         
-        feroxbuster_scan_data = None
-        if http_ports:
-            console.print(f"\n→ Starting intelligent web fuzzing with feroxbuster...")
-            # Note: Timer will be displayed by the feroxbuster scanner itself
-            
-            # Prepare previous results for feroxbuster scanner
-            previous_results = {
-                'nmap_fast': {'data': result.data} if config.fast_port_discovery else {},
-                'nmap': {'data': result.data},
-                'http': {'data': http_scan_data} if http_scan_data else {}
-            }
-            
-            feroxbuster_scanner = FeroxbusterScanner()
-            feroxbuster_result = await feroxbuster_scanner.execute(
-                target=resolved_target, 
-                previous_results=previous_results,
-                workspace_path=workspace
-            )
-            
-            if feroxbuster_result['success'] and feroxbuster_result.get('data'):
-                total_execution_time += feroxbuster_result.get('execution_time', 0.0)
-                feroxbuster_scan_data = feroxbuster_result['data']
-                
-                # Display feroxbuster findings summary (timer already shows completion time)
-                services_scanned = feroxbuster_scan_data.get('services_scanned', 0)
-                total_findings = sum(len(r.get('findings', [])) for r in feroxbuster_scan_data.get('results', []))
-                console.print(f"  → Scanned {services_scanned} services, found {total_findings} paths")
-            else:
-                error_msg = feroxbuster_result.get('error', 'Unknown error')
-                console.print(f"⚠ Feroxbuster scan failed: {error_msg}")
-        
+
         # Merge all scan results
         result.data['total_execution_time'] = total_execution_time
         
@@ -451,15 +421,7 @@ async def run_workflow(target: str, debug: bool = False):
             result.data['summary']['discovered_subdomains'] = len(http_scan_data.get('subdomains', []))
             result.data['summary']['discovered_paths'] = len(http_scan_data.get('summary', {}).get('discovered_paths', []))
         
-        if feroxbuster_scan_data:
-            result.data['feroxbuster_scan'] = feroxbuster_scan_data
-            
-            if 'summary' not in result.data:
-                result.data['summary'] = {}
-            
-            result.data['summary']['feroxbuster_paths_discovered'] = sum(
-                len(r.get('findings', [])) for r in feroxbuster_scan_data.get('results', [])
-            )
+
         
         console.print(f"\n✓ All scans completed in {total_execution_time:.2f}s total")
         
