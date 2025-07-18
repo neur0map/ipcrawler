@@ -32,7 +32,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y nmap curl nslookup dnsutils
+        sudo apt-get install -y nmap curl dnsutils
     
     - name: Install Python dependencies
       run: |

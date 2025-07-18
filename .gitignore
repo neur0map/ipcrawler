@@ -25,6 +25,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.ruff_cache/
 
 # Virtual environments
 .env
