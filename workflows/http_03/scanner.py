@@ -502,19 +502,20 @@ class HTTPAdvancedScanner(BaseWorkflow):
         wordlist_used = None
         confidence = None
         
-        # Get configuration
-        smartlist_config = self.config.get('smartlist', {})
+        # Get configuration - simple enhanced discovery toggle
         discovery_config = self.config.get('discovery', {})
+        enhanced_discovery = discovery_config.get('enhanced', True)
         
-        smartlist_enabled = smartlist_config.get('enabled', True) and SMARTLIST_AVAILABLE
-        discovery_enabled = discovery_config.get('enabled', True)
+        smartlist_enabled = enhanced_discovery and SMARTLIST_AVAILABLE
+        discovery_enabled = True  # Always enabled, but mode depends on 'enhanced' setting
         
         get_command_logger().log_command("http_03", f"Starting enhanced path discovery for {service.url}")
-        debug_print(f"SmartList enabled: {smartlist_enabled}, Discovery enabled: {discovery_enabled}")
+        get_command_logger().log_command("http_03", f"Enhanced discovery mode: {'enabled' if enhanced_discovery else 'basic'}")
         
         # 1. SmartList intelligent discovery (if enabled and available)
         if smartlist_enabled:
             try:
+                get_command_logger().log_command("http_03", f"Initializing SmartList algorithm for {service.scheme}://{service.url.split('//')[1] if '//' in service.url else service.url}")
                 smartlist_paths = await self._discover_paths_with_smartlist(service)
                 if smartlist_paths:
                     discovered.extend(smartlist_paths['paths'])
@@ -526,7 +527,13 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     # Store SmartList recommendations in service
                     service.smartlist_recommendations = smartlist_paths.get('recommendations', [])
                     
-                    get_command_logger().log_command("http_03", f"SmartList discovered {len(smartlist_paths['paths'])} paths with {confidence} confidence")
+                    # Log detailed SmartList results
+                    recommendations = smartlist_paths.get('recommendations', [])
+                    if recommendations:
+                        for i, rec in enumerate(recommendations[:3]):  # Top 3
+                            get_command_logger().log_command("http_03", f"SmartList recommendation #{i+1}: {rec.get('wordlist')} (confidence: {rec.get('confidence')}, score: {rec.get('score')})")
+                    
+                    get_command_logger().log_command("http_03", f"SmartList analysis complete: {len(smartlist_paths['paths'])} valid paths found from {smartlist_paths.get('paths_tested', 0)} tested ({confidence} confidence)")
             except Exception as e:
                 get_command_logger().log_command("http_03", f"SmartList discovery failed: {e}", status="error", error=str(e))
                 debug_print(f"SmartList discovery error: {e}", level="WARNING")
@@ -595,23 +602,24 @@ class HTTPAdvancedScanner(BaseWorkflow):
             headers=service.headers
         )
         
-        debug_print(f"Built SmartList context: port={service.port}, tech={tech}")
+        get_command_logger().log_command("http_03", f"Built SmartList context: target={target_host}, port={service.port}, tech={tech or 'auto-detect'}")
         
         # Get SmartList recommendations
         try:
+            get_command_logger().log_command("http_03", f"Executing SmartList scoring with catalog integration")
             result = score_wordlists_with_catalog(context)
-        except Exception:
+        except Exception as e:
+            get_command_logger().log_command("http_03", f"Catalog scoring failed, using basic scoring: {e}")
             result = score_wordlists(context)
         
         if not result.wordlists:
             debug_print("No wordlist recommendations from SmartList", level="WARNING")
             return {'paths': [], 'paths_tested': 0}
         
-        # Get configuration limits
-        config = self.config.get('smartlist', {})
-        max_wordlists = config.get('max_wordlists', 3)
-        max_paths_per_wordlist = config.get('max_paths_per_wordlist', 100)
-        min_confidence = config.get('min_confidence', 'MEDIUM')
+        # Sensible defaults for SmartList operation
+        max_wordlists = 3
+        max_paths_per_wordlist = 100
+        min_confidence = 'MEDIUM'
         
         # Filter by confidence if needed
         confidence_levels = ['HIGH', 'MEDIUM', 'LOW']
@@ -623,12 +631,14 @@ class HTTPAdvancedScanner(BaseWorkflow):
         
         # Use top wordlists
         wordlists_to_use = result.wordlists[:max_wordlists]
+        get_command_logger().log_command("http_03", f"Selected top {len(wordlists_to_use)} wordlists: {', '.join(wordlists_to_use)}")
         
         # Get wordlist paths
         try:
+            get_command_logger().log_command("http_03", f"Resolving wordlist file paths using SecLists catalog")
             wordlist_paths = get_wordlist_paths(wordlists_to_use, tech=tech, port=service.port)
         except Exception as e:
-            debug_print(f"Could not resolve wordlist paths: {e}", level="WARNING")
+            get_command_logger().log_command("http_03", f"Could not resolve wordlist paths: {e}", status="error")
             return {'paths': [], 'paths_tested': 0}
         
         # Read and test paths from wordlists
@@ -641,25 +651,27 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 
             wordlist_path = Path(wordlist_paths[i])
             if not wordlist_path.exists():
-                debug_print(f"Wordlist not found: {wordlist_path}", level="WARNING")
+                get_command_logger().log_command("http_03", f"Wordlist not found: {wordlist_path}", status="error")
                 continue
                 
-            debug_print(f"Testing wordlist: {wordlist_name} ({wordlist_path})")
+            get_command_logger().log_command("http_03", f"Processing wordlist: {wordlist_name} ({wordlist_path.name})")
             
             try:
                 with open(wordlist_path, 'r', encoding='utf-8', errors='ignore') as f:
                     paths = [line.strip() for line in f if line.strip() and not line.startswith('#')]
                     paths = paths[:max_paths_per_wordlist]  # Limit paths per wordlist
                     
+                    get_command_logger().log_command("http_03", f"Testing {len(paths)} paths from {wordlist_name}")
+                    
                     # Test paths
                     valid_paths = await self._test_paths_batch(service, paths)
                     all_paths.extend(valid_paths)
                     total_tested += len(paths)
                     
-                    debug_print(f"Wordlist {wordlist_name}: {len(valid_paths)}/{len(paths)} valid paths")
+                    get_command_logger().log_command("http_03", f"Wordlist {wordlist_name} results: {len(valid_paths)}/{len(paths)} valid paths")
                     
             except Exception as e:
-                debug_print(f"Error reading wordlist {wordlist_path}: {e}", level="WARNING")
+                get_command_logger().log_command("http_03", f"Error reading wordlist {wordlist_path}: {e}", status="error")
         
         # Build recommendations summary
         recommendations = []
@@ -685,45 +697,39 @@ class HTTPAdvancedScanner(BaseWorkflow):
         discovered = []
         paths_tested = 0
         
-        # Common application patterns
-        if config.get('include_common_paths', True):
-            common_paths = [
-                '/robots.txt', '/sitemap.xml', '/.well-known/security.txt',
-                '/api/', '/api/v1/', '/api/v2/', '/graphql',
-                '/.git/config', '/.env', '/config.php', '/wp-config.php',
-                '/admin/', '/login', '/dashboard', '/console',
-                '/swagger-ui/', '/api-docs/', '/docs/',
-                '/.DS_Store', '/thumbs.db', '/web.config'
-            ]
-            
-            # Add custom paths from config
-            custom_paths = config.get('custom_paths', [])
-            common_paths.extend(custom_paths)
-            
-            valid_common = await self._test_paths_batch(service, common_paths)
-            discovered.extend(valid_common)
-            paths_tested += len(common_paths)
-            
-            debug_print(f"Common paths: {len(valid_common)}/{len(common_paths)} valid")
+        # Common application patterns (always included)
+        common_paths = [
+            '/robots.txt', '/sitemap.xml', '/.well-known/security.txt',
+            '/api/', '/api/v1/', '/api/v2/', '/graphql',
+            '/.git/config', '/.env', '/config.php', '/wp-config.php',
+            '/admin/', '/login', '/dashboard', '/console',
+            '/swagger-ui/', '/api-docs/', '/docs/',
+            '/.DS_Store', '/thumbs.db', '/web.config'
+        ]
         
-        # Technology-specific paths
-        if config.get('include_tech_paths', True):
-            tech_paths = []
-            if service.server:
-                server_lower = service.server.lower()
-                if 'apache' in server_lower:
-                    tech_paths.extend(['/server-status', '/server-info'])
-                elif 'nginx' in server_lower:
-                    tech_paths.extend(['/nginx_status'])
-                elif 'tomcat' in server_lower:
-                    tech_paths.extend(['/manager/', '/host-manager/'])
+        valid_common = await self._test_paths_batch(service, common_paths)
+        discovered.extend(valid_common)
+        paths_tested += len(common_paths)
+        
+        debug_print(f"Common paths: {len(valid_common)}/{len(common_paths)} valid")
+        
+        # Technology-specific paths (always included)
+        tech_paths = []
+        if service.server:
+            server_lower = service.server.lower()
+            if 'apache' in server_lower:
+                tech_paths.extend(['/server-status', '/server-info'])
+            elif 'nginx' in server_lower:
+                tech_paths.extend(['/nginx_status'])
+            elif 'tomcat' in server_lower:
+                tech_paths.extend(['/manager/', '/host-manager/'])
+        
+        if tech_paths:
+            valid_tech = await self._test_paths_batch(service, tech_paths)
+            discovered.extend(valid_tech)
+            paths_tested += len(tech_paths)
             
-            if tech_paths:
-                valid_tech = await self._test_paths_batch(service, tech_paths)
-                discovered.extend(valid_tech)
-                paths_tested += len(tech_paths)
-                
-                debug_print(f"Technology paths: {len(valid_tech)}/{len(tech_paths)} valid")
+            debug_print(f"Technology paths: {len(valid_tech)}/{len(tech_paths)} valid")
         
         return {
             'paths': discovered,
@@ -747,22 +753,33 @@ class HTTPAdvancedScanner(BaseWorkflow):
         return paths
     
     async def _test_paths_batch(self, service: HTTPService, paths: List[str]) -> List[str]:
-        """Test a batch of paths efficiently"""
+        """Test a batch of paths efficiently with detailed validation"""
         if not paths:
             return []
         
-        config = self.config.get('smartlist', {})
-        timeout = config.get('request_timeout', 5)
-        max_concurrent = config.get('max_concurrent_requests', 20)
+        # Sensible defaults for path testing
+        timeout = 5
+        max_concurrent = 20
         
         # Create semaphore to limit concurrent requests
         semaphore = asyncio.Semaphore(max_concurrent)
+        
+        # Statistics tracking
+        stats = {
+            'total_tested': 0,
+            'valid_paths': 0,
+            'status_counts': {},
+            'error_count': 0,
+            'filtered_out': 0
+        }
         
         async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
             # Create tasks with semaphore
             async def test_with_semaphore(path):
                 async with semaphore:
-                    return await self._check_path(client, urljoin(service.url, path))
+                    return await self._check_path_with_stats(client, urljoin(service.url, path), stats)
+            
+            get_command_logger().log_command("http_03", f"Starting batch validation of {len(paths)} paths (max concurrent: {max_concurrent})")
             
             tasks = [test_with_semaphore(path) for path in paths]
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -774,18 +791,138 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     if exists:
                         valid_paths.append(path)
                 elif isinstance(result, Exception):
+                    stats['error_count'] += 1
                     debug_print(f"Error testing path {path}: {result}")
+            
+            # Log detailed statistics
+            get_command_logger().log_command("http_03", f"Batch validation complete: {len(valid_paths)}/{len(paths)} paths validated as meaningful")
+            if stats['status_counts']:
+                status_summary = ', '.join([f"{code}:{count}" for code, count in sorted(stats['status_counts'].items())])
+                get_command_logger().log_command("http_03", f"Response status distribution: {status_summary}")
+            if stats['error_count'] > 0:
+                get_command_logger().log_command("http_03", f"Network errors encountered: {stats['error_count']}")
             
             return valid_paths
     
-    async def _check_path(self, client: httpx.AsyncClient, url: str) -> Tuple[str, bool]:
-        """Check if a path exists"""
+    async def _check_path_with_stats(self, client: httpx.AsyncClient, url: str, stats: dict) -> Tuple[str, bool]:
+        """Check path with statistics tracking"""
+        path = urlparse(url).path
+        stats['total_tested'] += 1
+        
         try:
+            # Try HEAD first for efficiency
             response = await client.head(url, headers={"User-Agent": self.user_agents[0]})
-            path = urlparse(url).path
-            return path, response.status_code not in [404, 403]
-        except:
-            return urlparse(url).path, False
+            
+            # Track status codes
+            status_code = response.status_code
+            stats['status_counts'][status_code] = stats['status_counts'].get(status_code, 0) + 1
+            
+            # If HEAD fails, try GET for directories
+            if response.status_code in [405, 501]:  # Method not allowed
+                response = await client.get(url, headers={"User-Agent": self.user_agents[0]})
+                stats['status_counts'][response.status_code] = stats['status_counts'].get(response.status_code, 0) + 1
+            
+            # Use strict validation by default - only meaningful, accessible content
+            valid_status_codes = [200, 201, 202, 204, 301, 302, 307, 308, 401, 403]
+            
+            # Exclude common false positives
+            if response.status_code not in valid_status_codes:
+                stats['filtered_out'] += 1
+                return path, False
+            
+            # Additional validation for meaningful content
+            is_meaningful = await self._validate_path_content(response, url, client)
+            
+            if is_meaningful:
+                stats['valid_paths'] += 1
+            else:
+                stats['filtered_out'] += 1
+            
+            return path, is_meaningful
+            
+        except Exception as e:
+            stats['error_count'] += 1
+            debug_print(f"Error checking path {path}: {e}")
+            return path, False
+    
+    
+    async def _validate_path_content(self, response: 'httpx.Response', url: str, client: 'httpx.AsyncClient') -> bool:
+        """Validate that the path contains meaningful content"""
+        
+        # Status code based validation
+        status_code = response.status_code
+        
+        # Always include auth-protected paths and redirects
+        if status_code in [401, 403, 301, 302, 307, 308]:
+            return True
+        
+        # For successful responses, check content
+        if status_code in [200, 201, 202, 204]:
+            try:
+                # Check content length from headers first
+                content_length = response.headers.get('content-length')
+                if content_length and int(content_length) == 0:
+                    return False
+                
+                # If it's a HEAD request with no content-length, try GET for small files
+                if response.request.method == 'HEAD' and not content_length:
+                    try:
+                        get_response = await client.get(url, headers={"User-Agent": self.user_agents[0]})
+                        if get_response.status_code != status_code:
+                            return False
+                        
+                        content = get_response.text[:1000]  # First 1KB only
+                        
+                        # Exclude empty or minimal responses
+                        if len(content.strip()) < 10:
+                            return False
+                        
+                        # Filter out default error pages and server defaults
+                        error_indicators = [
+                            'not found', '404', 'file not found',
+                            'forbidden', '403', 'access denied', 
+                            'internal server error', '500',
+                            'bad request', '400',
+                            'default apache', 'default nginx',
+                            'it works!', 'welcome to nginx',
+                            'directory listing', 'index of /',
+                            'apache http server test page',
+                            'nginx welcome page',
+                            'test page for the apache',
+                            'welcome to caddy'
+                        ]
+                        
+                        content_lower = content.lower()
+                        for indicator in error_indicators:
+                            if indicator in content_lower:
+                                return False
+                        
+                        # Check if it's likely a real file/directory
+                        # Files with extensions are more likely to be real
+                        path = urlparse(url).path
+                        if '.' in path.split('/')[-1]:  # Has file extension
+                            return True
+                        
+                        # Directories with meaningful content
+                        if any(tag in content_lower for tag in ['<html>', '<title>', '<h1>', '<form>', 'api']):
+                            return True
+                        
+                        # JSON/API responses
+                        if response.headers.get('content-type', '').startswith('application/json'):
+                            return True
+                        
+                        return True  # Default to true for other content
+                        
+                    except Exception:
+                        # If GET fails, assume HEAD was correct
+                        return True
+                
+                return True  # Valid status with content-length
+                
+            except Exception:
+                return True  # Default to true if we can't validate content
+        
+        return False
     
     def _analyze_headers(self, service: HTTPService) -> List[HTTPVulnerability]:
         """Analyze HTTP headers for security issues"""
