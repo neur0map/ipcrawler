@@ -509,13 +509,9 @@ class HTTPAdvancedScanner(BaseWorkflow):
         smartlist_enabled = enhanced_discovery and SMARTLIST_AVAILABLE
         discovery_enabled = True  # Always enabled, but mode depends on 'enhanced' setting
         
-        get_command_logger().log_command("http_03", f"Starting enhanced path discovery for {service.url}")
-        get_command_logger().log_command("http_03", f"Enhanced discovery mode: {'enabled' if enhanced_discovery else 'basic'}")
-        
         # 1. SmartList intelligent discovery (if enabled and available)
         if smartlist_enabled:
             try:
-                get_command_logger().log_command("http_03", f"Initializing SmartList algorithm for {service.scheme}://{service.url.split('//')[1] if '//' in service.url else service.url}")
                 smartlist_paths = await self._discover_paths_with_smartlist(service)
                 if smartlist_paths:
                     discovered.extend(smartlist_paths['paths'])
@@ -526,16 +522,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     
                     # Store SmartList recommendations in service
                     service.smartlist_recommendations = smartlist_paths.get('recommendations', [])
-                    
-                    # Log detailed SmartList results
-                    recommendations = smartlist_paths.get('recommendations', [])
-                    if recommendations:
-                        for i, rec in enumerate(recommendations[:3]):  # Top 3
-                            get_command_logger().log_command("http_03", f"SmartList recommendation #{i+1}: {rec.get('wordlist')} (confidence: {rec.get('confidence')}, score: {rec.get('score')})")
-                    
-                    get_command_logger().log_command("http_03", f"SmartList analysis complete: {len(smartlist_paths['paths'])} valid paths found from {smartlist_paths.get('paths_tested', 0)} tested ({confidence} confidence)")
             except Exception as e:
-                get_command_logger().log_command("http_03", f"SmartList discovery failed: {e}", status="error", error=str(e))
                 debug_print(f"SmartList discovery error: {e}", level="WARNING")
         
         # 2. Traditional discovery methods (if enabled or SmartList failed)
@@ -546,13 +533,11 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 discovery_method = traditional_paths.get('method', 'traditional')
             total_paths_tested += traditional_paths.get('paths_tested', 0)
             
-            get_command_logger().log_command("http_03", f"Traditional discovery found {len(traditional_paths['paths'])} additional paths")
         
         # 3. Parse HTML for links (always enabled)
         if service.response_body:
             html_paths = self._extract_paths_from_html(service.response_body)
             discovered.extend(html_paths)
-            debug_print(f"Extracted {len(html_paths)} paths from HTML content")
         
         # Remove duplicates and clean up
         unique_paths = list(set(discovered))
@@ -568,7 +553,6 @@ class HTTPAdvancedScanner(BaseWorkflow):
             discovery_time=discovery_time
         )
         
-        get_command_logger().log_command("http_03", f"Path discovery completed in {discovery_time:.2f}s: {len(unique_paths)} unique paths found", status="completed")
         
         return unique_paths
     
@@ -602,14 +586,10 @@ class HTTPAdvancedScanner(BaseWorkflow):
             headers=service.headers
         )
         
-        get_command_logger().log_command("http_03", f"Built SmartList context: target={target_host}, port={service.port}, tech={tech or 'auto-detect'}")
-        
         # Get SmartList recommendations
         try:
-            get_command_logger().log_command("http_03", f"Executing SmartList scoring with catalog integration")
             result = score_wordlists_with_catalog(context)
         except Exception as e:
-            get_command_logger().log_command("http_03", f"Catalog scoring failed, using basic scoring: {e}")
             result = score_wordlists(context)
         
         if not result.wordlists:
@@ -631,14 +611,12 @@ class HTTPAdvancedScanner(BaseWorkflow):
         
         # Use top wordlists
         wordlists_to_use = result.wordlists[:max_wordlists]
-        get_command_logger().log_command("http_03", f"Selected top {len(wordlists_to_use)} wordlists: {', '.join(wordlists_to_use)}")
         
         # Get wordlist paths
         try:
-            get_command_logger().log_command("http_03", f"Resolving wordlist file paths using SecLists catalog")
             wordlist_paths = get_wordlist_paths(wordlists_to_use, tech=tech, port=service.port)
         except Exception as e:
-            get_command_logger().log_command("http_03", f"Could not resolve wordlist paths: {e}", status="error")
+            debug_print(f"Could not resolve wordlist paths: {e}", level="WARNING")
             return {'paths': [], 'paths_tested': 0}
         
         # Read and test paths from wordlists
@@ -651,27 +629,25 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 
             wordlist_path = Path(wordlist_paths[i])
             if not wordlist_path.exists():
-                get_command_logger().log_command("http_03", f"Wordlist not found: {wordlist_path}", status="error")
+                debug_print(f"Wordlist not found: {wordlist_path}", level="WARNING")
                 continue
                 
-            get_command_logger().log_command("http_03", f"Processing wordlist: {wordlist_name} ({wordlist_path.name})")
-            
             try:
                 with open(wordlist_path, 'r', encoding='utf-8', errors='ignore') as f:
                     paths = [line.strip() for line in f if line.strip() and not line.startswith('#')]
                     paths = paths[:max_paths_per_wordlist]  # Limit paths per wordlist
                     
-                    get_command_logger().log_command("http_03", f"Testing {len(paths)} paths from {wordlist_name}")
+                    # Log the equivalent fuzzing command
+                    base_url = service.url.rstrip('/')
+                    get_command_logger().log_command("http_03", f"ffuf -w {wordlist_path}:FUZZ -u {base_url}/FUZZ -mc 200,301,302,401,403 -t 20")
                     
                     # Test paths
                     valid_paths = await self._test_paths_batch(service, paths)
                     all_paths.extend(valid_paths)
                     total_tested += len(paths)
                     
-                    get_command_logger().log_command("http_03", f"Wordlist {wordlist_name} results: {len(valid_paths)}/{len(paths)} valid paths")
-                    
             except Exception as e:
-                get_command_logger().log_command("http_03", f"Error reading wordlist {wordlist_path}: {e}", status="error")
+                debug_print(f"Error reading wordlist {wordlist_path}: {e}", level="WARNING")
         
         # Build recommendations summary
         recommendations = []
@@ -707,11 +683,16 @@ class HTTPAdvancedScanner(BaseWorkflow):
             '/.DS_Store', '/thumbs.db', '/web.config'
         ]
         
+        # Log the equivalent manual commands for common paths
+        base_url = service.url.rstrip('/')
+        for path in common_paths[:5]:  # Show first 5 as examples
+            get_command_logger().log_command("http_03", f"curl -s -o /dev/null -w '%{{http_code}}' {base_url}{path}")
+        if len(common_paths) > 5:
+            get_command_logger().log_command("http_03", f"# ... and {len(common_paths) - 5} more common paths")
+        
         valid_common = await self._test_paths_batch(service, common_paths)
         discovered.extend(valid_common)
         paths_tested += len(common_paths)
-        
-        debug_print(f"Common paths: {len(valid_common)}/{len(common_paths)} valid")
         
         # Technology-specific paths (always included)
         tech_paths = []
@@ -725,11 +706,13 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 tech_paths.extend(['/manager/', '/host-manager/'])
         
         if tech_paths:
+            # Log technology-specific commands
+            for path in tech_paths:
+                get_command_logger().log_command("http_03", f"curl -s -o /dev/null -w '%{{http_code}}' {base_url}{path}")
+            
             valid_tech = await self._test_paths_batch(service, tech_paths)
             discovered.extend(valid_tech)
             paths_tested += len(tech_paths)
-            
-            debug_print(f"Technology paths: {len(valid_tech)}/{len(tech_paths)} valid")
         
         return {
             'paths': discovered,
@@ -779,8 +762,6 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 async with semaphore:
                     return await self._check_path_with_stats(client, urljoin(service.url, path), stats)
             
-            get_command_logger().log_command("http_03", f"Starting batch validation of {len(paths)} paths (max concurrent: {max_concurrent})")
-            
             tasks = [test_with_semaphore(path) for path in paths]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
@@ -794,18 +775,10 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     stats['error_count'] += 1
                     debug_print(f"Error testing path {path}: {result}")
             
-            # Log detailed statistics
-            get_command_logger().log_command("http_03", f"Batch validation complete: {len(valid_paths)}/{len(paths)} paths validated as meaningful")
-            if stats['status_counts']:
-                status_summary = ', '.join([f"{code}:{count}" for code, count in sorted(stats['status_counts'].items())])
-                get_command_logger().log_command("http_03", f"Response status distribution: {status_summary}")
-            if stats['error_count'] > 0:
-                get_command_logger().log_command("http_03", f"Network errors encountered: {stats['error_count']}")
-            
             return valid_paths
     
     async def _check_path_with_stats(self, client: httpx.AsyncClient, url: str, stats: dict) -> Tuple[str, bool]:
-        """Check path with statistics tracking"""
+        """Check path with actual command logging"""
         path = urlparse(url).path
         stats['total_tested'] += 1
         
