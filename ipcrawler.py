@@ -292,6 +292,8 @@ async def run_workflow(target: str, debug: bool = False):
                     console.print(f"    • [cyan]{mapping['hostname']}[/cyan] → {mapping['ip']}")
                 if discovery_result.data.get("etc_hosts_updated"):
                     console.print("    ✓ [green]/etc/hosts updated[/green]")
+                elif discovery_result.data.get("scan_mode") == "unprivileged":
+                    console.print("    ℹ️  [yellow]Restart with 'sudo' to update /etc/hosts[/yellow]")
             
             if port_count == 0:
                 console.print("⚠ No open ports found. Skipping detailed scan.")

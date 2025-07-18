@@ -174,14 +174,6 @@ class NmapFastScanner(BaseWorkflow):
                 hosts_updated = False
                 if discovered_mappings and is_root:
                     hosts_updated = await self._update_etc_hosts(discovered_mappings)
-                    if hosts_updated:
-                        console.print(f"✅ Added {len(discovered_mappings)} hostname mappings to [green]/etc/hosts[/green]")
-                        console.print("  → Subsequent workflows will benefit from hostname resolution")
-                    else:
-                        console.print("⚠️  Failed to update /etc/hosts")
-                elif discovered_mappings and not is_root:
-                    console.print(f"ℹ️  Found {len(discovered_mappings)} hostnames but no sudo privileges")
-                    console.print("  → Restart with 'sudo' for automatic /etc/hosts updates")
                 
                 return WorkflowResult(
                     success=True,
@@ -253,10 +245,8 @@ class NmapFastScanner(BaseWorkflow):
                         ip = await self._resolve_hostname_fast(hostname)
                         if ip:
                             mappings.add((ip, hostname))
-                            console.print(f"  → Found: [cyan]{hostname}[/cyan] → {ip}")
                         else:
                             mappings.add((target, hostname))
-                            console.print(f"  → Found: [cyan]{hostname}[/cyan] → {target}")
                             
         except Exception as e:
             console.print(f"  [dim]Hostname discovery error: {str(e)[:50]}[/dim]")
