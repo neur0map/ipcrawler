@@ -41,6 +41,13 @@ class TextFormatter(BaseFormatter):
         report.append(f"Command: {data.get('command', 'N/A')}")
         report.append(f"Duration: {data.get('duration', 0):.2f} seconds")
         report.append(f"Hosts: {data.get('total_hosts', 0)} total, {data.get('up_hosts', 0)} up, {data.get('down_hosts', 0)} down")
+        
+        # Add hostname mappings from fast scan
+        if 'hostname_mappings' in data and data['hostname_mappings']:
+            report.append(f"\nDiscovered Hostname Mappings (from fast scan):")
+            for mapping in data['hostname_mappings']:
+                report.append(f"  {mapping['hostname']} → {mapping['ip']}")
+        
         report.append("=" * 80)
         
         for host in data.get('hosts', []):
@@ -302,6 +309,16 @@ class HTMLFormatter(BaseFormatter):
         html.append(f'<p>Total Hosts: {data.get("total_hosts", 0)}</p>')
         html.append(f'<p>Hosts Up: {data.get("up_hosts", 0)}</p>')
         html.append(f'<p>Hosts Down: {data.get("down_hosts", 0)}</p>')
+        
+        # Add hostname mappings from fast scan
+        if 'hostname_mappings' in data and data['hostname_mappings']:
+            html.append('<h3>Discovered Hostname Mappings</h3>')
+            html.append('<table>')
+            html.append('<tr><th>Hostname</th><th>IP Address</th></tr>')
+            for mapping in data['hostname_mappings']:
+                html.append(f'<tr><td>{mapping["hostname"]}</td><td>{mapping["ip"]}</td></tr>')
+            html.append('</table>')
+        
         html.append('</div>')
         
         # Hosts

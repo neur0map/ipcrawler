@@ -284,6 +284,15 @@ async def run_workflow(target: str, debug: bool = False):
             console.print(f"✓ Port discovery completed in {(discovery_result.execution_time or 0.0):.2f}s")
             console.print(f"  Found {port_count} open ports using {discovery_result.data.get('tool', 'unknown')}")
             
+            # Display discovered hostnames from fast scan
+            hostname_mappings = discovery_result.data.get("hostname_mappings", [])
+            if hostname_mappings:
+                console.print(f"  → Discovered {len(hostname_mappings)} hostname(s):")
+                for mapping in hostname_mappings:
+                    console.print(f"    • [cyan]{mapping['hostname']}[/cyan] → {mapping['ip']}")
+                if discovery_result.data.get("etc_hosts_updated"):
+                    console.print("    ✓ [green]/etc/hosts updated[/green]")
+            
             if port_count == 0:
                 console.print("⚠ No open ports found. Skipping detailed scan.")
                 empty_data = {
@@ -341,12 +350,20 @@ async def run_workflow(target: str, debug: bool = False):
         if discovered_ports is not None:
             result.data['discovery_enabled'] = True
             result.data['discovered_ports'] = len(discovered_ports)
+            # Include hostname mappings from fast scan in final results
+            if 'discovery_result' in locals() and discovery_result.data.get('hostname_mappings'):
+                result.data['hostname_mappings'] = discovery_result.data['hostname_mappings']
         else:
             result.data['discovery_enabled'] = False
         
         # Extract HTTP/HTTPS ports and discovered hostnames from scan results
         http_ports = []
         discovered_hostnames = set()  # Use set to avoid duplicates
+        
+        # First, add any hostnames discovered during fast scan
+        if discovered_ports is not None and 'discovery_result' in locals() and discovery_result.data.get('hostname_mappings'):
+            for mapping in discovery_result.data.get('hostname_mappings', []):
+                discovered_hostnames.add(mapping['hostname'])
         
         for host in result.data.get('hosts', []):
             if host.get('hostname'):
@@ -529,6 +546,11 @@ def display_minimal_summary(data: dict, workspace: Path):
         summary.add_row("Port Discovery", f"Enabled ({scan_result.get('discovered_ports', 0)} ports found)")
     else:
         summary.add_row("Port Discovery", "Disabled (full scan)")
+    
+    # Show discovered hostnames
+    if scan_result.get('hostname_mappings'):
+        hostnames = [m['hostname'] for m in scan_result['hostname_mappings']]
+        summary.add_row("Discovered Hostnames", ", ".join(hostnames))
     
     summary.add_row("Duration", f"{scan_result['duration']:.2f}s")
     summary.add_row("Hosts Found", f"{scan_result['up_hosts']} up, {scan_result['down_hosts']} down")
