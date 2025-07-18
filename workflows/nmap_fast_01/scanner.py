@@ -167,6 +167,13 @@ class NmapFastScanner(BaseWorkflow):
                 
                 if http_ports_found:
                     console.print(f"🔍 Discovering hostnames on {len(http_ports_found)} HTTP ports using nmap...")
+                    
+                    # Quick curl check for redirects first
+                    from workflows.core.command_logger import get_command_logger
+                    for port in http_ports_found[:2]:  # Check first 2 ports
+                        curl_cmd = f"curl -I -s -L --max-time 5 http://{target}:{port}/ | grep -i location"
+                        get_command_logger().log_command("nmap_fast_01", curl_cmd)
+                    
                     mappings = await self._nmap_hostname_discovery(target, http_ports_found[:3])  # Max 3 ports
                     discovered_mappings.update(mappings)
                 
@@ -227,6 +234,10 @@ class NmapFastScanner(BaseWorkflow):
                     target
                 ]
                 
+                # Log the actual command being executed
+                from workflows.core.command_logger import get_command_logger
+                get_command_logger().log_command("nmap_fast_01", " ".join(cmd))
+                
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
@@ -240,6 +251,10 @@ class NmapFastScanner(BaseWorkflow):
                         nmap_output = f.read()
                     
                     hostnames = self._extract_hostnames_from_nmap_output(nmap_output, target)
+                    
+                    # Show if no hostnames were found
+                    if not hostnames:
+                        console.print(f"  [dim]No hostnames discovered for {target}[/dim]")
                     
                     for hostname in hostnames:
                         ip = await self._resolve_hostname_fast(hostname)
@@ -257,18 +272,19 @@ class NmapFastScanner(BaseWorkflow):
         """Extract hostnames from nmap script output"""
         hostnames = []
         
+        
         # Patterns to match hostnames in nmap output
         patterns = [
-            # HTTP title and redirects
-            r'http-title:\s*([^|\n]*\b([a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+)\b[^|\n]*)',
+            # HTTP redirects (most common)
             r'Location:\s*https?://([^/\s<>]+)',
+            # HTTP title
+            r'http-title:\s*.*?([a-zA-Z0-9-]+\.(?:htb|local|com|net|org|io))',
+            # href/src in HTML
             r'href=["\']https?://([^/\s"\'<>]+)',
             r'src=["\']https?://([^/\s"\'<>]+)',
             # HTB specific patterns
             r'([a-zA-Z0-9-]+\.htb)',
             r'([a-zA-Z0-9-]+\.local)',
-            # Server headers
-            r'Server:\s*([^/\s<>\r\n]+)',
             # Virtual host indicators
             r'Host:\s*([^"\'\s<>\r\n]+)',
             r'hostname["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']'
@@ -276,9 +292,11 @@ class NmapFastScanner(BaseWorkflow):
         
         for pattern in patterns:
             matches = re.findall(pattern, nmap_output, re.IGNORECASE | re.MULTILINE)
+            
             for match in matches:
-                if isinstance(match, tuple) and len(match) > 0:
-                    hostname = match[1] if len(match) > 1 and match[1] else match[0]
+                # Handle both string and tuple matches
+                if isinstance(match, tuple):
+                    hostname = match[0] if match else None
                 else:
                     hostname = match
                 
