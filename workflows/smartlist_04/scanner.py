@@ -90,14 +90,16 @@ class SmartListScanner(BaseWorkflow):
             
             return WorkflowResult(
                 success=True,
-                data=result.to_dict()
+                data=result.to_dict(),
+                execution_time=result.execution_time
             )
             
         except Exception as e:
             debug_print(f"SmartList analysis failed: {str(e)}", level="ERROR")
             return WorkflowResult(
                 success=False,
-                error=str(e)
+                error=str(e),
+                execution_time=time.time() - start_time
             )
     
     def _aggregate_scan_results(self, previous_results: Dict[str, Any]) -> Dict[str, Any]:
@@ -342,7 +344,7 @@ class SmartListScanner(BaseWorkflow):
                 wordlist=wordlist,
                 path=wordlist_paths[i] if i < len(wordlist_paths) else None,
                 score=result.score,
-                confidence=str(result.confidence).upper(),  # Convert enum to string
+                confidence=result.confidence.value.upper(),  # Convert enum to string
                 reason=self._generate_reason(result, wordlist),
                 category=category,
                 matched_rule=result.matched_rules[0] if result.matched_rules else "none"
@@ -370,7 +372,7 @@ class SmartListScanner(BaseWorkflow):
             recommendations=recommendations,
             context_summary=context_summary,
             total_score=result.score,
-            confidence_level=result.confidence,
+            confidence_level=result.confidence.value.upper(),
             score_breakdown={
                 'exact_match': result.explanation.exact_match,
                 'tech_category': result.explanation.tech_category,
