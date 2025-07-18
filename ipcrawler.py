@@ -39,6 +39,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from workflows.http_03.scanner import HTTPAdvancedScanner
+from workflows.smartlist_04.scanner import SmartListScanner
 
 from config import config
 from utils.results import result_manager
@@ -406,6 +407,46 @@ async def run_workflow(target: str, debug: bool = False):
                 console.print(f"⚠ HTTP scan failed: {error_msg}")
         
 
+        # Run SmartList analysis after HTTP scan if we have services
+        smartlist_data = None
+        if http_scan_data and http_scan_data.get('services'):
+            console.print(f"\n→ Analyzing services for wordlist recommendations...")
+            
+            # Prepare previous results for SmartList
+            previous_results = {
+                'nmap_fast_01': {
+                    'success': True,
+                    'data': {
+                        'hosts': result.data.get('hosts', [])
+                    }
+                },
+                'nmap_02': {
+                    'success': True,
+                    'data': result.data
+                },
+                'http_03': {
+                    'success': True,
+                    'data': http_scan_data
+                }
+            }
+            
+            smartlist_scanner = SmartListScanner()
+            smartlist_result = await smartlist_scanner.execute(
+                target=resolved_target,
+                previous_results=previous_results
+            )
+            
+            if smartlist_result.success and smartlist_result.data:
+                total_execution_time += smartlist_result.execution_time or 0.0
+                console.print(f"✓ SmartList analysis completed in {smartlist_result.execution_time:.2f}s")
+                smartlist_data = smartlist_result.data
+                
+                # Display top wordlist recommendations
+                display_smartlist_summary(smartlist_data)
+            else:
+                error_msg = smartlist_result.error or "Unknown error"
+                console.print(f"⚠ SmartList analysis failed: {error_msg}")
+
         # Merge all scan results
         result.data['total_execution_time'] = total_execution_time
         
@@ -420,6 +461,9 @@ async def run_workflow(target: str, debug: bool = False):
             result.data['summary']['http_services'] = len(http_scan_data.get('services', []))
             result.data['summary']['discovered_subdomains'] = len(http_scan_data.get('subdomains', []))
             result.data['summary']['discovered_paths'] = len(http_scan_data.get('summary', {}).get('discovered_paths', []))
+        
+        if smartlist_data:
+            result.data['smartlist'] = smartlist_data
         
 
         
@@ -436,6 +480,29 @@ async def run_workflow(target: str, debug: bool = False):
     # Clean up processes after scan completion
     cleanup_processes()
     
+
+
+def display_smartlist_summary(smartlist_data: dict):
+    """Display SmartList wordlist recommendations"""
+    recommendations = smartlist_data.get('wordlist_recommendations', [])
+    if not recommendations:
+        return
+    
+    console.print("\n📋 Recommended wordlists:")
+    
+    for service_rec in recommendations:
+        top_wordlists = service_rec.get('top_wordlists', [])[:2]  # Only top 2
+        if not top_wordlists:
+            continue
+            
+        service_name = service_rec['service']
+        tech = service_rec.get('detected_technology', 'Unknown')
+        confidence = service_rec.get('confidence', 'LOW')
+        
+        console.print(f"  {service_name} ({tech}):")
+        for i, wl in enumerate(top_wordlists, 1):
+            confidence_color = "green" if wl['confidence'] == "HIGH" else "yellow" if wl['confidence'] == "MEDIUM" else "red"
+            console.print(f"    {i}. [bold]{wl['wordlist']}[/bold] ([{confidence_color}]{wl['confidence']}[/{confidence_color}] - {wl['reason']})")
 
 
 def display_minimal_summary(data: dict, workspace: Path):

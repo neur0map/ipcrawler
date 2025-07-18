@@ -342,7 +342,7 @@ class SmartListScanner(BaseWorkflow):
                 wordlist=wordlist,
                 path=wordlist_paths[i] if i < len(wordlist_paths) else None,
                 score=result.score,
-                confidence=result.confidence,
+                confidence=str(result.confidence).upper(),  # Convert enum to string
                 reason=self._generate_reason(result, wordlist),
                 category=category,
                 matched_rule=result.matched_rules[0] if result.matched_rules else "none"
