@@ -59,6 +59,47 @@ output:
   # When false: Only save final results after scan completion
   real_time_save: true
 
+# SmartList Enhanced Discovery
+smartlist:
+  # Enable intelligent path discovery using SmartList algorithm
+  enabled: true
+  
+  # Maximum number of wordlists to use per service
+  max_wordlists: 3
+  
+  # Minimum confidence level for wordlist recommendations
+  # Options: HIGH, MEDIUM, LOW
+  min_confidence: "MEDIUM"
+  
+  # Maximum paths to test per wordlist
+  max_paths_per_wordlist: 100
+  
+  # Timeout for path checking requests (seconds)
+  request_timeout: 5
+  
+  # Maximum concurrent path checks
+  max_concurrent_requests: 20
+  
+  # Temporary directory for wordlist files (relative to database/)
+  temp_directory: "temp"
+
+# Path Discovery Settings
+discovery:
+  # Enable enhanced path discovery methods
+  enabled: true
+  
+  # Maximum total paths to discover per service
+  max_total_paths: 500
+  
+  # Include common application patterns
+  include_common_paths: true
+  
+  # Include technology-specific paths
+  include_tech_paths: true
+  
+  # Custom additional paths to check (added to common paths)
+  custom_paths: []
+
 # Tool Paths (leave empty to use system PATH)
 tools:
   nmap_path: ""

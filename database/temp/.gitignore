@@ -1,0 +1,7 @@
+# Temporary wordlist files
+*.txt
+*.list
+*.wordlist
+
+# Keep the directory in git but ignore temporary files
+!.gitignore

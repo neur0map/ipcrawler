@@ -5,6 +5,9 @@ import ssl
 import subprocess
 import re
 import json
+import time
+import yaml
+from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple
 from urllib.parse import urlparse, urljoin
 import base64
@@ -33,8 +36,22 @@ except ImportError as e:
     DEPS_AVAILABLE = False
 
 from workflows.core.base import BaseWorkflow, WorkflowResult
-from .models import HTTPScanResult, HTTPService, HTTPVulnerability, DNSRecord
+from workflows.core.command_logger import get_command_logger
+from .models import HTTPScanResult, HTTPService, HTTPVulnerability, DNSRecord, PathDiscoveryMetadata
 from utils.debug import debug_print
+
+# SmartList integration
+try:
+    from database.scorer import (
+        score_wordlists_with_catalog,
+        score_wordlists,
+        get_wordlist_paths,
+        ScoringContext
+    )
+    SMARTLIST_AVAILABLE = True
+except ImportError as e:
+    SMARTLIST_AVAILABLE = False
+    debug_print(f"SmartList components not available: {e}", level="WARNING")
 
 
 class HTTPAdvancedScanner(BaseWorkflow):
@@ -49,6 +66,17 @@ class HTTPAdvancedScanner(BaseWorkflow):
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
         ]
+        self.config = self._load_config()
+        
+    def _load_config(self) -> Dict[str, Any]:
+        """Load configuration from config.yaml"""
+        try:
+            config_path = Path(__file__).parent.parent.parent / "config.yaml"
+            with open(config_path, 'r') as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            debug_print(f"Could not load config.yaml: {e}", level="WARNING")
+            return {}
         
     async def execute(self, target: str, ports: Optional[List[int]] = None, **kwargs) -> WorkflowResult:
         """Execute advanced HTTP scanning workflow"""
@@ -466,48 +494,289 @@ class HTTPAdvancedScanner(BaseWorkflow):
         return None
     
     async def _discover_paths(self, service: HTTPService) -> List[str]:
-        """Discover paths without wordlists using various techniques"""
+        """Enhanced path discovery using SmartList algorithm and traditional methods"""
+        start_time = time.time()
         discovered = []
+        total_paths_tested = 0
+        discovery_method = "basic"
+        wordlist_used = None
+        confidence = None
         
-        # 1. Parse HTML for links
-        if service.response_body:
-            # Find all href and src attributes
-            links = re.findall(r'(?:href|src)=["\']([^"\']+)["\']', service.response_body)
-            for link in links:
-                parsed = urlparse(link)
-                if parsed.path and parsed.path != '/':
-                    discovered.append(parsed.path)
+        # Get configuration
+        smartlist_config = self.config.get('smartlist', {})
+        discovery_config = self.config.get('discovery', {})
         
-        # 2. Common application patterns
-        common_paths = [
-            '/robots.txt', '/sitemap.xml', '/.well-known/security.txt',
-            '/api/', '/api/v1/', '/api/v2/', '/graphql',
-            '/.git/config', '/.env', '/config.php', '/wp-config.php',
-            '/admin/', '/login', '/dashboard', '/console',
-            '/swagger-ui/', '/api-docs/', '/docs/',
-            '/.DS_Store', '/thumbs.db', '/web.config'
-        ]
+        smartlist_enabled = smartlist_config.get('enabled', True) and SMARTLIST_AVAILABLE
+        discovery_enabled = discovery_config.get('enabled', True)
         
-        # 3. Technology-specific paths
-        if 'apache' in service.server.lower():
-            common_paths.extend(['/server-status', '/server-info'])
-        if 'nginx' in service.server.lower():
-            common_paths.extend(['/nginx_status'])
+        get_command_logger().log_command("http_03", f"Starting enhanced path discovery for {service.url}")
+        debug_print(f"SmartList enabled: {smartlist_enabled}, Discovery enabled: {discovery_enabled}")
         
-        # Test paths
-        async with httpx.AsyncClient(verify=False, timeout=5) as client:
-            tasks = []
-            for path in set(common_paths):
-                url = urljoin(service.url, path)
-                tasks.append(self._check_path(client, url))
+        # 1. SmartList intelligent discovery (if enabled and available)
+        if smartlist_enabled:
+            try:
+                smartlist_paths = await self._discover_paths_with_smartlist(service)
+                if smartlist_paths:
+                    discovered.extend(smartlist_paths['paths'])
+                    discovery_method = "smartlist"
+                    wordlist_used = smartlist_paths.get('wordlist_used')
+                    confidence = smartlist_paths.get('confidence')
+                    total_paths_tested += smartlist_paths.get('paths_tested', 0)
+                    
+                    # Store SmartList recommendations in service
+                    service.smartlist_recommendations = smartlist_paths.get('recommendations', [])
+                    
+                    get_command_logger().log_command("http_03", f"SmartList discovered {len(smartlist_paths['paths'])} paths with {confidence} confidence")
+            except Exception as e:
+                get_command_logger().log_command("http_03", f"SmartList discovery failed: {e}", status="error", error=str(e))
+                debug_print(f"SmartList discovery error: {e}", level="WARNING")
+        
+        # 2. Traditional discovery methods (if enabled or SmartList failed)
+        if discovery_enabled and (not smartlist_enabled or not discovered):
+            traditional_paths = await self._discover_paths_traditional(service, discovery_config)
+            discovered.extend(traditional_paths['paths'])
+            if discovery_method == "basic":  # Only override if SmartList didn't work
+                discovery_method = traditional_paths.get('method', 'traditional')
+            total_paths_tested += traditional_paths.get('paths_tested', 0)
             
+            get_command_logger().log_command("http_03", f"Traditional discovery found {len(traditional_paths['paths'])} additional paths")
+        
+        # 3. Parse HTML for links (always enabled)
+        if service.response_body:
+            html_paths = self._extract_paths_from_html(service.response_body)
+            discovered.extend(html_paths)
+            debug_print(f"Extracted {len(html_paths)} paths from HTML content")
+        
+        # Remove duplicates and clean up
+        unique_paths = list(set(discovered))
+        discovery_time = time.time() - start_time
+        
+        # Store discovery metadata
+        service.discovery_metadata = PathDiscoveryMetadata(
+            discovery_method=discovery_method,
+            wordlist_used=wordlist_used,
+            confidence=confidence,
+            total_paths_tested=total_paths_tested,
+            successful_paths=len(unique_paths),
+            discovery_time=discovery_time
+        )
+        
+        get_command_logger().log_command("http_03", f"Path discovery completed in {discovery_time:.2f}s: {len(unique_paths)} unique paths found", status="completed")
+        
+        return unique_paths
+    
+    async def _discover_paths_with_smartlist(self, service: HTTPService) -> Dict[str, Any]:
+        """Use SmartList algorithm for intelligent path discovery"""
+        if not SMARTLIST_AVAILABLE:
+            return {'paths': [], 'paths_tested': 0}
+        
+        # Build context for SmartList
+        target_host = urlparse(service.url).hostname or self.original_ip
+        
+        # Extract technology from service
+        tech = None
+        if service.technologies:
+            tech = service.technologies[0].lower()
+        elif service.server:
+            # Try to extract tech from server header
+            server_lower = service.server.lower()
+            if 'apache' in server_lower:
+                tech = 'apache'
+            elif 'nginx' in server_lower:
+                tech = 'nginx'
+            elif 'tomcat' in server_lower:
+                tech = 'tomcat'
+        
+        context = ScoringContext(
+            target=target_host,
+            port=service.port,
+            service=f"{service.scheme} service",
+            tech=tech,
+            headers=service.headers
+        )
+        
+        debug_print(f"Built SmartList context: port={service.port}, tech={tech}")
+        
+        # Get SmartList recommendations
+        try:
+            result = score_wordlists_with_catalog(context)
+        except Exception:
+            result = score_wordlists(context)
+        
+        if not result.wordlists:
+            debug_print("No wordlist recommendations from SmartList", level="WARNING")
+            return {'paths': [], 'paths_tested': 0}
+        
+        # Get configuration limits
+        config = self.config.get('smartlist', {})
+        max_wordlists = config.get('max_wordlists', 3)
+        max_paths_per_wordlist = config.get('max_paths_per_wordlist', 100)
+        min_confidence = config.get('min_confidence', 'MEDIUM')
+        
+        # Filter by confidence if needed
+        confidence_levels = ['HIGH', 'MEDIUM', 'LOW']
+        min_conf_idx = confidence_levels.index(min_confidence) if min_confidence in confidence_levels else 1
+        
+        if confidence_levels.index(result.confidence.value.upper()) > min_conf_idx:
+            debug_print(f"SmartList confidence {result.confidence.value} below minimum {min_confidence}")
+            return {'paths': [], 'paths_tested': 0}
+        
+        # Use top wordlists
+        wordlists_to_use = result.wordlists[:max_wordlists]
+        
+        # Get wordlist paths
+        try:
+            wordlist_paths = get_wordlist_paths(wordlists_to_use, tech=tech, port=service.port)
+        except Exception as e:
+            debug_print(f"Could not resolve wordlist paths: {e}", level="WARNING")
+            return {'paths': [], 'paths_tested': 0}
+        
+        # Read and test paths from wordlists
+        all_paths = []
+        total_tested = 0
+        
+        for i, wordlist_name in enumerate(wordlists_to_use):
+            if i >= len(wordlist_paths) or not wordlist_paths[i]:
+                continue
+                
+            wordlist_path = Path(wordlist_paths[i])
+            if not wordlist_path.exists():
+                debug_print(f"Wordlist not found: {wordlist_path}", level="WARNING")
+                continue
+                
+            debug_print(f"Testing wordlist: {wordlist_name} ({wordlist_path})")
+            
+            try:
+                with open(wordlist_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    paths = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                    paths = paths[:max_paths_per_wordlist]  # Limit paths per wordlist
+                    
+                    # Test paths
+                    valid_paths = await self._test_paths_batch(service, paths)
+                    all_paths.extend(valid_paths)
+                    total_tested += len(paths)
+                    
+                    debug_print(f"Wordlist {wordlist_name}: {len(valid_paths)}/{len(paths)} valid paths")
+                    
+            except Exception as e:
+                debug_print(f"Error reading wordlist {wordlist_path}: {e}", level="WARNING")
+        
+        # Build recommendations summary
+        recommendations = []
+        for i, wordlist in enumerate(wordlists_to_use[:len(wordlist_paths)]):
+            if wordlist_paths[i]:
+                recommendations.append({
+                    'wordlist': wordlist,
+                    'path': str(wordlist_paths[i]),
+                    'confidence': result.confidence.value.upper(),
+                    'score': round(result.score, 3)
+                })
+        
+        return {
+            'paths': all_paths,
+            'paths_tested': total_tested,
+            'wordlist_used': wordlists_to_use[0] if wordlists_to_use else None,
+            'confidence': result.confidence.value.upper(),
+            'recommendations': recommendations
+        }
+    
+    async def _discover_paths_traditional(self, service: HTTPService, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Traditional path discovery methods"""
+        discovered = []
+        paths_tested = 0
+        
+        # Common application patterns
+        if config.get('include_common_paths', True):
+            common_paths = [
+                '/robots.txt', '/sitemap.xml', '/.well-known/security.txt',
+                '/api/', '/api/v1/', '/api/v2/', '/graphql',
+                '/.git/config', '/.env', '/config.php', '/wp-config.php',
+                '/admin/', '/login', '/dashboard', '/console',
+                '/swagger-ui/', '/api-docs/', '/docs/',
+                '/.DS_Store', '/thumbs.db', '/web.config'
+            ]
+            
+            # Add custom paths from config
+            custom_paths = config.get('custom_paths', [])
+            common_paths.extend(custom_paths)
+            
+            valid_common = await self._test_paths_batch(service, common_paths)
+            discovered.extend(valid_common)
+            paths_tested += len(common_paths)
+            
+            debug_print(f"Common paths: {len(valid_common)}/{len(common_paths)} valid")
+        
+        # Technology-specific paths
+        if config.get('include_tech_paths', True):
+            tech_paths = []
+            if service.server:
+                server_lower = service.server.lower()
+                if 'apache' in server_lower:
+                    tech_paths.extend(['/server-status', '/server-info'])
+                elif 'nginx' in server_lower:
+                    tech_paths.extend(['/nginx_status'])
+                elif 'tomcat' in server_lower:
+                    tech_paths.extend(['/manager/', '/host-manager/'])
+            
+            if tech_paths:
+                valid_tech = await self._test_paths_batch(service, tech_paths)
+                discovered.extend(valid_tech)
+                paths_tested += len(tech_paths)
+                
+                debug_print(f"Technology paths: {len(valid_tech)}/{len(tech_paths)} valid")
+        
+        return {
+            'paths': discovered,
+            'paths_tested': paths_tested,
+            'method': 'traditional'
+        }
+    
+    def _extract_paths_from_html(self, html_content: str) -> List[str]:
+        """Extract paths from HTML content"""
+        paths = []
+        
+        # Find all href and src attributes
+        links = re.findall(r'(?:href|src)=["\']([^"\']+)["\']', html_content)
+        for link in links:
+            parsed = urlparse(link)
+            if parsed.path and parsed.path != '/':
+                # Only include relative paths or paths on same domain
+                if not parsed.netloc or parsed.netloc == '':
+                    paths.append(parsed.path)
+        
+        return paths
+    
+    async def _test_paths_batch(self, service: HTTPService, paths: List[str]) -> List[str]:
+        """Test a batch of paths efficiently"""
+        if not paths:
+            return []
+        
+        config = self.config.get('smartlist', {})
+        timeout = config.get('request_timeout', 5)
+        max_concurrent = config.get('max_concurrent_requests', 20)
+        
+        # Create semaphore to limit concurrent requests
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
+            # Create tasks with semaphore
+            async def test_with_semaphore(path):
+                async with semaphore:
+                    return await self._check_path(client, urljoin(service.url, path))
+            
+            tasks = [test_with_semaphore(path) for path in paths]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            for path, exists in results:
-                if isinstance(exists, bool) and exists:
-                    discovered.append(path)
-        
-        return list(set(discovered))
+            valid_paths = []
+            for path, result in zip(paths, results):
+                if isinstance(result, tuple) and len(result) == 2:
+                    _, exists = result
+                    if exists:
+                        valid_paths.append(path)
+                elif isinstance(result, Exception):
+                    debug_print(f"Error testing path {path}: {result}")
+            
+            return valid_paths
     
     async def _check_path(self, client: httpx.AsyncClient, url: str) -> Tuple[str, bool]:
         """Check if a path exists"""

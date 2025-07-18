@@ -28,6 +28,17 @@ class HTTPVulnerability:
 
 
 @dataclass
+class PathDiscoveryMetadata:
+    """Metadata for path discovery results"""
+    discovery_method: str  # "smartlist", "common", "technology", "basic"
+    wordlist_used: Optional[str] = None
+    confidence: Optional[str] = None  # HIGH, MEDIUM, LOW
+    total_paths_tested: int = 0
+    successful_paths: int = 0
+    discovery_time: float = 0.0
+
+
+@dataclass
 class HTTPService:
     """HTTP service information"""
     port: int
@@ -41,11 +52,15 @@ class HTTPService:
     discovered_paths: List[str] = field(default_factory=list)
     response_body: Optional[str] = None
     actual_target: Optional[str] = None  # The target that actually worked
+    # SmartList discovery metadata
+    smartlist_recommendations: List[Dict[str, Any]] = field(default_factory=list)
+    discovery_metadata: Optional[PathDiscoveryMetadata] = None
     
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
         # Don't include response_body in output
         data.pop('response_body', None)
+        # discovery_metadata is already converted by asdict(self)
         return data
 
 
