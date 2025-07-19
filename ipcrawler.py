@@ -112,16 +112,184 @@ def version_callback(value: bool):
 def main(
     target: str = typer.Argument(None, help="Target IP address or hostname to analyze for wordlist recommendations"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug output"),
+    audit: bool = typer.Option(False, "--audit", help="Run comprehensive SmartList audit (rules, entropy, usage)"),
     version: bool = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version information")
 ):
     """Analyze target and recommend optimal wordlists for security testing"""
+    if audit:
+        # Run comprehensive audit instead of normal workflow
+        run_comprehensive_audit()
+        raise typer.Exit(0)
+    
     if target is None:
         console.print("[red]Error:[/red] Target is required")
         raise typer.Exit(1)
     asyncio.run(run_workflow(target, debug))
 
+def run_comprehensive_audit():
+    """Run comprehensive SmartList audit including rules, entropy, and usage analysis"""
+    console.print("🔍 [bold cyan]SmartList Comprehensive Audit[/bold cyan]")
+    console.print("=" * 60)
+    console.print()
+    
+    # Part 1: Rule Quality Audit
+    console.print("[bold]📋 Part 1: Rule Quality Analysis[/bold]")
+    console.print("-" * 50)
+    try:
+        import subprocess
+        import sys
+        from pathlib import Path
+        
+        # Run rule audit script
+        audit_script = Path(__file__).parent / "database" / "scorer" / "rule_audit.py"
+        result = subprocess.run([sys.executable, str(audit_script)], 
+                              capture_output=True, text=True)
+        
+        # Parse and display key findings
+        output_lines = result.stdout.split('\n')
+        for line in output_lines:
+            if any(keyword in line for keyword in ['❌', '⚠️', '🔄', '✅', '📊']):
+                console.print(line)
+    except Exception as e:
+        console.print(f"[red]Rule audit failed:[/red] {e}")
+    
+    console.print()
+    
+    # Part 2: Entropy Analysis
+    console.print("[bold]📊 Part 2: Entropy & Diversity Analysis[/bold]")
+    console.print("-" * 50)
+    run_entropy_audit(days_back=30)
+    
+    console.print()
+    
+    # Part 3: Scoring Statistics
+    console.print("[bold]📈 Part 3: Scoring System Statistics[/bold]")
+    console.print("-" * 50)
+    try:
+        from database.scorer.scorer_engine import get_scoring_stats
+        from database.scorer.rules import get_rule_frequency_stats
+        
+        # Get scoring stats
+        stats = get_scoring_stats()
+        console.print(f"   Exact Rules: {stats.get('exact_rules', 0)}")
+        console.print(f"   Tech Categories: {stats.get('tech_categories', 0)}")
+        console.print(f"   Port Categories: {stats.get('port_categories', 0)}")
+        console.print(f"   Total Wordlists: {stats.get('total_wordlists', 0)}")
+        console.print(f"   Wordlist Alternatives: {stats.get('wordlist_alternatives', 0)}")
+        
+        # Get frequency stats
+        freq_stats = get_rule_frequency_stats()
+        if freq_stats['total_rules'] > 0:
+            console.print(f"\n   [bold]Rule Frequency Analysis:[/bold]")
+            console.print(f"   Rules Tracked: {freq_stats['total_rules']}")
+            console.print(f"   Average Frequency: {freq_stats['average_frequency']:.3f}")
+            
+            if freq_stats['most_frequent']:
+                console.print(f"\n   🔥 Most Frequent Rules:")
+                for rule, freq in freq_stats['most_frequent'][:3]:
+                    console.print(f"      {rule}: {freq:.2%}")
+            
+            if freq_stats['least_frequent']:
+                console.print(f"\n   ❄️  Least Frequent Rules:")
+                for rule, freq in freq_stats['least_frequent'][:3]:
+                    console.print(f"      {rule}: {freq:.2%}")
+    except Exception as e:
+        console.print(f"[red]Stats analysis failed:[/red] {e}")
+    
+    console.print()
+    console.print("[bold green]✅ Audit Complete![/bold green]")
+    console.print()
+    console.print("💡 [bold]Next Steps:[/bold]")
+    console.print("   1. Review and fix any ❌ ERROR issues first")
+    console.print("   2. Address ⚠️  WARNING items to improve quality")
+    console.print("   3. Monitor entropy scores regularly")
+    console.print("   4. Update wordlist alternatives for overused items")
 
 
+def run_entropy_audit(days_back: int = 30, context_tech: str = None, context_port: int = None):
+    """Run entropy analysis portion of the audit"""
+    
+    try:
+        from database.scorer.entropy import analyzer
+        from database.scorer.models import ScoringContext
+        from database.scorer.cache import cache
+        
+        # Create context filter if specified
+        context_filter = None
+        if context_tech or context_port:
+            context_filter = ScoringContext(
+                target="audit",
+                port=context_port or 80,
+                service="audit",
+                tech=context_tech
+            )
+        
+        # Run entropy analysis
+        console.print(f"\n📊 Analyzing {days_back} days of recommendation data...")
+        metrics = analyzer.analyze_recent_selections(days_back, context_filter)
+        
+        # Display results
+        console.print(f"\n📈 [bold]Entropy Analysis Results[/bold]")
+        console.print(f"   Entropy Score: [{'green' if metrics.entropy_score > 0.7 else 'yellow' if metrics.entropy_score > 0.4 else 'red'}]{metrics.entropy_score:.3f}[/]")
+        console.print(f"   Quality: [{'green' if metrics.recommendation_quality in ['excellent', 'good'] else 'yellow' if metrics.recommendation_quality == 'acceptable' else 'red'}]{metrics.recommendation_quality}[/]")
+        console.print(f"   Total Recommendations: {metrics.total_recommendations}")
+        console.print(f"   Unique Wordlists: {metrics.unique_wordlists}")
+        console.print(f"   Clustering: {metrics.clustering_percentage:.1f}%")
+        console.print(f"   Context Diversity: {metrics.context_diversity:.3f}")
+        
+        if metrics.warning_message:
+            console.print(f"\n⚠️  [yellow]{metrics.warning_message}[/]")
+        
+        # Show most common wordlists
+        if metrics.most_common_wordlists:
+            console.print(f"\n🔄 [bold]Most Common Wordlists:[/bold]")
+            for wordlist, count in metrics.most_common_wordlists[:5]:
+                percentage = (count / metrics.total_recommendations) * 100
+                icon = "🔥" if percentage > 50 else "📈" if percentage > 25 else "📊"
+                console.print(f"   {icon} {wordlist}: {count} times ({percentage:.1f}%)")
+        
+        # Show context clusters
+        console.print(f"\n🎯 [bold]Context Clustering Analysis:[/bold]")
+        clusters = analyzer.detect_context_clusters(days_back)
+        
+        if clusters:
+            for cluster in clusters[:5]:  # Top 5 clusters
+                console.print(f"\n   📦 {cluster.tech or 'Unknown'}:{cluster.port_category}")
+                console.print(f"      Count: {cluster.count} contexts")
+                console.print(f"      Common wordlists: {', '.join(cluster.wordlists[:3])}")
+        else:
+            console.print("   ✅ No significant clustering detected")
+        
+        # Cache statistics
+        try:
+            cache_stats = cache.get_stats()
+            console.print(f"\n💾 [bold]Cache Statistics:[/bold]")
+            console.print(f"   Total Files: {cache_stats['total_files']}")
+            console.print(f"   Date Directories: {cache_stats['date_directories']}")
+        except Exception as e:
+            console.print(f"\n⚠️  Could not get cache stats: {e}")
+        
+        # Recommendations
+        console.print(f"\n💡 [bold]Recommendations:[/bold]")
+        if metrics.entropy_score < 0.5:
+            console.print("   🔧 Critical: Enable diversification alternatives")
+            console.print("   📝 Review rule mappings for overlap reduction")
+        elif metrics.entropy_score < 0.7:
+            console.print("   ⚠️  Consider adding more specific wordlist alternatives")
+        else:
+            console.print("   ✅ Entropy levels are healthy")
+        
+        if metrics.clustering_percentage > 50:
+            console.print("   🎯 High clustering detected - review port/tech categorization")
+        
+    except ImportError as e:
+        console.print(f"[red]Error:[/red] Entropy analysis not available: {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] Audit failed: {e}")
+        import traceback
+        console.print(traceback.format_exc())
+        raise typer.Exit(1)
 
 
 async def resolve_target(target: str) -> str:

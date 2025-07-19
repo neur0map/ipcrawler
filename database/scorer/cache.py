@@ -5,11 +5,11 @@ Cache system for tracking wordlist selections and outcomes.
 import json
 import os
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any
 import logging
 
-from .models import CacheEntry, CacheIndex, ScoringContext, ScoringResult
+from .models import CacheEntry, CacheIndex, ScoringContext, ScoringResult, AnonymizedCacheEntry, AnonymizedScoringContext
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class ScorerCache:
         """Save cache index to file."""
         try:
             with open(self.index_file, 'w') as f:
-                json.dump(self.index.dict(), f, indent=2, default=str)
+                json.dump(self.index.model_dump(), f, indent=2, default=str)
         except Exception as e:
             logger.error(f"Failed to save cache index: {e}")
     
@@ -67,19 +67,19 @@ class ScorerCache:
         date_str = timestamp.strftime("%Y-%m-%d")
         return self.selections_dir / date_str
     
-    def _generate_filename(self, context: ScoringContext, timestamp: datetime) -> str:
-        """Generate filename for cache entry."""
+    def _generate_filename(self, context: AnonymizedScoringContext, timestamp: datetime) -> str:
+        """Generate privacy-safe filename for cache entry."""
         time_str = timestamp.strftime("%H%M%S")
-        tech = (context.tech or "unknown").replace("/", "_").replace(" ", "_")
-        return f"{tech}_{context.port}_{time_str}_{context.get_cache_key()[-8:]}.json"
+        tech_family = context.tech_family.replace("/", "_").replace(" ", "_")
+        return f"{tech_family}_{context.port_category}_{time_str}_{context.service_fingerprint}.json"
     
     def save_selection(self, context: ScoringContext, result: ScoringResult, 
                       outcome: Optional[Dict[str, Any]] = None) -> str:
         """
-        Save a wordlist selection to cache.
+        Save a wordlist selection to cache with privacy protection.
         
         Args:
-            context: Scoring context
+            context: Scoring context (will be anonymized)
             result: Scoring result
             outcome: Optional outcome data (findings, success, etc.)
             
@@ -88,7 +88,7 @@ class ScorerCache:
         """
         timestamp = datetime.utcnow()
         
-        # Create cache entry
+        # Create regular cache entry first
         entry = CacheEntry(
             timestamp=timestamp,
             context=context,
@@ -96,32 +96,35 @@ class ScorerCache:
             outcome=outcome
         )
         
+        # Convert to anonymized version for storage
+        anon_entry = AnonymizedCacheEntry.from_cache_entry(entry)
+        
         # Create date directory
         date_dir = self._get_date_dir(timestamp)
         date_dir.mkdir(exist_ok=True)
         
-        # Generate filename
-        filename = self._generate_filename(context, timestamp)
+        # Generate filename using anonymized context
+        filename = self._generate_filename(anon_entry.context, timestamp)
         file_path = date_dir / filename
         
-        # Save entry
+        # Save anonymized entry
         try:
             with open(file_path, 'w') as f:
-                json.dump(entry.dict(), f, indent=2, default=str)
+                json.dump(anon_entry.model_dump(), f, indent=2, default=str)
             
-            # Update index
+            # Update index with original entry for stats
             self.index.update_stats(entry)
             self._save_index()
             
             entry_id = f"{timestamp.strftime('%Y-%m-%d')}/{filename}"
-            logger.debug(f"Saved cache entry: {entry_id}")
+            logger.debug(f"Saved anonymized cache entry: {entry_id}")
             return entry_id
             
         except Exception as e:
             logger.error(f"Failed to save cache entry: {e}")
             raise
     
-    def get_selection(self, entry_id: str) -> Optional[CacheEntry]:
+    def get_selection(self, entry_id: str) -> Optional[AnonymizedCacheEntry]:
         """
         Get a cached selection by ID.
         
@@ -129,7 +132,7 @@ class ScorerCache:
             entry_id: Cache entry ID (date/filename)
             
         Returns:
-            CacheEntry if found, None otherwise
+            AnonymizedCacheEntry if found, None otherwise
         """
         try:
             file_path = self.selections_dir / entry_id
@@ -138,7 +141,14 @@ class ScorerCache:
             
             with open(file_path, 'r') as f:
                 data = json.load(f)
-                return CacheEntry(**data)
+                # Handle both old and new formats
+                if 'context' in data and 'target' in data['context']:
+                    # Old format - convert to anonymized
+                    old_entry = CacheEntry(**data)
+                    return AnonymizedCacheEntry.from_cache_entry(old_entry)
+                else:
+                    # New anonymized format
+                    return AnonymizedCacheEntry(**data)
                 
         except Exception as e:
             logger.error(f"Failed to load cache entry {entry_id}: {e}")
@@ -169,7 +179,7 @@ class ScorerCache:
         try:
             file_path = self.selections_dir / entry_id
             with open(file_path, 'w') as f:
-                json.dump(entry.dict(), f, indent=2, default=str)
+                json.dump(entry.model_dump(), f, indent=2, default=str)
             
             logger.debug(f"Updated outcome for {entry_id}")
             return True
@@ -182,7 +192,7 @@ class ScorerCache:
                          tech: Optional[str] = None,
                          port: Optional[int] = None,
                          days_back: int = 30,
-                         limit: int = 100) -> List[CacheEntry]:
+                         limit: int = 100) -> List[AnonymizedCacheEntry]:
         """
         Search cached selections by criteria.
         
@@ -196,7 +206,7 @@ class ScorerCache:
             List of matching CacheEntry objects
         """
         results = []
-        cutoff_date = datetime.utcnow().date() - date.fromordinal(days_back)
+        cutoff_date = (datetime.utcnow() - timedelta(days=days_back)).date()
         
         # Iterate through date directories
         for date_dir in sorted(self.selections_dir.iterdir(), reverse=True):
@@ -218,7 +228,14 @@ class ScorerCache:
                 try:
                     with open(file_path, 'r') as f:
                         data = json.load(f)
-                        entry = CacheEntry(**data)
+                        # Handle both old and new formats
+                        if 'context' in data and 'target' in data['context']:
+                            # Old format - convert to anonymized
+                            old_entry = CacheEntry(**data)
+                            entry = AnonymizedCacheEntry.from_cache_entry(old_entry)
+                        else:
+                            # New anonymized format
+                            entry = AnonymizedCacheEntry(**data)
                     
                     # Apply filters
                     if tech and (not entry.context.tech or entry.context.tech != tech):
@@ -246,7 +263,7 @@ class ScorerCache:
             Dict with cache statistics
         """
         return {
-            "index": self.index.dict(),
+            "index": self.index.model_dump(),
             "cache_dir": str(self.cache_dir),
             "total_files": sum(1 for _ in self.selections_dir.rglob("*.json")),
             "date_directories": len([d for d in self.selections_dir.iterdir() if d.is_dir()])
@@ -296,7 +313,7 @@ class ScorerCache:
         Args:
             days_to_keep: Number of days to keep
         """
-        cutoff_date = datetime.utcnow().date() - date.fromordinal(days_to_keep)
+        cutoff_date = (datetime.utcnow() - timedelta(days=days_to_keep)).date()
         removed_count = 0
         
         for date_dir in self.selections_dir.iterdir():

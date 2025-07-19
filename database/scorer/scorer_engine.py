@@ -2,11 +2,11 @@
 Core scoring engine for wordlist recommendation.
 """
 
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Dict, Any, Tuple
 import logging
 from .models import ScoringContext, ScoringResult, ScoreBreakdown, Confidence
 from .rules import rule_engine
-from .mappings import GENERIC_FALLBACK
+from .mappings import GENERIC_FALLBACK, get_wordlist_alternatives
 from .cache import cache_selection
 
 # Import wordlist resolver
@@ -87,7 +87,7 @@ def enrich_context_with_port_data(context: ScoringContext) -> ScoringContext:
 
 def score_wordlists(context: ScoringContext) -> ScoringResult:
     """
-    Main function to score wordlists based on context.
+    Main function to score wordlists based on context with entropy checking.
     
     Args:
         context: ScoringContext with target information
@@ -104,6 +104,8 @@ def score_wordlists(context: ScoringContext) -> ScoringResult:
     breakdown = ScoreBreakdown()
     all_wordlists: Set[str] = set()
     matched_rules: List[str] = []
+    frequency_adjustments: Dict[str, float] = {}
+    synergy_bonuses: Dict[str, float] = {}
     
     # Level 1: Exact match rules (highest priority)
     exact_wordlists, exact_rules, exact_score = rule_engine.apply_exact_match(enriched_context)
@@ -156,7 +158,12 @@ def score_wordlists(context: ScoringContext) -> ScoringResult:
     ])
     
     # Remove duplicates and sort wordlists
-    final_wordlists = rule_engine.deduplicate_wordlists(list(all_wordlists))
+    initial_wordlists = rule_engine.deduplicate_wordlists(list(all_wordlists))
+    
+    # Apply entropy-based diversification if needed
+    final_wordlists, diversification_applied, entropy_score = _apply_entropy_diversification(
+        initial_wordlists, enriched_context
+    )
     
     # Determine confidence level
     confidence = _determine_confidence(final_score, fallback_used, matched_rules)
@@ -164,7 +171,7 @@ def score_wordlists(context: ScoringContext) -> ScoringResult:
     # Generate cache key
     cache_key = enriched_context.get_cache_key()
     
-    # Create result
+    # Create result with entropy data
     result = ScoringResult(
         score=final_score,
         explanation=breakdown,
@@ -172,12 +179,16 @@ def score_wordlists(context: ScoringContext) -> ScoringResult:
         matched_rules=matched_rules,
         fallback_used=fallback_used,
         cache_key=cache_key,
-        confidence=confidence
+        confidence=confidence,
+        entropy_score=entropy_score,
+        diversification_applied=diversification_applied,
+        frequency_adjustments=frequency_adjustments or None,
+        synergy_bonuses=synergy_bonuses or None
     )
     
     logger.info(
         f"Scored {len(final_wordlists)} wordlists for {enriched_context.target}:{enriched_context.port} "
-        f"(score: {final_score:.3f}, confidence: {confidence})"
+        f"(score: {final_score:.3f}, confidence: {confidence}, entropy: {entropy_score:.3f if entropy_score else 'N/A'})"
     )
     
     # Cache the selection for tracking
@@ -303,6 +314,59 @@ def validate_context(context: ScoringContext) -> List[str]:
         warnings.append(f"High port number {context.port} - results may be generic")
     
     return warnings
+
+
+def _apply_entropy_diversification(wordlists: List[str], 
+                                  context: ScoringContext) -> Tuple[List[str], bool, Optional[float]]:
+    """
+    Apply entropy-based diversification to wordlist recommendations.
+    
+    Args:
+        wordlists: Initial wordlist recommendations
+        context: Scoring context
+        
+    Returns:
+        Tuple of (diversified_wordlists, diversification_applied, entropy_score)
+    """
+    try:
+        # Import here to avoid circular imports
+        from .entropy import analyzer, should_diversify
+        
+        # Analyze current entropy
+        entropy_metrics = analyzer.analyze_recent_selections(days_back=7, context=context)
+        entropy_score = entropy_metrics.entropy_score
+        
+        # Check if diversification is needed
+        if should_diversify(wordlists, context, entropy_threshold=0.7):
+            logger.debug(f"Applying entropy diversification (entropy: {entropy_score:.3f})")
+            
+            # Get diversification alternatives
+            diversified = analyzer.get_diversification_candidates(
+                wordlists, 
+                context, 
+                get_wordlist_alternatives_dict()
+            )
+            
+            if diversified != wordlists:
+                logger.info(f"Diversified wordlists: {len(set(wordlists) - set(diversified))} replaced")
+                return diversified, True, entropy_score
+        
+        return wordlists, False, entropy_score
+        
+    except Exception as e:
+        logger.warning(f"Entropy diversification failed: {e}")
+        return wordlists, False, None
+
+
+def get_wordlist_alternatives_dict() -> Dict[str, List[str]]:
+    """
+    Get wordlist alternatives mapping for diversification.
+    
+    Returns:
+        Dict mapping wordlist names to their alternatives
+    """
+    from .mappings import WORDLIST_ALTERNATIVES
+    return WORDLIST_ALTERNATIVES
 
 
 def score_wordlists_with_catalog(context: ScoringContext) -> ScoringResult:
@@ -492,7 +556,7 @@ def get_scoring_stats() -> dict:
     Returns:
         Dict with scoring system statistics
     """
-    from .mappings import EXACT_MATCH_RULES, TECH_CATEGORY_RULES, PORT_CATEGORY_RULES
+    from .mappings import EXACT_MATCH_RULES, TECH_CATEGORY_RULES, PORT_CATEGORY_RULES, WORDLIST_ALTERNATIVES
     
     # Count exact rules
     exact_count = len(EXACT_MATCH_RULES)
@@ -521,12 +585,27 @@ def get_scoring_stats() -> dict:
         "port_categories": port_count,
         "total_wordlists": len(all_wordlists),
         "generic_fallbacks": len(GENERIC_FALLBACK),
-        "catalog_available": WORDLIST_RESOLVER_AVAILABLE and wordlist_resolver.is_available() if wordlist_resolver else False
+        "wordlist_alternatives": len(WORDLIST_ALTERNATIVES),
+        "catalog_available": WORDLIST_RESOLVER_AVAILABLE and wordlist_resolver.is_available() if wordlist_resolver else False,
+        "port_database_available": PORT_DATABASE_AVAILABLE
     }
     
     # Add catalog stats if available
     if WORDLIST_RESOLVER_AVAILABLE and wordlist_resolver and wordlist_resolver.is_available():
         catalog_stats = wordlist_resolver.get_catalog_stats()
         stats["catalog_stats"] = catalog_stats
+    
+    # Add entropy analysis stats
+    try:
+        from .entropy import analyzer
+        entropy_metrics = analyzer.analyze_recent_selections(days_back=30)
+        stats["entropy_stats"] = {
+            "recent_entropy_score": entropy_metrics.entropy_score,
+            "recommendation_quality": entropy_metrics.recommendation_quality,
+            "clustering_percentage": entropy_metrics.clustering_percentage
+        }
+    except Exception as e:
+        logger.debug(f"Could not get entropy stats: {e}")
+        stats["entropy_stats"] = {"available": False}
     
     return stats

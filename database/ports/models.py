@@ -4,7 +4,7 @@ Supports CTF/HTB/OSCP focused service information without wordlist metadata.
 """
 
 from typing import Dict, List, Optional, Union, Any
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 from datetime import date
 import re
@@ -72,7 +72,8 @@ class ServiceIndicators(BaseModel):
     paths: List[str] = Field(default_factory=list, description="Common paths/endpoints")
     banners: List[str] = Field(default_factory=list, description="Service banners")
 
-    @validator('ports')
+    @field_validator('ports')
+    @classmethod
     def validate_ports(cls, v):
         """Validate port numbers are in valid range."""
         for port in v:
@@ -137,21 +138,24 @@ class PortEntry(BaseModel):
     # Metadata
     last_updated: Union[str, date] = Field(..., description="Last update date")
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         """Ensure name is not empty and follows format."""
         if not v or not v.strip():
             raise ValueError("Name cannot be empty")
         return v.strip()
 
-    @validator('description')
+    @field_validator('description')
+    @classmethod
     def validate_description(cls, v):
         """Ensure description includes CTF/HTB/OSCP context."""
         if len(v) < 20:
             raise ValueError("Description must be at least 20 characters")
         return v
 
-    @validator('last_updated')
+    @field_validator('last_updated')
+    @classmethod
     def validate_last_updated(cls, v):
         """Validate and convert date format."""
         if isinstance(v, str):
@@ -214,7 +218,8 @@ class PortDatabase(BaseModel):
     """Complete port database model."""
     ports: Dict[str, PortEntry] = Field(default_factory=dict, description="Port entries keyed by port number")
 
-    @validator('ports')
+    @field_validator('ports')
+    @classmethod
     def validate_port_keys(cls, v):
         """Validate port keys are numeric and match port numbers in entries."""
         for port_key, port_entry in v.items():

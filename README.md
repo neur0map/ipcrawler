@@ -155,7 +155,30 @@ python3 ipcrawler.py 192.168.1.100
 
 # Domain analysis and wordlist recommendation
 python3 ipcrawler.py example.com
+
+# Run comprehensive SmartList audit (rules, entropy, usage)
+python3 ipcrawler.py --audit
 ```
+
+### SmartList Audit
+
+The `--audit` flag runs a comprehensive analysis of the SmartList system:
+
+```bash
+# Run comprehensive audit
+python3 ipcrawler.py --audit
+```
+
+The audit includes:
+- **Rule Quality Analysis**: Detects wordlist overlaps, unused rules, and conflicts
+- **Entropy & Diversity Analysis**: Measures recommendation diversity and clustering
+- **Scoring Statistics**: Shows rule frequency and effectiveness metrics
+
+This helps identify:
+- ❌ Wordlist overlaps across multiple categories
+- ⚠️ Overused wordlists appearing in >80% of recommendations
+- 🔄 Repetitive patterns that reduce recommendation quality
+- 📊 Entropy scores showing recommendation diversity
 
 ### Advanced Options
 

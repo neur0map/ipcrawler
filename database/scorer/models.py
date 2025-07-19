@@ -3,7 +3,7 @@ Pydantic models for the wordlist scorer system.
 """
 
 from typing import List, Dict, Optional, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from enum import Enum
 
@@ -23,7 +23,8 @@ class ScoreBreakdown(BaseModel):
     service_keywords: float = Field(0.0, ge=0.0, le=1.0, description="Score from service keyword match")
     generic_fallback: float = Field(0.0, ge=0.0, le=1.0, description="Score from generic fallback")
     
-    @validator('*')
+    @field_validator('*')
+    @classmethod
     def validate_scores(cls, v):
         """Ensure all scores are between 0 and 1."""
         if not 0.0 <= v <= 1.0:
@@ -49,7 +50,8 @@ class WordlistScore(BaseModel):
     matched_rules: List[str] = Field(default_factory=list, description="Rules that matched")
     confidence: Confidence = Field(..., description="Confidence level based on score")
     
-    @validator('total_score')
+    @field_validator('total_score')
+    @classmethod
     def validate_total_score(cls, v):
         """Round total score to 3 decimal places."""
         return round(v, 3)
@@ -64,32 +66,133 @@ class ScoringContext(BaseModel):
     os: Optional[str] = Field(None, description="Detected operating system")
     version: Optional[str] = Field(None, description="Service version")
     headers: Optional[Dict[str, str]] = Field(None, description="HTTP headers if available")
+
+
+class AnonymizedScoringContext(BaseModel):
+    """Privacy-focused scoring context without sensitive target information."""
+    port_category: str = Field(..., description="Port category (web, database, admin, etc.)")
+    port: int = Field(..., ge=1, le=65535, description="Port number")
+    service_fingerprint: str = Field(..., description="Hash of service details (no target info)")
+    service_length: int = Field(..., description="Length of service description for similarity")
+    tech_family: str = Field(..., description="Technology family (web_server, cms, etc.)")
+    tech: Optional[str] = Field(None, description="Detected technology/software")
+    os_family: Optional[str] = Field(None, description="OS family (linux, windows, etc.)")
+    version: Optional[str] = Field(None, description="Service version")
+    has_headers: bool = Field(False, description="Whether HTTP headers were present")
     
-    @validator('port')
+    @field_validator('port')
+    @classmethod
     def validate_port(cls, v):
         """Validate port is in valid range."""
         if not 1 <= v <= 65535:
             raise ValueError(f"Port must be between 1-65535, got {v}")
         return v
     
-    @validator('tech')
+    @field_validator('tech')
+    @classmethod
     def normalize_tech(cls, v):
         """Normalize technology name to lowercase."""
         return v.lower() if v else None
     
-    def get_cache_key(self) -> str:
-        """Generate a cache key for this context."""
+    @classmethod
+    def from_scoring_context(cls, context: ScoringContext) -> 'AnonymizedScoringContext':
+        """Create anonymized context from regular scoring context."""
         import hashlib
-        # Create a unique key based on tech, port, and service
+        
+        # Generate service fingerprint without target info
+        service_data = f"{context.service}:{context.tech or ''}:{context.version or ''}"
+        service_fingerprint = hashlib.md5(service_data.encode()).hexdigest()[:8]
+        
+        # Determine categories
+        port_category = cls._get_port_category(context.port)
+        tech_family = cls._get_tech_family(context.tech)
+        os_family = cls._get_os_family(context.os) if context.os else None
+        
+        return cls(
+            port_category=port_category,
+            port=context.port,
+            service_fingerprint=service_fingerprint,
+            service_length=len(context.service),
+            tech_family=tech_family,
+            tech=context.tech,
+            os_family=os_family,
+            version=context.version,
+            has_headers=bool(context.headers)
+        )
+    
+    @staticmethod
+    def _get_port_category(port: int) -> str:
+        """Categorize port for privacy-safe grouping."""
+        categories = {
+            "web": [80, 8080, 8000, 8888, 3000, 5000, 9000, 4200, 3001],
+            "web_secure": [443, 8443, 9443, 4443],
+            "database": [3306, 5432, 1433, 27017, 6379, 5984, 9200, 7474, 8529],
+            "admin": [8080, 9090, 10000, 8834, 7001, 4848, 8161, 9990],
+            "mail": [25, 465, 587, 110, 995, 143, 993, 2525],
+            "file_transfer": [21, 22, 873, 445, 139, 2049, 111],
+            "remote_access": [22, 23, 3389, 5900, 5901, 1194, 4444],
+            "proxy": [3128, 8118, 8123, 1080, 9050],
+            "development": [3000, 4200, 5000, 8000, 9000, 3001, 5001, 8001]
+        }
+        
+        for category, ports in categories.items():
+            if port in ports:
+                return category
+        return "other"
+    
+    @staticmethod
+    def _get_tech_family(tech: Optional[str]) -> str:
+        """Categorize technology into families."""
+        if not tech:
+            return "unknown"
+        
+        tech_lower = tech.lower()
+        
+        families = {
+            "web_server": ["apache", "nginx", "iis", "lighttpd", "caddy", "tomcat", "jetty"],
+            "cms": ["wordpress", "drupal", "joomla", "typo3", "magento", "shopify"],
+            "database": ["mysql", "postgresql", "mongodb", "redis", "cassandra", "oracle"],
+            "framework": ["django", "flask", "rails", "laravel", "symfony", "express"],
+            "admin_panel": ["phpmyadmin", "adminer", "webmin", "cpanel", "plesk"],
+            "mail_server": ["postfix", "exim", "sendmail", "exchange", "zimbra"],
+            "monitoring": ["nagios", "zabbix", "prometheus", "grafana", "kibana"],
+            "ci_cd": ["jenkins", "gitlab", "github", "bitbucket", "bamboo"],
+            "container": ["docker", "kubernetes", "openshift", "rancher"]
+        }
+        
+        for family, techs in families.items():
+            if any(t in tech_lower for t in techs):
+                return family
+        
+        return "other"
+    
+    @staticmethod
+    def _get_os_family(os: str) -> str:
+        """Categorize OS into families."""
+        os_lower = os.lower()
+        
+        if any(x in os_lower for x in ["windows", "win"]):
+            return "windows"
+        elif any(x in os_lower for x in ["linux", "ubuntu", "debian", "centos", "redhat"]):
+            return "linux"
+        elif any(x in os_lower for x in ["mac", "osx", "darwin"]):
+            return "macos"
+        elif any(x in os_lower for x in ["bsd", "freebsd", "openbsd"]):
+            return "bsd"
+        else:
+            return "other"
+    
+    def get_cache_key(self) -> str:
+        """Generate a privacy-safe cache key."""
+        # Use only non-sensitive information
         key_parts = [
-            self.tech or "unknown",
+            self.tech_family,
+            self.port_category,
             str(self.port),
-            self.service[:50]  # First 50 chars of service
+            self.service_fingerprint
         ]
-        key_str = "_".join(key_parts)
-        # Add hash for uniqueness
-        hash_suffix = hashlib.md5(f"{self.target}:{self.service}".encode()).hexdigest()[:8]
-        return f"{key_str}_{hash_suffix}".replace(" ", "_").replace("/", "_")
+        return "_".join(key_parts)
+    
 
 
 class ScoringResult(BaseModel):
@@ -102,16 +205,24 @@ class ScoringResult(BaseModel):
     cache_key: str = Field(..., description="Cache key for this result")
     confidence: Confidence = Field(..., description="Overall confidence level")
     
-    @validator('score')
+    # Entropy-related fields
+    entropy_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Entropy score for recommendation diversity")
+    diversification_applied: bool = Field(False, description="Whether diversification was applied")
+    frequency_adjustments: Optional[Dict[str, float]] = Field(None, description="Rule frequency adjustments applied")
+    synergy_bonuses: Optional[Dict[str, float]] = Field(None, description="Tech+path synergy bonuses applied")
+    
+    @field_validator('score')
+    @classmethod
     def validate_score(cls, v):
         """Round score to 3 decimal places."""
         return round(v, 3)
     
-    @validator('confidence', pre=False, always=True)
-    def set_confidence(cls, v, values):
+    @field_validator('confidence')
+    @classmethod
+    def set_confidence(cls, v, info):
         """Set confidence based on score if not provided."""
-        if 'score' in values:
-            score = values['score']
+        if hasattr(info, 'data') and 'score' in info.data:
+            score = info.data['score']
             if score >= 0.8:
                 return Confidence.HIGH
             elif score >= 0.6:
@@ -119,6 +230,21 @@ class ScoringResult(BaseModel):
             else:
                 return Confidence.LOW
         return v
+    
+    def get_entropy_summary(self) -> Dict[str, Any]:
+        """Get summary of entropy-related information."""
+        return {
+            "entropy_score": self.entropy_score,
+            "diversification_applied": self.diversification_applied,
+            "frequency_adjustments_count": len(self.frequency_adjustments or {}),
+            "synergy_bonuses_count": len(self.synergy_bonuses or {}),
+            "quality_indicators": {
+                "has_entropy_data": self.entropy_score is not None,
+                "is_diversified": self.diversification_applied,
+                "has_frequency_boost": bool(self.frequency_adjustments),
+                "has_synergy": bool(self.synergy_bonuses)
+            }
+        }
 
 
 class CacheEntry(BaseModel):
@@ -127,6 +253,41 @@ class CacheEntry(BaseModel):
     context: ScoringContext = Field(..., description="Input context")
     result: ScoringResult = Field(..., description="Scoring result")
     outcome: Optional[Dict[str, Any]] = Field(None, description="Actual outcome if tracked")
+
+
+class AnonymizedCacheEntry(BaseModel):
+    """Privacy-focused cache entry without sensitive information."""
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="When this entry was created")
+    context: AnonymizedScoringContext = Field(..., description="Anonymized context")
+    result: ScoringResult = Field(..., description="Scoring result")
+    outcome: Optional[Dict[str, Any]] = Field(None, description="Actual outcome if tracked")
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+    
+    @classmethod
+    def from_cache_entry(cls, entry: CacheEntry) -> 'AnonymizedCacheEntry':
+        """Create anonymized cache entry from regular entry."""
+        anon_context = AnonymizedScoringContext.from_scoring_context(entry.context)
+        return cls(
+            timestamp=entry.timestamp,
+            context=anon_context,
+            result=entry.result,
+            outcome=entry.outcome
+        )
+    
+    def get_entropy_data(self) -> Dict[str, Any]:
+        """Extract entropy-related data from this cache entry."""
+        return {
+            "timestamp": self.timestamp,
+            "wordlists": self.result.wordlists,
+            "matched_rules": self.result.matched_rules,
+            "context_key": f"{self.context.tech or 'unknown'}:{self.context.port}",
+            "entropy_score": self.result.entropy_score,
+            "diversification_applied": self.result.diversification_applied
+        }
     
     class Config:
         json_encoders = {
@@ -197,7 +358,8 @@ class ScoringRule(BaseModel):
     description: str = Field(..., description="Rule description")
     category: str = Field(..., description="Rule category (exact, tech, port, generic)")
     
-    @validator('weight')
+    @field_validator('weight')
+    @classmethod
     def validate_weight(cls, v):
         """Ensure weight is between 0 and 1."""
         if not 0.0 <= v <= 1.0:

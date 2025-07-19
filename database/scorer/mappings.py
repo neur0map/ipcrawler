@@ -2,7 +2,7 @@
 Hardcoded mappings and rule hierarchies for wordlist scoring.
 """
 
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Set
 import re
 
 
@@ -247,7 +247,154 @@ CONFIDENCE_THRESHOLDS = {
 }
 
 
+# Diversification pools - alternative wordlists for entropy improvement
+WORDLIST_ALTERNATIVES: Dict[str, List[str]] = {
+    # Common web wordlists - swap when overused
+    "common.txt": [
+        "discovery.txt",
+        "quick.txt", 
+        "medium.txt",
+        "small.txt"
+    ],
+    
+    "dirs.txt": [
+        "directory-list-2.3-medium.txt",
+        "directory-list-lowercase-2.3-medium.txt",
+        "big.txt",
+        "common-directories.txt"
+    ],
+    
+    "files.txt": [
+        "common-files.txt",
+        "quickhits.txt",
+        "big-files.txt",
+        "sensitive-files.txt"
+    ],
+    
+    # Admin panel alternatives
+    "admin-panels.txt": [
+        "admin-interfaces.txt",
+        "management-consoles.txt",
+        "control-panels.txt",
+        "admin-dirs.txt"
+    ],
+    
+    "admin-dirs.txt": [
+        "admin-directories.txt",
+        "admin-paths.txt",
+        "management-dirs.txt",
+        "control-dirs.txt"
+    ],
+    
+    # Database alternatives
+    "database-admin.txt": [
+        "db-admin-tools.txt",
+        "database-interfaces.txt",
+        "sql-admin.txt",
+        "db-management.txt"
+    ],
+    
+    "db-paths.txt": [
+        "database-paths.txt",
+        "sql-paths.txt",
+        "db-directories.txt",
+        "database-dirs.txt"
+    ],
+    
+    # API alternatives
+    "api-endpoints.txt": [
+        "rest-api.txt",
+        "api-v1.txt",
+        "api-methods.txt",
+        "graphql.txt"
+    ],
+    
+    "rest-api.txt": [
+        "api-endpoints.txt",
+        "restful-paths.txt",
+        "api-resources.txt",
+        "web-api.txt"
+    ],
+    
+    # CMS alternatives
+    "cms-common.txt": [
+        "cms-paths.txt",
+        "content-management.txt",
+        "blog-paths.txt",
+        "cms-admin.txt"
+    ],
+    
+    "wordpress.txt": [
+        "wp-directories.txt",
+        "wp-common.txt",
+        "wordpress-paths.txt",
+        "wp-content.txt"
+    ],
+    
+    # Development alternatives
+    "dev-paths.txt": [
+        "development.txt",
+        "dev-directories.txt",
+        "staging-paths.txt",
+        "test-paths.txt"
+    ],
+    
+    "debug-paths.txt": [
+        "debug-files.txt",
+        "debug-dirs.txt",
+        "test-files.txt",
+        "development-files.txt"
+    ],
+    
+    # Technology-specific alternatives
+    "java-apps.txt": [
+        "java-servlets.txt",
+        "jsp-pages.txt",
+        "java-paths.txt",
+        "tomcat-paths.txt"
+    ],
+    
+    "php-paths.txt": [
+        "php-files.txt",
+        "php-common.txt",
+        "php-applications.txt",
+        "php-dirs.txt"
+    ],
+    
+    # Monitoring alternatives
+    "monitoring-paths.txt": [
+        "metrics-endpoints.txt",
+        "monitoring-dirs.txt",
+        "observability-paths.txt",
+        "health-checks.txt"
+    ],
+    
+    # Generic fallback alternatives
+    "discovery.txt": [
+        "common.txt",
+        "quick.txt",
+        "basic.txt",
+        "essential.txt"
+    ]
+}
+
+
 def get_exact_match(tech: str, port: int) -> List[str]:
     """Get wordlists for exact tech+port match."""
     key = (tech.lower() if tech else "", port)
     return EXACT_MATCH_RULES.get(key, [])
+
+
+def get_wordlist_alternatives(wordlist: str) -> List[str]:
+    """Get alternative wordlists for diversification."""
+    return WORDLIST_ALTERNATIVES.get(wordlist, [])
+
+
+def has_alternatives(wordlist: str) -> bool:
+    """Check if a wordlist has alternatives available."""
+    return wordlist in WORDLIST_ALTERNATIVES
+
+
+def get_all_wordlists_with_alternatives() -> Set[str]:
+    """Get set of all wordlists that have alternatives."""
+    return set(WORDLIST_ALTERNATIVES.keys())
