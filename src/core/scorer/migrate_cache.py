@@ -15,10 +15,10 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 # Add project root to path
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from database.scorer.models import CacheEntry, AnonymizedCacheEntry
+from .models import CacheEntry, AnonymizedCacheEntry
 
 
 class CacheMigrator:
@@ -63,7 +63,7 @@ class CacheMigrator:
     
     def _create_backup(self):
         """Create backup of cache directory."""
-        backup_dir = self.cache_dir.parent / f"cache_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        backup_dir = self.cache_dir.parent / f"contributions_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         print(f"\n💾 Creating backup at: {backup_dir}")
         shutil.copytree(self.cache_dir, backup_dir)
         print("✅ Backup complete")
@@ -153,7 +153,8 @@ def main():
     args = parser.parse_args()
     
     # Find cache directory
-    cache_dir = Path(__file__).parent / "cache"
+    project_root = Path(__file__).parent.parent.parent.parent
+    cache_dir = project_root / "database" / "scorer" / "contributions"
     
     if not cache_dir.exists():
         print(f"❌ Cache directory not found: {cache_dir}")

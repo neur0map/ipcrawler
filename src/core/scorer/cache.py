@@ -25,9 +25,9 @@ class ScorerCache:
             cache_dir: Cache directory path. If None, uses default.
         """
         if cache_dir is None:
-            # Default to database/scorer/cache
-            current_dir = Path(__file__).parent
-            self.cache_dir = current_dir / "cache"
+            # Default to database/scorer/contributions
+            project_root = Path(__file__).parent.parent.parent.parent
+            self.cache_dir = project_root / "database" / "scorer" / "contributions"
         else:
             self.cache_dir = Path(cache_dir)
         

@@ -150,7 +150,7 @@ class RuleEngine:
         matched_rules = []
         score = 0.0
         
-        service_lower = context.service.lower()
+        service_lower = context.service.lower() if context.service else ""
         
         for keyword, lists in SERVICE_KEYWORD_RULES.items():
             if keyword in service_lower:
@@ -305,7 +305,7 @@ class RuleEngine:
             "grafana": ["grafana", "dashboard", "metrics"]
         }
         
-        tech_lower = context.tech.lower()
+        tech_lower = context.tech.lower() if context.tech else ""
         if tech_lower in synergy_patterns:
             synergy_terms = synergy_patterns[tech_lower]
             

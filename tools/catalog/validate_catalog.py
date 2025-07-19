@@ -12,8 +12,8 @@ from typing import Dict, List
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from database.wordlists.models import WordlistCatalog
-from database.wordlists.resolver import resolver
+from .models import WordlistCatalog
+from .resolver import resolver
 
 
 def validate_catalog(catalog_path: Path) -> Dict[str, any]:
@@ -126,7 +126,8 @@ def update_catalog_metadata(catalog_path: Path) -> bool:
 
 def main():
     """Main validation function."""
-    catalog_path = Path(__file__).parent / "seclists_catalog.json"
+    project_root = Path(__file__).parent.parent.parent
+    catalog_path = project_root / "database" / "wordlists" / "seclists_catalog.json"
     
     print("SecLists Catalog Validation")
     print("=" * 40)
@@ -135,7 +136,7 @@ def main():
         print(f"❌ Catalog not found: {catalog_path}")
         print("\nTo generate catalog:")
         print("1. Run 'make install' to install SecLists")
-        print("2. Or run 'python database/wordlists/generate_catalog.py'")
+        print("2. Or run 'python tools/catalog/generate_catalog.py'")
         return 1
     
     print(f"Validating catalog: {catalog_path}")

@@ -18,7 +18,7 @@ The Wordlist Scorer System analyzes service context (technology stack, ports, se
 ## Quick Start
 
 ```python
-from database.scorer import score_wordlists, ScoringContext
+from src.core.scorer import score_wordlists, ScoringContext
 
 # Create context from scan results
 context = ScoringContext(
@@ -64,19 +64,19 @@ Always-applicable wordlists:
 ## Architecture
 
 ```
-database/scorer/
+src/core/scorer/
 ├── __init__.py          # Main module exports
 ├── models.py            # Pydantic data models
 ├── scorer_engine.py     # Core scoring logic
 ├── rules.py             # Rule engine and management
 ├── mappings.py          # Rule definitions and mappings
 ├── cache.py             # Selection tracking and caching
-├── cache/               # Cache storage
-│   ├── selections/      # Daily selection records
-│   └── index.json       # Cache statistics
-├── test_scorer.py       # Test suite
-├── example_usage.py     # Usage examples
 └── README.md           # This file
+
+database/scorer/
+└── contributions/       # Cache storage
+    ├── selections/      # Daily selection records
+    └── index.json       # Cache statistics
 ```
 
 ## Scoring Examples
@@ -107,7 +107,7 @@ context = ScoringContext(target="site.com", port=9999, service="Unknown service"
 The scorer automatically tracks all selections for analysis:
 
 ```python
-from database.scorer import cache
+from src.core.scorer import cache
 
 # Get recent selections
 entries = cache.search_selections(tech="wordpress", days_back=30)
@@ -180,7 +180,7 @@ TECH_CATEGORY_RULES["new_category"] = {
 ### Rule Validation
 
 ```python
-from database.scorer.rules import rule_engine
+from src.core.scorer.rules import rule_engine
 
 issues = rule_engine.validate_rules()
 print(issues["warnings"])  # Potential issues
@@ -200,7 +200,7 @@ print(issues["errors"])    # Critical errors
 
 ```python
 # In your scanning workflow
-from database.scorer import score_wordlists, ScoringContext
+from src.core.scorer import score_wordlists, ScoringContext
 
 def get_wordlist_recommendations(scan_result):
     context = ScoringContext(
@@ -241,12 +241,12 @@ When the SecLists catalog is integrated:
 
 Run tests:
 ```bash
-python database/scorer/test_scorer.py
+python tests/development/test_scorer.py
 ```
 
 Run examples:
 ```bash
-python database/scorer/example_usage.py
+# Examples are integrated in the test files
 ```
 
 ## Troubleshooting

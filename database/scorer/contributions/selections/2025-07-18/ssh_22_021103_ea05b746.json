@@ -1,0 +1,43 @@
+{
+  "timestamp": "2025-07-18 02:11:03.572827",
+  "context": {
+    "port_category": "file_transfer",
+    "port": 22,
+    "service_fingerprint": "3a195941",
+    "service_length": 13,
+    "tech_family": "other",
+    "tech": "ssh",
+    "os_family": null,
+    "version": "8.2p1",
+    "has_headers": false
+  },
+  "result": {
+    "score": 1.0,
+    "explanation": {
+      "exact_match": 1.0,
+      "tech_category": 0.0,
+      "port_context": 0.5,
+      "service_keywords": 0.0,
+      "generic_fallback": 0.0
+    },
+    "wordlists": [
+      "ftp-common.txt",
+      "ssh-users.txt",
+      "ssh-keys.txt",
+      "shares.txt",
+      "file-transfer.txt"
+    ],
+    "matched_rules": [
+      "exact:ssh:22",
+      "port:file_transfer"
+    ],
+    "fallback_used": false,
+    "cache_key": "ssh_22_OpenSSH_8.2p1_ea05b746",
+    "confidence": "high",
+    "entropy_score": null,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}

@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-07-18 02:02:39.172118",
+  "context": {
+    "port_category": "web",
+    "port": 80,
+    "service_fingerprint": "489c35ec",
+    "service_length": 5,
+    "tech_family": "other",
+    "tech": "php",
+    "os_family": null,
+    "version": null,
+    "has_headers": false
+  },
+  "result": {
+    "score": 0.6,
+    "explanation": {
+      "exact_match": 0.0,
+      "tech_category": 0.6,
+      "port_context": 0.6,
+      "service_keywords": 0.0,
+      "generic_fallback": 0.0
+    },
+    "wordlists": [
+      "common-web.txt",
+      "web-files.txt",
+      "dirs.txt",
+      "web-content.txt",
+      "web-dirs.txt",
+      "common.txt"
+    ],
+    "matched_rules": [
+      "tech_pattern:web_server",
+      "port:web"
+    ],
+    "fallback_used": false,
+    "cache_key": "php_80_nginx_32cbd412",
+    "confidence": "medium",
+    "entropy_score": null,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}

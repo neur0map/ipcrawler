@@ -61,7 +61,7 @@ class ScoringContext(BaseModel):
     """Input context for scoring wordlists."""
     target: str = Field(..., description="Target IP or hostname")
     port: int = Field(..., ge=1, le=65535, description="Port number")
-    service: str = Field(..., description="Service description from scan")
+    service: Optional[str] = Field(None, description="Service description from scan")
     tech: Optional[str] = Field(None, description="Detected technology/software")
     os: Optional[str] = Field(None, description="Detected operating system")
     version: Optional[str] = Field(None, description="Service version")
@@ -112,7 +112,7 @@ class AnonymizedScoringContext(BaseModel):
             port_category=port_category,
             port=context.port,
             service_fingerprint=service_fingerprint,
-            service_length=len(context.service),
+            service_length=len(context.service) if context.service else 0,
             tech_family=tech_family,
             tech=context.tech,
             os_family=os_family,
@@ -169,6 +169,9 @@ class AnonymizedScoringContext(BaseModel):
     @staticmethod
     def _get_os_family(os: str) -> str:
         """Categorize OS into families."""
+        if not os:
+            return "other"
+        
         os_lower = os.lower()
         
         if any(x in os_lower for x in ["windows", "win"]):

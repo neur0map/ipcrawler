@@ -19,12 +19,17 @@ except ImportError:
 
 # Import port database
 try:
-    from ..ports import PortDatabase, load_port_database
     import json
+    import sys
     from pathlib import Path
     
+    # Define project root first
+    project_root = Path(__file__).parent.parent.parent.parent
+    sys.path.insert(0, str(project_root))
+    from database.ports import PortDatabase, load_port_database
+    
     # Load port database on module import
-    port_db_path = Path(__file__).parent.parent / "ports" / "port_db.json"
+    port_db_path = project_root / "database" / "ports" / "port_db.json"
     if port_db_path.exists():
         with open(port_db_path, 'r', encoding='utf-8') as f:
             port_db_data = json.load(f)

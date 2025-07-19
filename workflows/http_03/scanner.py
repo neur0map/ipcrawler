@@ -42,7 +42,7 @@ from utils.debug import debug_print
 
 # SmartList integration
 try:
-    from database.scorer import (
+    from src.core.scorer import (
         score_wordlists_with_catalog,
         score_wordlists,
         get_wordlist_paths,
@@ -566,7 +566,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
         
         # Extract technology from service
         tech = None
-        if service.technologies:
+        if service.technologies and service.technologies[0]:
             tech = service.technologies[0].lower()
         elif service.server:
             # Try to extract tech from server header

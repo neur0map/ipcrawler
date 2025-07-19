@@ -1,0 +1,42 @@
+{
+  "timestamp": "2025-07-19 17:37:43.720063",
+  "context": {
+    "port_category": "web_secure",
+    "port": 443,
+    "service_fingerprint": "efd616eb",
+    "service_length": 12,
+    "tech_family": "web_server",
+    "tech": "nginx",
+    "os_family": "linux",
+    "version": "1.20.1",
+    "has_headers": true
+  },
+  "result": {
+    "score": 0.95,
+    "explanation": {
+      "exact_match": 1.0,
+      "tech_category": 0.8,
+      "port_context": 0.6,
+      "service_keywords": 0.0,
+      "generic_fallback": 0.0
+    },
+    "wordlists": [
+      "nginx-locations.txt",
+      "nginx-config.txt",
+      "web-content.txt"
+    ],
+    "matched_rules": [
+      "exact:nginx:443",
+      "tech_category:web_server",
+      "port:web_secure"
+    ],
+    "fallback_used": false,
+    "cache_key": "test_key",
+    "confidence": "high",
+    "entropy_score": null,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}

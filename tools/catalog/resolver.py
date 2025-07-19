@@ -25,7 +25,8 @@ class WordlistResolver:
         """
         if catalog_path is None:
             # Default catalog location
-            self.catalog_path = Path(__file__).parent / "seclists_catalog.json"
+            project_root = Path(__file__).parent.parent.parent
+            self.catalog_path = project_root / "database" / "wordlists" / "seclists_catalog.json"
         else:
             self.catalog_path = Path(catalog_path)
         

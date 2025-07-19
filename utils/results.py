@@ -444,7 +444,8 @@ class HTMLFormatter(BaseFormatter):
                     html.append(f'<h4>{service_rec["service"]} ({service_rec["service_name"]})</h4>')
                     if service_rec.get('detected_technology'):
                         html.append(f'<p>Technology: {service_rec["detected_technology"]}</p>')
-                    html.append(f'<p>Confidence: <span class="{service_rec["confidence"].lower()}">{service_rec["confidence"]}</span> (Score: {service_rec["total_score"]})</p>')
+                    confidence = service_rec.get("confidence", "UNKNOWN")
+                    html.append(f'<p>Confidence: <span class="{confidence.lower() if confidence else "unknown"}">{confidence}</span> (Score: {service_rec["total_score"]})</p>')
                     
                     # Top wordlists table
                     html.append('<table>')

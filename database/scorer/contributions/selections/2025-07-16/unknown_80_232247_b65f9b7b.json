@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-07-16 23:22:47.978794",
+  "context": {
+    "port_category": "web",
+    "port": 80,
+    "service_fingerprint": "45e3c7f6",
+    "service_length": 38,
+    "tech_family": "unknown",
+    "tech": null,
+    "os_family": null,
+    "version": null,
+    "has_headers": false
+  },
+  "result": {
+    "score": 0.6,
+    "explanation": {
+      "exact_match": 0.0,
+      "tech_category": 0.6,
+      "port_context": 0.6,
+      "service_keywords": 0.0,
+      "generic_fallback": 0.0
+    },
+    "wordlists": [
+      "cms-themes.txt",
+      "common.txt",
+      "dirs.txt",
+      "web-content.txt",
+      "cms-plugins.txt",
+      "cms-common.txt"
+    ],
+    "matched_rules": [
+      "tech_pattern:cms",
+      "port:web"
+    ],
+    "fallback_used": false,
+    "cache_key": "unknown_80_Apache_httpd_2.4_-_E-commerce_platform_b65f9b7b",
+    "confidence": "medium",
+    "entropy_score": null,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}

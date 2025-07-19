@@ -7,8 +7,8 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database.scorer.models import ScoringContext, ScoringResult, ScoreBreakdown, Confidence
-from database.scorer.cache import cache
+from src.core.scorer.models import ScoringContext, ScoringResult, ScoreBreakdown, Confidence
+from src.core.scorer.cache import cache
 
 # Create test context with sensitive data
 test_context = ScoringContext(

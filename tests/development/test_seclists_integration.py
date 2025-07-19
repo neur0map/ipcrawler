@@ -9,8 +9,8 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database.scorer import score_wordlists, score_wordlists_with_catalog, ScoringContext, get_scoring_stats
-from database.wordlists.resolver import resolver
+from src.core.scorer import score_wordlists, score_wordlists_with_catalog, ScoringContext, get_scoring_stats
+from tools.catalog.resolver import resolver
 
 
 def test_basic_scorer():

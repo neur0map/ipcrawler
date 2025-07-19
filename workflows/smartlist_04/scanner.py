@@ -13,7 +13,7 @@ from utils.results import result_manager
 
 # Import SmartList components
 try:
-    from database.scorer import (
+    from src.core.scorer import (
         score_wordlists_with_catalog,
         score_wordlists,
         get_wordlist_paths,
@@ -244,7 +244,7 @@ class SmartListScanner(BaseWorkflow):
         tech = None
         
         # 1. Check technologies array (from http scan)
-        if service_data.get('technologies'):
+        if service_data.get('technologies') and service_data['technologies'][0]:
             tech = service_data['technologies'][0].lower()
         
         # 2. Check product/version from nmap
@@ -277,7 +277,8 @@ class SmartListScanner(BaseWorkflow):
         # 3. Check X-Powered-By header
         elif service_data.get('headers', {}).get('X-Powered-By'):
             powered_by = service_data['headers']['X-Powered-By']
-            tech = powered_by.split('/')[0].lower()
+            if powered_by:
+                tech = powered_by.split('/')[0].lower()
         
         # Build service description
         service_desc_parts = []

@@ -1,0 +1,48 @@
+{
+  "timestamp": "2025-07-18 04:31:23.421278",
+  "context": {
+    "port_category": "web_secure",
+    "port": 443,
+    "service_fingerprint": "d41be868",
+    "service_length": 13,
+    "tech_family": "cms",
+    "tech": "wordpress",
+    "os_family": null,
+    "version": null,
+    "has_headers": true
+  },
+  "result": {
+    "score": 1.0,
+    "explanation": {
+      "exact_match": 1.0,
+      "tech_category": 0.8,
+      "port_context": 0.6,
+      "service_keywords": 0.0,
+      "generic_fallback": 0.0
+    },
+    "wordlists": [
+      "cms-common.txt",
+      "cms-plugins.txt",
+      "common.txt",
+      "wp-plugins.txt",
+      "dirs.txt",
+      "wordpress-https.txt",
+      "cms-themes.txt",
+      "wp-themes.txt",
+      "web-content.txt"
+    ],
+    "matched_rules": [
+      "exact:wordpress:443",
+      "tech_category:cms",
+      "port:web"
+    ],
+    "fallback_used": false,
+    "cache_key": "wordpress_443_https_service_ed1f2afa",
+    "confidence": "high",
+    "entropy_score": null,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}

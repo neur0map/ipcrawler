@@ -9,8 +9,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from database.scorer import score_wordlists, ScoringContext
-from database.scorer.scorer_engine import explain_scoring, get_scoring_stats
+from src.core.scorer import score_wordlists, ScoringContext
+from src.core.scorer.scorer_engine import explain_scoring, get_scoring_stats
 
 
 def test_exact_match():

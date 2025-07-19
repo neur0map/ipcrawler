@@ -1,0 +1,28 @@
+{
+  "total_selections": 62,
+  "by_tech": {
+    "wordpress": 10,
+    "unknown": 3,
+    "mysql": 4,
+    "jenkins": 6,
+    "caddy": 3,
+    "nginx": 16,
+    "server": 1,
+    "apache": 9,
+    "http/1.1": 2,
+    "express": 3,
+    "php": 3,
+    "ssh": 1,
+    "proxy": 1
+  },
+  "by_port": {
+    "web": 55,
+    "database": 5,
+    "other": 2
+  },
+  "fallback_usage": {
+    "count": 1,
+    "percentage": 1.61
+  },
+  "last_updated": "2025-07-19 17:37:43.729101"
+}

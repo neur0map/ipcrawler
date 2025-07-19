@@ -161,3 +161,11 @@ IPCrawler v0.1.0-alpha-2 Release Notes
   IPCrawler v0.1.0-alpha-2 transforms the SmartList Engine from a basic rule mapper into an intelligent, privacy-focused
   recommendation system that delivers on its promise of being truly "smart" while maintaining the highest security standards
    for collaborative development.
+
+
+   the scorer is not a database so find an appropiate folder to house it, i want directory to be organized, currently files 
+  and folders everywhere without proper directory structure and files that are not supposed to be there like 
+  database/wordlist it has py files that can be somewhere else, obvious if when you move a file or folder you need to update
+   its files and code that was using that path so accomodate for that
+
+   

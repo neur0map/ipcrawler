@@ -141,7 +141,7 @@ def run_comprehensive_audit():
         from pathlib import Path
         
         # Run rule audit script
-        audit_script = Path(__file__).parent / "database" / "scorer" / "rule_audit.py"
+        audit_script = Path(__file__).parent / "src" / "core" / "scorer" / "rule_audit.py"
         result = subprocess.run([sys.executable, str(audit_script)], 
                               capture_output=True, text=True)
         
@@ -166,8 +166,8 @@ def run_comprehensive_audit():
     console.print("[bold]📈 Part 3: Scoring System Statistics[/bold]")
     console.print("-" * 50)
     try:
-        from database.scorer.scorer_engine import get_scoring_stats
-        from database.scorer.rules import get_rule_frequency_stats
+        from src.core.scorer.scorer_engine import get_scoring_stats
+        from src.core.scorer.rules import get_rule_frequency_stats
         
         # Get scoring stats
         stats = get_scoring_stats()
@@ -210,9 +210,9 @@ def run_entropy_audit(days_back: int = 30, context_tech: str = None, context_por
     """Run entropy analysis portion of the audit"""
     
     try:
-        from database.scorer.entropy import analyzer
-        from database.scorer.models import ScoringContext
-        from database.scorer.cache import cache
+        from src.core.scorer.entropy import analyzer
+        from src.core.scorer.models import ScoringContext
+        from src.core.scorer.cache import cache
         
         # Create context filter if specified
         context_filter = None
@@ -561,9 +561,9 @@ async def run_workflow(target: str, debug: bool = False):
                 # Check if it's an HTTP service
                 if port_num and (
                     port_num in [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000] or
-                    'http' in service.lower() or
-                    'https' in service.lower() or
-                    'web' in service.lower()
+                    (service and 'http' in service.lower()) or
+                    (service and 'https' in service.lower()) or
+                    (service and 'web' in service.lower())
                 ):
                     http_ports.append(port_num)
         

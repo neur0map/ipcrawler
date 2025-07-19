@@ -14,14 +14,14 @@ from typing import Dict, List, Set, Tuple, Any
 import re
 
 # Add project root to path
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from database.scorer.mappings import (
+from .mappings import (
     EXACT_MATCH_RULES, TECH_CATEGORY_RULES, PORT_CATEGORY_RULES, 
     SERVICE_KEYWORD_RULES, GENERIC_FALLBACK
 )
-from database.scorer.cache import cache
+from .cache import cache
 
 
 class RuleAuditor:

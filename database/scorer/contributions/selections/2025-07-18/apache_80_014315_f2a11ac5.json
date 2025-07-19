@@ -1,0 +1,48 @@
+{
+  "timestamp": "2025-07-18 01:43:15.125153",
+  "context": {
+    "port_category": "web",
+    "port": 80,
+    "service_fingerprint": "928c90fa",
+    "service_length": 4,
+    "tech_family": "web_server",
+    "tech": "apache",
+    "os_family": null,
+    "version": null,
+    "has_headers": false
+  },
+  "result": {
+    "score": 1.0,
+    "explanation": {
+      "exact_match": 1.0,
+      "tech_category": 0.8,
+      "port_context": 0.6,
+      "service_keywords": 0.0,
+      "generic_fallback": 0.0
+    },
+    "wordlists": [
+      "web-content.txt",
+      "apache-manual.txt",
+      "dirs.txt",
+      "web-dirs.txt",
+      "apache-common.txt",
+      "apache-config.txt",
+      "web-files.txt",
+      "common.txt",
+      "common-web.txt"
+    ],
+    "matched_rules": [
+      "exact:apache:80",
+      "tech_category:web_server",
+      "port:web"
+    ],
+    "fallback_used": false,
+    "cache_key": "apache_80_http_f2a11ac5",
+    "confidence": "high",
+    "entropy_score": null,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}
