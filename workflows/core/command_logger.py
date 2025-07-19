@@ -48,15 +48,8 @@ class CommandLogger:
                 f.write(f"{status_symbol} [{timestamp}] {command}\n")
                 
                 if status.lower() == "completed" and output:
-                    # Clean and format output
+                    # Clean and format output - show FULL output for complete transparency
                     clean_output = output.strip()
-                    if len(clean_output) > 300:
-                        lines = clean_output.split('\n')
-                        if len(lines) > 5:
-                            clean_output = '\n'.join(lines[:3] + ['...', lines[-1]])
-                        else:
-                            clean_output = clean_output[:300] + "..."
-                    
                     f.write(f"   └─ Result: {clean_output}\n")
                 
                 if error:
