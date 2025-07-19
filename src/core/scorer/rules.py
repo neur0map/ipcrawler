@@ -112,7 +112,7 @@ class RuleEngine:
     
     def apply_port_category(self, context: ScoringContext) -> Tuple[List[str], List[str], float]:
         """
-        Apply port-based category rules with frequency scoring.
+        Apply port-based category rules with priority-based resolution.
         
         Returns:
             Tuple of (wordlists, matched_rules, score)
@@ -121,21 +121,32 @@ class RuleEngine:
         matched_rules = []
         score = 0.0
         
+        # Find all matching categories and sort by priority
+        matching_categories = []
         for category, config in PORT_CATEGORY_RULES.items():
             if context.port in config["ports"]:
-                wordlists.extend(config["wordlists"])
-                rule_name = f"port:{category}"
-                matched_rules.append(rule_name)
-                
-                # Apply frequency-based scoring
-                base_score = config["weight"]
-                adjusted_score = self._apply_frequency_adjustment(rule_name, base_score)
-                synergy_bonus = self._calculate_synergy_bonus(context, wordlists)
-                score = min(1.0, adjusted_score + synergy_bonus)
-                
-                # Don't break - a port might match multiple categories
-                # but we'll take the first match for simplicity
-                break
+                priority = config.get("priority", 999)  # Default to low priority
+                matching_categories.append((priority, category, config))
+        
+        if matching_categories:
+            # Sort by priority (lower number = higher priority)
+            matching_categories.sort(key=lambda x: x[0])
+            
+            # Use the highest priority category
+            priority, category, config = matching_categories[0]
+            
+            wordlists.extend(config["wordlists"])
+            rule_name = f"port:{category}"
+            matched_rules.append(rule_name)
+            
+            # Apply frequency-based scoring with priority bonus
+            base_score = config["weight"]
+            if priority == 1:  # Highest priority gets bonus
+                base_score += 0.1
+            
+            adjusted_score = self._apply_frequency_adjustment(rule_name, base_score)
+            synergy_bonus = self._calculate_synergy_bonus(context, wordlists)
+            score = min(1.0, adjusted_score + synergy_bonus)
         
         return wordlists, matched_rules, score
     

@@ -244,7 +244,7 @@ class SmartListScanner(BaseWorkflow):
         tech = None
         
         # 1. Check technologies array (from http scan)
-        if service_data.get('technologies') and service_data['technologies'][0]:
+        if service_data.get('technologies') and len(service_data['technologies']) > 0 and service_data['technologies'][0]:
             tech = service_data['technologies'][0].lower()
         
         # 2. Check product/version from nmap

@@ -113,21 +113,62 @@ def main(
     target: str = typer.Argument(None, help="Target IP address or hostname to analyze for wordlist recommendations"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug output"),
     audit: bool = typer.Option(False, "--audit", help="Run comprehensive SmartList audit (rules, entropy, usage)"),
+    details: bool = typer.Option(False, "--details", help="Show detailed conflict analysis (use with --audit)"),
     version: bool = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version information")
 ):
     """Analyze target and recommend optimal wordlists for security testing"""
     if audit:
         # Run comprehensive audit instead of normal workflow
-        run_comprehensive_audit()
-        raise typer.Exit(0)
+        exit_code = run_comprehensive_audit(show_details=details)
+        raise typer.Exit(exit_code)
     
     if target is None:
         console.print("[red]Error:[/red] Target is required")
         raise typer.Exit(1)
     asyncio.run(run_workflow(target, debug))
 
-def run_comprehensive_audit():
-    """Run comprehensive SmartList audit including rules, entropy, and usage analysis"""
+def run_comprehensive_audit(show_details: bool = False):
+    """Run enhanced comprehensive SmartList audit with advanced flaw detection"""
+    try:
+        import subprocess
+        import sys
+        from pathlib import Path
+        
+        # Run enhanced audit script as module
+        result = subprocess.run([sys.executable, "-m", "src.core.scorer.enhanced_audit"], 
+                              capture_output=True, text=True, cwd=Path(__file__).parent)
+        
+        # Display the output directly (enhanced audit handles its own formatting)
+        if result.stdout:
+            console.print(result.stdout)
+        
+        if result.stderr:
+            console.print(f"[red]Audit warnings:[/red] {result.stderr}")
+            
+        # If details requested, run the conflict analyzer
+        if show_details and result.returncode == 0:
+            console.print("\n[bold cyan]🔍 Running Detailed Conflict Analysis...[/bold cyan]")
+            detail_result = subprocess.run([sys.executable, "-m", "src.core.scorer.conflict_analyzer", "--detailed"], 
+                                         capture_output=True, text=True, cwd=Path(__file__).parent)
+            
+            if detail_result.stdout:
+                console.print(detail_result.stdout)
+            if detail_result.stderr:
+                console.print(f"[red]Detail analysis errors:[/red] {detail_result.stderr}")
+        
+        # Exit with the same code as the audit
+        if result.returncode != 0:
+            console.print(f"\n[yellow]⚠ Audit completed with issues (exit code: {result.returncode})[/yellow]")
+        
+        return result.returncode
+        
+    except Exception as e:
+        console.print(f"[red]Enhanced audit failed:[/red] {e}")
+        console.print("[yellow]Falling back to legacy audit...[/yellow]")
+        return run_legacy_audit()
+
+def run_legacy_audit():
+    """Legacy audit system as fallback"""
     console.print("🔍 [bold cyan]SmartList Comprehensive Audit[/bold cyan]")
     console.print("=" * 60)
     console.print()
@@ -140,10 +181,9 @@ def run_comprehensive_audit():
         import sys
         from pathlib import Path
         
-        # Run rule audit script
-        audit_script = Path(__file__).parent / "src" / "core" / "scorer" / "rule_audit.py"
-        result = subprocess.run([sys.executable, str(audit_script)], 
-                              capture_output=True, text=True)
+        # Run rule audit script as module
+        result = subprocess.run([sys.executable, "-m", "src.core.scorer.rule_audit"], 
+                              capture_output=True, text=True, cwd=Path(__file__).parent)
         
         # Parse and display key findings
         output_lines = result.stdout.split('\n')
