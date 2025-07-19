@@ -1,69 +1,69 @@
-# IP Crawler Configuration
+# IPCrawler SmartList Engine Configuration
 
 # Application Version
-version: "1.0.0-alpha.1"
+version: "0.1.0-alpha.1"
 
-# Scan Settings
+# SmartList Analysis Settings
 scan:
-  # DEFAULT BEHAVIOR: ONLY SCAN DISCOVERED OPEN PORTS
+  # DEFAULT BEHAVIOR: FAST SERVICE DISCOVERY FOR WORDLIST RECOMMENDATIONS
   # 
   # When true (DEFAULT): 
-  #   1. Fast nmap discovers which ports are open (~30 seconds)
-  #   2. Detailed nmap ONLY scans those specific open ports
+  #   1. Fast service detection to profile target (~30 seconds)
+  #   2. SmartList Engine recommends optimal wordlists based on discovered services
   #
   # When false:
-  #   1. Skip port discovery
-  #   2. Nmap scans ALL 65535 ports (10+ minutes)
+  #   1. Skip fast discovery phase
+  #   2. Comprehensive analysis of all services (10+ minutes)
   #
   fast_port_discovery: true  # DEFAULT: true (recommended)
   
-  # Maximum ports to scan in detail
-  # If more ports are discovered, only top N will be scanned
+  # Maximum services to analyze for recommendations
+  # If more services are discovered, only top N will be analyzed
   max_detailed_ports: 1000
 
 # Privilege Settings
 privileges:
-  # Prompt for sudo escalation when running without root privileges
-  # When true (DEFAULT): Ask user if they want to restart with sudo
-  # When false: Never prompt, continue with current privileges
+  # Prompt for sudo escalation for enhanced service fingerprinting
+  # When true (DEFAULT): Ask user if they want better analysis with sudo
+  # When false: Never prompt, use basic fingerprinting only
   prompt_for_sudo: true
   
   # Auto-escalate to sudo without prompting (for automation)
-  # When true: Automatically restart with sudo if available
+  # When true: Automatically use enhanced fingerprinting if available
   # When false: Follow prompt_for_sudo setting
   auto_escalate: false
 
 # Parallel Processing
 parallel:
-  # Number of concurrent scan processes
+  # Number of concurrent analysis processes
   batch_size: 10
   
-  # Ports per batch when scanning all ports
+  # Services per batch when analyzing targets
   ports_per_batch: 6553
 
 # Output Settings
 output:
-  # Save raw XML output from tools
+  # Save raw analysis data from tools
   save_raw_xml: false
   
-  # Verbose console output
+  # Verbose SmartList recommendations
   verbose: false
   
-  # Raw script output
-  # When false (default): Cleans binary/hex data from script outputs
-  # When true: Keeps all output as-is (including binary garbage)
+  # Raw analysis output
+  # When false (default): Cleans and formats recommendations
+  # When true: Keeps all raw analysis data
   raw_output: false
   
-  # Save results in real-time to workspace during scanning
-  # When true (default): Creates live_results.json that updates as scan progresses
-  # When false: Only save final results after scan completion
+  # Save recommendations in real-time during analysis
+  # When true (default): Creates live recommendations that update progressively
+  # When false: Only save final recommendations after analysis
   real_time_save: true
 
-# Enhanced Path Discovery
+# SmartList Intelligence Settings
 discovery:
-  # Enable SmartList intelligent wordlist selection and path validation
-  # When true: Uses SmartList algorithm for context-aware discovery and validates all paths
-  # When false: Uses basic common paths only
+  # Enable SmartList intelligent wordlist selection algorithm
+  # When true: Uses AI-powered context analysis for optimal wordlist recommendations
+  # When false: Uses basic wordlist mapping only
   enhanced: true
 
 # Tool Paths (leave empty to use system PATH)

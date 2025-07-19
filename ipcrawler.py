@@ -46,8 +46,9 @@ from utils.results import result_manager
 
 app = typer.Typer(
     name="ipcrawler",
-    help="CLI orchestrator for reconnaissance workflows",
+    help="SmartList Engine - Intelligent wordlist recommendations for security testing",
     no_args_is_help=True,
+    add_completion=False,
     context_settings={"help_option_names": ["-h", "--help"]}
 )
 
@@ -102,18 +103,18 @@ def version_callback(value: bool):
                 console.print(ascii_art, style="cyan")
         
         # Display version from config
-        console.print(f"\n[bold]ipcrawler[/bold] version [green]{config.version}[/green]")
-        console.print("CLI orchestrator for reconnaissance workflows\n")
+        console.print(f"\n[bold]IPCrawler SmartList Engine[/bold] version [green]{config.version}[/green]")
+        console.print("Intelligent wordlist recommendations powered by target analysis\n")
         raise typer.Exit()
 
 
 @app.command()
 def main(
-    target: str = typer.Argument(None, help="Target IP address or hostname to scan"),
+    target: str = typer.Argument(None, help="Target IP address or hostname to analyze for wordlist recommendations"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug output"),
     version: bool = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version information")
 ):
-    """Run reconnaissance workflow on target"""
+    """Analyze target and recommend optimal wordlists for security testing"""
     if target is None:
         console.print("[red]Error:[/red] Target is required")
         raise typer.Exit(1)
@@ -174,7 +175,7 @@ async def check_and_offer_sudo_escalation():
     
     # Skip if already running as root
     if os.geteuid() == 0:
-        console.print("✓ Running with [green]root privileges[/green] - Enhanced scanning capabilities enabled")
+        console.print("✓ Running with [green]root privileges[/green] - Enhanced fingerprinting capabilities enabled")
         return
     
     # Check configuration settings
@@ -197,7 +198,7 @@ async def check_and_offer_sudo_escalation():
     
     if not sudo_available:
         console.print("ℹ Running with [yellow]user privileges[/yellow] - sudo not available")
-        console.print("  → TCP connect scans (slower than SYN scans)")
+        console.print("  → TCP connect analysis (slower than SYN fingerprinting)")
         console.print("  → No OS detection capabilities")
         console.print("  → Limited timing optimizations")
         return
@@ -210,20 +211,20 @@ async def check_and_offer_sudo_escalation():
         # Offer escalation
         console.print("\n🔒 [bold]Privilege Escalation Available[/bold]")
         console.print("\n[green]Enhanced capabilities with sudo:[/green]")
-        console.print("  ✓ SYN stealth scanning (faster, stealthier)")
+        console.print("  ✓ SYN stealth fingerprinting (faster, more accurate)")
         console.print("  ✓ OS detection and fingerprinting") 
         console.print("  ✓ Advanced timing optimizations")
         console.print("  ✓ Raw socket access")
-        console.print("  ✓ Port range scanning optimizations")
+        console.print("  ✓ Service detection optimizations")
         console.print("  ✓ Automatic /etc/hosts updates for hostname mapping")
         
         console.print("\n[yellow]Current limitations:[/yellow]")
-        console.print("  • TCP connect scans only (slower)")
+        console.print("  • TCP connect analysis only (slower)")
         console.print("  • No OS detection")
         console.print("  • Limited nmap capabilities")
         
         # Get user choice
-        escalate = typer.confirm("\nWould you like to restart with sudo for enhanced scanning?", default=True)
+        escalate = typer.confirm("\nWould you like to restart with sudo for enhanced analysis?", default=True)
     
     if escalate:
         # Build the correct sudo command based on how script was called
@@ -245,7 +246,7 @@ async def check_and_offer_sudo_escalation():
 
 
 async def run_workflow(target: str, debug: bool = False):
-    """Execute reconnaissance workflow on target"""
+    """Execute SmartList analysis workflow on target"""
     # Set debug mode
     from utils.debug import set_debug
     set_debug(debug)
@@ -296,7 +297,7 @@ async def run_workflow(target: str, debug: bool = False):
                     console.print("    ℹ️  [yellow]Restart with 'sudo' to update /etc/hosts[/yellow]")
             
             if port_count == 0:
-                console.print("⚠ No open ports found. Skipping detailed scan.")
+                console.print("⚠ No open ports found. Skipping detailed analysis.")
                 empty_data = {
                     "tool": "nmap",
                     "target": resolved_target,
@@ -315,15 +316,15 @@ async def run_workflow(target: str, debug: bool = False):
                 return
             
             if port_count > config.max_detailed_ports:
-                console.print(f"⚠ Found {port_count} ports, limiting detailed scan to top {config.max_detailed_ports}")
+                console.print(f"⚠ Found {port_count} services, limiting detailed analysis to top {config.max_detailed_ports}")
                 discovered_ports = discovered_ports[:config.max_detailed_ports]
         else:
             console.print(f"✗ Port discovery failed: {discovery_result.error}")
             console.print("⚠ Cannot proceed without port discovery. Exiting.")
-            console.print("  To scan all ports, set 'fast_port_discovery: false' in config.yaml")
+            console.print("  To analyze all services, set 'fast_port_discovery: false' in config.yaml")
             return
     
-    console.print("→ Starting detailed scan...")
+    console.print("→ Starting detailed service analysis...")
     scanner = NmapScanner(batch_size=config.batch_size, ports_per_batch=config.ports_per_batch)
     
     
@@ -334,9 +335,9 @@ async def run_workflow(target: str, debug: bool = False):
         transient=True
     ) as progress:
         if discovered_ports is not None:
-            task = progress.add_task(f"Detailed scan of {len(discovered_ports)} discovered ports...", total=None)
+            task = progress.add_task(f"Detailed analysis of {len(discovered_ports)} discovered services...", total=None)
         else:
-            task = progress.add_task(f"Full scan of all 65535 ports (10 parallel batches)...", total=None)
+            task = progress.add_task(f"Full analysis of all 65535 ports (10 parallel batches)...", total=None)
         
         result = await scanner.execute(
             target=resolved_target,
@@ -347,7 +348,7 @@ async def run_workflow(target: str, debug: bool = False):
     
     if result.success and result.data:
         total_execution_time += result.execution_time or 0.0
-        console.print(f"✓ Nmap scan completed in {total_execution_time:.2f}s")
+        console.print(f"✓ Service analysis completed in {total_execution_time:.2f}s")
         
         if discovered_ports is not None:
             result.data['discovery_enabled'] = True
@@ -403,7 +404,7 @@ async def run_workflow(target: str, debug: bool = False):
             http_ports = list(set(http_ports))
             hostnames_list = list(discovered_hostnames)
             
-            console.print(f"\n→ Found {len(http_ports)} HTTP/HTTPS services. Starting advanced HTTP scan...")
+            console.print(f"\n→ Found {len(http_ports)} HTTP/HTTPS services. Starting advanced web analysis...")
             if discovered_hostnames:
                 console.print(f"  → Discovered hostnames: {', '.join(hostnames_list)}")
             
@@ -416,14 +417,14 @@ async def run_workflow(target: str, debug: bool = False):
             
             if http_result.success and http_result.data:
                 total_execution_time += http_result.execution_time or 0.0
-                console.print(f"✓ HTTP scan completed in {http_result.execution_time:.2f}s")
+                console.print(f"✓ HTTP analysis completed in {http_result.execution_time:.2f}s")
                 http_scan_data = http_result.data
                 
                 # Display HTTP findings
                 display_http_summary(http_result.data)
             else:
                 error_msg = http_result.error or (http_result.errors[0] if http_result.errors else "Unknown error")
-                console.print(f"⚠ HTTP scan failed: {error_msg}")
+                console.print(f"⚠ HTTP analysis failed: {error_msg}")
         
 
         # Run SmartList analysis after HTTP scan if we have services
@@ -486,7 +487,7 @@ async def run_workflow(target: str, debug: bool = False):
         
 
         
-        console.print(f"\n✓ All scans completed in {total_execution_time:.2f}s total")
+        console.print(f"\n✓ All analysis completed in {total_execution_time:.2f}s total")
         
         result_manager.save_results(workspace, target, result.data)
         
@@ -525,7 +526,7 @@ def display_smartlist_summary(smartlist_data: dict):
 
 
 def display_minimal_summary(data: dict, workspace: Path):
-    """Display minimal scan summary"""
+    """Display minimal analysis summary"""
     scan_result = data
     
     # Count open ports
