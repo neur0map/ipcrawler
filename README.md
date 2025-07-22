@@ -112,7 +112,7 @@ Customize every aspect via simple YAML configuration
 ```mermaid
 graph LR
     A[🎯 Target] --> B[🔍 Smart Scanner]
-    B --> C{🧠 AI Analysis}
+    B --> C{🧠 Smartlist Algorithm}
     C --> D[🌐 Web Stack]
     C --> E[🔧 Services]
     C --> F[🖥️ Technologies]
