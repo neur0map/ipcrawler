@@ -4,7 +4,7 @@ Core scoring engine for wordlist recommendation.
 
 from typing import List, Set, Optional, Dict, Any, Tuple
 import logging
-from .models import ScoringContext, ScoringResult, ScoreBreakdown, Confidence
+from .models import ScoringContext, ScoringResult, ScoreBreakdown, Confidence, AnonymizedScoringContext
 from .rules import rule_engine
 from .mappings import GENERIC_FALLBACK, get_wordlist_alternatives
 from .cache import cache_selection
@@ -173,8 +173,9 @@ def score_wordlists(context: ScoringContext) -> ScoringResult:
     # Determine confidence level
     confidence = _determine_confidence(final_score, fallback_used, matched_rules)
     
-    # Generate cache key
-    cache_key = enriched_context.get_cache_key()
+    # Generate cache key using anonymized context
+    anon_context = AnonymizedScoringContext.from_scoring_context(enriched_context)
+    cache_key = anon_context.get_cache_key()
     
     # Create result with entropy data
     result = ScoringResult(
@@ -191,9 +192,10 @@ def score_wordlists(context: ScoringContext) -> ScoringResult:
         synergy_bonuses=synergy_bonuses or None
     )
     
+    entropy_str = f"{entropy_score:.3f}" if entropy_score is not None else "N/A"
     logger.info(
         f"Scored {len(final_wordlists)} wordlists for {enriched_context.target}:{enriched_context.port} "
-        f"(score: {final_score:.3f}, confidence: {confidence}, entropy: {entropy_score:.3f if entropy_score else 'N/A'})"
+        f"(score: {final_score:.3f}, confidence: {confidence}, entropy: {entropy_str})"
     )
     
     # Cache the selection for tracking

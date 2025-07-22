@@ -1,0 +1,41 @@
+{
+  "timestamp": "2025-07-22 02:40:05.418631",
+  "context": {
+    "port_category": "other",
+    "port": 9999,
+    "service_fingerprint": "07fe9b6b",
+    "service_length": 30,
+    "tech_family": "unknown",
+    "tech": null,
+    "os_family": null,
+    "version": null,
+    "has_headers": false
+  },
+  "result": {
+    "score": 0.4,
+    "explanation": {
+      "exact_match": 0.0,
+      "tech_category": 0.0,
+      "port_context": 0.0,
+      "service_keywords": 0.0,
+      "generic_fallback": 0.4
+    },
+    "wordlists": [
+      "common.txt",
+      "dirs.txt",
+      "discovery.txt",
+      "files.txt"
+    ],
+    "matched_rules": [
+      "generic_fallback"
+    ],
+    "fallback_used": true,
+    "cache_key": "unknown_other_9999_07fe9b6b",
+    "confidence": "low",
+    "entropy_score": 1.0,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}

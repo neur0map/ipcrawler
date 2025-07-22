@@ -1,0 +1,57 @@
+{
+  "timestamp": "2025-07-22 02:40:05.425920",
+  "context": {
+    "port_category": "web",
+    "port": 8080,
+    "service_fingerprint": "f042fc34",
+    "service_length": 37,
+    "tech_family": "web_server",
+    "tech": "tomcat",
+    "os_family": null,
+    "version": null,
+    "has_headers": false
+  },
+  "result": {
+    "score": 1.0,
+    "explanation": {
+      "exact_match": 1.0,
+      "tech_category": 0.8,
+      "port_context": 0.7999999999999999,
+      "service_keywords": 0.6,
+      "generic_fallback": 0.0
+    },
+    "wordlists": [
+      "php-common.txt",
+      "web-files.txt",
+      "express-routes.txt",
+      "management-paths.txt",
+      "java-servlets.txt",
+      "admin-dirs.txt",
+      "web-content.txt",
+      "common-web.txt",
+      "java-apps.txt",
+      "common.txt",
+      "nodejs-paths.txt",
+      "web-dirs.txt",
+      "tomcat-examples.txt",
+      "dirs.txt",
+      "admin-panels.txt",
+      "tomcat-manager.txt",
+      "proxy-paths.txt"
+    ],
+    "matched_rules": [
+      "exact:tomcat:8080",
+      "tech_category:web_server",
+      "port:web_admin",
+      "keyword:admin"
+    ],
+    "fallback_used": false,
+    "cache_key": "web_server_web_8080_f042fc34",
+    "confidence": "high",
+    "entropy_score": 0.942747503104802,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}

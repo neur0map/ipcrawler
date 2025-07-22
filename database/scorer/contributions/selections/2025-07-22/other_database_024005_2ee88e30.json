@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-07-22 02:40:05.414640",
+  "context": {
+    "port_category": "database",
+    "port": 3306,
+    "service_fingerprint": "2ee88e30",
+    "service_length": 30,
+    "tech_family": "other",
+    "tech": "server",
+    "os_family": null,
+    "version": null,
+    "has_headers": false
+  },
+  "result": {
+    "score": 0.9,
+    "explanation": {
+      "exact_match": 0.0,
+      "tech_category": 0.9,
+      "port_context": 0.7,
+      "service_keywords": 0.0,
+      "generic_fallback": 0.0
+    },
+    "wordlists": [
+      "db-paths.txt",
+      "sql-common.txt",
+      "server-info.txt",
+      "database-common.txt",
+      "db-admin.txt",
+      "database-admin.txt"
+    ],
+    "matched_rules": [
+      "tech_category:database",
+      "port:database"
+    ],
+    "fallback_used": false,
+    "cache_key": "other_database_3306_2ee88e30",
+    "confidence": "high",
+    "entropy_score": 0.9960328067605413,
+    "diversification_applied": false,
+    "frequency_adjustments": null,
+    "synergy_bonuses": null
+  },
+  "outcome": null
+}
