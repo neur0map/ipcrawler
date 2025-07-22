@@ -16,7 +16,7 @@ class RedirectDiscoveryScanner(BaseWorkflow):
     """Redirect discovery scanner for hostname/subdomain enumeration"""
     
     def __init__(self):
-        super().__init__("redirect-discovery")
+        super().__init__("redirect_discovery")
         self.common_http_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
     
     def validate_input(self, target: str, **kwargs) -> bool:

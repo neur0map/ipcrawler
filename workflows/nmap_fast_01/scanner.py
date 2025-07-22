@@ -17,7 +17,7 @@ class NmapFastScanner(BaseWorkflow):
     """Fast nmap scanner with integrated hostname discovery"""
     
     def __init__(self):
-        super().__init__("nmap-fast")
+        super().__init__("nmap_fast")
         self.common_http_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
     
     def validate_input(self, target: str, **kwargs) -> bool:
