@@ -995,7 +995,100 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     stats['error_count'] += 1
                     debug_print(f"Error testing path {path}: {result}")
             
+            # Re-run technology detection on discovered paths that might contain new tech
+            await self._run_tech_detection_on_paths(service, valid_paths, client)
+            
             return valid_paths
+    
+    async def _run_tech_detection_on_paths(self, service: HTTPService, paths: List[str], client: httpx.AsyncClient) -> None:
+        """Run technology detection on discovered paths to catch technologies not in homepage"""
+        if not self.technology_matcher or not paths:
+            return
+        
+        debug_print(f"Running technology detection on {len(paths)} discovered paths")
+        
+        # Limit to most promising paths for performance
+        max_paths_to_check = 5
+        interesting_paths = []
+        
+        # Prioritize paths that are more likely to contain technology indicators
+        tech_priority_patterns = [
+            'admin', 'grafana', 'dashboard', 'api', 'login', 'console',
+            'management', 'monitoring', 'prometheus', 'kibana', 'jenkins',
+            'wordpress', 'wp-admin', 'wp-content', 'drupal', 'joomla',
+            'phpmyadmin', 'mysql', 'postgresql', 'redis', 'elasticsearch',
+            'solr', 'mongo', 'django', 'flask', 'rails', 'laravel',
+            'symfony', 'codeigniter', 'cakephp', 'zend', 'yii',
+            'spring', 'struts', 'hibernate', 'tomcat', 'wildfly',
+            'websphere', 'weblogic', 'nginx', 'apache', 'iis',
+            'lighttpd', 'caddy', 'haproxy', 'traefik', 'envoy',
+            'docker', 'kubernetes', 'rancher', 'portainer', 'swarm',
+            'minio', 's3', 'vault', 'consul', 'etcd', 'zookeeper',
+            'kafka', 'rabbitmq', 'activemq', 'celery', 'sidekiq',
+            'swagger', 'openapi', 'graphql', 'rest', 'soap',
+            'oauth', 'saml', 'ldap', 'kerberos', 'jwt',
+            'splunk', 'elastic', 'logstash', 'fluentd', 'graylog',
+            'nagios', 'zabbix', 'icinga', 'sensu', 'datadog',
+            'newrelic', 'dynatrace', 'appdynamics', 'pingdom',
+            'artifactory', 'nexus', 'harbor', 'registry', 'gitlab',
+            'github', 'bitbucket', 'subversion', 'mercurial',
+            'sonarqube', 'checkmarx', 'veracode', 'fortify',
+            'ansible', 'puppet', 'chef', 'saltstack', 'terraform',
+            'cloudformation', 'helm', 'kustomize', 'argo',
+            'backstage', 'spinnaker', 'tekton', 'drone', 'bamboo',
+            'teamcity', 'octopus', 'deploy', 'pipeline', 'ci',
+            'cd', 'devops', 'staging', 'test', 'dev', 'prod',
+            'beta', 'preview', 'demo', 'sandbox', 'lab'
+        ]
+        # Sort paths by likely tech content
+        prioritized_paths = []
+        regular_paths = []
+        
+        for path in paths[:max_paths_to_check * 2]:  # Check more for prioritization
+            path_lower = path.lower()
+            if any(pattern in path_lower for pattern in tech_priority_patterns):
+                prioritized_paths.append(path)
+            else:
+                regular_paths.append(path)
+        
+        # Take top priority paths plus some regular ones
+        interesting_paths = (prioritized_paths + regular_paths)[:max_paths_to_check]
+        
+        for path in interesting_paths:
+            try:
+                # Get full content for this path
+                path_url = urljoin(service.url, path)
+                response = await client.get(path_url, headers={"User-Agent": self.user_agents[0]})
+                
+                if response.status_code in [200, 201, 202]:
+                    # Run technology detection on this path's content
+                    path_detection_results = self.technology_matcher.detect_technologies(
+                        response_body=response.text[:10000],  # First 10KB
+                        headers=dict(response.headers),
+                        url_path=urlparse(path_url).path,
+                        fuzzy_threshold=80
+                    )
+                    
+                    # Add any new technologies found
+                    existing_techs = set(service.technologies)
+                    new_techs = []
+                    
+                    for result in path_detection_results:
+                        if result.name not in existing_techs:
+                            new_techs.append(result.name)
+                            service.technologies.append(result.name)
+                            debug_print(f"Found {result.name} on path {path} (confidence: {result.confidence:.2f})")
+                            
+                            # Add discovery paths from this newly detected tech
+                            if result.discovery_paths:
+                                service.discovered_paths.extend(result.discovery_paths)
+                    
+                    if new_techs:
+                        debug_print(f"Path {path} revealed new technologies: {new_techs}")
+                
+            except Exception as e:
+                debug_print(f"Error running tech detection on path {path}: {e}", level="WARNING")
+                continue
     
     async def _check_path_with_stats(self, client: httpx.AsyncClient, url: str, stats: dict) -> Tuple[str, bool]:
         """Check path with actual command logging"""
