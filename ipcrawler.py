@@ -749,6 +749,7 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
         
         # Try to find discovered hostnames from HTTP scan results
         discovered_hostnames = []
+        hostname_debug_info = []
         try:
             # Look for HTTP scan results in the same workspace
             results_file = workspace / "scan_results.json"
@@ -756,15 +757,40 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
                 with open(results_file, 'r') as f:
                     scan_data = json.load(f)
                     
+                hostname_debug_info.append(f"Scan data keys: {list(scan_data.keys())}")
+                
                 # Extract hostnames from HTTP results
                 if 'http_03' in scan_data:
                     http_data = scan_data['http_03']
+                    hostname_debug_info.append(f"HTTP data keys: {list(http_data.keys())}")
+                    
                     # Get tested hostnames (includes discovered ones)
                     tested_hostnames = http_data.get('tested_hostnames', [])
+                    hostname_debug_info.append(f"Tested hostnames: {tested_hostnames}")
+                    
+                    # Get services with URLs
+                    services = http_data.get('services', [])
+                    for service in services:
+                        if 'url' in service:
+                            from urllib.parse import urlparse
+                            parsed = urlparse(service['url'])
+                            if parsed.hostname and not parsed.hostname.replace('.', '').isdigit():
+                                discovered_hostnames.append(parsed.hostname)
+                    
                     # Filter out IP addresses to get actual hostnames
-                    discovered_hostnames = [h for h in tested_hostnames 
-                                          if not h.replace('.', '').isdigit() and '.' in h]
-        except Exception:
+                    ip_filtered = [h for h in tested_hostnames 
+                                  if not h.replace('.', '').isdigit() and '.' in h]
+                    discovered_hostnames.extend(ip_filtered)
+                    
+                    # Remove duplicates
+                    discovered_hostnames = list(set(discovered_hostnames))
+                    hostname_debug_info.append(f"Final discovered hostnames: {discovered_hostnames}")
+                else:
+                    hostname_debug_info.append("No http_03 data found")
+            else:
+                hostname_debug_info.append("No scan_results.json found")
+        except Exception as e:
+            hostname_debug_info.append(f"Error extracting hostnames: {e}")
             pass  # Continue with IP if hostname extraction fails
             
         wordlists_file = workspace / "recommended_wordlists.txt"
@@ -776,6 +802,9 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
             if discovered_hostnames:
                 f.write(f"# Discovered Hostnames: {', '.join(discovered_hostnames)}\n")
                 f.write(f"# Using hostname-based URLs for better enumeration\n")
+            else:
+                f.write("# No hostnames discovered - using IP addresses\n")
+                f.write("# Debug info: " + " | ".join(hostname_debug_info) + "\n")
             f.write("\n")
             
             for service_rec in recommendations:
@@ -793,6 +822,56 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
                         host_port = service_name.split(':')
                         if len(host_port) == 2:
                             host, port = host_port[0], host_port[1]
+                            port_num = int(port) if port.isdigit() else 80
+                            
+                            # Check if this is a non-web service that needs different tools
+                            is_non_web_service = port_num not in [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
+                            
+                            if is_non_web_service:
+                                f.write(f"# Port {port} ({service_rec.get('service_name', 'unknown')}) - Non-web service\n")
+                                f.write(f"# Appropriate tools for {service_rec.get('service_name', 'unknown')}:\n\n")
+                                
+                                # Process wordlists for non-web services
+                                for i, wl in enumerate(top_wordlists, 1):
+                                    wordlist_path = wl.get('path', '').strip()
+                                    wordlist_name = wl.get('wordlist', '').strip()
+                                    
+                                    # Clean up path
+                                    if wordlist_path.endswith('\\\\'):
+                                        wordlist_path = wordlist_path[:-1]
+                                    
+                                    # Use fallback if no path available
+                                    if not wordlist_path:
+                                        if port_num == 22:
+                                            wordlist_path = f"/usr/share/seclists/Passwords/Default-Credentials/{wordlist_name}"
+                                        else:
+                                            wordlist_path = f"/usr/share/seclists/Discovery/Web-Content/{wordlist_name}"
+                                    
+                                    f.write(f"# {i}. {wl['confidence']} CONFIDENCE - {wl['reason']}\n")
+                                    f.write(f"# Wordlist: {wordlist_name}\n")
+                                    f.write(f"# Path: {wordlist_path}\n\n")
+                                    
+                                    if port_num == 22 or 'ssh' in service_rec.get('service_name', '').lower():
+                                        # SSH-specific tools
+                                        f.write(f"# SSH Brute Force:\n")
+                                        f.write(f"hydra -l admin -P \"{wordlist_path}\" ssh://{host}\n")
+                                        f.write(f"ncrack -p22 --user admin -P \"{wordlist_path}\" {host}\n")
+                                        f.write(f"medusa -h {host} -u admin -P \"{wordlist_path}\" -M ssh\n\n")
+                                    elif port_num == 21 or 'ftp' in service_rec.get('service_name', '').lower():
+                                        # FTP-specific tools
+                                        f.write(f"# FTP Brute Force:\n")
+                                        f.write(f"hydra -l anonymous -P \"{wordlist_path}\" ftp://{host}\n")
+                                        f.write(f"ncrack -p21 --user anonymous -P \"{wordlist_path}\" {host}\n\n")
+                                    elif port_num in [3306, 5432, 1433] or any(db in service_rec.get('service_name', '').lower() for db in ['mysql', 'postgres', 'mssql']):
+                                        # Database-specific tools
+                                        f.write(f"# Database Brute Force:\n")
+                                        f.write(f"hydra -l root -P \"{wordlist_path}\" mysql://{host}\n\n")
+                                    else:
+                                        f.write(f"# Generic service enumeration - manual investigation required\n\n")
+                                    
+                                    f.write(f"{'='*40}\n\n")
+                                
+                                continue  # Skip web fuzzing for non-web services
                             
                             # Use discovered hostname if available, otherwise use the host from service
                             target_host = host
@@ -801,14 +880,14 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
                                 target_host = discovered_hostnames[0]
                                 f.write(f"# Using discovered hostname: {target_host} (instead of {host})\n")
                             
-                            # Determine protocol
-                            if port in ['443', '8443']:
-                                if port in ['443']:
+                            # Determine protocol for web services
+                            if port_num in [443, 8443]:
+                                if port_num == 443:
                                     url = f"https://{target_host}"  # Standard HTTPS port
                                 else:
                                     url = f"https://{target_host}:{port}"
                             else:
-                                if port in ['80']:
+                                if port_num == 80:
                                     url = f"http://{target_host}"  # Standard HTTP port
                                 else:
                                     url = f"http://{target_host}:{port}"
@@ -819,30 +898,49 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
                     
                     for i, wl in enumerate(top_wordlists, 1):
                         wordlist_path = wl.get('path', '').strip()
+                        wordlist_name = wl.get('wordlist', '').strip()
+                        
                         # Remove any trailing characters that might cause issues
                         if wordlist_path.endswith('\\'):
                             wordlist_path = wordlist_path[:-1]
                         
+                        # Validate path matches wordlist name
+                        if wordlist_path and wordlist_name:
+                            # Check if the filename in the path matches the wordlist name
+                            import os
+                            path_filename = os.path.basename(wordlist_path)
+                            if path_filename != wordlist_name:
+                                f.write(f"# WARNING: Wordlist name mismatch - Name: {wordlist_name}, Path points to: {path_filename}\\n")
+                                # Use the path since it's likely more accurate
+                                actual_wordlist_name = path_filename
+                            else:
+                                actual_wordlist_name = wordlist_name
+                        else:
+                            actual_wordlist_name = wordlist_name or "unknown.txt"
+                        
                         # Use fallback if no path available
                         if not wordlist_path:
-                            wordlist_path = f"/usr/share/seclists/Discovery/Web-Content/{wl['wordlist']}"
+                            wordlist_path = f"/usr/share/seclists/Discovery/Web-Content/{actual_wordlist_name}"
                         
                         confidence = wl['confidence']
                         reason = wl['reason']
                         
                         f.write(f"# {i}. {confidence} CONFIDENCE - {reason}\n")
-                        f.write(f"# Wordlist: {wl['wordlist']}\n")
+                        f.write(f"# Wordlist: {actual_wordlist_name}\n")
                         f.write(f"# Path: {wordlist_path}\n\n")
+                        
+                        # Create safe filename for output (remove extension and special chars)
+                        safe_filename = actual_wordlist_name.replace('.txt', '').replace('.', '_').replace('/', '_')
                         
                         # Add multiple tool command examples
                         f.write("# FEROXBUSTER (Recommended):\n")
-                        f.write(f"feroxbuster --url {url} --wordlist \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 --depth 3 -o ferox_{wl['wordlist']}_results.txt\n\n")
+                        f.write(f"feroxbuster --url {url} --wordlist \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 --depth 3 -o ferox_{safe_filename}_results.txt\n\n")
                         
                         f.write("# GOBUSTER:\n")
-                        f.write(f"gobuster dir -u {url} -w \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 -b 301,302,403 -o gobuster_{wl['wordlist']}_results.txt\n\n")
+                        f.write(f"gobuster dir -u {url} -w \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 -b 301,302,403 -o gobuster_{safe_filename}_results.txt\n\n")
                         
                         f.write("# FFUF:\n")
-                        f.write(f"ffuf -u {url}/FUZZ -w \"{wordlist_path}\" -e .php,.html,.txt,.js,.asp,.aspx,.jsp -t 50 -fc 301,302,403 -o ffuf_{wl['wordlist']}_results.json\n\n")
+                        f.write(f"ffuf -u {url}/FUZZ -w \"{wordlist_path}\" -e .php,.html,.txt,.js,.asp,.aspx,.jsp -t 50 -fc 301,302,403 -o ffuf_{safe_filename}_results.json\n\n")
                         
                         f.write(f"{'='*40}\n\n")
         
