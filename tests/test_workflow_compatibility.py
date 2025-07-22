@@ -262,7 +262,8 @@ async def test_full_workflow_integration():
     if detailed_result.success and detailed_result.data:
         for host in detailed_result.data.get('hosts', []):
             for port in host.get('ports', []):
-                if 'http' in port.get('service', '').lower():
+                service = port.get('service') or ''
+                if 'http' in service.lower():
                     http_ports.append(port['port'])
     
     # Workflow 03: HTTP scan

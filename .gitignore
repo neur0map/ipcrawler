@@ -62,6 +62,12 @@ logs/
 *.temp
 .cache/
 
+# Coverage reports
+coverage.xml
+htmlcov/
+.coverage
+.coverage.*
+
 # Security sensitive files
 *.key
 *.pem

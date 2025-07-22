@@ -83,6 +83,15 @@ class HTTPAdvancedScanner(BaseWorkflow):
         start_time = datetime.now()
         discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
+        # Validate input first
+        is_valid, validation_errors = self.validate_input(target, **kwargs)
+        if not is_valid:
+            return WorkflowResult(
+                success=False,
+                error=f"Input validation failed: {'; '.join(validation_errors)}",
+                execution_time=(datetime.now() - start_time).total_seconds()
+            )
+        
         # Store the original IP target for connection purposes
         self.original_ip = target
         

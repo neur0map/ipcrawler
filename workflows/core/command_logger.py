@@ -16,7 +16,15 @@ class CommandLogger:
     
     def _ensure_workspace_exists(self):
         """Ensure the workspace directory exists"""
-        self.workspace_dir.mkdir(exist_ok=True)
+        try:
+            self.workspace_dir.mkdir(exist_ok=True)
+        except PermissionError:
+            # If we can't create workspaces, use a temp directory
+            import tempfile
+            temp_dir = Path(tempfile.gettempdir()) / "ipcrawler_workspaces"
+            temp_dir.mkdir(exist_ok=True)
+            self.workspace_dir = temp_dir
+            self.commands_file = self.workspace_dir / "commands.txt"
     
     def log_command(self, 
                    workflow_name: str,
@@ -37,36 +45,44 @@ class CommandLogger:
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         
         with self._lock:
-            with open(self.commands_file, "a", encoding="utf-8") as f:
-                # Status indicator with color-like symbols
-                status_symbol = {
-                    "started": "⚡",
-                    "completed": "✅", 
-                    "failed": "❌"
-                }.get(status.lower(), "•")
-                
-                f.write(f"{status_symbol} [{timestamp}] {command}\n")
-                
-                if status.lower() == "completed" and output:
-                    # Clean and format output - show FULL output for complete transparency
-                    clean_output = output.strip()
-                    f.write(f"   └─ Result: {clean_output}\n")
-                
-                if error:
-                    f.write(f"   └─ ERROR: {error}\n")
-                
-                f.write("\n")
+            try:
+                with open(self.commands_file, "a", encoding="utf-8") as f:
+                    # Status indicator with color-like symbols
+                    status_symbol = {
+                        "started": "⚡",
+                        "completed": "✅", 
+                        "failed": "❌"
+                    }.get(status.lower(), "•")
+                    
+                    f.write(f"{status_symbol} [{timestamp}] {command}\n")
+                    
+                    if status.lower() == "completed" and output:
+                        # Clean and format output - show FULL output for complete transparency
+                        clean_output = output.strip()
+                        f.write(f"   └─ Result: {clean_output}\n")
+                    
+                    if error:
+                        f.write(f"   └─ ERROR: {error}\n")
+                    
+                    f.write("\n")
+            except (PermissionError, OSError):
+                # Silently ignore logging errors in tests/restricted environments
+                pass
     
     def log_workflow_start(self, workflow_name: str, target: Optional[str] = None):
         """Log when a workflow starts"""
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         with self._lock:
-            with open(self.commands_file, "a", encoding="utf-8") as f:
-                f.write(f"\n🚀 [{timestamp}] Starting {workflow_name.upper()} workflow")
-                if target:
-                    f.write(f" → {target}")
-                f.write(f"\n{'─' * 60}\n")
+            try:
+                with open(self.commands_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n🚀 [{timestamp}] Starting {workflow_name.upper()} workflow")
+                    if target:
+                        f.write(f" → {target}")
+                    f.write(f"\n{'─' * 60}\n")
+            except (PermissionError, OSError):
+                # Silently ignore logging errors in tests/restricted environments
+                pass
     
     def log_workflow_end(self, workflow_name: str, success: bool, execution_time: Optional[float] = None):
         """Log when a workflow ends"""
@@ -75,11 +91,15 @@ class CommandLogger:
         status_text = "COMPLETED" if success else "FAILED"
         
         with self._lock:
-            with open(self.commands_file, "a", encoding="utf-8") as f:
-                f.write(f"{status_symbol} [{timestamp}] {workflow_name.upper()} {status_text}")
-                if execution_time:
-                    f.write(f" (took {execution_time:.1f}s)")
-                f.write(f"\n{'─' * 60}\n\n")
+            try:
+                with open(self.commands_file, "a", encoding="utf-8") as f:
+                    f.write(f"{status_symbol} [{timestamp}] {workflow_name.upper()} {status_text}")
+                    if execution_time:
+                        f.write(f" (took {execution_time:.1f}s)")
+                    f.write(f"\n{'─' * 60}\n\n")
+            except (PermissionError, OSError):
+                # Silently ignore logging errors in tests/restricted environments
+                pass
     
     def clear_log(self):
         """Clear the commands log file"""
