@@ -2,7 +2,7 @@
 
 <h1 align="center">
   <br>
-  <img src="@logo.png" alt="IPCrawler" width="200">
+  <img src="media/logo.png" alt="IPCrawler" width="200">
   <br>
   IPCrawler
   <br>
