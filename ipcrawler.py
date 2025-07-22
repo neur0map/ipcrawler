@@ -46,6 +46,7 @@ from config import config
 from utils.results import result_manager
 from utils.next_steps_generator import generate_next_steps
 from utils.debug import debug_print
+from models.wordlist_config import DEFAULT_WORDLIST_CONFIG, ServiceType
 
 app = typer.Typer(
     name="ipcrawler",
@@ -747,21 +748,47 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
         # Extract target IP for commands
         target_ip = smartlist_data.get('target', 'TARGET')
         
-        # Try to find discovered hostnames from HTTP scan results
+        # Try to find discovered hostnames from multiple possible sources
         discovered_hostnames = []
         hostname_debug_info = []
+        
         try:
-            # Look for HTTP scan results in the same workspace
-            results_file = workspace / "scan_results.json"
-            if results_file.exists():
-                with open(results_file, 'r') as f:
-                    scan_data = json.load(f)
-                    
+            # Look for scan results in multiple possible locations/formats
+            possible_files = [
+                workspace / "scan_results.json",
+                workspace / "results.json", 
+                workspace / "http_results.json",
+                workspace / "nmap_results.json"
+            ]
+            
+            scan_data = None
+            results_file_found = None
+            
+            # Try to find any results file
+            for results_file in possible_files:
+                if results_file.exists():
+                    try:
+                        with open(results_file, 'r') as f:
+                            scan_data = json.load(f)
+                        results_file_found = results_file
+                        hostname_debug_info.append(f"Found results file: {results_file.name}")
+                        break
+                    except:
+                        continue
+            
+            if scan_data:
                 hostname_debug_info.append(f"Scan data keys: {list(scan_data.keys())}")
                 
                 # Extract hostnames from HTTP results
+                http_data = None
                 if 'http_03' in scan_data:
                     http_data = scan_data['http_03']
+                elif 'http' in scan_data:
+                    http_data = scan_data['http']
+                elif 'services' in scan_data:
+                    http_data = scan_data  # Direct format
+                
+                if http_data:
                     hostname_debug_info.append(f"HTTP data keys: {list(http_data.keys())}")
                     
                     # Get tested hostnames (includes discovered ones)
@@ -782,13 +809,36 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
                                   if not h.replace('.', '').isdigit() and '.' in h]
                     discovered_hostnames.extend(ip_filtered)
                     
+                    # Also try to extract from nmap hostnames
+                    if 'nmap_02' in scan_data or 'nmap' in scan_data:
+                        nmap_data = scan_data.get('nmap_02', scan_data.get('nmap', {}))
+                        hosts = nmap_data.get('hosts', [])
+                        for host in hosts:
+                            hostnames = host.get('hostnames', [])
+                            for hostname_info in hostnames:
+                                if isinstance(hostname_info, dict):
+                                    name = hostname_info.get('name', '')
+                                elif isinstance(hostname_info, str):
+                                    name = hostname_info
+                                else:
+                                    continue
+                                if name and not name.replace('.', '').isdigit() and '.' in name:
+                                    discovered_hostnames.append(name)
+                    
                     # Remove duplicates
                     discovered_hostnames = list(set(discovered_hostnames))
                     hostname_debug_info.append(f"Final discovered hostnames: {discovered_hostnames}")
                 else:
-                    hostname_debug_info.append("No http_03 data found")
+                    hostname_debug_info.append("No HTTP data found in scan results")
             else:
-                hostname_debug_info.append("No scan_results.json found")
+                hostname_debug_info.append("No scan results files found in workspace")
+                # Check what files are actually in the workspace
+                try:
+                    workspace_files = [f.name for f in workspace.iterdir() if f.is_file()]
+                    hostname_debug_info.append(f"Workspace files: {workspace_files}")
+                except:
+                    hostname_debug_info.append("Could not list workspace files")
+                    
         except Exception as e:
             hostname_debug_info.append(f"Error extracting hostnames: {e}")
             pass  # Continue with IP if hostname extraction fails
@@ -840,34 +890,57 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
                                     if wordlist_path.endswith('\\\\'):
                                         wordlist_path = wordlist_path[:-1]
                                     
-                                    # Use fallback if no path available
+                                    # Use fallback if no path available OR if path is inappropriate for SSH
                                     if not wordlist_path:
                                         if port_num == 22:
                                             wordlist_path = f"/usr/share/seclists/Passwords/Default-Credentials/{wordlist_name}"
                                         else:
                                             wordlist_path = f"/usr/share/seclists/Discovery/Web-Content/{wordlist_name}"
+                                    elif port_num == 22 and not DEFAULT_WORDLIST_CONFIG.is_wordlist_appropriate(wordlist_path, ServiceType.SSH):
+                                        # Override inappropriate SSH wordlists
+                                        f.write(f"# WARNING: SmartList suggested inappropriate wordlist for SSH: {wordlist_path}\n")
+                                        f.write(f"# Using appropriate SSH credential wordlist instead\n")
+                                        wordlist_path = DEFAULT_WORDLIST_CONFIG.get_fallback_wordlist(ServiceType.SSH)
+                                        wordlist_name = "ssh-default-passwords.txt"
                                     
                                     f.write(f"# {i}. {wl['confidence']} CONFIDENCE - {wl['reason']}\n")
                                     f.write(f"# Wordlist: {wordlist_name}\n")
                                     f.write(f"# Path: {wordlist_path}\n\n")
                                     
+                                    # Determine service type for tool selection
+                                    service_type = ServiceType.UNKNOWN
                                     if port_num == 22 or 'ssh' in service_rec.get('service_name', '').lower():
-                                        # SSH-specific tools
+                                        service_type = ServiceType.SSH
+                                    elif port_num == 21 or 'ftp' in service_rec.get('service_name', '').lower():
+                                        service_type = ServiceType.FTP
+                                    elif port_num == 3306 or 'mysql' in service_rec.get('service_name', '').lower():
+                                        service_type = ServiceType.MYSQL
+                                    elif port_num == 5432 or 'postgres' in service_rec.get('service_name', '').lower():
+                                        service_type = ServiceType.POSTGRESQL
+                                    elif port_num == 1433 or 'mssql' in service_rec.get('service_name', '').lower():
+                                        service_type = ServiceType.MSSQL
+                                    
+                                    # Generate appropriate commands based on service type
+                                    if service_type == ServiceType.SSH:
                                         f.write(f"# SSH Brute Force:\n")
                                         f.write(f"hydra -l admin -P \"{wordlist_path}\" ssh://{host}\n")
                                         f.write(f"ncrack -p22 --user admin -P \"{wordlist_path}\" {host}\n")
                                         f.write(f"medusa -h {host} -u admin -P \"{wordlist_path}\" -M ssh\n\n")
-                                    elif port_num == 21 or 'ftp' in service_rec.get('service_name', '').lower():
-                                        # FTP-specific tools
+                                    elif service_type == ServiceType.FTP:
                                         f.write(f"# FTP Brute Force:\n")
                                         f.write(f"hydra -l anonymous -P \"{wordlist_path}\" ftp://{host}\n")
                                         f.write(f"ncrack -p21 --user anonymous -P \"{wordlist_path}\" {host}\n\n")
-                                    elif port_num in [3306, 5432, 1433] or any(db in service_rec.get('service_name', '').lower() for db in ['mysql', 'postgres', 'mssql']):
-                                        # Database-specific tools
+                                    elif service_type in [ServiceType.MYSQL, ServiceType.POSTGRESQL, ServiceType.MSSQL]:
                                         f.write(f"# Database Brute Force:\n")
-                                        f.write(f"hydra -l root -P \"{wordlist_path}\" mysql://{host}\n\n")
+                                        if service_type == ServiceType.MYSQL:
+                                            f.write(f"hydra -l root -P \"{wordlist_path}\" mysql://{host}\n\n")
+                                        elif service_type == ServiceType.POSTGRESQL:
+                                            f.write(f"hydra -l postgres -P \"{wordlist_path}\" postgres://{host}\n\n")
+                                        else:  # MSSQL
+                                            f.write(f"hydra -l sa -P \"{wordlist_path}\" mssql://{host}\n\n")
                                     else:
-                                        f.write(f"# Generic service enumeration - manual investigation required\n\n")
+                                        f.write(f"# Generic service enumeration - manual investigation required\n")
+                                        f.write(f"# Service type: {service_type.value}\n\n")
                                     
                                     f.write(f"{'='*40}\n\n")
                                 
@@ -950,6 +1023,10 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
     except Exception as e:
         # Don't fail the whole process if file saving fails
         debug_print(f"Failed to save wordlist paths: {e}")
+
+
+# Wordlist validation functions have been moved to models/wordlist_config.py
+# This provides a cleaner, more maintainable Pydantic-based configuration system
 
 
 def display_smartlist_summary(smartlist_data: dict):
