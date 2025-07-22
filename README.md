@@ -83,7 +83,7 @@ AI-powered target profiling identifies technologies, frameworks & services
 Complete analysis in 10-60 seconds with parallel processing
 </td>
 <td align="center" width="33%">
-<img width="90" height="90" src="https://img.icons8.com/fluency/96/bullseye.png" alt="Accuracy">
+<img width="90" height="90" src="https://img.icons8.com/fluency/96/target.png" alt="Accuracy">
 <br><b>85%+ Hit Rate</b><br>
 Context-aware recommendations dramatically improve discovery
 </td>
