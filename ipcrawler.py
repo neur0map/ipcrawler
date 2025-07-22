@@ -737,34 +737,78 @@ def generate_next_steps_file(workspace: Path):
 
 
 def save_wordlist_paths(smartlist_data: dict, workspace: Path):
-    """Save recommended wordlist paths to a file for easy copy-paste"""
+    """Save recommended wordlist paths and complete tool commands to a file for easy copy-paste"""
     try:
         recommendations = smartlist_data.get('wordlist_recommendations', [])
         if not recommendations:
             return
         
+        # Extract target IP for commands
+        target_ip = smartlist_data.get('target', 'TARGET')
+        
         wordlists_file = workspace / "recommended_wordlists.txt"
         
-        with open(wordlists_file, 'w') as f:
+        with open(wordlists_file, 'w', encoding='utf-8') as f:
             f.write("# IPCrawler Recommended Wordlists\n")
-            f.write("# Copy these paths directly to your fuzzing tools\n\n")
+            f.write("# Ready-to-copy commands with recommended wordlists\n")
+            f.write(f"# Target: {target_ip}\n\n")
             
             for service_rec in recommendations:
                 service_name = service_rec['service']
                 tech = service_rec.get('detected_technology', 'Unknown')
-                top_wordlists = service_rec.get('top_wordlists', [])[:5]  # Top 5
+                top_wordlists = service_rec.get('top_wordlists', [])[:3]  # Top 3
                 
                 if top_wordlists:
-                    f.write(f"# {service_name} ({tech})\n")
+                    f.write(f"\n{'='*60}\n")
+                    f.write(f"# {service_name.upper()} ({tech})\n")
+                    f.write(f"{'='*60}\n\n")
+                    
+                    # Extract port and protocol for URLs
+                    if ':' in service_name:
+                        host_port = service_name.split(':')
+                        if len(host_port) == 2:
+                            host, port = host_port[0], host_port[1]
+                            # Determine protocol
+                            if port in ['443', '8443']:
+                                url = f"https://{host}:{port}"
+                            else:
+                                url = f"http://{host}:{port}"
+                        else:
+                            url = f"http://{service_name}"
+                    else:
+                        url = f"http://{service_name}"
+                    
                     for i, wl in enumerate(top_wordlists, 1):
-                        path = wl.get('path') or wl['wordlist']
+                        wordlist_path = wl.get('path', '').strip()
+                        # Remove any trailing characters that might cause issues
+                        if wordlist_path.endswith('\\'):
+                            wordlist_path = wordlist_path[:-1]
+                        
+                        # Use fallback if no path available
+                        if not wordlist_path:
+                            wordlist_path = f"/usr/share/seclists/Discovery/Web-Content/{wl['wordlist']}"
+                        
                         confidence = wl['confidence']
                         reason = wl['reason']
-                        f.write(f"# {i}. {confidence} - {reason}\n")
-                        f.write(f"{path}\n\n")
+                        
+                        f.write(f"# {i}. {confidence} CONFIDENCE - {reason}\n")
+                        f.write(f"# Wordlist: {wl['wordlist']}\n")
+                        f.write(f"# Path: {wordlist_path}\n\n")
+                        
+                        # Add multiple tool command examples
+                        f.write("# FEROXBUSTER (Recommended):\n")
+                        f.write(f"feroxbuster --url {url} --wordlist \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 --depth 3 -o ferox_{wl['wordlist']}_results.txt\n\n")
+                        
+                        f.write("# GOBUSTER:\n")
+                        f.write(f"gobuster dir -u {url} -w \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 -o gobuster_{wl['wordlist']}_results.txt\n\n")
+                        
+                        f.write("# FFUF:\n")
+                        f.write(f"ffuf -u {url}/FUZZ -w \"{wordlist_path}\" -e .php,.html,.txt,.js,.asp,.aspx,.jsp -t 50 -o ffuf_{wl['wordlist']}_results.json\n\n")
+                        
+                        f.write(f"{'='*40}\n\n")
         
-        console.print(f"\n📁 Wordlist paths saved to: [bold]{wordlists_file}[/bold]")
-        console.print("   Copy these paths directly to feroxbuster, gobuster, ffuf, etc.")
+        console.print(f"\n📁 Wordlist commands saved to: [bold]{wordlists_file}[/bold]")
+        console.print("   Complete feroxbuster/gobuster/ffuf commands ready to copy-paste")
         
     except Exception as e:
         # Don't fail the whole process if file saving fails

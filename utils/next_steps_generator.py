@@ -76,7 +76,43 @@ class NextStepsGenerator:
     
     def _extract_basic_info(self):
         """Extract basic target and port information"""
-        if 'nmap_02' in self.scan_results:
+        # Try to extract target from SmartList data first
+        if 'smartlist_04' in self.scan_results:
+            smartlist_data = self.scan_results['smartlist_04']
+            self.target = smartlist_data.get('target', '')
+            
+            # Extract services from SmartList recommendations
+            recommendations = smartlist_data.get('wordlist_recommendations', [])
+            for service_rec in recommendations:
+                service_str = service_rec.get('service', '')
+                if ':' in service_str:
+                    try:
+                        # Parse format like "10.129.237.241:22" or "planning.htb:80"
+                        host, port_str = service_str.split(':', 1)
+                        port = int(port_str)
+                        
+                        # Update target if not already set
+                        if not self.target and host:
+                            self.target = host
+                        
+                        port_data = {
+                            'port': port,
+                            'protocol': 'tcp',  # Default assumption
+                            'service': service_rec.get('service_name', 'unknown'),
+                            'version': '',
+                            'product': ''
+                        }
+                        self.open_ports.append(port_data)
+                        
+                        # Identify high-value services
+                        if self._is_high_value_service(port_data):
+                            self.high_value_services.append(port_data)
+                    except ValueError:
+                        # Skip malformed service strings
+                        continue
+        
+        # Fallback to nmap data if available
+        if 'nmap_02' in self.scan_results and not self.target:
             nmap_data = self.scan_results['nmap_02']
             hosts = nmap_data.get('hosts', [])
             
@@ -106,8 +142,13 @@ class NextStepsGenerator:
         
         for service_rec in recommendations:
             tech = service_rec.get('detected_technology')
-            if tech and tech != 'Unknown':
-                self.detected_technologies.add(tech)
+            if tech and tech != 'Unknown' and tech.lower() != 'none':
+                self.detected_technologies.add(tech.lower())
+            
+            # Also extract from service name
+            service_name = service_rec.get('service_name', '')
+            if service_name and service_name.lower() not in ['unknown', 'none']:
+                self.detected_technologies.add(service_name.lower())
     
     def _extract_http_info(self):
         """Extract HTTP service information and technologies"""
@@ -399,14 +440,19 @@ class NextStepsGenerator:
     def _generate_vulnerability_commands(self):
         """Generate vulnerability assessment commands"""
         
-        # General vulnerability scan
-        port_list = ",".join([str(p['port']) for p in self.open_ports])
+        # Always add general vulnerability scans even if no specific ports found
+        if self.open_ports:
+            port_list = ",".join([str(p['port']) for p in self.open_ports])
+        else:
+            port_list = "80,443,22,21,25,53,110,143,993,995,587,465"
+        
+        target = self.target if self.target else "TARGET"
         
         self.commands.append(CommandRecommendation(
             category="Vulnerability Assessment",
             tool="nuclei",
-            command=f"nuclei -u {self.target} -p {port_list} -t ~/nuclei-templates/cves/ -severity critical,high,medium",
-            description=f"CVE-based vulnerability scan on {self.target}",
+            command=f"nuclei -u {target} -p {port_list} -t ~/nuclei-templates/cves/ -severity critical,high,medium",
+            description=f"CVE-based vulnerability scan on {target}",
             priority=1,
             confidence="HIGH",
             reasoning="Comprehensive vulnerability assessment for discovered services",
@@ -418,7 +464,7 @@ class NextStepsGenerator:
         self.commands.append(CommandRecommendation(
             category="Vulnerability Assessment",
             tool="nmap",
-            command=f"nmap -p{port_list} --script vuln {self.target}",
+            command=f"nmap -p{port_list} --script vuln {target}",
             description=f"Nmap vulnerability scripts on discovered ports",
             priority=2,
             confidence="HIGH",
