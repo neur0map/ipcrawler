@@ -2,7 +2,7 @@
 
 <h1 align="center">
   <br>
-  <img src="https://raw.githubusercontent.com/neur0map/ipcrawler/main/assets/logo.png" alt="IPCrawler" width="200">
+  <img src="@logo.png" alt="IPCrawler" width="200">
   <br>
   IPCrawler
   <br>
