@@ -47,6 +47,17 @@ try:
 except ImportError:
     PORT_DB_AVAILABLE = False
 
+# Technology database integration
+try:
+    from database.technologies import (
+        load_technology_database_from_file,
+        TechnologyMatcher,
+        ScannerConfigManager
+    )
+    TECH_DB_AVAILABLE = True
+except ImportError:
+    TECH_DB_AVAILABLE = False
+
 # SmartList integration
 try:
     from src.core.scorer import (
@@ -75,6 +86,9 @@ class HTTPAdvancedScanner(BaseWorkflow):
         ]
         self.config = self._load_config()
         self.port_database = None
+        self.technology_database = None
+        self.technology_matcher = None
+        self.scanner_config_manager = None
         
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config.yaml"""
@@ -100,6 +114,34 @@ class HTTPAdvancedScanner(BaseWorkflow):
         except Exception as e:
             debug_print(f"Could not load port database: {e}", level="WARNING")
             self.port_database = {}
+    
+    def _load_technology_database(self):
+        """Load technology database for intelligent detection"""
+        if not TECH_DB_AVAILABLE or self.technology_database is not None:
+            return
+            
+        try:
+            db_path = Path(__file__).parent.parent.parent / "database" / "technologies" / "tech_db.json"
+            self.technology_database = load_technology_database_from_file(db_path)
+            self.technology_matcher = TechnologyMatcher(self.technology_database)
+            debug_print("Technology database loaded successfully")
+        except Exception as e:
+            debug_print(f"Could not load technology database: {e}", level="WARNING")
+            self.technology_database = None
+            self.technology_matcher = None
+    
+    def _load_scanner_configuration(self):
+        """Load scanner configuration database"""
+        if not TECH_DB_AVAILABLE or self.scanner_config_manager is not None:
+            return
+            
+        try:
+            config_path = Path(__file__).parent.parent.parent / "database" / "technologies" / "scanner_config.json"
+            self.scanner_config_manager = ScannerConfigManager(config_path)
+            debug_print("Scanner configuration loaded successfully")
+        except Exception as e:
+            debug_print(f"Could not load scanner configuration: {e}", level="WARNING")
+            self.scanner_config_manager = None
     
     def _get_service_specific_paths(self, port: int) -> List[str]:
         """Get service-specific paths from port database"""
@@ -146,6 +188,12 @@ class HTTPAdvancedScanner(BaseWorkflow):
             
             # Load port database for enhanced service discovery
             self._load_port_database()
+            
+            # Load technology database for enhanced detection
+            self._load_technology_database()
+            
+            # Load scanner configuration database
+            self._load_scanner_configuration()
             
             # DNS enumeration first
             dns_info = await self._dns_enumeration(target)
@@ -444,11 +492,17 @@ class HTTPAdvancedScanner(BaseWorkflow):
             except:
                 pass
             
-            # Common subdomain patterns (no wordlist)
-            common_patterns = [
-                'www', 'mail', 'ftp', 'admin', 'portal', 'api', 'dev',
-                'staging', 'test', 'prod', 'vpn', 'remote', 'secure'
-            ]
+            # Common subdomain patterns from database
+            common_patterns = []
+            if self.scanner_config_manager:
+                common_patterns = self.scanner_config_manager.get_common_subdomain_patterns()
+            
+            # Fallback patterns if database unavailable
+            if not common_patterns:
+                common_patterns = [
+                    'www', 'mail', 'ftp', 'admin', 'portal', 'api', 'dev',
+                    'staging', 'test', 'prod', 'vpn', 'remote', 'secure'
+                ]
             
             tasks = []
             for pattern in common_patterns:
@@ -724,15 +778,21 @@ class HTTPAdvancedScanner(BaseWorkflow):
         discovered = []
         paths_tested = 0
         
-        # Common application patterns (always included)
-        common_paths = [
-            '/robots.txt', '/sitemap.xml', '/.well-known/security.txt',
-            '/api/', '/api/v1/', '/api/v2/', '/graphql',
-            '/.git/config', '/.env', '/config.php', '/wp-config.php',
-            '/admin/', '/login', '/dashboard', '/console',
-            '/swagger-ui/', '/api-docs/', '/docs/',
-            '/.DS_Store', '/thumbs.db', '/web.config'
-        ]
+        # Common application patterns from database
+        common_paths = []
+        if self.scanner_config_manager:
+            common_paths = self.scanner_config_manager.get_common_application_paths()
+        
+        # Fallback patterns if database unavailable
+        if not common_paths:
+            common_paths = [
+                '/robots.txt', '/sitemap.xml', '/.well-known/security.txt',
+                '/api/', '/api/v1/', '/api/v2/', '/graphql',
+                '/.git/config', '/.env', '/config.php', '/wp-config.php',
+                '/admin/', '/login', '/dashboard', '/console',
+                '/swagger-ui/', '/api-docs/', '/docs/',
+                '/.DS_Store', '/thumbs.db', '/web.config'
+            ]
         
         # Add service-specific paths from port database
         try:
@@ -755,9 +815,18 @@ class HTTPAdvancedScanner(BaseWorkflow):
         discovered.extend(valid_common)
         paths_tested += len(common_paths)
         
-        # Technology-specific paths (always included)
+        # Technology-specific paths from database
         tech_paths = []
-        if service.server:
+        if service.server and self.scanner_config_manager:
+            server_lower = service.server.lower()
+            for server_type in ['apache', 'nginx', 'tomcat', 'iis', 'jetty']:
+                if server_type in server_lower:
+                    server_paths = self.scanner_config_manager.get_server_specific_paths(server_type)
+                    tech_paths.extend(server_paths)
+                    break
+        
+        # Fallback server-specific paths if database unavailable
+        elif service.server:
             server_lower = service.server.lower()
             if 'apache' in server_lower:
                 tech_paths.extend(['/server-status', '/server-info'])
@@ -829,18 +898,24 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 if not parsed.netloc or parsed.netloc == '':
                     paths.append(parsed.path)
         
-        # Enhanced monitoring detection - look for specific patterns in HTML
-        monitoring_patterns = [
-            r'/grafana[^"\']*',           # Any path containing /grafana
-            r'/dashboard[^"\']*',         # Dashboard paths
-            r'/monitoring[^"\']*',        # Monitoring paths
-            r'/metrics[^"\']*',           # Metrics paths
-            r'/prometheus[^"\']*',        # Prometheus paths
-            r'/kibana[^"\']*',            # Kibana paths
-            r'/api/health[^"\']*',        # Health check APIs
-            r'/api/v1/query[^"\']*',      # Prometheus API
-            r'data-grafana[^=]*=["\'][^"\']+',  # Grafana data attributes
-        ]
+        # Enhanced monitoring detection from database
+        monitoring_patterns = []
+        if self.scanner_config_manager:
+            monitoring_patterns = self.scanner_config_manager.get_monitoring_html_patterns()
+        
+        # Fallback patterns if database unavailable
+        if not monitoring_patterns:
+            monitoring_patterns = [
+                r'/grafana[^"\']*',           # Any path containing /grafana
+                r'/dashboard[^"\']*',         # Dashboard paths
+                r'/monitoring[^"\']*',        # Monitoring paths
+                r'/metrics[^"\']*',           # Metrics paths
+                r'/prometheus[^"\']*',        # Prometheus paths
+                r'/kibana[^"\']*',            # Kibana paths
+                r'/api/health[^"\']*',        # Health check APIs
+                r'/api/v1/query[^"\']*',      # Prometheus API
+                r'data-grafana[^=]*=["\'][^"\']+',  # Grafana data attributes
+            ]
         
         for pattern in monitoring_patterns:
             matches = re.findall(pattern, html_content, re.IGNORECASE)
@@ -852,13 +927,19 @@ class HTTPAdvancedScanner(BaseWorkflow):
                         paths.append(clean_path)
                         debug_print(f"Found monitoring path in HTML: {clean_path}")
         
-        # Look for JavaScript variables or config that might contain paths
-        js_patterns = [
-            r'grafanaUrl["\']?\s*:\s*["\']([^"\']+)["\']',     # grafanaUrl config
-            r'apiUrl["\']?\s*:\s*["\']([^"\']+)["\']',         # API URL configs
-            r'baseUrl["\']?\s*:\s*["\']([^"\']+)["\']',        # Base URL configs
-            r'window\.__grafana[^}]*url["\']?\s*:\s*["\']([^"\']+)["\']',  # Window grafana config
-        ]
+        # JavaScript variables or config from database
+        js_patterns = []
+        if self.scanner_config_manager:
+            js_patterns = self.scanner_config_manager.get_javascript_config_patterns()
+        
+        # Fallback patterns if database unavailable
+        if not js_patterns:
+            js_patterns = [
+                r'grafanaUrl["\']?\s*:\s*["\']([^"\']+)["\']',     # grafanaUrl config
+                r'apiUrl["\']?\s*:\s*["\']([^"\']+)["\']',         # API URL configs
+                r'baseUrl["\']?\s*:\s*["\']([^"\']+)["\']',        # Base URL configs
+                r'window\.__grafana[^}]*url["\']?\s*:\s*["\']([^"\']+)["\']',  # Window grafana config
+            ]
         
         for pattern in js_patterns:
             matches = re.findall(pattern, html_content, re.IGNORECASE)
@@ -934,8 +1015,14 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 response = await client.get(url, headers={"User-Agent": self.user_agents[0]})
                 stats['status_counts'][response.status_code] = stats['status_counts'].get(response.status_code, 0) + 1
             
-            # Use strict validation by default - only meaningful, accessible content
-            valid_status_codes = [200, 201, 202, 204, 301, 302, 307, 308, 401, 403]
+            # Get valid status codes from database
+            valid_status_codes = []
+            if self.scanner_config_manager:
+                valid_status_codes = self.scanner_config_manager.get_valid_status_codes()
+            
+            # Fallback if database unavailable
+            if not valid_status_codes:
+                valid_status_codes = [200, 201, 202, 204, 301, 302, 307, 308, 401, 403]
             
             # Exclude common false positives
             if response.status_code not in valid_status_codes:
@@ -989,20 +1076,26 @@ class HTTPAdvancedScanner(BaseWorkflow):
                         if len(content.strip()) < 10:
                             return False
                         
-                        # Filter out default error pages and server defaults
-                        error_indicators = [
-                            'not found', '404', 'file not found',
-                            'forbidden', '403', 'access denied', 
-                            'internal server error', '500',
-                            'bad request', '400',
-                            'default apache', 'default nginx',
-                            'it works!', 'welcome to nginx',
-                            'directory listing', 'index of /',
-                            'apache http server test page',
-                            'nginx welcome page',
-                            'test page for the apache',
-                            'welcome to caddy'
-                        ]
+                        # Filter out default error pages from database
+                        error_indicators = []
+                        if self.scanner_config_manager:
+                            error_indicators = self.scanner_config_manager.get_error_indicators()
+                        
+                        # Fallback if database unavailable
+                        if not error_indicators:
+                            error_indicators = [
+                                'not found', '404', 'file not found',
+                                'forbidden', '403', 'access denied', 
+                                'internal server error', '500',
+                                'bad request', '400',
+                                'default apache', 'default nginx',
+                                'it works!', 'welcome to nginx',
+                                'directory listing', 'index of /',
+                                'apache http server test page',
+                                'nginx welcome page',
+                                'test page for the apache',
+                                'welcome to caddy'
+                            ]
                         
                         content_lower = content.lower()
                         for indicator in error_indicators:
@@ -1015,8 +1108,17 @@ class HTTPAdvancedScanner(BaseWorkflow):
                         if '.' in path.split('/')[-1]:  # Has file extension
                             return True
                         
+                        # Check for meaningful content indicators from database
+                        valid_content_indicators = []
+                        if self.scanner_config_manager:
+                            valid_content_indicators = self.scanner_config_manager.get_valid_content_indicators()
+                        
+                        # Fallback if database unavailable
+                        if not valid_content_indicators:
+                            valid_content_indicators = ['<html>', '<title>', '<h1>', '<form>', 'api']
+                        
                         # Directories with meaningful content
-                        if any(tag in content_lower for tag in ['<html>', '<title>', '<h1>', '<form>', 'api']):
+                        if any(tag in content_lower for tag in valid_content_indicators):
                             return True
                         
                         # JSON/API responses
@@ -1040,16 +1142,22 @@ class HTTPAdvancedScanner(BaseWorkflow):
         """Analyze HTTP headers for security issues"""
         vulnerabilities = []
         
-        # Missing security headers
-        security_headers = {
-            'x-frame-options': 'Clickjacking protection',
-            'x-content-type-options': 'MIME type sniffing protection',
-            'x-xss-protection': 'XSS protection',
-            'strict-transport-security': 'HSTS',
-            'content-security-policy': 'Content Security Policy',
-            'referrer-policy': 'Referrer Policy',
-            'permissions-policy': 'Permissions Policy'
-        }
+        # Missing security headers from database
+        security_headers = {}
+        if self.scanner_config_manager:
+            security_headers = self.scanner_config_manager.get_security_headers()
+        
+        # Fallback if database unavailable
+        if not security_headers:
+            security_headers = {
+                'x-frame-options': 'Clickjacking protection',
+                'x-content-type-options': 'MIME type sniffing protection',
+                'x-xss-protection': 'XSS protection',
+                'strict-transport-security': 'HSTS',
+                'content-security-policy': 'Content Security Policy',
+                'referrer-policy': 'Referrer Policy',
+                'permissions-policy': 'Permissions Policy'
+            }
         
         for header, description in security_headers.items():
             if header not in [h.lower() for h in service.headers.keys()]:
@@ -1061,8 +1169,14 @@ class HTTPAdvancedScanner(BaseWorkflow):
                     evidence=f"Header '{header}' not found in response"
                 ))
         
-        # Information disclosure
-        info_headers = ['server', 'x-powered-by', 'x-aspnet-version']
+        # Information disclosure headers from database
+        info_headers = []
+        if self.scanner_config_manager:
+            info_headers = self.scanner_config_manager.get_information_disclosure_headers()
+        
+        # Fallback if database unavailable
+        if not info_headers:
+            info_headers = ['server', 'x-powered-by', 'x-aspnet-version']
         for header in info_headers:
             value = service.headers.get(header, '')
             if value:
@@ -1088,9 +1202,37 @@ class HTTPAdvancedScanner(BaseWorkflow):
         return vulnerabilities
     
     async def _detect_technologies(self, service: HTTPService) -> List[str]:
-        """Detect technologies from headers and response"""
+        """Detect technologies using database-driven detection with fuzzy matching"""
         technologies = []
         
+        # Use technology database if available
+        if self.technology_matcher:
+            try:
+                # Get detection results with fuzzy matching
+                detection_results = self.technology_matcher.detect_technologies(
+                    response_body=service.response_body or "",
+                    headers=service.headers,
+                    url_path=urlparse(service.url).path,
+                    fuzzy_threshold=80
+                )
+                
+                # Extract technology names from results
+                for result in detection_results:
+                    technologies.append(result.name)
+                    debug_print(f"Detected {result.name} (confidence: {result.confidence:.2f})")
+                    
+                    # Add discovery paths to service for further testing
+                    if result.discovery_paths:
+                        service.discovered_paths.extend(result.discovery_paths)
+                
+                # Return early if database detection found technologies
+                if technologies:
+                    return list(set(technologies))
+                    
+            except Exception as e:
+                debug_print(f"Technology database detection error: {e}", level="WARNING")
+        
+        # Fallback to hardcoded patterns if database is unavailable
         # From headers
         tech_headers = {
             'x-powered-by': lambda v: v,
@@ -1105,30 +1247,14 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 if tech:
                     technologies.append(tech)
         
-        # From response body patterns
+        # From response body patterns (simplified fallback)
         if service.response_body:
             patterns = {
                 'WordPress': r'wp-content|wp-includes',
-                'Drupal': r'Drupal|drupal',
-                'Joomla': r'Joomla|joomla',
                 'Django': r'csrfmiddlewaretoken',
-                'Ruby on Rails': r'Rails|rails',
-                'ASP.NET': r'__VIEWSTATE|aspnet',
-                'PHP': r'\.php["\s]',
-                'Node.js': r'node\.js|express',
-                'React': r'react|React',
-                'Angular': r'ng-version|angular',
-                'Vue.js': r'vue|Vue',
-                # Monitoring and dashboarding tools
-                'Grafana': r'grafana|Grafana|grafana\.js|grafana-app|grafana/api|/grafana/',
-                'Prometheus': r'prometheus|Prometheus|/metrics|/api/v1/query',
-                'Kibana': r'kibana|Kibana|elastic|elasticsearch',
-                'Nagios': r'nagios|Nagios',
-                'Zabbix': r'zabbix|Zabbix',
-                'InfluxDB': r'influxdb|InfluxDB|/query\?db=',
-                # Generic monitoring indicators
-                'Monitoring Dashboard': r'dashboard|Dashboard|metrics|Metrics|monitoring|Monitoring|telemetry',
-                'Time Series DB': r'timeseries|time-series|grafana-datasource'
+                'Grafana': r'grafana|Grafana|grafana\.js|grafana-app',
+                'Prometheus': r'prometheus|Prometheus|/metrics',
+                'Monitoring Dashboard': r'dashboard|Dashboard|monitoring|Monitoring'
             }
             
             for tech, pattern in patterns.items():
@@ -1293,23 +1419,23 @@ class HTTPAdvancedScanner(BaseWorkflow):
         # Add DNS subdomains
         hostnames.extend(subdomains)
         
-        # Generate additional hostname patterns based on target
+        # Generate additional hostname patterns from database
         if '.' in target and not target.replace('.', '').isdigit():  # If it's a domain, not IP
             base_domain = target
-            additional_patterns = [
-                f"www.{base_domain}",
-                f"mail.{base_domain}",
-                f"admin.{base_domain}",
-                f"api.{base_domain}",
-                f"portal.{base_domain}",
-                f"secure.{base_domain}",
-                f"app.{base_domain}",
-                f"web.{base_domain}",
-                f"dev.{base_domain}",
-                f"staging.{base_domain}",
-                f"test.{base_domain}",
-                f"prod.{base_domain}"
-            ]
+            
+            # Get subdomain patterns from database
+            subdomain_patterns = []
+            if self.scanner_config_manager:
+                subdomain_patterns = self.scanner_config_manager.get_common_subdomains()
+            
+            # Fallback if database unavailable
+            if not subdomain_patterns:
+                subdomain_patterns = [
+                    "www", "mail", "admin", "api", "portal", "secure", "app", "web",
+                    "dev", "staging", "test", "prod"
+                ]
+            
+            additional_patterns = [f"{pattern}.{base_domain}" for pattern in subdomain_patterns]
             hostnames.extend(additional_patterns)
         
         # Remove duplicates and empty strings, preserve order

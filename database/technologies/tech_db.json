@@ -1,0 +1,369 @@
+{
+  "web_frameworks": {
+    "django": {
+      "name": "Django",
+      "category": "web_framework", 
+      "description": "High-level Python web framework",
+      "indicators": {
+        "response_patterns": [
+          "csrfmiddlewaretoken",
+          "django",
+          "__admin_media_prefix__",
+          "django-admin",
+          "django.contrib"
+        ],
+        "header_patterns": [
+          "server.*django",
+          "x-frame-options.*django"
+        ],
+        "path_patterns": [
+          "/admin/",
+          "/django-admin/",
+          "/__debug__/",
+          "/static/admin/"
+        ],
+        "file_extensions": [".py"],
+        "fuzzy_keywords": [
+          "django",
+          "csrf",
+          "middleware",
+          "admin media"
+        ]
+      },
+      "discovery_paths": [
+        "/admin/",
+        "/django-admin/",
+        "/__debug__/",
+        "/static/admin/",
+        "/accounts/login/",
+        "/api/",
+        "/graphql"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.8,
+        "header_patterns": 0.9,
+        "path_patterns": 0.7,
+        "fuzzy_keywords": 0.6
+      }
+    },
+
+    "wordpress": {
+      "name": "WordPress",
+      "category": "cms",
+      "description": "Popular PHP content management system",
+      "indicators": {
+        "response_patterns": [
+          "wp-content",
+          "wp-includes",
+          "wp-admin",
+          "wordpress",
+          "wp-json"
+        ],
+        "header_patterns": [
+          "x-powered-by.*wordpress"
+        ],
+        "path_patterns": [
+          "/wp-admin/",
+          "/wp-content/",
+          "/wp-includes/",
+          "/wp-json/"
+        ],
+        "file_extensions": [".php"],
+        "fuzzy_keywords": [
+          "wordpress",
+          "wp content",
+          "wp admin",
+          "wp includes"
+        ]
+      },
+      "discovery_paths": [
+        "/wp-admin/",
+        "/wp-login.php",
+        "/wp-content/",
+        "/wp-json/wp/v2/",
+        "/xmlrpc.php",
+        "/readme.html"
+      ]
+    },
+
+    "grafana": {
+      "name": "Grafana",
+      "category": "monitoring",
+      "description": "Analytics and monitoring platform",
+      "indicators": {
+        "response_patterns": [
+          "grafana",
+          "grafana.js",
+          "grafana-app",
+          "grafana/api",
+          "grafanaBootData",
+          "grafana-datasource"
+        ],
+        "header_patterns": [
+          "server.*grafana",
+          "x-grafana-*"
+        ],
+        "path_patterns": [
+          "/grafana/",
+          "/api/dashboards",
+          "/api/datasources",
+          "/api/health"
+        ],
+        "file_extensions": [".json"],
+        "fuzzy_keywords": [
+          "grafana",
+          "dashboard",
+          "datasource",
+          "grafana boot",
+          "grafana app"
+        ]
+      },
+      "discovery_paths": [
+        "/grafana/",
+        "/grafana/api/health",
+        "/grafana/login",
+        "/grafana/api/dashboards",
+        "/grafana/api/datasources",
+        "/api/health",
+        "/api/dashboards",
+        "/api/datasources",
+        "/api/admin/stats",
+        "/grafana/public/",
+        "/grafana/api/org"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.9,
+        "header_patterns": 0.95,
+        "path_patterns": 0.8,
+        "fuzzy_keywords": 0.7
+      }
+    },
+
+    "prometheus": {
+      "name": "Prometheus",
+      "category": "monitoring",
+      "description": "Time series database and monitoring system",
+      "indicators": {
+        "response_patterns": [
+          "prometheus",
+          "/metrics",
+          "prom_",
+          "prometheus_",
+          "# HELP",
+          "# TYPE"
+        ],
+        "header_patterns": [
+          "server.*prometheus"
+        ],
+        "path_patterns": [
+          "/metrics",
+          "/api/v1/query",
+          "/prometheus/",
+          "/api/v1/label"
+        ],
+        "fuzzy_keywords": [
+          "prometheus",
+          "metrics",
+          "prom",
+          "time series",
+          "monitoring"
+        ]
+      },
+      "discovery_paths": [
+        "/metrics",
+        "/api/v1/query",
+        "/api/v1/label",
+        "/prometheus/",
+        "/prometheus/api/v1/query",
+        "/prometheus/metrics",
+        "/graph",
+        "/targets",
+        "/config",
+        "/flags"
+      ]
+    },
+
+    "kibana": {
+      "name": "Kibana",
+      "category": "analytics",
+      "description": "Data visualization dashboard for Elasticsearch",
+      "indicators": {
+        "response_patterns": [
+          "kibana",
+          "elastic",
+          "elasticsearch",
+          "kbn-version",
+          "kibana.bundle"
+        ],
+        "header_patterns": [
+          "kbn-name.*kibana",
+          "server.*kibana"
+        ],
+        "path_patterns": [
+          "/kibana/",
+          "/app/kibana",
+          "/elasticsearch/"
+        ],
+        "fuzzy_keywords": [
+          "kibana",
+          "elastic",
+          "elasticsearch",
+          "kbn version"
+        ]
+      },
+      "discovery_paths": [
+        "/kibana/",
+        "/app/kibana",
+        "/elasticsearch/",
+        "/api/status",
+        "/app/discover",
+        "/app/visualize",
+        "/app/dashboard"
+      ]
+    },
+
+    "jenkins": {
+      "name": "Jenkins",
+      "category": "ci_cd",
+      "description": "Automation server for CI/CD",
+      "indicators": {
+        "response_patterns": [
+          "jenkins",
+          "hudson",
+          "jenkins-session",
+          "jenkins.war"
+        ],
+        "header_patterns": [
+          "x-jenkins.*",
+          "server.*jenkins"
+        ],
+        "path_patterns": [
+          "/jenkins/",
+          "/job/",
+          "/view/",
+          "/manage"
+        ],
+        "fuzzy_keywords": [
+          "jenkins",
+          "hudson",
+          "jenkins session",
+          "build"
+        ]
+      },
+      "discovery_paths": [
+        "/jenkins/",
+        "/job/",
+        "/view/All/",
+        "/manage/",
+        "/api/json",
+        "/login",
+        "/computer/",
+        "/people/",
+        "/script"
+      ]
+    }
+  },
+
+  "databases": {
+    "mysql": {
+      "name": "MySQL",
+      "category": "database",
+      "indicators": {
+        "response_patterns": [
+          "mysql",
+          "MariaDB"
+        ],
+        "fuzzy_keywords": [
+          "mysql",
+          "mariadb"
+        ]
+      },
+      "discovery_paths": [
+        "/phpmyadmin/",
+        "/mysql/",
+        "/db/"
+      ]
+    }
+  },
+
+  "admin_panels": {
+    "phpmyadmin": {
+      "name": "phpMyAdmin", 
+      "category": "admin_panel",
+      "description": "Web-based MySQL administration tool",
+      "indicators": {
+        "response_patterns": [
+          "phpmyadmin",
+          "phpMyAdmin",
+          "pma_",
+          "server_databases.php"
+        ],
+        "path_patterns": [
+          "/phpmyadmin/",
+          "/pma/",
+          "/phpMyAdmin/"
+        ],
+        "fuzzy_keywords": [
+          "phpmyadmin",
+          "php my admin",
+          "pma"
+        ]
+      },
+      "discovery_paths": [
+        "/phpmyadmin/",
+        "/pma/",
+        "/phpMyAdmin/",
+        "/mysql/",
+        "/db/",
+        "/admin/pma/",
+        "/tools/phpmyadmin/"
+      ]
+    }
+  },
+
+  "monitoring_tools": {
+    "nagios": {
+      "name": "Nagios",
+      "category": "monitoring",
+      "indicators": {
+        "response_patterns": [
+          "nagios",
+          "Nagios Core"
+        ],
+        "path_patterns": [
+          "/nagios/"
+        ],
+        "fuzzy_keywords": [
+          "nagios",
+          "nagios core"
+        ]
+      },
+      "discovery_paths": [
+        "/nagios/",
+        "/nagios/cgi-bin/",
+        "/cgi-bin/nagios/"
+      ]
+    },
+
+    "zabbix": {
+      "name": "Zabbix",
+      "category": "monitoring", 
+      "indicators": {
+        "response_patterns": [
+          "zabbix",
+          "Zabbix SIA"
+        ],
+        "path_patterns": [
+          "/zabbix/"
+        ],
+        "fuzzy_keywords": [
+          "zabbix"
+        ]
+      },
+      "discovery_paths": [
+        "/zabbix/",
+        "/zabbix/index.php"
+      ]
+    }
+  }
+}

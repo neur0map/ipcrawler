@@ -1,0 +1,149 @@
+{
+  "dns_enumeration": {
+    "common_subdomain_patterns": [
+      "www", "mail", "ftp", "admin", "portal", "api", "dev",
+      "staging", "test", "prod", "vpn", "remote", "secure",
+      "blog", "shop", "app", "mobile", "m", "cdn", "static",
+      "assets", "media", "files", "download", "support",
+      "help", "docs", "wiki", "forum", "community", "demo"
+    ]
+  },
+  
+  "path_discovery": {
+    "common_application_paths": [
+      "/robots.txt", "/sitemap.xml", "/.well-known/security.txt",
+      "/api/", "/api/v1/", "/api/v2/", "/api/v3/", "/graphql",
+      "/.git/config", "/.git/HEAD", "/.gitignore",
+      "/.env", "/.env.local", "/.env.production", "/.env.development",
+      "/config.php", "/wp-config.php", "/web.config", "/app.config",
+      "/admin/", "/login", "/login.php", "/signin", "/auth",
+      "/dashboard", "/dashboard/", "/console", "/panel",
+      "/swagger-ui/", "/api-docs/", "/docs/", "/documentation",
+      "/.DS_Store", "/thumbs.db", "/desktop.ini",
+      "/crossdomain.xml", "/clientaccesspolicy.xml",
+      "/favicon.ico", "/apple-touch-icon.png",
+      "/health", "/status", "/ping", "/version", "/info"
+    ],
+    
+    "monitoring_html_patterns": [
+      {
+        "pattern": "/grafana[^\"']*",
+        "description": "Any path containing /grafana"
+      },
+      {
+        "pattern": "/dashboard[^\"']*",
+        "description": "Dashboard paths"
+      },
+      {
+        "pattern": "/monitoring[^\"']*", 
+        "description": "Monitoring paths"
+      },
+      {
+        "pattern": "/metrics[^\"']*",
+        "description": "Metrics paths"
+      },
+      {
+        "pattern": "/prometheus[^\"']*",
+        "description": "Prometheus paths"
+      },
+      {
+        "pattern": "/kibana[^\"']*",
+        "description": "Kibana paths"
+      },
+      {
+        "pattern": "/api/health[^\"']*",
+        "description": "Health check APIs"
+      },
+      {
+        "pattern": "/api/v1/query[^\"']*",
+        "description": "Prometheus API"
+      },
+      {
+        "pattern": "data-grafana[^=]*=[\"'][^\"']+",
+        "description": "Grafana data attributes"
+      }
+    ],
+    
+    "javascript_config_patterns": [
+      {
+        "pattern": "grafanaUrl[\"']?\\s*:\\s*[\"']([^\"']+)[\"']",
+        "description": "grafanaUrl config"
+      },
+      {
+        "pattern": "apiUrl[\"']?\\s*:\\s*[\"']([^\"']+)[\"']",
+        "description": "API URL configs"
+      },
+      {
+        "pattern": "baseUrl[\"']?\\s*:\\s*[\"']([^\"']+)[\"']",
+        "description": "Base URL configs"
+      },
+      {
+        "pattern": "window\\.__grafana[^}]*url[\"']?\\s*:\\s*[\"']([^\"']+)[\"']",
+        "description": "Window grafana config"
+      }
+    ],
+    
+    "server_specific_paths": {
+      "apache": ["/server-status", "/server-info", "/.htaccess"],
+      "nginx": ["/nginx_status", "/status"],
+      "tomcat": ["/manager/", "/host-manager/", "/manager/html"],
+      "iis": ["/iisstart.htm", "/welcome.png", "/_vti_bin/"],
+      "jetty": ["/stats", "/dump"]
+    }
+  },
+  
+  "security_analysis": {
+    "security_headers": {
+      "x-frame-options": "Clickjacking protection",
+      "x-content-type-options": "MIME type sniffing protection", 
+      "x-xss-protection": "XSS protection",
+      "strict-transport-security": "HSTS",
+      "content-security-policy": "Content Security Policy",
+      "referrer-policy": "Referrer Policy",
+      "permissions-policy": "Permissions Policy",
+      "x-permitted-cross-domain-policies": "Cross-domain policy",
+      "expect-ct": "Certificate Transparency",
+      "feature-policy": "Feature Policy (deprecated)"
+    },
+    
+    "information_disclosure_headers": [
+      "server", "x-powered-by", "x-aspnet-version", "x-generator",
+      "x-drupal-cache", "x-varnish", "x-cache", "x-served-by",
+      "x-runtime", "x-version", "x-application-version"
+    ],
+    
+    "content_validation": {
+      "error_indicators": [
+        "not found", "404", "file not found",
+        "forbidden", "403", "access denied", 
+        "internal server error", "500",
+        "bad request", "400",
+        "default apache", "default nginx",
+        "it works!", "welcome to nginx",
+        "directory listing", "index of /",
+        "apache http server test page",
+        "nginx welcome page", 
+        "test page for the apache",
+        "welcome to caddy",
+        "default web site page",
+        "coming soon", "under construction"
+      ],
+      
+      "valid_content_indicators": [
+        "<html>", "<title>", "<h1>", "<form>", "api",
+        "json", "xml", "<!doctype", "<head>", "<body>"
+      ],
+      
+      "valid_status_codes": [200, 201, 202, 204, 301, 302, 307, 308, 401, 403]
+    }
+  },
+  
+  "hostname_generation": {
+    "common_subdomains": [
+      "www", "mail", "admin", "api", "portal", "secure", "app", "web",
+      "dev", "staging", "test", "prod", "demo", "beta", "alpha",
+      "blog", "shop", "store", "support", "help", "docs", "wiki",
+      "forum", "community", "news", "events", "careers", "about"
+    ]
+  }
+}
