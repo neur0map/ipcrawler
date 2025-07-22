@@ -11,7 +11,12 @@ from .cache import cache_selection
 
 # Import wordlist resolver
 try:
-    from ..wordlists.resolver import resolver as wordlist_resolver
+    import sys
+    from pathlib import Path
+    # Add tools directory to path for resolver import
+    tools_path = Path(__file__).parent.parent.parent.parent / "tools"
+    sys.path.insert(0, str(tools_path))
+    from catalog.resolver import resolver as wordlist_resolver
     WORDLIST_RESOLVER_AVAILABLE = True
 except ImportError:
     WORDLIST_RESOLVER_AVAILABLE = False

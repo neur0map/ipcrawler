@@ -341,9 +341,12 @@ class SmartListScanner(BaseWorkflow):
             # Determine which rule category this came from
             category = self._determine_category(result.matched_rules)
             
+            # Use full path if available, otherwise just the wordlist name
+            wordlist_path = wordlist_paths[i] if i < len(wordlist_paths) and wordlist_paths[i] else None
+            
             rec = WordlistRecommendation(
                 wordlist=wordlist,
-                path=wordlist_paths[i] if i < len(wordlist_paths) else None,
+                path=wordlist_path,
                 score=result.score,
                 confidence=result.confidence.value.upper(),  # Convert enum to string
                 reason=self._generate_reason(result, wordlist),

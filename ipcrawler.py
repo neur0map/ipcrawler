@@ -730,7 +730,9 @@ def display_smartlist_summary(smartlist_data: dict):
         console.print(f"  {service_name} ({tech}):")
         for i, wl in enumerate(top_wordlists, 1):
             confidence_color = "green" if wl['confidence'] == "HIGH" else "yellow" if wl['confidence'] == "MEDIUM" else "red"
-            console.print(f"    {i}. [bold]{wl['wordlist']}[/bold] ([{confidence_color}]{wl['confidence']}[/{confidence_color}] - {wl['reason']})")
+            # Show full path if available, otherwise just the wordlist name
+            wordlist_display = wl.get('path') or wl['wordlist']
+            console.print(f"    {i}. [bold]{wordlist_display}[/bold] ([{confidence_color}]{wl['confidence']}[/{confidence_color}] - {wl['reason']})")
 
 
 def display_minimal_summary(data: dict, workspace: Path):

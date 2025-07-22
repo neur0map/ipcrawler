@@ -15,11 +15,13 @@ from typing import Dict, List, Set, Optional, Tuple
 from datetime import datetime
 import hashlib
 
-# Add project root to path for imports
+# Add project root and catalog directory to path for imports
 project_root = Path(__file__).parent.parent.parent
+catalog_dir = Path(__file__).parent
 sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(catalog_dir))
 
-from .models import (
+from models import (
     WordlistEntry, WordlistCatalog, WordlistCategory, WordlistQuality
 )
 
