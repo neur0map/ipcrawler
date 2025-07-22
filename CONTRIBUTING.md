@@ -38,13 +38,27 @@ Know a great wordlist for a specific technology? Add it to our SmartList rules:
 }
 ```
 
-### 4. Improve Documentation 📚
+### 4. Enhance Port Database 🔍
+Our port intelligence database is constantly evolving! Help us improve detection:
+```python
+# In database/ports/enhanced_ports.json
+{
+    "port": 8089,
+    "services": ["splunkd", "splunk-api"],
+    "technologies": ["Splunk Enterprise", "Splunk Universal Forwarder"],
+    "common_paths": ["/en-US/app/", "/servicesNS/", "/services/"],
+    "detection_patterns": ["X-Splunk-Version", "splunkd"]
+}
+```
+**Every new port mapping helps thousands of security professionals!**
+
+### 5. Improve Documentation 📚
 - Fix typos
 - Add examples
 - Clarify confusing sections
 - Translate to other languages
 
-### 5. Write Code 💻
+### 6. Write Code 💻
 - Fix bugs
 - Add features
 - Improve performance
