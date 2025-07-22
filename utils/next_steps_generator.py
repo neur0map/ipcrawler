@@ -44,6 +44,7 @@ class NextStepsGenerator:
         self.port_database = None
         self.commands = []
         self.target = ""
+        self.discovered_hostnames = []
         self.detected_technologies = set()
         self.open_ports = []
         self.high_value_services = []
@@ -67,6 +68,7 @@ class NextStepsGenerator:
             if 'http_03' in self.scan_results:
                 self.http_results = self.scan_results['http_03']
                 self._extract_http_info()
+                self._extract_hostname_info()
                 
             return True
             
@@ -159,6 +161,28 @@ class NextStepsGenerator:
             for tech in technologies:
                 if tech:
                     self.detected_technologies.add(tech.lower())
+                    
+    def _extract_hostname_info(self):
+        """Extract discovered hostnames from HTTP scan results"""
+        # Get tested hostnames from HTTP scan
+        tested_hostnames = self.http_results.get('tested_hostnames', [])
+        
+        # Filter to get actual hostnames (not IPs)
+        for hostname in tested_hostnames:
+            if (hostname and 
+                not hostname.replace('.', '').isdigit() and  # Not an IP
+                '.' in hostname and  # Has domain structure
+                hostname != self.target):  # Different from target IP
+                self.discovered_hostnames.append(hostname)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_hostnames = []
+        for hostname in self.discovered_hostnames:
+            if hostname not in seen:
+                seen.add(hostname)
+                unique_hostnames.append(hostname)
+        self.discovered_hostnames = unique_hostnames[:5]  # Limit to top 5
     
     def _is_high_value_service(self, port_data: Dict) -> bool:
         """Determine if a service is high-value for penetration testing"""
@@ -232,7 +256,18 @@ class NextStepsGenerator:
         for port_data in web_ports:
             port = port_data['port']
             scheme = 'https' if port in [443, 8443] else 'http'
-            url = f"{scheme}://{self.target}:{port}"
+            
+            # Use discovered hostname if available, otherwise use target IP
+            if self.discovered_hostnames:
+                target_host = self.discovered_hostnames[0]  # Use primary hostname
+            else:
+                target_host = self.target
+            
+            # Build URL with proper port handling
+            if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
+                url = f"{scheme}://{target_host}"
+            else:
+                url = f"{scheme}://{target_host}:{port}"
             
             # Directory fuzzing with SmartList wordlists
             if wordlists:
@@ -245,7 +280,7 @@ class NextStepsGenerator:
                         self.commands.append(CommandRecommendation(
                             category="Web Fuzzing",
                             tool="feroxbuster",
-                            command=f"feroxbuster --url {url} --wordlist {wordlist_path} -x php,html,txt,js -t 50 --depth 3",
+                            command=f"feroxbuster --url {url} --wordlist \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 --depth 3 -o ferox_{wordlist_info['wordlist']}_results.txt",
                             description=f"Smart directory fuzzing on {url}",
                             priority=1,
                             confidence=confidence,
@@ -305,7 +340,7 @@ class NextStepsGenerator:
             self.commands.append(CommandRecommendation(
                 category="Web Fuzzing",
                 tool="gobuster",
-                command=f"gobuster dir -u {url} -w /usr/share/seclists/Discovery/Web-Content/PHP.fuzz.txt -x php",
+                command=f"gobuster dir -u {url} -w /usr/share/seclists/Discovery/Web-Content/PHP.fuzz.txt -x php -b 301,302,403 -o gobuster_php_results.txt",
                 description=f"PHP-specific path and file fuzzing on {url}",
                 priority=2,
                 confidence="HIGH", 
@@ -319,7 +354,7 @@ class NextStepsGenerator:
             self.commands.append(CommandRecommendation(
                 category="Web Fuzzing",
                 tool="feroxbuster",
-                command=f"feroxbuster --url {url} -x js,json -w /usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt",
+                command=f"feroxbuster --url {url} -x js,json -w /usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt -o ferox_api_results.txt",
                 description=f"JavaScript/API endpoint discovery on {url}",
                 priority=2,
                 confidence="HIGH",
@@ -546,6 +581,9 @@ class NextStepsGenerator:
                 f.write("# IPCrawler Next Steps\n")
                 f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"# Target: {self.target}\n")
+                if self.discovered_hostnames:
+                    f.write(f"# Discovered Hostnames: {', '.join(self.discovered_hostnames)}\n")
+                    f.write(f"# Using hostname-based commands for better enumeration\n")
                 f.write(f"# Open Ports: {len(self.open_ports)}\n")
                 f.write(f"# Detected Technologies: {', '.join(sorted(self.detected_technologies)) if self.detected_technologies else 'None'}\n")
                 f.write("\n# Copy and paste these commands for your next testing phase\n")

@@ -28,6 +28,7 @@ import socket
 import signal
 import sys
 import re
+import json
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -746,12 +747,36 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
         # Extract target IP for commands
         target_ip = smartlist_data.get('target', 'TARGET')
         
+        # Try to find discovered hostnames from HTTP scan results
+        discovered_hostnames = []
+        try:
+            # Look for HTTP scan results in the same workspace
+            results_file = workspace / "scan_results.json"
+            if results_file.exists():
+                with open(results_file, 'r') as f:
+                    scan_data = json.load(f)
+                    
+                # Extract hostnames from HTTP results
+                if 'http_03' in scan_data:
+                    http_data = scan_data['http_03']
+                    # Get tested hostnames (includes discovered ones)
+                    tested_hostnames = http_data.get('tested_hostnames', [])
+                    # Filter out IP addresses to get actual hostnames
+                    discovered_hostnames = [h for h in tested_hostnames 
+                                          if not h.replace('.', '').isdigit() and '.' in h]
+        except Exception:
+            pass  # Continue with IP if hostname extraction fails
+            
         wordlists_file = workspace / "recommended_wordlists.txt"
         
         with open(wordlists_file, 'w', encoding='utf-8') as f:
             f.write("# IPCrawler Recommended Wordlists\n")
             f.write("# Ready-to-copy commands with recommended wordlists\n")
-            f.write(f"# Target: {target_ip}\n\n")
+            f.write(f"# Target IP: {target_ip}\n")
+            if discovered_hostnames:
+                f.write(f"# Discovered Hostnames: {', '.join(discovered_hostnames)}\n")
+                f.write(f"# Using hostname-based URLs for better enumeration\n")
+            f.write("\n")
             
             for service_rec in recommendations:
                 service_name = service_rec['service']
@@ -768,11 +793,25 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
                         host_port = service_name.split(':')
                         if len(host_port) == 2:
                             host, port = host_port[0], host_port[1]
+                            
+                            # Use discovered hostname if available, otherwise use the host from service
+                            target_host = host
+                            if discovered_hostnames:
+                                # Use the first discovered hostname (usually the main one)
+                                target_host = discovered_hostnames[0]
+                                f.write(f"# Using discovered hostname: {target_host} (instead of {host})\n")
+                            
                             # Determine protocol
                             if port in ['443', '8443']:
-                                url = f"https://{host}:{port}"
+                                if port in ['443']:
+                                    url = f"https://{target_host}"  # Standard HTTPS port
+                                else:
+                                    url = f"https://{target_host}:{port}"
                             else:
-                                url = f"http://{host}:{port}"
+                                if port in ['80']:
+                                    url = f"http://{target_host}"  # Standard HTTP port
+                                else:
+                                    url = f"http://{target_host}:{port}"
                         else:
                             url = f"http://{service_name}"
                     else:
@@ -800,10 +839,10 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
                         f.write(f"feroxbuster --url {url} --wordlist \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 --depth 3 -o ferox_{wl['wordlist']}_results.txt\n\n")
                         
                         f.write("# GOBUSTER:\n")
-                        f.write(f"gobuster dir -u {url} -w \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 -o gobuster_{wl['wordlist']}_results.txt\n\n")
+                        f.write(f"gobuster dir -u {url} -w \"{wordlist_path}\" -x php,html,txt,js,asp,aspx,jsp -t 50 -b 301,302,403 -o gobuster_{wl['wordlist']}_results.txt\n\n")
                         
                         f.write("# FFUF:\n")
-                        f.write(f"ffuf -u {url}/FUZZ -w \"{wordlist_path}\" -e .php,.html,.txt,.js,.asp,.aspx,.jsp -t 50 -o ffuf_{wl['wordlist']}_results.json\n\n")
+                        f.write(f"ffuf -u {url}/FUZZ -w \"{wordlist_path}\" -e .php,.html,.txt,.js,.asp,.aspx,.jsp -t 50 -fc 301,302,403 -o ffuf_{wl['wordlist']}_results.json\n\n")
                         
                         f.write(f"{'='*40}\n\n")
         
