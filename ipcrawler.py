@@ -47,6 +47,7 @@ from utils.results import result_manager
 from utils.next_steps_generator import generate_next_steps
 from utils.debug import debug_print
 from models.wordlist_config import DEFAULT_WORDLIST_CONFIG, ServiceType
+from database.ports import load_port_database
 
 app = typer.Typer(
     name="ipcrawler",
@@ -75,6 +76,62 @@ def cleanup_processes():
         except:
             pass
     running_processes.clear()
+
+
+# Global port database instance
+PORT_DATABASE = None
+
+def load_port_db():
+    """Load the port database for intelligent service detection"""
+    global PORT_DATABASE
+    if PORT_DATABASE is None:
+        try:
+            from pathlib import Path
+            db_path = Path(__file__).parent / "database" / "ports" / "port_db.json"
+            with open(db_path, 'r') as f:
+                db_data = json.load(f)
+            PORT_DATABASE = load_port_database(db_data)
+        except Exception as e:
+            console.print(f"Warning: Could not load port database: {e}", style="yellow")
+            PORT_DATABASE = {}
+    return PORT_DATABASE
+
+
+def is_http_service(port_num: int, nmap_service: str = "") -> bool:
+    """
+    Database-driven HTTP service detection.
+    Returns True if the port likely hosts an HTTP/web service.
+    """
+    port_db = load_port_db()
+    
+    # Check database first
+    port_entry = port_db.ports.get(str(port_num)) if hasattr(port_db, 'ports') else None
+    if port_entry:
+        # Has HTTP stack defined
+        if hasattr(port_entry, 'tech_stack') and port_entry.tech_stack and hasattr(port_entry.tech_stack, 'http_stack') and port_entry.tech_stack.http_stack:
+            return True
+        
+        # Web service category
+        if hasattr(port_entry, 'classification') and port_entry.classification and hasattr(port_entry.classification, 'category'):
+            if "web" in port_entry.classification.category:
+                return True
+        
+        # Known web services in alternatives
+        if hasattr(port_entry, 'alternative_services') and port_entry.alternative_services:
+            web_services = ["grafana", "nginx", "apache", "nodejs", "express", "tomcat", "jetty", "iis", "lighttpd"]
+            if any(svc in port_entry.alternative_services for svc in web_services):
+                return True
+    
+    # Fallback to nmap service detection
+    if nmap_service:
+        web_keywords = ['http', 'https', 'web', 'www', 'ssl/http', 'http-proxy']
+        if any(keyword in nmap_service.lower() for keyword in web_keywords):
+            return True
+    
+    # Common HTTP ports as final fallback
+    common_http_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
+    return port_num in common_http_ports
+
 
 def signal_handler(signum, frame):
     """Handle Ctrl+C and other signals"""
@@ -602,13 +659,8 @@ async def run_workflow(target: str, debug: bool = False):
                             if parsed.hostname:
                                 discovered_hostnames.add(parsed.hostname)
                 
-                # Check if it's an HTTP service
-                if port_num and (
-                    port_num in [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000] or
-                    (service and 'http' in service.lower()) or
-                    (service and 'https' in service.lower()) or
-                    (service and 'web' in service.lower())
-                ):
+                # Check if it's an HTTP service using database-driven detection
+                if port_num and is_http_service(port_num, service):
                     http_ports.append(port_num)
         
         http_scan_data = None

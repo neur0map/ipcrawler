@@ -40,6 +40,13 @@ from workflows.core.command_logger import get_command_logger
 from .models import HTTPScanResult, HTTPService, HTTPVulnerability, DNSRecord, PathDiscoveryMetadata
 from utils.debug import debug_print
 
+# Port database integration
+try:
+    from database.ports import load_port_database
+    PORT_DB_AVAILABLE = True
+except ImportError:
+    PORT_DB_AVAILABLE = False
+
 # SmartList integration
 try:
     from src.core.scorer import (
@@ -67,6 +74,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
         ]
         self.config = self._load_config()
+        self.port_database = None
         
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config.yaml"""
@@ -77,6 +85,37 @@ class HTTPAdvancedScanner(BaseWorkflow):
         except Exception as e:
             debug_print(f"Could not load config.yaml: {e}", level="WARNING")
             return {}
+            
+    def _load_port_database(self):
+        """Load port database for service-specific path discovery"""
+        if not PORT_DB_AVAILABLE or self.port_database is not None:
+            return
+            
+        try:
+            db_path = Path(__file__).parent.parent.parent / "database" / "ports" / "port_db.json"
+            with open(db_path, 'r') as f:
+                db_data = json.load(f)
+            self.port_database = load_port_database(db_data)
+            debug_print("Port database loaded successfully")
+        except Exception as e:
+            debug_print(f"Could not load port database: {e}", level="WARNING")
+            self.port_database = {}
+    
+    def _get_service_specific_paths(self, port: int) -> List[str]:
+        """Get service-specific paths from port database"""
+        if not self.port_database:
+            return []
+            
+        try:
+            port_entry = self.port_database.ports.get(str(port)) if hasattr(self.port_database, 'ports') else None
+            if port_entry and hasattr(port_entry, 'indicators') and port_entry.indicators and hasattr(port_entry.indicators, 'paths'):
+                paths = port_entry.indicators.paths or []
+                debug_print(f"Found {len(paths)} database paths for port {port}: {paths}")
+                return paths
+        except Exception as e:
+            debug_print(f"Error getting service paths for port {port}: {e}", level="WARNING")
+            
+        return []
         
     async def execute(self, target: str, ports: Optional[List[int]] = None, **kwargs) -> WorkflowResult:
         """Execute advanced HTTP scanning workflow"""
@@ -104,6 +143,9 @@ class HTTPAdvancedScanner(BaseWorkflow):
         
         try:
             results = HTTPScanResult(target=target)
+            
+            # Load port database for enhanced service discovery
+            self._load_port_database()
             
             # DNS enumeration first
             dns_info = await self._dns_enumeration(target)
@@ -692,6 +734,16 @@ class HTTPAdvancedScanner(BaseWorkflow):
             '/.DS_Store', '/thumbs.db', '/web.config'
         ]
         
+        # Add service-specific paths from port database
+        try:
+            port = int(service.url.split(':')[-1].split('/')[0]) if ':' in service.url else (443 if 'https' in service.url else 80)
+            db_paths = self._get_service_specific_paths(port)
+            if db_paths:
+                debug_print(f"Adding {len(db_paths)} database-specific paths for port {port}")
+                common_paths.extend([path for path in db_paths if path not in common_paths])
+        except Exception as e:
+            debug_print(f"Error adding database paths: {e}", level="WARNING")
+        
         # Log the equivalent manual commands for common paths
         base_url = service.url.rstrip('/')
         for path in common_paths[:5]:  # Show first 5 as examples
@@ -713,6 +765,41 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 tech_paths.extend(['/nginx_status'])
             elif 'tomcat' in server_lower:
                 tech_paths.extend(['/manager/', '/host-manager/'])
+                
+        # Add monitoring-specific paths based on content analysis
+        monitoring_paths = []
+        if service.response_body:
+            response_lower = service.response_body.lower()
+            
+            # Grafana-specific paths
+            if any(indicator in response_lower for indicator in ['grafana', '/grafana', 'grafana.js', 'grafana-app']):
+                monitoring_paths.extend([
+                    '/grafana/', '/grafana/api/health', '/grafana/login',
+                    '/grafana/api/dashboards', '/grafana/api/datasources',
+                    '/api/health', '/api/dashboards', '/api/datasources'
+                ])
+                debug_print("Detected Grafana indicators, adding Grafana-specific paths")
+            
+            # Generic monitoring dashboard paths
+            if any(indicator in response_lower for indicator in ['dashboard', 'monitoring', 'metrics', 'telemetry']):
+                monitoring_paths.extend([
+                    '/metrics', '/health', '/status', '/api/health',
+                    '/monitoring/', '/dashboard/', '/admin/monitoring',
+                    '/api/v1/query', '/prometheus/', '/kibana/'
+                ])
+                debug_print("Detected monitoring indicators, adding dashboard paths")
+                
+            # Prometheus-specific paths
+            if any(indicator in response_lower for indicator in ['prometheus', '/metrics', 'prom_']):
+                monitoring_paths.extend([
+                    '/metrics', '/api/v1/query', '/api/v1/label',
+                    '/prometheus/', '/prometheus/api/v1/query'
+                ])
+                debug_print("Detected Prometheus indicators, adding Prometheus paths")
+        
+        # Combine all technology-specific paths
+        if monitoring_paths:
+            tech_paths.extend([path for path in monitoring_paths if path not in tech_paths])
         
         if tech_paths:
             # Log technology-specific commands
@@ -730,7 +817,7 @@ class HTTPAdvancedScanner(BaseWorkflow):
         }
     
     def _extract_paths_from_html(self, html_content: str) -> List[str]:
-        """Extract paths from HTML content"""
+        """Extract paths from HTML content with enhanced monitoring detection"""
         paths = []
         
         # Find all href and src attributes
@@ -741,6 +828,49 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 # Only include relative paths or paths on same domain
                 if not parsed.netloc or parsed.netloc == '':
                     paths.append(parsed.path)
+        
+        # Enhanced monitoring detection - look for specific patterns in HTML
+        monitoring_patterns = [
+            r'/grafana[^"\']*',           # Any path containing /grafana
+            r'/dashboard[^"\']*',         # Dashboard paths
+            r'/monitoring[^"\']*',        # Monitoring paths
+            r'/metrics[^"\']*',           # Metrics paths
+            r'/prometheus[^"\']*',        # Prometheus paths
+            r'/kibana[^"\']*',            # Kibana paths
+            r'/api/health[^"\']*',        # Health check APIs
+            r'/api/v1/query[^"\']*',      # Prometheus API
+            r'data-grafana[^=]*=["\'][^"\']+',  # Grafana data attributes
+        ]
+        
+        for pattern in monitoring_patterns:
+            matches = re.findall(pattern, html_content, re.IGNORECASE)
+            for match in matches:
+                # Clean up the match (remove data attributes)
+                if match.startswith('/'):
+                    clean_path = match.split('?')[0].split('#')[0]  # Remove query params and fragments
+                    if clean_path not in paths:
+                        paths.append(clean_path)
+                        debug_print(f"Found monitoring path in HTML: {clean_path}")
+        
+        # Look for JavaScript variables or config that might contain paths
+        js_patterns = [
+            r'grafanaUrl["\']?\s*:\s*["\']([^"\']+)["\']',     # grafanaUrl config
+            r'apiUrl["\']?\s*:\s*["\']([^"\']+)["\']',         # API URL configs
+            r'baseUrl["\']?\s*:\s*["\']([^"\']+)["\']',        # Base URL configs
+            r'window\.__grafana[^}]*url["\']?\s*:\s*["\']([^"\']+)["\']',  # Window grafana config
+        ]
+        
+        for pattern in js_patterns:
+            matches = re.findall(pattern, html_content, re.IGNORECASE)
+            for match in matches:
+                try:
+                    parsed = urlparse(match)
+                    if parsed.path and parsed.path != '/' and not parsed.netloc:
+                        if parsed.path not in paths:
+                            paths.append(parsed.path)
+                            debug_print(f"Found monitoring path in JavaScript: {parsed.path}")
+                except:
+                    pass
         
         return paths
     
@@ -988,7 +1118,17 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 'Node.js': r'node\.js|express',
                 'React': r'react|React',
                 'Angular': r'ng-version|angular',
-                'Vue.js': r'vue|Vue'
+                'Vue.js': r'vue|Vue',
+                # Monitoring and dashboarding tools
+                'Grafana': r'grafana|Grafana|grafana\.js|grafana-app|grafana/api|/grafana/',
+                'Prometheus': r'prometheus|Prometheus|/metrics|/api/v1/query',
+                'Kibana': r'kibana|Kibana|elastic|elasticsearch',
+                'Nagios': r'nagios|Nagios',
+                'Zabbix': r'zabbix|Zabbix',
+                'InfluxDB': r'influxdb|InfluxDB|/query\?db=',
+                # Generic monitoring indicators
+                'Monitoring Dashboard': r'dashboard|Dashboard|metrics|Metrics|monitoring|Monitoring|telemetry',
+                'Time Series DB': r'timeseries|time-series|grafana-datasource'
             }
             
             for tech, pattern in patterns.items():
