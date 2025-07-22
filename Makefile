@@ -130,11 +130,10 @@ install:
 	@echo "  ipcrawler <target>       - Run as user"
 	@echo "  sudo ipcrawler <target>  - Run with privileges"
 	@echo ""
-	@echo "Checking SecLists installation in background..."
-	@nohup bash -c 'cd "$(pwd)" && AUTO_INSTALL=true ./scripts/generate_catalog.sh > /tmp/seclists_install.log 2>&1' & \
-		echo "  → SecLists check and catalog generation running in background" && \
-		echo "  → Check /tmp/seclists_install.log for progress" && \
-		echo "  → Installation complete! SecLists will be configured automatically."
+	@echo "Setting up SecLists and wordlist catalog..."
+	@echo "This may take a few minutes for first-time installation..."
+	@AUTO_INSTALL=true ./scripts/generate_catalog.sh || echo "⚠ Catalog generation failed - you can run 'bash scripts/generate_catalog.sh' manually later"
+	@echo "✓ Installation complete!"
 
 uninstall:
 	@echo "Uninstalling IPCrawler..."

@@ -546,9 +546,14 @@ def main():
         # Save catalog
         output_path = project_root / "database" / "wordlists" / "seclists_catalog.json"
         
+        # Ensure directory exists
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
         print(f"Saving catalog to: {output_path}")
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(catalog.dict(), f, indent=2, default=str, ensure_ascii=False)
+            # Use model_dump() for Pydantic v2 compatibility
+            catalog_data = catalog.model_dump() if hasattr(catalog, 'model_dump') else catalog.dict()
+            json.dump(catalog_data, f, indent=2, default=str, ensure_ascii=False)
         
         # Print summary
         stats = catalog.get_stats()

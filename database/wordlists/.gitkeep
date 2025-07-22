@@ -1,0 +1,2 @@
+# This file ensures the wordlists directory is preserved in git
+# The seclists_catalog.json file will be generated automatically during installation
