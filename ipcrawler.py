@@ -43,6 +43,8 @@ from workflows.smartlist_04.scanner import SmartListScanner
 
 from config import config
 from utils.results import result_manager
+from utils.next_steps_generator import generate_next_steps
+from utils.debug import debug_print
 
 app = typer.Typer(
     name="ipcrawler",
@@ -671,6 +673,12 @@ async def run_workflow(target: str, debug: bool = False):
                 
                 # Display top wordlist recommendations
                 display_smartlist_summary(smartlist_data)
+                
+                # Save wordlist paths to an easy-to-use file
+                save_wordlist_paths(smartlist_data, workspace)
+                
+                # Generate next-steps commands
+                generate_next_steps_file(workspace)
             else:
                 error_msg = smartlist_result.error or "Unknown error"
                 console.print(f"⚠ SmartList analysis failed: {error_msg}")
@@ -699,6 +707,11 @@ async def run_workflow(target: str, debug: bool = False):
         
         result_manager.save_results(workspace, target, result.data)
         
+        # Generate next-steps file even if SmartList didn't run
+        if not smartlist_data:
+            console.print(f"\n→ Generating next-steps commands based on discovered services...")
+            generate_next_steps_file(workspace)
+        
         # Display minimal summary only
         display_minimal_summary(result.data, workspace)
     else:
@@ -708,6 +721,54 @@ async def run_workflow(target: str, debug: bool = False):
     # Clean up processes after scan completion
     cleanup_processes()
     
+
+
+def generate_next_steps_file(workspace: Path):
+    """Generate comprehensive next-steps commands file"""
+    try:
+        next_steps_file = generate_next_steps(workspace)
+        if next_steps_file:
+            console.print(f"\n🚀 Next steps saved to: [bold]{next_steps_file}[/bold]")
+            console.print("   Ready-to-use commands for your next testing phase!")
+        else:
+            console.print("\n⚠ Could not generate next-steps file")
+    except Exception as e:
+        console.print(f"\n⚠ Error generating next-steps: {e}")
+
+
+def save_wordlist_paths(smartlist_data: dict, workspace: Path):
+    """Save recommended wordlist paths to a file for easy copy-paste"""
+    try:
+        recommendations = smartlist_data.get('wordlist_recommendations', [])
+        if not recommendations:
+            return
+        
+        wordlists_file = workspace / "recommended_wordlists.txt"
+        
+        with open(wordlists_file, 'w') as f:
+            f.write("# IPCrawler Recommended Wordlists\n")
+            f.write("# Copy these paths directly to your fuzzing tools\n\n")
+            
+            for service_rec in recommendations:
+                service_name = service_rec['service']
+                tech = service_rec.get('detected_technology', 'Unknown')
+                top_wordlists = service_rec.get('top_wordlists', [])[:5]  # Top 5
+                
+                if top_wordlists:
+                    f.write(f"# {service_name} ({tech})\n")
+                    for i, wl in enumerate(top_wordlists, 1):
+                        path = wl.get('path') or wl['wordlist']
+                        confidence = wl['confidence']
+                        reason = wl['reason']
+                        f.write(f"# {i}. {confidence} - {reason}\n")
+                        f.write(f"{path}\n\n")
+        
+        console.print(f"\n📁 Wordlist paths saved to: [bold]{wordlists_file}[/bold]")
+        console.print("   Copy these paths directly to feroxbuster, gobuster, ffuf, etc.")
+        
+    except Exception as e:
+        # Don't fail the whole process if file saving fails
+        debug_print(f"Failed to save wordlist paths: {e}")
 
 
 def display_smartlist_summary(smartlist_data: dict):
@@ -730,9 +791,16 @@ def display_smartlist_summary(smartlist_data: dict):
         console.print(f"  {service_name} ({tech}):")
         for i, wl in enumerate(top_wordlists, 1):
             confidence_color = "green" if wl['confidence'] == "HIGH" else "yellow" if wl['confidence'] == "MEDIUM" else "red"
-            # Show full path if available, otherwise just the wordlist name
-            wordlist_display = wl.get('path') or wl['wordlist']
-            console.print(f"    {i}. [bold]{wordlist_display}[/bold] ([{confidence_color}]{wl['confidence']}[/{confidence_color}] - {wl['reason']})")
+            # Show just the filename for compact display, full paths are in the saved file
+            wordlist_name = wl['wordlist']
+            wordlist_path = wl.get('path')
+            
+            if wordlist_path:
+                # Show compact version: just filename with note about full path
+                console.print(f"    {i}. [bold]{wordlist_name}[/bold] ([{confidence_color}]{wl['confidence']}[/{confidence_color}] - {wl['reason']})")
+                console.print(f"       → Full path saved to recommended_wordlists.txt")
+            else:
+                console.print(f"    {i}. [bold]{wordlist_name}[/bold] ([{confidence_color}]{wl['confidence']}[/{confidence_color}] - {wl['reason']})")
 
 
 def display_minimal_summary(data: dict, workspace: Path):
