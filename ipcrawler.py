@@ -677,7 +677,7 @@ async def run_workflow(target: str, debug: bool = False):
                 display_smartlist_summary(smartlist_data)
                 
                 # Save wordlist paths to an easy-to-use file
-                save_wordlist_paths(smartlist_data, workspace)
+                save_wordlist_paths(smartlist_data, workspace, http_scan_data)
                 
                 # Generate next-steps commands
                 generate_next_steps_file(workspace)
@@ -738,7 +738,7 @@ def generate_next_steps_file(workspace: Path):
         console.print(f"\n⚠ Error generating next-steps: {e}")
 
 
-def save_wordlist_paths(smartlist_data: dict, workspace: Path):
+def save_wordlist_paths(smartlist_data: dict, workspace: Path, http_scan_data: dict = None):
     """Save recommended wordlist paths and complete tool commands to a file for easy copy-paste"""
     try:
         recommendations = smartlist_data.get('wordlist_recommendations', [])
@@ -748,100 +748,42 @@ def save_wordlist_paths(smartlist_data: dict, workspace: Path):
         # Extract target IP for commands
         target_ip = smartlist_data.get('target', 'TARGET')
         
-        # Try to find discovered hostnames from multiple possible sources
+        # Extract discovered hostnames from passed HTTP scan data
         discovered_hostnames = []
         hostname_debug_info = []
         
         try:
-            # Look for scan results in multiple possible locations/formats
-            possible_files = [
-                workspace / "scan_results.json",
-                workspace / "results.json", 
-                workspace / "http_results.json",
-                workspace / "nmap_results.json"
-            ]
-            
-            scan_data = None
-            results_file_found = None
-            
-            # Try to find any results file
-            for results_file in possible_files:
-                if results_file.exists():
-                    try:
-                        with open(results_file, 'r') as f:
-                            scan_data = json.load(f)
-                        results_file_found = results_file
-                        hostname_debug_info.append(f"Found results file: {results_file.name}")
-                        break
-                    except:
-                        continue
-            
-            if scan_data:
-                hostname_debug_info.append(f"Scan data keys: {list(scan_data.keys())}")
+            if http_scan_data:
+                hostname_debug_info.append("Using provided HTTP scan data")
                 
-                # Extract hostnames from HTTP results
-                http_data = None
-                if 'http_03' in scan_data:
-                    http_data = scan_data['http_03']
-                elif 'http' in scan_data:
-                    http_data = scan_data['http']
-                elif 'services' in scan_data:
-                    http_data = scan_data  # Direct format
+                # Get tested hostnames from HTTP scan (same logic as NextStepsGenerator)
+                tested_hostnames = http_scan_data.get('tested_hostnames', [])
+                hostname_debug_info.append(f"Tested hostnames: {tested_hostnames}")
                 
-                if http_data:
-                    hostname_debug_info.append(f"HTTP data keys: {list(http_data.keys())}")
-                    
-                    # Get tested hostnames (includes discovered ones)
-                    tested_hostnames = http_data.get('tested_hostnames', [])
-                    hostname_debug_info.append(f"Tested hostnames: {tested_hostnames}")
-                    
-                    # Get services with URLs
-                    services = http_data.get('services', [])
-                    for service in services:
-                        if 'url' in service:
-                            from urllib.parse import urlparse
-                            parsed = urlparse(service['url'])
-                            if parsed.hostname and not parsed.hostname.replace('.', '').isdigit():
-                                discovered_hostnames.append(parsed.hostname)
-                    
-                    # Filter out IP addresses to get actual hostnames
-                    ip_filtered = [h for h in tested_hostnames 
-                                  if not h.replace('.', '').isdigit() and '.' in h]
-                    discovered_hostnames.extend(ip_filtered)
-                    
-                    # Also try to extract from nmap hostnames
-                    if 'nmap_02' in scan_data or 'nmap' in scan_data:
-                        nmap_data = scan_data.get('nmap_02', scan_data.get('nmap', {}))
-                        hosts = nmap_data.get('hosts', [])
-                        for host in hosts:
-                            hostnames = host.get('hostnames', [])
-                            for hostname_info in hostnames:
-                                if isinstance(hostname_info, dict):
-                                    name = hostname_info.get('name', '')
-                                elif isinstance(hostname_info, str):
-                                    name = hostname_info
-                                else:
-                                    continue
-                                if name and not name.replace('.', '').isdigit() and '.' in name:
-                                    discovered_hostnames.append(name)
-                    
-                    # Remove duplicates
-                    discovered_hostnames = list(set(discovered_hostnames))
-                    hostname_debug_info.append(f"Final discovered hostnames: {discovered_hostnames}")
-                else:
-                    hostname_debug_info.append("No HTTP data found in scan results")
+                # Filter to get actual hostnames (not IPs)
+                for hostname in tested_hostnames:
+                    if (hostname and 
+                        not hostname.replace('.', '').isdigit() and  # Not an IP
+                        '.' in hostname and  # Has domain structure
+                        hostname != target_ip):  # Different from target IP
+                        discovered_hostnames.append(hostname)
+                
+                # Remove duplicates while preserving order
+                seen = set()
+                unique_hostnames = []
+                for hostname in discovered_hostnames:
+                    if hostname not in seen:
+                        seen.add(hostname)
+                        unique_hostnames.append(hostname)
+                discovered_hostnames = unique_hostnames[:5]  # Limit to top 5
+                
+                hostname_debug_info.append(f"Final discovered hostnames: {discovered_hostnames}")
             else:
-                hostname_debug_info.append("No scan results files found in workspace")
-                # Check what files are actually in the workspace
-                try:
-                    workspace_files = [f.name for f in workspace.iterdir() if f.is_file()]
-                    hostname_debug_info.append(f"Workspace files: {workspace_files}")
-                except:
-                    hostname_debug_info.append("Could not list workspace files")
+                hostname_debug_info.append("No HTTP scan data provided")
                     
         except Exception as e:
             hostname_debug_info.append(f"Error extracting hostnames: {e}")
-            pass  # Continue with IP if hostname extraction fails
+            # Continue with IP if hostname extraction fails
             
         wordlists_file = workspace / "recommended_wordlists.txt"
         
