@@ -18,12 +18,16 @@ SECLISTS_REPO="https://github.com/danielmiessler/SecLists.git"
 SECLISTS_SIZE="~1.5GB"
 
 # Possible SecLists locations (in order of preference)
+# System-wide locations first, then user locations
 SECLISTS_PATHS=(
-    "/opt/SecLists"
-    "/usr/share/SecLists" 
-    "/usr/local/share/SecLists"
-    "$HOME/SecLists"
-    "$HOME/.local/share/SecLists"
+    "/usr/share/seclists"              # HTB/Kali standard (lowercase)
+    "/usr/share/SecLists"              # Alternative system location
+    "/opt/seclists"                    # Alternative system location (lowercase)
+    "/opt/SecLists"                    # Alternative system location
+    "/usr/local/share/seclists"        # Local system installation (lowercase)
+    "/usr/local/share/SecLists"        # Local system installation
+    "$HOME/SecLists"                   # User installation
+    "$HOME/.local/share/SecLists"      # User local installation
 )
 
 # Function to check if SecLists exists and is valid
