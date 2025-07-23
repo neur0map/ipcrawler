@@ -75,7 +75,7 @@ Traditional security testing wastes hours trying thousands of generic wordlists.
 <td align="center" width="33%">
 <img width="90" height="90" src="https://img.icons8.com/fluency/96/artificial-intelligence.png" alt="AI">
 <br><b>Smart Analysis</b><br>
-AI-powered target profiling identifies technologies, frameworks & services
+Smart target profiling identifies technologies, frameworks & services
 </td>
 <td align="center" width="33%">
 <img width="90" height="90" src="https://img.icons8.com/fluency/96/speed.png" alt="Speed">
