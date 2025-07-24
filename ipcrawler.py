@@ -516,9 +516,12 @@ async def run_workflow(target: str, debug: bool = False):
                     "discovery_enabled": True,
                     "discovered_ports": 0
                 }
-                result_manager.save_results(workspace, target, empty_data)
+                result_manager.save_results(workspace, target, empty_data, workflow='nmap_fast_01')
                 display_minimal_summary(empty_data, workspace)
                 return
+            
+            # Save fast discovery results
+            result_manager.save_results(workspace, target, discovery_result.data, workflow='nmap_fast_01')
             
             if port_count > config.max_detailed_ports:
                 console.print(f"⚠ Found {port_count} services, limiting detailed analysis to top {config.max_detailed_ports}")
@@ -740,8 +743,26 @@ async def run_workflow(target: str, debug: bool = False):
         
 
         
-        # All analysis completed
+        # All analysis completed - Save each workflow's results separately
         
+        # Save base nmap scan results
+        result_manager.save_results(workspace, target, result.data, workflow='nmap_02')
+        
+        # Save HTTP scan results if available
+        if http_scan_data:
+            result_manager.save_results(workspace, target, http_scan_data, workflow='http_03')
+        
+        # Save Mini Spider results if available
+        if spider_data:
+            result_manager.save_results(workspace, target, spider_data, workflow='mini_spider_04')
+        
+        # Save SmartList results with wordlist file if available
+        if smartlist_data:
+            result_manager.save_results(workspace, target, smartlist_data, 
+                                      workflow='smartlist_05', 
+                                      formats=['json', 'txt', 'html', 'wordlist'])
+        
+        # Save combined results as master report
         result_manager.save_results(workspace, target, result.data)
         
         # Display minimal summary only
@@ -797,9 +818,13 @@ def display_minimal_summary(data: dict, workspace: Path):
     # Display scan summary
     console.display_scan_summary(data)
     
-    # Add workspace info
-    console.print(f"\n[dim]📁 Full results saved to: [cyan]{workspace}[/cyan][/dim]")
-    console.print("[dim]💡 View detailed reports in the workspace directory[/dim]")
+    # Add workspace info with new structure
+    console.print(f"\n[dim]📁 Results saved to: [cyan]{workspace}[/cyan][/dim]")
+    console.print("[dim]   ├── nmap_fast_01/    (Port discovery)[/dim]")
+    console.print("[dim]   ├── nmap_02/         (Service fingerprinting)[/dim]")
+    console.print("[dim]   ├── http_03/         (HTTP analysis)[/dim]")
+    console.print("[dim]   ├── mini_spider_04/  (URL discovery)[/dim]")
+    console.print("[dim]   └── smartlist_05/    (Wordlist recommendations + wordlists.txt)[/dim]")
 
 
 

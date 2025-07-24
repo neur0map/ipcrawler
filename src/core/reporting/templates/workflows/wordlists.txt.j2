@@ -1,0 +1,102 @@
+{# SmartList Wordlists Template - Ready to Copy/Paste Format #}
+# IPCrawler SmartList Wordlist Recommendations
+# Target: {{ target }}
+# Generated: {{ metadata.timestamp | format_datetime('%Y-%m-%d %H:%M:%S') }}
+# Total Services Analyzed: {{ smartlist.wordlist_recommendations | length }}
+#
+# Format: wordlist_name,full_path,port,score,confidence,reason
+# Lines starting with # are comments and can be ignored
+# Copy the wordlist paths directly for use with your tools
+#
+{% if smartlist and smartlist.wordlist_recommendations -%}
+{%- for service_rec in smartlist.wordlist_recommendations -%}
+
+# ===============================================================================
+# Service: {{ service_rec.service_name }} ({{ service_rec.service }})
+{%- if service_rec.detected_technology %}
+# Technology: {{ service_rec.detected_technology }}
+{%- endif %}
+# Port: {{ service_rec.port if service_rec.port else 'N/A' }}
+# Service Confidence: {{ service_rec.confidence | upper }}
+# Total Score: {{ service_rec.total_score }}
+# ===============================================================================
+
+{%- if service_rec.top_wordlists %}
+{%- for wordlist in service_rec.top_wordlists %}
+{{ wordlist.wordlist }},{{ wordlist.path if wordlist.path else 'N/A' }},{{ service_rec.port if service_rec.port else 'N/A' }},{{ wordlist.score }},{{ wordlist.confidence }},{{ wordlist.reason | replace(',', ';') }}
+{%- endfor %}
+{%- else %}
+# No specific wordlists recommended for this service
+{%- endif %}
+{%- endfor %}
+
+# ===============================================================================
+# Quick Copy Section - Top Wordlists by Confidence
+# ===============================================================================
+
+{%- set high_confidence_wordlists = [] %}
+{%- set medium_confidence_wordlists = [] %}
+{%- set low_confidence_wordlists = [] %}
+
+{%- for service_rec in smartlist.wordlist_recommendations %}
+  {%- for wordlist in service_rec.top_wordlists %}
+    {%- if wordlist.confidence == 'HIGH' %}
+      {%- set _ = high_confidence_wordlists.append(wordlist) %}
+    {%- elif wordlist.confidence == 'MEDIUM' %}
+      {%- set _ = medium_confidence_wordlists.append(wordlist) %}
+    {%- else %}
+      {%- set _ = low_confidence_wordlists.append(wordlist) %}
+    {%- endif %}
+  {%- endfor %}
+{%- endfor %}
+
+{%- if high_confidence_wordlists %}
+
+## HIGH CONFIDENCE WORDLISTS (Copy these first)
+{%- for wordlist in high_confidence_wordlists[:5] %}
+{{ wordlist.path if wordlist.path else wordlist.wordlist }}
+{%- endfor %}
+{%- endif %}
+
+{%- if medium_confidence_wordlists %}
+
+## MEDIUM CONFIDENCE WORDLISTS
+{%- for wordlist in medium_confidence_wordlists[:5] %}
+{{ wordlist.path if wordlist.path else wordlist.wordlist }}
+{%- endfor %}
+{%- endif %}
+
+{%- if low_confidence_wordlists %}
+
+## LOW CONFIDENCE WORDLISTS (Use if others don't work)
+{%- for wordlist in low_confidence_wordlists[:3] %}
+{{ wordlist.path if wordlist.path else wordlist.wordlist }}
+{%- endfor %}
+{%- endif %}
+
+# ===============================================================================
+# Usage Examples
+# ===============================================================================
+#
+# For dirbuster/gobuster:
+{%- if high_confidence_wordlists %}
+# gobuster dir -u http://{{ target }}/ -w {{ high_confidence_wordlists[0].path if high_confidence_wordlists[0].path else high_confidence_wordlists[0].wordlist }}
+{%- endif %}
+#
+# For ffuf:
+{%- if high_confidence_wordlists %}
+# ffuf -u http://{{ target }}/FUZZ -w {{ high_confidence_wordlists[0].path if high_confidence_wordlists[0].path else high_confidence_wordlists[0].wordlist }}
+{%- endif %}
+#
+# For wfuzz:
+{%- if high_confidence_wordlists %}
+# wfuzz -c -z file,{{ high_confidence_wordlists[0].path if high_confidence_wordlists[0].path else high_confidence_wordlists[0].wordlist }} http://{{ target }}/FUZZ
+{%- endif %}
+#
+{%- else %}
+# No SmartList recommendations available
+# This usually means no services were detected that could be analyzed
+# Try running with different scan parameters or ensure services are responding
+{%- endif %}
+
+# End of SmartList Wordlist Recommendations

@@ -11,6 +11,7 @@ from .base.reporter import MultiFormatReporter
 from .formats.json_reporter import JSONReporter
 from .formats.html_reporter import HTMLReporter
 from .formats.text_reporter import TextReporter
+from .formats.wordlist_reporter import WordlistReporter
 from src.core.ui.console.base import console
 
 
@@ -33,6 +34,7 @@ class ReportManager:
             'json': JSONReporter(self.output_dir),
             'html': HTMLReporter(self.output_dir),
             'txt': TextReporter(self.output_dir),
+            'wordlist': WordlistReporter(self.output_dir),
             # TODO: Add more formats (MD, xml)
         }
     

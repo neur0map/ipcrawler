@@ -87,12 +87,12 @@ class ResultManager:
     @staticmethod
     def create_workspace(target: str) -> Path:
         """Create workspace directory for scan results."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        workspace_name = f"scan_{target.replace('.', '_')}_{timestamp}"
+        # Sanitize target name for directory usage
+        clean_target = ResultManager._sanitize_target_name(target)
         
-        # Ensure workspaces directory has correct ownership
+        # Use clean target name without timestamp
         base_path = Path("workspaces")
-        workspace_path = base_path / workspace_name
+        workspace_path = base_path / clean_target
         
         workspace_path.mkdir(parents=True, exist_ok=True)
         
@@ -110,6 +110,25 @@ class ResultManager:
         return workspace_path
     
     @staticmethod
+    def _sanitize_target_name(target: str) -> str:
+        """Sanitize target name for use as directory name"""
+        import re
+        # Replace invalid characters with underscores
+        sanitized = re.sub(r'[<>:"/\\|?*]', '_', target)
+        # Replace dots and other special chars commonly found in hostnames/IPs
+        sanitized = sanitized.replace('.', '_').replace(':', '_').replace('/', '_')
+        # Remove multiple consecutive underscores
+        sanitized = re.sub(r'_+', '_', sanitized)
+        # Remove leading/trailing underscores
+        sanitized = sanitized.strip('_')
+        # Ensure it's not empty and not too long
+        if not sanitized:
+            sanitized = 'unknown_target'
+        elif len(sanitized) > 50:
+            sanitized = sanitized[:50].rstrip('_')
+        return sanitized
+    
+    @staticmethod
     def finalize_scan_data(data: Dict) -> Dict:
         """Finalize scan data by sorting ports and removing internal indexes."""
         # Sort ports for each host
@@ -124,10 +143,9 @@ class ResultManager:
         return data
     
     def save_results(self, workspace: Path, target: str, data: Dict, 
-                    formats: Optional[List[str]] = None) -> None:
-        """Save scan results using centralized reporting system."""
-        console.debug(f"Legacy save_results called - redirecting to centralized system")
-        console.debug(f"Workspace: {workspace}, Target: {target}, Formats: {formats}")
+                    formats: Optional[List[str]] = None, workflow: str = None) -> None:
+        """Save scan results using centralized reporting system with workflow organization."""
+        console.debug(f"Save results called - Workspace: {workspace}, Target: {target}, Workflow: {workflow}")
         
         # Default to all formats if none specified
         if formats is None:
@@ -137,13 +155,33 @@ class ResultManager:
         data = self.finalize_scan_data(data)
         
         try:
-            # Use centralized reporting system
-            results = report_manager.generate_workspace_reports(
-                workspace_dir=workspace,
-                data=data,
-                formats=formats,
-                target=target
-            )
+            # Use workflow-specific directory structure
+            if workflow:
+                workflow_dir = workspace / workflow
+                workflow_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Use workflow-specific reporting
+                results = report_manager.generate_report(
+                    data=data,
+                    formats=formats,
+                    target=target,
+                    workflow=workflow
+                )
+                
+                # Move files to workflow directory
+                for format_name, file_path in results.items():
+                    if file_path.exists():
+                        target_path = workflow_dir / file_path.name
+                        file_path.rename(target_path)
+                        results[format_name] = target_path
+            else:
+                # Use legacy workspace reports structure
+                results = report_manager.generate_workspace_reports(
+                    workspace_dir=workspace,
+                    data=data,
+                    formats=formats,
+                    target=target
+                )
             
             console.success(f"Generated {len(results)} report files using centralized system")
             
