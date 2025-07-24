@@ -92,9 +92,8 @@ class WorkflowReporter(BaseReporter):
         Returns:
             Generated filename
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_target = target.replace(':', '_').replace('/', '_')
-        return f"{self.workflow_name}_{safe_target}_{timestamp}.{extension}"
+        safe_target = target.replace(':', '_').replace('/', '_').replace('.', '_')
+        return f"{self.workflow_name}_{safe_target}.{extension}"
 
 
 class MultiFormatReporter:

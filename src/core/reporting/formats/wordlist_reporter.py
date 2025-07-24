@@ -45,7 +45,7 @@ class WordlistReporter(BaseReporter):
         
         # Check if SmartList data exists
         if 'smartlist' not in data or not data['smartlist']:
-            console.warning("No SmartList data found for wordlist generation")
+            console.warning("No SmartList data found for wordlist generation", internal=True)
             return None
         
         # Prepare context
@@ -66,11 +66,11 @@ class WordlistReporter(BaseReporter):
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(wordlist_content)
             
-            console.success(f"Generated wordlist file: {output_path}")
+            console.success(f"Generated wordlist file: {output_path}", internal=True)
             return output_path
             
         except Exception as e:
-            console.error(f"Failed to generate wordlist file: {e}")
+            console.error(f"Failed to generate wordlist file: {e}", internal=True)
             raise
     
     def _prepare_context(self, data: Dict[str, Any], **kwargs) -> Dict[str, Any]:

@@ -516,12 +516,14 @@ async def run_workflow(target: str, debug: bool = False):
                     "discovery_enabled": True,
                     "discovered_ports": 0
                 }
-                result_manager.save_results(workspace, target, empty_data, workflow='nmap_fast_01')
+                result_manager.save_results(workspace, target, empty_data, 
+                                          workflow='nmap_fast_01', formats=['json', 'txt'])
                 display_minimal_summary(empty_data, workspace)
                 return
             
-            # Save fast discovery results
-            result_manager.save_results(workspace, target, discovery_result.data, workflow='nmap_fast_01')
+            # Save fast discovery results (text only)
+            result_manager.save_results(workspace, target, discovery_result.data, 
+                                      workflow='nmap_fast_01', formats=['json', 'txt'])
             
             if port_count > config.max_detailed_ports:
                 console.print(f"⚠ Found {port_count} services, limiting detailed analysis to top {config.max_detailed_ports}")
@@ -745,25 +747,34 @@ async def run_workflow(target: str, debug: bool = False):
         
         # All analysis completed - Save each workflow's results separately
         
-        # Save base nmap scan results
-        result_manager.save_results(workspace, target, result.data, workflow='nmap_02')
+        # Save base nmap scan results (text only)
+        result_manager.save_results(workspace, target, result.data, 
+                                  workflow='nmap_02', formats=['json', 'txt'])
         
-        # Save HTTP scan results if available
+        # Save HTTP scan results if available (text only)
         if http_scan_data:
-            result_manager.save_results(workspace, target, http_scan_data, workflow='http_03')
+            result_manager.save_results(workspace, target, http_scan_data, 
+                                      workflow='http_03', formats=['json', 'txt'])
         
-        # Save Mini Spider results if available
+        # Save Mini Spider results if available (text only)
         if spider_data:
-            result_manager.save_results(workspace, target, spider_data, workflow='mini_spider_04')
+            result_manager.save_results(workspace, target, spider_data, 
+                                      workflow='mini_spider_04', formats=['json', 'txt'])
         
-        # Save SmartList results with wordlist file if available
+        # Save SmartList results with wordlist file (text + wordlist only)
         if smartlist_data:
             result_manager.save_results(workspace, target, smartlist_data, 
                                       workflow='smartlist_05', 
-                                      formats=['json', 'txt', 'html', 'wordlist'])
+                                      formats=['json', 'txt', 'wordlist'])
         
-        # Save combined results as master report
-        result_manager.save_results(workspace, target, result.data)
+        # Generate single master HTML report combining all workflows
+        try:
+            from src.core.reporting.formats.master_reporter import MasterReporter
+            master_reporter = MasterReporter(workspace)
+            master_html_path = master_reporter.generate(result.data, target=target)
+            console.print(f"📊 Master report generated: [cyan]{master_html_path}[/cyan]")
+        except Exception as e:
+            console.error(f"Failed to generate master HTML report: {e}")
         
         # Display minimal summary only
         display_minimal_summary(result.data, workspace)
@@ -820,11 +831,12 @@ def display_minimal_summary(data: dict, workspace: Path):
     
     # Add workspace info with new structure
     console.print(f"\n[dim]📁 Results saved to: [cyan]{workspace}[/cyan][/dim]")
-    console.print("[dim]   ├── nmap_fast_01/    (Port discovery)[/dim]")
-    console.print("[dim]   ├── nmap_02/         (Service fingerprinting)[/dim]")
-    console.print("[dim]   ├── http_03/         (HTTP analysis)[/dim]")
-    console.print("[dim]   ├── mini_spider_04/  (URL discovery)[/dim]")
-    console.print("[dim]   └── smartlist_05/    (Wordlist recommendations + wordlists.txt)[/dim]")
+    console.print("[dim]   ├── nmap_fast_01/         (Port discovery - text reports)[/dim]")
+    console.print("[dim]   ├── nmap_02/              (Service fingerprinting - text reports)[/dim]")
+    console.print("[dim]   ├── http_03/              (HTTP analysis - text reports)[/dim]")
+    console.print("[dim]   ├── mini_spider_04/       (URL discovery - text reports)[/dim]")
+    console.print("[dim]   ├── smartlist_05/         (Wordlist recommendations + wordlists.txt)[/dim]")
+    console.print("[dim]   └── master_report_*.html   (📊 Comprehensive HTML report)[/dim]")
 
 
 

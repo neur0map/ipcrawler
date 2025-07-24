@@ -155,35 +155,47 @@ class ResultManager:
         data = self.finalize_scan_data(data)
         
         try:
-            # Use workflow-specific directory structure
-            if workflow:
-                workflow_dir = workspace / workflow
-                workflow_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Use workflow-specific reporting
-                results = report_manager.generate_report(
-                    data=data,
-                    formats=formats,
-                    target=target,
-                    workflow=workflow
-                )
-                
-                # Move files to workflow directory
-                for format_name, file_path in results.items():
-                    if file_path.exists():
-                        target_path = workflow_dir / file_path.name
-                        file_path.rename(target_path)
-                        results[format_name] = target_path
-            else:
-                # Use legacy workspace reports structure
-                results = report_manager.generate_workspace_reports(
-                    workspace_dir=workspace,
-                    data=data,
-                    formats=formats,
-                    target=target
-                )
+            # Set the output directory to workspace before generating
+            original_output_dir = report_manager.output_dir
+            report_manager.set_output_directory(workspace)
             
-            console.success(f"Generated {len(results)} report files using centralized system")
+            try:
+                # Use workflow-specific directory structure
+                if workflow:
+                    workflow_dir = workspace / workflow
+                    workflow_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # Temporarily set reporters to use workflow directory
+                    original_dirs = {}
+                    for fmt, reporter in report_manager.reporters.items():
+                        original_dirs[fmt] = reporter.output_dir
+                        reporter.output_dir = workflow_dir
+                    
+                    try:
+                        # Generate reports directly in workflow directory
+                        results = report_manager.generate_report(
+                            data=data,
+                            formats=formats,
+                            target=target,
+                            workflow=workflow
+                        )
+                    finally:
+                        # Restore original directories
+                        for fmt, reporter in report_manager.reporters.items():
+                            reporter.output_dir = original_dirs[fmt]
+                else:
+                    # Use legacy workspace reports structure
+                    results = report_manager.generate_workspace_reports(
+                        workspace_dir=workspace,
+                        data=data,
+                        formats=formats,
+                        target=target
+                    )
+            finally:
+                # Always restore original output directory
+                report_manager.set_output_directory(original_output_dir)
+            
+            console.success(f"Generated {len(results)} report files using centralized system", internal=True)
             
             # Fix file permissions if running as sudo
             if os.geteuid() == 0:  # Running as root
@@ -198,22 +210,22 @@ class ResultManager:
                             result = subprocess.run(['chown', f'{sudo_uid}:{sudo_gid}', str(file)], 
                                           capture_output=True, check=False)
                             if result.returncode != 0:
-                                console.warning(f"chown failed for {file}: {result.stderr}")
+                                console.warning(f"chown failed for {file}: {result.stderr}", internal=True)
                         except Exception as e:
-                            console.error(f"Permission fix failed for {file}: {e}")
+                            console.error(f"Permission fix failed for {file}: {e}", internal=True)
                 else:
                     console.debug("No SUDO_UID/SUDO_GID found, skipping permission fix")
             else:
                 console.debug("Not running as root, no permission fix needed")
                 
         except Exception as e:
-            console.error(f"Centralized reporting failed, falling back to legacy method: {e}")
+            console.error(f"Centralized reporting failed, falling back to legacy method: {e}", internal=True)
             self._legacy_save_results(workspace, target, data, formats)
     
     def _legacy_save_results(self, workspace: Path, target: str, data: Dict, 
                            formats: List[str]) -> None:
         """Fallback to legacy save method if centralized system fails."""
-        console.warning("Using legacy save_results method as fallback")
+        console.warning("Using legacy save_results method as fallback", internal=True)
         
         # Determine file prefix
         prefix = "scan_"
@@ -222,7 +234,7 @@ class ResultManager:
         files_created = []
         for fmt in formats:
             if fmt not in self.formatters:
-                console.warning(f"Unknown format: {fmt}")
+                console.warning(f"Unknown format: {fmt}", internal=True)
                 continue
             
             # Determine filename
@@ -233,7 +245,7 @@ class ResultManager:
             elif fmt == 'html':
                 filename = f"{prefix}report.html"
             else:
-                console.warning(f"Unhandled format: {fmt}")
+                console.warning(f"Unhandled format: {fmt}", internal=True)
                 continue
             
             filepath = workspace / filename
@@ -248,12 +260,12 @@ class ResultManager:
                     f.write(formatted_content)
                 
                 files_created.append(filepath)
-                console.success(f"Successfully created: {filepath}")
+                console.success(f"Successfully created: {filepath}", internal=True)
                 
             except Exception as e:
-                console.error(f"Failed to create {fmt} file: {e}")
+                console.error(f"Failed to create {fmt} file: {e}", internal=True)
         
-        console.info(f"Legacy method created {len(files_created)} files")
+        console.info(f"Legacy method created {len(files_created)} files", internal=True)
     
     async def save_results_async(self, workspace: Path, target: str, data: Dict, 
                                formats: Optional[List[str]] = None) -> None:

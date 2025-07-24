@@ -61,12 +61,89 @@ class TextReporter(BaseReporter):
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(text_content)
             
-            console.success(f"Generated text report: {output_path}")
+            console.success(f"Generated text report: {output_path}", internal=True)
             return output_path
             
         except Exception as e:
-            console.error(f"Failed to generate text report: {e}")
+            console.error(f"Failed to generate text report: {e}", internal=True)
             raise
+    
+    def _format_text_report(self, target: str, data: Dict[str, Any]) -> str:
+        """Format text report content for legacy compatibility
+        
+        Args:
+            target: Target identifier
+            data: Scan data to format
+            
+        Returns:
+            Formatted text content as string
+        """
+        # Prepare context for rendering
+        context = self._prepare_context(data, target=target)
+        
+        # Use base template for legacy formatting
+        try:
+            return self.template_engine.render_template('base/layout.txt.j2', context)
+        except Exception as e:
+            console.error(f"Failed to format text report: {e}", internal=True)
+            # Fallback to simple text format
+            return self._generate_simple_text_report(target, data)
+    
+    def _generate_simple_text_report(self, target: str, data: Dict[str, Any]) -> str:
+        """Generate simple text report as fallback"""
+        lines = [
+            "=" * 80,
+            f"SCAN REPORT FOR {target.upper()}",
+            "=" * 80,
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            ""
+        ]
+        
+        # Add hosts summary
+        if 'hosts' in data and data['hosts']:
+            lines.extend([
+                "DISCOVERED HOSTS:",
+                "-" * 80
+            ])
+            for host in data['hosts']:
+                host_ip = host.get('address', 'Unknown')
+                hostname = host.get('hostname', '')
+                status = host.get('status', 'unknown')
+                
+                lines.append(f"Host: {host_ip}")
+                if hostname:
+                    lines.append(f"  Hostname: {hostname}")
+                lines.append(f"  Status: {status}")
+                
+                # Add ports
+                ports = host.get('ports', [])
+                if ports:
+                    lines.append(f"  Open Ports ({len(ports)}):")
+                    for port in ports[:10]:  # Limit to first 10 ports
+                        port_num = port.get('port', 'N/A')
+                        service = port.get('service', 'unknown')
+                        state = port.get('state', 'unknown')
+                        lines.append(f"    {port_num}/{port.get('protocol', 'tcp')} - {service} ({state})")
+                    
+                    if len(ports) > 10:
+                        lines.append(f"    ... and {len(ports) - 10} more ports")
+                
+                lines.append("")
+        
+        # Add summary
+        if 'summary' in data:
+            summary = data['summary']
+            lines.extend([
+                "SUMMARY:",
+                "-" * 80,
+                f"Total Hosts: {summary.get('total_hosts', 0)}",
+                f"Up Hosts: {summary.get('up_hosts', 0)}",
+                f"Down Hosts: {summary.get('down_hosts', 0)}",
+                ""
+            ])
+        
+        lines.append("=" * 80)
+        return "\n".join(lines)
     
     def _prepare_context(self, data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """Prepare context for template rendering"""
@@ -240,12 +317,11 @@ class TextReporter(BaseReporter):
         # Generate filename from context
         target = kwargs.get('target', data.get('target', 'unknown'))
         workflow = kwargs.get('workflow', 'scan')
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Sanitize target for filename
         safe_target = target.replace(':', '_').replace('/', '_').replace('.', '_')
         
-        return f"{workflow}_report_{safe_target}_{timestamp}.txt"
+        return f"{workflow}_report_{safe_target}.txt"
     
     def validate_data(self, data: Dict[str, Any]) -> bool:
         """Validate that data is suitable for text reporting

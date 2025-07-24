@@ -58,7 +58,7 @@ class TemplateEngine:
             })
             
         except Exception as e:
-            console.error(f"Failed to setup template environment: {e}")
+            console.error(f"Failed to setup template environment: {e}", internal=True)
             raise
     
     def _register_custom_filters(self):
@@ -211,13 +211,13 @@ class TemplateEngine:
             return rendered
             
         except TemplateNotFound as e:
-            console.error(f"Template not found: {template_name}")
+            console.error(f"Template not found: {template_name}", internal=True)
             raise
         except TemplateSyntaxError as e:
-            console.error(f"Template syntax error in '{template_name}': {e}")
+            console.error(f"Template syntax error in '{template_name}': {e}", internal=True)
             raise
         except Exception as e:
-            console.error(f"Failed to render template '{template_name}': {e}")
+            console.error(f"Failed to render template '{template_name}': {e}", internal=True)
             raise
     
     def get_template(self, template_name: str) -> Template:
@@ -247,7 +247,7 @@ class TemplateEngine:
                 templates.append(str(rel_path))
             return sorted(templates)
         except Exception as e:
-            console.error(f"Failed to list templates: {e}")
+            console.error(f"Failed to list templates: {e}", internal=True)
             return []
     
     def validate_template(self, template_name: str) -> tuple[bool, Optional[str]]:

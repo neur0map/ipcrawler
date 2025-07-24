@@ -49,30 +49,70 @@ class IPCrawlerConsole:
         """Print to console with Rich formatting"""
         self.console.print(*args, **kwargs)
     
-    def success(self, message: str, **kwargs):
-        """Print success message"""
+    def success(self, message: str, internal: bool = False, **kwargs):
+        """Print success message
+        
+        Args:
+            message: Message to print
+            internal: If True, only show in debug mode (for internal operations)
+            **kwargs: Additional Rich formatting options
+        """
+        if internal and not self._is_debug_enabled():
+            return
         self.console.print(f"✅ {message}", style="green", **kwargs)
     
-    def error(self, message: str, **kwargs):
-        """Print error message"""
+    def error(self, message: str, internal: bool = False, **kwargs):
+        """Print error message
+        
+        Args:
+            message: Message to print
+            internal: If True, only show in debug mode (for internal operations)
+            **kwargs: Additional Rich formatting options
+        """
+        if internal and not self._is_debug_enabled():
+            return
         self.console.print(f"❌ {message}", style="red", **kwargs)
     
-    def warning(self, message: str, **kwargs):
-        """Print warning message"""
+    def warning(self, message: str, internal: bool = False, **kwargs):
+        """Print warning message
+        
+        Args:
+            message: Message to print
+            internal: If True, only show in debug mode (for internal operations)
+            **kwargs: Additional Rich formatting options
+        """
+        if internal and not self._is_debug_enabled():
+            return
         self.console.print(f"⚠️  {message}", style="yellow", **kwargs)
     
-    def info(self, message: str, **kwargs):
-        """Print info message"""
+    def info(self, message: str, internal: bool = False, **kwargs):
+        """Print info message
+        
+        Args:
+            message: Message to print
+            internal: If True, only show in debug mode (for internal operations)
+            **kwargs: Additional Rich formatting options
+        """
+        if internal and not self._is_debug_enabled():
+            return
         self.console.print(f"ℹ️  {message}", style="blue", **kwargs)
     
     def critical(self, message: str, **kwargs):
-        """Print critical message"""
+        """Print critical message (always shown)"""
         self.console.print(f"🚨 {message}", style="bold red", **kwargs)
     
     def debug(self, message: str, **kwargs):
-        """Print debug message"""
-        if kwargs.get('verbose', False):
+        """Print debug message (only shown in debug mode)"""
+        if self._is_debug_enabled():
             self.console.print(f"🐛 {message}", style="dim", **kwargs)
+    
+    def _is_debug_enabled(self) -> bool:
+        """Check if debug mode is enabled"""
+        try:
+            from ...utils.debugging import is_debug_enabled
+            return is_debug_enabled()
+        except ImportError:
+            return False
     
     def rule(self, title: Optional[str] = None, **kwargs):
         """Print a horizontal rule"""

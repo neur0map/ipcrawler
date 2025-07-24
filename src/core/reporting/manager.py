@@ -60,7 +60,8 @@ class ReportManager:
             formats = self.get_available_formats()
         
         # Create workflow-specific subdirectory if specified
-        if workflow:
+        # Skip if reporters are already set to correct directories
+        if workflow and not str(self.reporters['json'].output_dir).endswith(workflow):
             workflow_dir = self.output_dir / workflow
             workflow_dir.mkdir(parents=True, exist_ok=True)
             # Update reporter output directories
@@ -78,10 +79,10 @@ class ReportManager:
         
         try:
             results = self.multi_reporter.generate_all(data, formats)
-            console.success(f"Generated {len(results)} report files")
+            console.success(f"Generated {len(results)} report files", internal=True)
             return results
         except Exception as e:
-            console.error(f"Report generation failed: {e}")
+            console.error(f"Report generation failed: {e}", internal=True)
             return {}
     
     def generate_workspace_reports(self,

@@ -63,9 +63,9 @@ class JSONReporter(BaseReporter):
         filename = kwargs.get('filename')
         if not filename:
             target = kwargs.get('target', 'unknown')
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_target = target.replace(':', '_').replace('/', '_')
-            filename = f"report_{safe_target}_{timestamp}.json"
+            workflow = kwargs.get('workflow', 'scan')
+            safe_target = target.replace(':', '_').replace('/', '_').replace('.', '_')
+            filename = f"{workflow}_report_{safe_target}.json"
         
         # Ensure .json extension
         if not filename.endswith('.json'):

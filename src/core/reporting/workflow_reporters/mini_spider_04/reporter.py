@@ -58,7 +58,7 @@ class EnhancedReporter:
             return generated_files
             
         except Exception as e:
-            console.error(f"Report generation failed: {str(e)}")
+            console.error(f"Report generation failed: {str(e)}", internal=True)
             return {}
     
     def _generate_html_report(self, spider_result: MiniSpiderResult, output_dir: Path) -> Path:

@@ -57,12 +57,113 @@ class HTMLReporter(BaseReporter):
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
             
-            console.success(f"Generated HTML report: {output_path}")
+            console.success(f"Generated HTML report: {output_path}", internal=True)
             return output_path
             
         except Exception as e:
-            console.error(f"Failed to generate HTML report: {e}")
+            console.error(f"Failed to generate HTML report: {e}", internal=True)
             raise
+    
+    def _format_html_content(self, target: str, data: Dict[str, Any]) -> str:
+        """Format HTML report content for legacy compatibility
+        
+        Args:
+            target: Target identifier
+            data: Scan data to format
+            
+        Returns:
+            Formatted HTML content as string
+        """
+        # Prepare context for rendering
+        context = self._prepare_context(data, target=target, title=f"Scan Report - {target}")
+        
+        # Use base template for legacy formatting
+        try:
+            return self.template_engine.render_template('base/layout.html.j2', context)
+        except Exception as e:
+            console.error(f"Failed to format HTML report: {e}", internal=True)
+            # Fallback to simple HTML format
+            return self._generate_simple_html_report(target, data)
+    
+    def _generate_simple_html_report(self, target: str, data: Dict[str, Any]) -> str:
+        """Generate simple HTML report as fallback"""
+        html_parts = [
+            '<!DOCTYPE html>',
+            '<html>',
+            '<head>',
+            f'<title>Scan Report - {target}</title>',
+            '<style>',
+            'body { font-family: Arial, sans-serif; margin: 20px; }',
+            'h1, h2 { color: #333; }',
+            'table { border-collapse: collapse; width: 100%; margin: 10px 0; }',
+            'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }',
+            'th { background-color: #f2f2f2; }',
+            '.summary { background-color: #f9f9f9; padding: 15px; margin: 10px 0; }',
+            '</style>',
+            '</head>',
+            '<body>',
+            f'<h1>Scan Report for {target}</h1>',
+            f'<p><strong>Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>'
+        ]
+        
+        # Add summary section
+        if 'summary' in data:
+            summary = data['summary']
+            html_parts.extend([
+                '<div class="summary">',
+                '<h2>Summary</h2>',
+                f'<p><strong>Total Hosts:</strong> {summary.get("total_hosts", 0)}</p>',
+                f'<p><strong>Up Hosts:</strong> {summary.get("up_hosts", 0)}</p>',
+                f'<p><strong>Down Hosts:</strong> {summary.get("down_hosts", 0)}</p>',
+                '</div>'
+            ])
+        
+        # Add hosts section
+        if 'hosts' in data and data['hosts']:
+            html_parts.extend([
+                '<h2>Discovered Hosts</h2>'
+            ])
+            
+            for host in data['hosts']:
+                host_ip = host.get('address', 'Unknown')
+                hostname = host.get('hostname', '')
+                status = host.get('status', 'unknown')
+                
+                html_parts.extend([
+                    f'<h3>Host: {host_ip}</h3>',
+                    f'<p><strong>Status:</strong> {status}</p>'
+                ])
+                
+                if hostname:
+                    html_parts.append(f'<p><strong>Hostname:</strong> {hostname}</p>')
+                
+                # Add ports table
+                ports = host.get('ports', [])
+                if ports:
+                    html_parts.extend([
+                        f'<h4>Open Ports ({len(ports)})</h4>',
+                        '<table>',
+                        '<tr><th>Port</th><th>Protocol</th><th>Service</th><th>State</th></tr>'
+                    ])
+                    
+                    for port in ports[:20]:  # Limit to first 20 ports
+                        port_num = port.get('port', 'N/A')
+                        protocol = port.get('protocol', 'tcp')
+                        service = port.get('service', 'unknown')
+                        state = port.get('state', 'unknown')
+                        html_parts.append(f'<tr><td>{port_num}</td><td>{protocol}</td><td>{service}</td><td>{state}</td></tr>')
+                    
+                    html_parts.append('</table>')
+                    
+                    if len(ports) > 20:
+                        html_parts.append(f'<p><em>... and {len(ports) - 20} more ports</em></p>')
+        
+        html_parts.extend([
+            '</body>',
+            '</html>'
+        ])
+        
+        return '\n'.join(html_parts)
     
     def get_format(self) -> str:
         """Get the report format name"""
@@ -260,12 +361,11 @@ class HTMLReporter(BaseReporter):
         # Generate filename from context
         target = kwargs.get('target', data.get('target', 'unknown'))
         workflow = kwargs.get('workflow', 'scan')
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Sanitize target for filename
         safe_target = target.replace(':', '_').replace('/', '_').replace('.', '_')
         
-        return f"{workflow}_report_{safe_target}_{timestamp}.html"
+        return f"{workflow}_report_{safe_target}.html"
     
     def set_theme(self, theme: str):
         """Change the theme for the reporter
