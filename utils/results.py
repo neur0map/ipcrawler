@@ -21,12 +21,21 @@ class BaseFormatter(ABC):
         pass
 
 
+class DateTimeJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
 class JSONFormatter(BaseFormatter):
     """Formats scan results as JSON."""
     
     def format(self, target: str, data: Dict) -> str:
         """Format scan data as JSON string."""
-        return json.dumps(data, indent=2)
+        return json.dumps(data, indent=2, cls=DateTimeJSONEncoder)
 
 
 class TextFormatter(BaseFormatter):

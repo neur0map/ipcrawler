@@ -191,9 +191,12 @@ def score_wordlists(context: ScoringContext) -> ScoringResult:
         synergy_bonuses=synergy_bonuses or None
     )
     
+    # Format entropy score properly
+    entropy_display = f"{entropy_score:.3f}" if entropy_score is not None else "N/A"
+    
     logger.info(
         f"Scored {len(final_wordlists)} wordlists for {enriched_context.target}:{enriched_context.port} "
-        f"(score: {final_score:.3f}, confidence: {confidence}, entropy: {entropy_score:.3f if entropy_score is not None else 'N/A'})"
+        f"(score: {final_score:.3f}, confidence: {confidence}, entropy: {entropy_display})"
     )
     
     # Cache the selection for tracking
