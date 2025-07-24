@@ -42,54 +42,53 @@ class CustomCrawler:
         
         if not seed_urls:
             debug_print("No seed URLs provided for custom crawler")
-            print("    ⚠ No seed URLs available for custom crawler")
+            # No seed URLs available
             return []
         
         debug_print(f"Starting custom crawler with {len(seed_urls)} seed URLs")
-        print(f"    → Testing {len(seed_urls)} seed URLs...")
+        # Testing seed URLs
         
         discovered = []
         
         try:
             # Check HTTP library availability
             if not HTTPX_AVAILABLE:
-                print("    ⚠ httpx not available, using curl fallback (slower)")
+                pass  # Using curl fallback
             
             # Phase 1: Test seed URLs and extract base URLs
             active_base_urls = await self._validate_seed_urls(seed_urls)
             debug_print(f"Validated {len(active_base_urls)} active base URLs: {active_base_urls}")
             
             if len(active_base_urls) == 0:
-                print("    ⚠ No seed URLs are responding - target may be down or filtered")
+                # No responding URLs found
                 return []
-            else:
-                print(f"    ✓ {len(active_base_urls)} URLs responding, starting discovery...")
+            # URLs responding, starting discovery
             
             # Phase 2: Common path discovery
-            print(f"    → Phase 2: Testing common paths...")
+            # Phase 2: Testing common paths
             common_paths = await self._discover_common_paths(active_base_urls, max_concurrent)
             discovered.extend(common_paths)
-            print(f"    ✓ Common paths: {len(common_paths)} found")
+            # Common paths discovered
             
             # Phase 3: Smart path generation based on responses
-            print(f"    → Phase 3: Smart path generation...")
+            # Phase 3: Smart path generation
             smart_paths = await self._discover_smart_paths(active_base_urls, max_concurrent)
             discovered.extend(smart_paths)
-            print(f"    ✓ Smart paths: {len(smart_paths)} found")
+            # Smart paths discovered
             
             # Phase 4: Directory traversal and path extension
             if discovered:
-                print(f"    → Phase 4: Extending discovered paths...")
+                # Phase 4: Extending discovered paths
                 extended_paths = await self._extend_discovered_paths(discovered[:20], max_concurrent)  # Limit to top 20
                 discovered.extend(extended_paths)
-                print(f"    ✓ Extended paths: {len(extended_paths)} found")
+                # Extended paths discovered
             
             # Phase 5: HTML link extraction from discovered pages
             if discovered:
-                print(f"    → Phase 5: Extracting links from pages...")
+                # Phase 5: Extracting links from pages
                 link_paths = await self._extract_links_from_pages(discovered[:10])  # Limit to top 10
                 discovered.extend(link_paths)
-                print(f"    ✓ Extracted links: {len(link_paths)} found")
+                # Links extracted
             
             execution_time = time.time() - start_time
             self.stats.total_bytes_downloaded = getattr(self.stats, 'total_bytes_downloaded', 0)

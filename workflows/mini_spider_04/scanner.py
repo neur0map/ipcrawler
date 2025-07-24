@@ -61,8 +61,7 @@ class MiniSpiderScanner(BaseWorkflow):
         hakrawler_path = config_manager.tools_available.get('hakrawler')
         if not hakrawler_path:
             missing_tools.append("hakrawler")
-        else:
-            print(f"  ✓ Found hakrawler at: {hakrawler_path}")
+        # Tool detection done silently
         
         # Check if httpx is available for custom crawler
         try:
@@ -70,23 +69,7 @@ class MiniSpiderScanner(BaseWorkflow):
         except ImportError:
             missing_tools.append("httpx")
         
-        # Only show warnings for truly missing tools
-        if missing_tools:
-            print(f"  ⚠ Missing optional tools: {', '.join(missing_tools)}")
-            print("  → Mini Spider will use basic discovery methods")
-            if 'hakrawler' in missing_tools:
-                print("    Searched locations:")
-                print("      • $PATH directories")
-                print("      • ~/go/bin/, /usr/local/go/bin/")
-                print("      • /usr/bin/, /usr/local/bin/")
-                print("      • /opt/hakrawler/, /opt/go/bin/")
-                print("      • ~/.local/bin/, ~/tools/")
-                print("    Install options:")
-                print("      • Kali/Ubuntu: apt install hakrawler")
-                print("      • Go install: go install github.com/hakluke/hakrawler@latest")
-                print("      • Run: make install (automatic setup)")
-            if 'httpx' in missing_tools:
-                print("    Install httpx: pip install httpx")
+        # Missing tools handled silently
         
         try:
             # Initialize result object
@@ -106,8 +89,6 @@ class MiniSpiderScanner(BaseWorkflow):
                 result.seed_urls.extend(seed_urls)
             
             # Phase 2: Custom path sniffer (parallel with hakrawler)
-            print("  → Running custom path discovery...")
-            
             # Use already discovered URLs from previous workflow as starting URLs
             all_discovered = result.seed_urls.copy()
             
@@ -117,40 +98,18 @@ class MiniSpiderScanner(BaseWorkflow):
                 max_concurrent=self.max_concurrent_crawls
             )
             all_discovered.extend(custom_urls)
-            print(f"  ✓ Custom crawler found {len(custom_urls)} additional URLs")
             
             # Phase 3: Hakrawler discovery (parallel with custom crawler)
-            print("  → Running hakrawler discovery...")
             hakrawler_urls = await self.hakrawler_wrapper.run_parallel_discovery(
                 result.seed_urls,
                 timeout=self.crawl_timeout
             )
             
-            # Check if hakrawler actually ran
-            if len(hakrawler_urls) == 0:
-                hakrawler_path = config_manager.tools_available.get('hakrawler')
-                if not hakrawler_path:
-                    print("  ⚠ Hakrawler not available - checked common locations")
-                    print("    Install with: go install github.com/hakluke/hakrawler@latest")
-                    print("    Or run: make install (automatic setup)")
-                else:
-                    print("  ℹ Hakrawler found no additional URLs (normal for some targets)")
-            else:
-                print(f"  ✓ Hakrawler found {len(hakrawler_urls)} URLs")
-            
             # Phase 4: Combine and deduplicate results
             all_discovered_urls = all_discovered + hakrawler_urls
             unique_urls = deduplicate_urls(all_discovered_urls)
             
-            # Inform user about discovery results
-            if len(unique_urls) == 0:
-                print("  ⚠ No URLs discovered - this might indicate:")
-                print("    • Target is not responding to HTTP requests")
-                print("    • Firewall/WAF is blocking crawler requests") 
-                print("    • Missing required tools (hakrawler, httpx)")
-                print("    • Try running with --debug for more details")
-            else:
-                print(f"  ✓ Total unique URLs discovered: {len(unique_urls)}")
+            # Discovery results processed silently
             
             # Limit total URLs to prevent resource exhaustion
             if len(unique_urls) > self.max_total_urls:
@@ -185,33 +144,7 @@ class MiniSpiderScanner(BaseWorkflow):
             
             debug_print(f"Mini spider scan completed: {len(result.discovered_urls)} URLs discovered")
             
-            # Provide user feedback about results and next steps
-            print(f"  ✓ Mini Spider analysis completed:")
-            print(f"    • Total URLs discovered: {len(result.discovered_urls)}")
-            print(f"    • Interesting findings: {len(result.interesting_findings)}")
-            print(f"    • Execution time: {result.execution_time:.2f}s")
-            
-            if len(result.discovered_urls) > 0:
-                print(f"  📁 Results saved to scan reports")
-                if hasattr(result, 'summary') and result.summary:
-                    # Show categories found
-                    categories = result.categorized_results
-                    if categories:
-                        print(f"  📊 Discovered paths by category:")
-                        for category, urls in categories.items():
-                            if urls:
-                                print(f"    • {category}: {len(urls)} paths")
-                
-                print(f"  💡 Next recommended actions:")
-                print(f"    • Review interesting findings for potential vulnerabilities")
-                print(f"    • Use discovered paths for targeted fuzzing")
-                print(f"    • Analyze admin/config paths with caution")
-            else:
-                print(f"  💡 To improve discovery results:")
-                print(f"    • Ensure target is accessible over HTTP/HTTPS")
-                print(f"    • Install missing tools (hakrawler, httpx)")
-                print(f"    • Check firewall/WAF settings")
-                print(f"    • Verify the target has web services running")
+            # Results processed - output handled by main workflow
             
             return WorkflowResult(
                 success=True,

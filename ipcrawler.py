@@ -557,7 +557,7 @@ async def run_workflow(target: str, debug: bool = False):
     
     if result.success and result.data:
         total_execution_time += result.execution_time or 0.0
-        console.print(f"✓ Service analysis completed in {total_execution_time:.2f}s")
+        # Service analysis completed
         
         if discovered_ports is not None:
             result.data['discovery_enabled'] = True
@@ -626,7 +626,7 @@ async def run_workflow(target: str, debug: bool = False):
             
             if http_result.success and http_result.data:
                 total_execution_time += http_result.execution_time or 0.0
-                console.print(f"✓ HTTP analysis completed in {http_result.execution_time:.2f}s")
+                # HTTP analysis completed
                 http_scan_data = http_result.data
                 
                 # Display HTTP findings
@@ -657,7 +657,7 @@ async def run_workflow(target: str, debug: bool = False):
             
             if spider_result.success and spider_result.data:
                 total_execution_time += spider_result.execution_time or 0.0
-                console.print(f"✓ Mini Spider analysis completed in {spider_result.execution_time:.2f}s")
+                # Mini Spider analysis completed
                 spider_data = spider_result.data
                 
                 # Display Mini Spider findings
@@ -704,7 +704,7 @@ async def run_workflow(target: str, debug: bool = False):
             
             if smartlist_result.success and smartlist_result.data:
                 total_execution_time += smartlist_result.execution_time or 0.0
-                console.print(f"✓ SmartList analysis completed in {smartlist_result.execution_time:.2f}s")
+                # SmartList analysis completed
                 smartlist_data = smartlist_result.data
                 
                 # Display top wordlist recommendations
@@ -744,7 +744,7 @@ async def run_workflow(target: str, debug: bool = False):
         
 
         
-        console.print(f"\n✓ All analysis completed in {total_execution_time:.2f}s total")
+        # All analysis completed
         
         result_manager.save_results(workspace, target, result.data)
         
@@ -763,34 +763,24 @@ def display_spider_summary(spider_data: dict):
     """Display Mini Spider findings summary"""
     discovered_urls = spider_data.get('discovered_urls', [])
     interesting_findings = spider_data.get('interesting_findings', [])
-    categorized_results = spider_data.get('categorized_results', {})
     
     if not discovered_urls:
         return
     
-    console.print(f"\n🕷️  Mini Spider discovered {len(discovered_urls)} URLs:")
-    
-    # Show interesting findings first
+    # Show only critical and high priority findings
     if interesting_findings:
         critical_findings = [f for f in interesting_findings if f.get('severity') == 'critical']
         high_findings = [f for f in interesting_findings if f.get('severity') == 'high']
         
         if critical_findings:
-            console.print(f"  🚨 [red bold]{len(critical_findings)} Critical findings[/red bold]")
-            for finding in critical_findings[:3]:  # Show top 3
-                console.print(f"    • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
+            console.print(f"🚨 {len(critical_findings)} Critical findings")
+            for finding in critical_findings[:3]:
+                console.print(f"  • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
         
         if high_findings:
-            console.print(f"  ⚠️  [yellow bold]{len(high_findings)} High priority findings[/yellow bold]")
-            for finding in high_findings[:2]:  # Show top 2
-                console.print(f"    • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
-    
-    # Show category distribution
-    if categorized_results:
-        top_categories = sorted(categorized_results.items(), key=lambda x: len(x[1]), reverse=True)[:5]
-        console.print(f"  📂 Top URL categories:")
-        for category, urls in top_categories:
-            console.print(f"    • {category.title()}: {len(urls)} URLs")
+            console.print(f"⚠️  {len(high_findings)} High priority findings")
+            for finding in high_findings[:2]:
+                console.print(f"  • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
 
 
 def display_smartlist_summary(smartlist_data: dict):
