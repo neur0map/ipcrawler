@@ -155,8 +155,9 @@ class MiniSpiderScanner(BaseWorkflow):
             # Save to workspace
             await self._save_results_to_workspace(target, result)
             
-            # Generate comprehensive reports if enhanced analysis is available
-            if hasattr(result, 'enhanced_analysis') and result.enhanced_analysis and not result.enhanced_analysis.get('error'):
+            # Generate comprehensive reports (always attempt if we have discovered URLs)
+            if result.discovered_urls:
+                debug_print(f"Attempting to generate reports for {len(result.discovered_urls)} discovered URLs")
                 try:
                     workspace_dir = Path("workspaces") / target.replace(':', '_').replace('/', '_')
                     reports_dir = workspace_dir / "reports"
@@ -164,16 +165,20 @@ class MiniSpiderScanner(BaseWorkflow):
                     reports_dir.mkdir(parents=True, exist_ok=True)
                     
                     debug_print(f"Generating reports in: {reports_dir}")
+                    debug_print(f"Enhanced analysis available: {hasattr(result, 'enhanced_analysis') and bool(result.enhanced_analysis)}")
+                    
                     report_files = self.enhanced_reporter.generate_comprehensive_report(
                         result, 
                         reports_dir,
                         formats=['html', 'json', 'txt']
                     )
-                    debug_print(f"Generated {len(report_files)} comprehensive reports")
+                    debug_print(f"Generated {len(report_files)} comprehensive reports: {list(report_files.keys())}")
                 except Exception as e:
                     debug_print(f"Report generation failed: {str(e)}", level="ERROR")
                     import traceback
                     debug_print(f"Traceback: {traceback.format_exc()}", level="ERROR")
+            else:
+                debug_print("No URLs discovered, skipping report generation")
             
             debug_print(f"Mini spider scan completed: {len(result.discovered_urls)} URLs discovered")
             
