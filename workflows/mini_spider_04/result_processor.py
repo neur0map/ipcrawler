@@ -10,7 +10,7 @@ from .models import (
     URLCategory, DiscoverySource, SpiderStatistics
 )
 from .utils import URLFilter, categorize_urls, extract_interesting_patterns
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 
 class ResultProcessor:

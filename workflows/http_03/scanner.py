@@ -38,7 +38,7 @@ except ImportError as e:
 from workflows.core.base import BaseWorkflow, WorkflowResult
 from workflows.core.command_logger import get_command_logger
 from .models import HTTPScanResult, HTTPService, HTTPVulnerability, DNSRecord, PathDiscoveryMetadata
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 # SmartList integration
 try:

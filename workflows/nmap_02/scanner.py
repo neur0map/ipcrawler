@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Tuple
 from workflows.core.base import BaseWorkflow, WorkflowResult
 from workflows.core.output_cleaner import OutputCleaner
 from workflows.nmap_02.models import NmapScanResult, NmapHost, NmapPort
-from config import config
+from src.core.config import config
 
 
 class NmapScanner(BaseWorkflow):

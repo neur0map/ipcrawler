@@ -26,7 +26,7 @@ from .models import (
     CrawledURL, InterestingFinding, SeverityLevel, 
     URLCategory, DiscoverySource, MiniSpiderResult
 )
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 
 class EnhancedAnalyzer:

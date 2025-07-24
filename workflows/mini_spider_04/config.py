@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 
 @dataclass

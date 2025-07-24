@@ -8,8 +8,8 @@ from datetime import datetime
 
 from workflows.core.base import BaseWorkflow, WorkflowResult
 from .models import SmartListResult, ServiceRecommendation, WordlistRecommendation
-from utils.debug import debug_print
-from utils.results import result_manager
+from src.core.utils.debugging import debug_print
+from src.core.utils.results import result_manager
 
 # Import SmartList components
 try:

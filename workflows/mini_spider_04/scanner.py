@@ -14,8 +14,8 @@ from .custom_crawler import CustomCrawler
 from .hakrawler_wrapper import HakrawlerWrapper
 from .result_processor import ResultProcessor
 from .enhanced_analyzer import EnhancedAnalyzer
-from .enhanced_reporter import EnhancedReporter
-from utils.debug import debug_print
+from src.core.reporting.workflow_reporters.mini_spider_04.reporter import EnhancedReporter
+from src.core.utils.debugging import debug_print
 
 
 class MiniSpiderScanner(BaseWorkflow):

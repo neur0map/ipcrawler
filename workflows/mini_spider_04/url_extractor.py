@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional, Set
 from urllib.parse import urljoin, urlparse
 from .models import CrawledURL, DiscoverySource, URLCategory
 from .utils import URLFilter, URLNormalizer
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 
 class URLExtractor:

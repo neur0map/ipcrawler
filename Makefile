@@ -156,7 +156,7 @@ install:
 			source .seclists_path && \
 			if [ ! -z "$$SECLISTS_PATH" ]; then \
 				echo "→ Generating SecLists catalog..." >> /tmp/seclists_install.log && \
-				if $(PYTHON_CMD) tools/catalog/generate_catalog.py >> /tmp/seclists_install.log 2>&1; then \
+				if $(PYTHON_CMD) src/core/tools/catalog/generate_catalog.py >> /tmp/seclists_install.log 2>&1; then \
 					echo "✓ SecLists catalog generated successfully" >> /tmp/seclists_install.log; \
 				else \
 					echo "⚠ Failed to generate wordlist catalog" >> /tmp/seclists_install.log; \

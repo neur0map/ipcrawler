@@ -32,7 +32,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 import typer
-from rich.console import Console
+from src.core.ui.console.base import console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -42,8 +42,9 @@ from workflows.http_03.scanner import HTTPAdvancedScanner
 from workflows.smartlist_05.scanner import SmartListScanner
 from workflows.mini_spider_04.scanner import MiniSpiderScanner
 
-from config import config
-from utils.results import result_manager
+from src.core.config import config
+from src.core.reporting.manager import report_manager
+from src.core.utils.results import result_manager
 
 app = typer.Typer(
     name="ipcrawler",
@@ -53,7 +54,7 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]}
 )
 
-console = Console()
+# Using centralized console from src.core.ui.console.base
 
 # Global list to track running processes for cleanup
 running_processes = []
@@ -457,7 +458,7 @@ async def check_and_offer_sudo_escalation():
 async def run_workflow(target: str, debug: bool = False):
     """Execute SmartList analysis workflow on target"""
     # Set debug mode
-    from utils.debug import set_debug
+    from src.core.utils.debugging import set_debug
     set_debug(debug)
     
     # Clean up any existing nmap processes first

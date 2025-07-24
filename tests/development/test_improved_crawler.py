@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from workflows.mini_spider_04.custom_crawler import CustomCrawler
 from workflows.mini_spider_04.models import CrawledURL, DiscoverySource
-from utils.debug import debug_print, set_debug
+from src.core.utils.debugging import debug_print, set_debug
 
 async def test_improved_crawler():
     """Test the improved custom crawler with anti-WAF measures"""

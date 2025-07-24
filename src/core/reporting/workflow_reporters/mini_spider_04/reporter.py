@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from jinja2 import Template
 
-from .models import MiniSpiderResult, InterestingFinding, SeverityLevel
-from utils.debug import debug_print
+from workflows.mini_spider_04.models import MiniSpiderResult, InterestingFinding
+from src.core.models.common.enums import SeverityLevel
+from src.core.ui.console.base import console
 
 
 class EnhancedReporter:
@@ -53,11 +54,11 @@ class EnhancedReporter:
                 txt_file = self._generate_text_report(spider_result, output_dir)
                 generated_files['txt'] = str(txt_file)
             
-            debug_print(f"Generated {len(generated_files)} report files in {output_dir}")
+            console.debug(f"Generated {len(generated_files)} report files in {output_dir}")
             return generated_files
             
         except Exception as e:
-            debug_print(f"Report generation failed: {str(e)}", level="ERROR")
+            console.error(f"Report generation failed: {str(e)}")
             return {}
     
     def _generate_html_report(self, spider_result: MiniSpiderResult, output_dir: Path) -> Path:

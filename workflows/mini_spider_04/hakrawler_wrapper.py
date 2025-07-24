@@ -10,7 +10,7 @@ from pathlib import Path
 from .models import CrawledURL, DiscoverySource, HakrawlerResult
 from .config import get_spider_config, get_config_manager
 from .utils import parse_tool_output, is_valid_url, URLFilter
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 
 class HakrawlerWrapper:

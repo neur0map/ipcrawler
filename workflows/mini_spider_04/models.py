@@ -5,6 +5,9 @@ from typing import List, Dict, Optional, Any, Union
 from pydantic import BaseModel, Field, validator, HttpUrl
 from urllib.parse import urlparse
 
+# Import centralized enums
+from src.core.models.common.enums import SeverityLevel
+
 
 class DiscoverySource(Enum):
     """Source of URL discovery"""
@@ -32,13 +35,7 @@ class URLCategory(Enum):
     UNKNOWN = "unknown"
 
 
-class SeverityLevel(Enum):
-    """Severity levels for findings"""
-    CRITICAL = "critical"
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-    INFO = "info"
+# SeverityLevel enum moved to src.core.models.common.enums
 
 
 class CrawledURL(BaseModel):

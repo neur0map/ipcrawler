@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from workflows.mini_spider_04.scanner import MiniSpiderScanner
-from utils.debug import set_debug
+from src.core.utils.debugging import set_debug
 
 async def debug_seed_urls():
     """Debug seed URL generation and validation"""

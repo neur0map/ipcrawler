@@ -9,7 +9,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from utils.debug import set_debug
+from src.core.utils.debugging import set_debug
 
 async def test_target_responses():
     """Test what responses we're getting from common paths"""

@@ -11,7 +11,7 @@ from pathlib import Path
 from .models import CrawledURL, DiscoverySource, CustomCrawlerResult, CrawlerStats
 from .config import get_spider_config
 from .utils import URLFilter, URLNormalizer, is_valid_url
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 # Try to import httpx for async HTTP requests
 try:
