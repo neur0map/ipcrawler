@@ -160,7 +160,23 @@ class SpiderConfigManager:
         if path and self._test_hakrawler_execution(path):
             return path
         
-        # 2. Check common Go paths
+        # 2. Try adding ~/go/bin to PATH and checking again
+        go_bin_path = os.path.expanduser('~/go/bin')
+        if os.path.isdir(go_bin_path):
+            # Temporarily modify PATH
+            current_path = os.environ.get('PATH', '')
+            if go_bin_path not in current_path:
+                new_path = f"{current_path}{os.pathsep}{go_bin_path}"
+                os.environ['PATH'] = new_path
+                debug_print(f"Added {go_bin_path} to PATH for hakrawler detection")
+                
+                # Try shutil.which again with updated PATH
+                path = shutil.which('hakrawler')
+                if path and self._test_hakrawler_execution(path):
+                    debug_print(f"Found hakrawler after adding ~/go/bin to PATH: {path}")
+                    return path
+        
+        # 3. Check common Go paths directly
         go_paths = [
             os.path.expanduser('~/go/bin/hakrawler'),
             '/usr/local/go/bin/hakrawler',
@@ -172,7 +188,7 @@ class SpiderConfigManager:
         if 'GOROOT' in os.environ:
             go_paths.append(os.path.join(os.environ['GOROOT'], 'bin', 'hakrawler'))
         
-        # 3. Check HTB/Kali common locations
+        # 4. Check HTB/Kali common locations
         htb_paths = [
             '/usr/bin/hakrawler',           # apt install hakrawler puts it here
             '/usr/local/bin/hakrawler',     # Manual installations
@@ -184,7 +200,7 @@ class SpiderConfigManager:
             '/sbin/hakrawler',              # System sbin path
         ]
         
-        # 4. Check user tool directories
+        # 5. Check user tool directories
         user_paths = [
             os.path.expanduser('~/.local/bin/hakrawler'),
             os.path.expanduser('~/tools/hakrawler'),
