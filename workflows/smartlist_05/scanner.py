@@ -32,7 +32,7 @@ class SmartListScanner(BaseWorkflow):
     """Intelligent wordlist recommendation based on scan results"""
     
     def __init__(self):
-        super().__init__(name="smartlist_04")
+        super().__init__(name="smartlist_05")
         self.web_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000, 4200, 3001]
         
     def validate_input(self, **kwargs) -> bool:
@@ -234,20 +234,104 @@ class SmartListScanner(BaseWorkflow):
                 # Vulnerabilities
                 aggregated['vulnerabilities'] = http_data['data'].get('vulnerabilities', [])
         
+        # Extract from mini_spider_04
+        if 'mini_spider_04' in previous_results:
+            spider_data = previous_results['mini_spider_04']
+            if spider_data.get('success') and spider_data.get('data'):
+                spider_result = spider_data['data']
+                
+                # Add spider data to aggregated structure
+                aggregated['spider_data'] = {
+                    'discovered_urls': spider_result.get('discovered_urls', []),
+                    'categorized_results': spider_result.get('categorized_results', {}),
+                    'interesting_findings': spider_result.get('interesting_findings', []),
+                    'statistics': spider_result.get('statistics', {}),
+                    'tools_used': spider_result.get('statistics', {}).get('tools_used', [])
+                }
+                
+                # Enhance existing services with spider intelligence
+                for service in aggregated['services']:
+                    if service.get('port') in self.web_ports:
+                        # Find relevant spider URLs for this service
+                        service_urls = []
+                        base_url = f"{service.get('scheme', 'http')}://{service['host']}"
+                        if service.get('port') not in [80, 443]:
+                            base_url += f":{service['port']}"
+                        
+                        # Collect URLs from spider data that match this service
+                        for url_data in spider_result.get('discovered_urls', []):
+                            if isinstance(url_data, dict) and url_data.get('url', '').startswith(base_url):
+                                service_urls.append(url_data)
+                        
+                        # Add spider intelligence to service
+                        if service_urls:
+                            service['spider_urls'] = service_urls
+                            service['spider_url_count'] = len(service_urls)
+                            
+                            # Extract additional paths discovered by spider
+                            spider_paths = []
+                            for url_data in service_urls:
+                                url = url_data.get('url', '')
+                                if url.startswith(base_url):
+                                    path = url[len(base_url):] or '/'
+                                    if path not in spider_paths:
+                                        spider_paths.append(path)
+                            
+                            # Merge with existing discovered paths
+                            existing_paths = service.get('discovered_paths', [])
+                            all_paths = list(set(existing_paths + spider_paths))
+                            service['discovered_paths'] = all_paths
+                            service['spider_discovered_paths'] = spider_paths
+                            
+                            # Extract categories from spider URLs
+                            categories = set()
+                            for url_data in service_urls:
+                                if url_data.get('category'):
+                                    categories.add(url_data['category'])
+                            service['spider_categories'] = list(categories)
+                            
+                            # Add spider-detected technologies
+                            spider_techs = []
+                            for finding in spider_result.get('interesting_findings', []):
+                                if finding.get('url', '').startswith(base_url):
+                                    # Extract technology hints from findings
+                                    finding_type = finding.get('finding_type', '')
+                                    if 'technology' in finding_type.lower() or 'framework' in finding_type.lower():
+                                        metadata = finding.get('metadata', {})
+                                        if 'technology' in metadata:
+                                            spider_techs.append(metadata['technology'])
+                            
+                            if spider_techs:
+                                # Merge with existing technologies
+                                existing_techs = service.get('technologies', [])
+                                all_techs = list(set(existing_techs + spider_techs))
+                                service['technologies'] = all_techs
+                                service['spider_technologies'] = spider_techs
+        
         debug_print(f"Aggregated {len(aggregated['services'])} services from previous scans")
         return aggregated
     
     def _build_service_context(self, service_data: Dict[str, Any], 
                               aggregated_data: Dict[str, Any]) -> ScoringContext:
-        """Build ScoringContext from service data"""
-        # Extract technology - prioritize explicit detections
+        """Build ScoringContext from service data with spider intelligence"""
+        # Extract technology with multi-source confidence scoring
         tech = None
+        tech_confidence = 0.0
+        tech_sources = []
         
-        # 1. Check technologies array (from http scan)
+        # 1. Check technologies array (from http scan) - High confidence
         if service_data.get('technologies') and len(service_data['technologies']) > 0 and service_data['technologies'][0]:
             tech = service_data['technologies'][0].lower()
+            tech_confidence = 0.8
+            tech_sources.append('http_scan')
         
-        # 2. Check product/version from nmap
+        # 2. Check spider-detected technologies - High confidence if found
+        elif service_data.get('spider_technologies'):
+            tech = service_data['spider_technologies'][0].lower()
+            tech_confidence = 0.9  # Spider is very thorough
+            tech_sources.append('spider_scan')
+        
+        # 3. Check product/version from nmap - Medium confidence
         elif service_data.get('product'):
             # Extract technology from product name
             product = service_data['product'].lower()
@@ -272,15 +356,36 @@ class SmartListScanner(BaseWorkflow):
             for pattern, tech_name in tech_patterns.items():
                 if pattern in product:
                     tech = tech_name
+                    tech_confidence = 0.7
+                    tech_sources.append('nmap_product')
                     break
         
-        # 3. Check X-Powered-By header
+        # 4. Check X-Powered-By header - Medium confidence
         elif service_data.get('headers', {}).get('X-Powered-By'):
             powered_by = service_data['headers']['X-Powered-By']
             if powered_by:
                 tech = powered_by.split('/')[0].lower()
+                tech_confidence = 0.6
+                tech_sources.append('http_header')
         
-        # Build service description
+        # 5. Infer from spider URL categories - Lower confidence but useful
+        elif service_data.get('spider_categories'):
+            category_tech_map = {
+                'admin': 'admin_panel',
+                'api': 'rest_api',
+                'auth': 'authentication',
+                'docs': 'documentation',
+                'dev': 'development'
+            }
+            
+            for category in service_data['spider_categories']:
+                if category in category_tech_map:
+                    tech = category_tech_map[category]
+                    tech_confidence = 0.4
+                    tech_sources.append('spider_categories')
+                    break
+        
+        # Build enhanced service description with spider intelligence
         service_desc_parts = []
         if service_data.get('product'):
             service_desc_parts.append(service_data['product'])
@@ -291,9 +396,17 @@ class SmartListScanner(BaseWorkflow):
         if not service_desc_parts and service_data.get('service'):
             service_desc_parts.append(service_data['service'])
         
+        # Add spider context to service description
+        if service_data.get('spider_url_count', 0) > 0:
+            service_desc_parts.append(f"({service_data['spider_url_count']} URLs discovered)")
+        
+        if service_data.get('spider_categories'):
+            categories_str = ', '.join(service_data['spider_categories'])
+            service_desc_parts.append(f"Categories: {categories_str}")
+        
         service_desc = ' '.join(service_desc_parts) or f"Service on port {service_data['port']}"
         
-        # Create context - let port database enhance if tech is None
+        # Create enhanced context with spider data
         context = ScoringContext(
             target=service_data['host'],
             port=service_data['port'],
@@ -304,12 +417,22 @@ class SmartListScanner(BaseWorkflow):
             headers=service_data.get('headers', {})
         )
         
-        debug_print(f"Built context for {context.target}:{context.port} - tech: {tech}")
+        # Add spider intelligence to context (custom attributes)
+        context.spider_data = {
+            'url_count': service_data.get('spider_url_count', 0),
+            'categories': service_data.get('spider_categories', []),
+            'discovered_paths': service_data.get('spider_discovered_paths', []),
+            'tech_confidence': tech_confidence,
+            'tech_sources': tech_sources,
+            'has_spider_intel': service_data.get('spider_url_count', 0) > 0
+        }
+        
+        debug_print(f"Built enhanced context for {context.target}:{context.port} - tech: {tech} (confidence: {tech_confidence:.2f}, sources: {tech_sources})")
         return context
     
     async def _get_service_recommendations(self, context: ScoringContext, 
                                          service_data: Dict[str, Any]) -> ServiceRecommendation:
-        """Get SmartList recommendations for a service"""
+        """Get SmartList recommendations for a service with spider intelligence"""
         # Get port context for additional information
         port_info = get_port_context(context.port) if SMARTLIST_AVAILABLE else {}
         
@@ -323,6 +446,10 @@ class SmartListScanner(BaseWorkflow):
             debug_print(f"Catalog scoring failed, using basic: {e}")
             result = score_wordlists(context)
         
+        # Apply spider intelligence scoring boosts
+        if hasattr(context, 'spider_data') and context.spider_data.get('has_spider_intel'):
+            result = self._apply_spider_scoring_boosts(result, context, service_data)
+        
         # Get wordlist paths if available
         wordlist_paths = []
         try:
@@ -335,24 +462,30 @@ class SmartListScanner(BaseWorkflow):
             debug_print(f"Could not resolve wordlist paths: {e}")
             wordlist_paths = [None] * len(result.wordlists)
         
-        # Build recommendations
+        # Build enhanced recommendations with spider context
         recommendations = []
         for i, wordlist in enumerate(result.wordlists[:10]):  # Top 10
             # Determine which rule category this came from
             category = self._determine_category(result.matched_rules)
             
+            # Use full path if available, otherwise just the wordlist name
+            wordlist_path = wordlist_paths[i] if i < len(wordlist_paths) and wordlist_paths[i] else None
+            
+            # Generate enhanced reason with spider context
+            reason = self._generate_enhanced_reason(result, wordlist, context)
+            
             rec = WordlistRecommendation(
                 wordlist=wordlist,
-                path=wordlist_paths[i] if i < len(wordlist_paths) else None,
+                path=wordlist_path,
                 score=result.score,
                 confidence=result.confidence.value.upper(),  # Convert enum to string
-                reason=self._generate_reason(result, wordlist),
+                reason=reason,
                 category=category,
                 matched_rule=result.matched_rules[0] if result.matched_rules else "none"
             )
             recommendations.append(rec)
         
-        # Build context summary
+        # Build enhanced context summary with spider data
         context_summary = {
             'service_description': context.service,
             'detected_technology': context.tech,
@@ -363,6 +496,20 @@ class SmartListScanner(BaseWorkflow):
             'matched_rules': result.matched_rules,
             'fallback_used': result.fallback_used
         }
+        
+        # Add spider intelligence to context summary
+        if hasattr(context, 'spider_data') and context.spider_data.get('has_spider_intel'):
+            spider_data = context.spider_data
+            context_summary.update({
+                'spider_intelligence': {
+                    'urls_discovered': spider_data.get('url_count', 0),
+                    'categories_found': spider_data.get('categories', []),
+                    'paths_discovered': len(spider_data.get('discovered_paths', [])),
+                    'tech_confidence': spider_data.get('tech_confidence', 0),
+                    'tech_sources': spider_data.get('tech_sources', []),
+                    'enhanced_scoring': True
+                }
+            })
         
         # Create service recommendation
         service_rec = ServiceRecommendation(
@@ -384,6 +531,78 @@ class SmartListScanner(BaseWorkflow):
         )
         
         return service_rec
+    
+    def _apply_spider_scoring_boosts(self, result, context: ScoringContext, service_data: Dict[str, Any]):
+        """Apply scoring boosts based on spider intelligence"""
+        spider_data = context.spider_data
+        boost_factor = 1.0
+        additional_rules = []
+        
+        # High tech confidence boost
+        if spider_data.get('tech_confidence', 0) > 0.8:
+            boost_factor *= 1.2
+            additional_rules.append(f"spider_tech_confidence:{spider_data['tech_confidence']:.2f}")
+        
+        # URL category boosts
+        category_boosts = {
+            'admin': 1.3,  # Admin panels are high value targets
+            'api': 1.2,    # APIs are important
+            'auth': 1.25,  # Authentication endpoints
+            'config': 1.4, # Config files are critical
+            'dev': 1.1     # Development resources
+        }
+        
+        for category in spider_data.get('categories', []):
+            if category in category_boosts:
+                boost_factor *= category_boosts[category]
+                additional_rules.append(f"spider_category:{category}")
+        
+        # Path discovery boost - more paths = better targeting
+        path_count = len(spider_data.get('discovered_paths', []))
+        if path_count > 10:
+            boost_factor *= 1.15
+            additional_rules.append(f"spider_paths_rich:{path_count}")
+        elif path_count > 5:
+            boost_factor *= 1.1
+            additional_rules.append(f"spider_paths_good:{path_count}")
+        
+        # Apply boosts to result
+        if boost_factor > 1.0:
+            result.score = min(result.score * boost_factor, 1.0)  # Cap at 1.0
+            result.matched_rules.extend(additional_rules)
+            debug_print(f"Applied spider boost factor {boost_factor:.2f} to recommendations")
+        
+        return result
+    
+    def _generate_enhanced_reason(self, result, wordlist: str, context: ScoringContext) -> str:
+        """Generate enhanced reason with spider intelligence"""
+        base_reason = self._generate_reason(result, wordlist)
+        
+        if not hasattr(context, 'spider_data') or not context.spider_data.get('has_spider_intel'):
+            return base_reason
+        
+        spider_data = context.spider_data
+        enhancements = []
+        
+        # Add spider-specific context
+        if spider_data.get('url_count', 0) > 0:
+            enhancements.append(f"{spider_data['url_count']} URLs discovered")
+        
+        if spider_data.get('categories'):
+            categories = ', '.join(spider_data['categories'])
+            enhancements.append(f"found {categories} endpoints")
+        
+        if spider_data.get('tech_confidence', 0) > 0.7:
+            confidence = spider_data['tech_confidence']
+            sources = ', '.join(spider_data.get('tech_sources', []))
+            enhancements.append(f"tech detected with {confidence:.0%} confidence via {sources}")
+        
+        # Combine base reason with enhancements
+        if enhancements:
+            enhancement_text = '; '.join(enhancements)
+            return f"{base_reason} (Spider: {enhancement_text})"
+        
+        return base_reason
     
     def _determine_category(self, matched_rules: List[str]) -> str:
         """Determine the primary category from matched rules"""
@@ -431,7 +650,7 @@ class SmartListScanner(BaseWorkflow):
         return f"Recommended based on service analysis (score: {result.score:.3f})"
     
     def _generate_summary(self, result: SmartListResult) -> Dict[str, Any]:
-        """Generate summary of recommendations"""
+        """Generate enhanced summary of recommendations with spider intelligence"""
         total_services = len(result.services)
         total_recommendations = sum(len(s.recommendations) for s in result.services)
         
@@ -444,40 +663,84 @@ class SmartListScanner(BaseWorkflow):
             if service.detected_tech:
                 all_techs.add(service.detected_tech)
         
-        # Build summary
+        # Analyze spider intelligence impact
+        spider_enhanced_services = 0
+        total_spider_urls = 0
+        spider_categories = set()
+        
+        for service in result.services:
+            context_summary = service.context_summary
+            if context_summary.get('spider_intelligence', {}).get('enhanced_scoring'):
+                spider_enhanced_services += 1
+                spider_intel = context_summary['spider_intelligence']
+                total_spider_urls += spider_intel.get('urls_discovered', 0)
+                spider_categories.update(spider_intel.get('categories_found', []))
+        
+        # Build enhanced summary
         summary = {
             'analysis_complete': True,
             'total_services_analyzed': total_services,
             'total_wordlists_recommended': total_recommendations,
             'high_confidence_services': len(high_confidence),
             'detected_technologies': list(all_techs),
-            'recommendation': self._get_summary_recommendation(result)
+            'recommendation': self._get_enhanced_summary_recommendation(result, spider_enhanced_services)
         }
         
-        # Add top recommendations
+        # Add spider intelligence summary
+        if spider_enhanced_services > 0:
+            summary['spider_intelligence'] = {
+                'services_enhanced': spider_enhanced_services,
+                'total_urls_discovered': total_spider_urls,
+                'categories_found': list(spider_categories),
+                'intelligence_boost': True
+            }
+        
+        # Add enhanced top recommendations with spider context
         if high_confidence:
-            summary['top_targets'] = [
-                {
+            summary['top_targets'] = []
+            for s in high_confidence[:3]:
+                target_info = {
                     'service': f"{s.target}:{s.port}",
                     'technology': s.detected_tech,
                     'top_wordlist': s.recommendations[0].wordlist if s.recommendations else None
                 }
-                for s in high_confidence[:3]
-            ]
+                
+                # Add spider context if available
+                spider_intel = s.context_summary.get('spider_intelligence')
+                if spider_intel:
+                    target_info['spider_context'] = {
+                        'urls_found': spider_intel.get('urls_discovered', 0),
+                        'categories': spider_intel.get('categories_found', []),
+                        'enhanced': True
+                    }
+                
+                summary['top_targets'].append(target_info)
         
         return summary
     
-    def _get_summary_recommendation(self, result: SmartListResult) -> str:
-        """Generate overall recommendation"""
+    def _get_enhanced_summary_recommendation(self, result: SmartListResult, spider_enhanced_services: int) -> str:
+        """Generate enhanced overall recommendation with spider intelligence"""
         high_conf = sum(1 for s in result.services if s.confidence_level == "HIGH")
         med_conf = sum(1 for s in result.services if s.confidence_level == "MEDIUM")
         
+        base_rec = ""
         if high_conf > 0:
-            return f"Found {high_conf} high-confidence targets. Focus fuzzing efforts on these services first."
+            base_rec = f"Found {high_conf} high-confidence targets. Focus fuzzing efforts on these services first."
         elif med_conf > 0:
-            return f"Found {med_conf} medium-confidence targets. Consider additional reconnaissance to improve targeting."
+            base_rec = f"Found {med_conf} medium-confidence targets. Consider additional reconnaissance to improve targeting."
         else:
-            return "All recommendations are low confidence. Run more detailed scans or manually verify services."
+            base_rec = "All recommendations are low confidence. Run more detailed scans or manually verify services."
+        
+        # Add spider intelligence context
+        if spider_enhanced_services > 0:
+            spider_context = f" Spider intelligence enhanced {spider_enhanced_services} service(s) with additional URL discovery and technology detection."
+            return base_rec + spider_context
+        
+        return base_rec
+    
+    def _get_summary_recommendation(self, result: SmartListResult) -> str:
+        """Generate overall recommendation (legacy method)"""
+        return self._get_enhanced_summary_recommendation(result, 0)
     
     def _save_to_scan_reports(self, target: str, result: SmartListResult):
         """Save SmartList results to scan reports"""

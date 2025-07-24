@@ -39,7 +39,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from workflows.http_03.scanner import HTTPAdvancedScanner
-from workflows.smartlist_04.scanner import SmartListScanner
+from workflows.smartlist_05.scanner import SmartListScanner
+from workflows.mini_spider_04.scanner import MiniSpiderScanner
 
 from config import config
 from utils.results import result_manager
@@ -635,12 +636,42 @@ async def run_workflow(target: str, debug: bool = False):
                 console.print(f"⚠ HTTP analysis failed: {error_msg}")
         
 
-        # Run SmartList analysis after HTTP scan if we have services
+        # Run Mini Spider analysis after HTTP scan if we have services
+        spider_data = None
+        if http_scan_data and http_scan_data.get('services'):
+            console.print(f"\n→ Starting URL discovery with Mini Spider...")
+            
+            # Prepare previous results for Mini Spider
+            spider_previous_results = {
+                'http_03': {
+                    'success': True,
+                    'data': http_scan_data
+                }
+            }
+            
+            spider_scanner = MiniSpiderScanner()
+            spider_result = await spider_scanner.execute(
+                target=resolved_target,
+                previous_results=spider_previous_results
+            )
+            
+            if spider_result.success and spider_result.data:
+                total_execution_time += spider_result.execution_time or 0.0
+                console.print(f"✓ Mini Spider analysis completed in {spider_result.execution_time:.2f}s")
+                spider_data = spider_result.data
+                
+                # Display Mini Spider findings
+                display_spider_summary(spider_data)
+            else:
+                error_msg = spider_result.error or "Unknown error"
+                console.print(f"⚠ Mini Spider analysis failed: {error_msg}")
+
+        # Run SmartList analysis after Mini Spider if we have services
         smartlist_data = None
         if http_scan_data and http_scan_data.get('services'):
-            console.print(f"\n→ Analyzing services for wordlist recommendations...")
+            console.print(f"\n→ Analyzing services for enhanced wordlist recommendations...")
             
-            # Prepare previous results for SmartList
+            # Prepare enhanced previous results for SmartList
             previous_results = {
                 'nmap_fast_01': {
                     'success': True,
@@ -657,6 +688,13 @@ async def run_workflow(target: str, debug: bool = False):
                     'data': http_scan_data
                 }
             }
+            
+            # Add Mini Spider data if available
+            if spider_data:
+                previous_results['mini_spider_04'] = {
+                    'success': True,
+                    'data': spider_data
+                }
             
             smartlist_scanner = SmartListScanner()
             smartlist_result = await smartlist_scanner.execute(
@@ -690,6 +728,17 @@ async def run_workflow(target: str, debug: bool = False):
             result.data['summary']['discovered_subdomains'] = len(http_scan_data.get('subdomains', []))
             result.data['summary']['discovered_paths'] = len(http_scan_data.get('summary', {}).get('discovered_paths', []))
         
+        if spider_data:
+            result.data['mini_spider'] = spider_data
+            
+            # Add mini spider summary to main summary
+            if 'summary' not in result.data:
+                result.data['summary'] = {}
+            
+            result.data['summary']['discovered_urls'] = len(spider_data.get('discovered_urls', []))
+            result.data['summary']['interesting_findings'] = len(spider_data.get('interesting_findings', []))
+            result.data['summary']['url_categories'] = len(spider_data.get('categorized_results', {}))
+        
         if smartlist_data:
             result.data['smartlist'] = smartlist_data
         
@@ -708,6 +757,40 @@ async def run_workflow(target: str, debug: bool = False):
     # Clean up processes after scan completion
     cleanup_processes()
     
+
+
+def display_spider_summary(spider_data: dict):
+    """Display Mini Spider findings summary"""
+    discovered_urls = spider_data.get('discovered_urls', [])
+    interesting_findings = spider_data.get('interesting_findings', [])
+    categorized_results = spider_data.get('categorized_results', {})
+    
+    if not discovered_urls:
+        return
+    
+    console.print(f"\n🕷️  Mini Spider discovered {len(discovered_urls)} URLs:")
+    
+    # Show interesting findings first
+    if interesting_findings:
+        critical_findings = [f for f in interesting_findings if f.get('severity') == 'critical']
+        high_findings = [f for f in interesting_findings if f.get('severity') == 'high']
+        
+        if critical_findings:
+            console.print(f"  🚨 [red bold]{len(critical_findings)} Critical findings[/red bold]")
+            for finding in critical_findings[:3]:  # Show top 3
+                console.print(f"    • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
+        
+        if high_findings:
+            console.print(f"  ⚠️  [yellow bold]{len(high_findings)} High priority findings[/yellow bold]")
+            for finding in high_findings[:2]:  # Show top 2
+                console.print(f"    • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
+    
+    # Show category distribution
+    if categorized_results:
+        top_categories = sorted(categorized_results.items(), key=lambda x: len(x[1]), reverse=True)[:5]
+        console.print(f"  📂 Top URL categories:")
+        for category, urls in top_categories:
+            console.print(f"    • {category.title()}: {len(urls)} URLs")
 
 
 def display_smartlist_summary(smartlist_data: dict):
