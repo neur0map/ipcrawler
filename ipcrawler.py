@@ -341,7 +341,7 @@ async def resolve_target(target: str) -> str:
     # Check if target is already an IP address
     try:
         ipaddress.ip_address(target)
-        console.print(f"▶ Target: [cyan]{target}[/cyan] (IP address)")
+        console.display_target_resolution(target, target_type='ip')
         return target
     except ValueError:
         pass
@@ -349,13 +349,17 @@ async def resolve_target(target: str) -> str:
     # Check if target is CIDR notation
     try:
         ipaddress.ip_network(target, strict=False)
-        console.print(f"▶ Target: [cyan]{target}[/cyan] (CIDR range)")
+        console.display_target_resolution(target, target_type='cidr')
         return target
     except ValueError:
         pass
     
-    # It's a hostname, resolve it
-    console.print(f"▶ Resolving [cyan]{target}[/cyan]...")
+    # It's a hostname, resolve it with visual feedback
+    # Show simple resolving message that works in all terminals
+    console.display_target_resolution(target, resolving=True)
+    
+    result = None
+    resolved_ip = None
     
     try:
         # Use getaddrinfo for proper async DNS resolution
@@ -365,16 +369,19 @@ async def resolve_target(target: str) -> str:
         )
         
         if result:
-            ip = result[0][4][0]
-            console.print(f"  → Resolved to [green]{ip}[/green]")
-            return target
-        else:
-            console.print(f"  ✗ Failed to resolve {target}")
-            return target
+            resolved_ip = result[0][4][0]
             
     except Exception as e:
-        console.print(f"  ⚠ DNS resolution warning: {str(e)}")
-        return target  # Let nmap handle it
+        console.error(f"DNS resolution error: {str(e)}")
+        return target
+    
+    # Display result
+    if result and resolved_ip:
+        console.display_target_resolution(target, resolved_ip=resolved_ip)
+        return target
+    else:
+        console.error(f"Failed to resolve {target}")
+        return target
 
 
 async def check_and_offer_sudo_escalation():
@@ -418,23 +425,11 @@ async def check_and_offer_sudo_escalation():
         console.print("→ Auto-escalating to sudo (configured in config.yaml)")
         escalate = True
     else:
-        # Offer escalation
-        console.print("\n🔒 [bold]Privilege Escalation Available[/bold]")
-        console.print("\n[green]Enhanced capabilities with sudo:[/green]")
-        console.print("  ✓ SYN stealth fingerprinting (faster, more accurate)")
-        console.print("  ✓ OS detection and fingerprinting") 
-        console.print("  ✓ Advanced timing optimizations")
-        console.print("  ✓ Raw socket access")
-        console.print("  ✓ Service detection optimizations")
-        console.print("  ✓ Automatic /etc/hosts updates for hostname mapping")
-        
-        console.print("\n[yellow]Current limitations:[/yellow]")
-        console.print("  • TCP connect analysis only (slower)")
-        console.print("  • No OS detection")
-        console.print("  • Limited nmap capabilities")
+        # Offer escalation with table display
+        console.display_privilege_escalation_prompt()
         
         # Get user choice
-        escalate = typer.confirm("\nWould you like to restart with sudo for enhanced analysis?", default=True)
+        escalate = typer.confirm("Would you like to restart with sudo for enhanced analysis?", default=True)
     
     if escalate:
         # Build the correct sudo command based on how script was called
@@ -470,7 +465,7 @@ async def run_workflow(target: str, debug: bool = False):
     # Resolve target first
     resolved_target = await resolve_target(target)
     
-    console.print("→ Starting port discovery with hostname discovery...")
+    console.display_workflow_status('port_discovery', 'starting', 'Hostname discovery and port scanning')
     
     workspace = result_manager.create_workspace(target)
     
@@ -480,7 +475,7 @@ async def run_workflow(target: str, debug: bool = False):
     total_execution_time = 0.0
     
     if config.fast_port_discovery:
-        console.print("→ Starting fast port discovery...")
+        # Fast discovery phase details are shown in progress below
         
         discovery_scanner = NmapFastScanner()
         discovery_result = await discovery_scanner.execute(
@@ -534,7 +529,7 @@ async def run_workflow(target: str, debug: bool = False):
             console.print("  To analyze all services, set 'fast_port_discovery: false' in config.yaml")
             return
     
-    console.print("→ Starting detailed service analysis...")
+    console.display_workflow_status('service_analysis', 'starting', 'Detailed service fingerprinting')
     scanner = NmapScanner(batch_size=config.batch_size, ports_per_batch=config.ports_per_batch)
     
     
@@ -614,7 +609,7 @@ async def run_workflow(target: str, debug: bool = False):
             http_ports = list(set(http_ports))
             hostnames_list = list(discovered_hostnames)
             
-            console.print(f"\n→ Found {len(http_ports)} HTTP/HTTPS services. Starting advanced web analysis...")
+            console.display_workflow_status('http_analysis', 'starting', f'Found {len(http_ports)} HTTP/HTTPS services')
             if discovered_hostnames:
                 console.print(f"  → Discovered hostnames: {', '.join(hostnames_list)}")
             
@@ -640,7 +635,7 @@ async def run_workflow(target: str, debug: bool = False):
         # Run Mini Spider analysis after HTTP scan if we have services
         spider_data = None
         if http_scan_data and http_scan_data.get('services'):
-            console.print(f"\n→ Starting URL discovery with Mini Spider...")
+            console.display_workflow_status('mini_spider', 'starting', 'URL discovery and crawling')
             
             # Prepare previous results for Mini Spider
             spider_previous_results = {
@@ -670,7 +665,7 @@ async def run_workflow(target: str, debug: bool = False):
         # Run SmartList analysis after Mini Spider if we have services
         smartlist_data = None
         if http_scan_data and http_scan_data.get('services'):
-            console.print(f"\n→ Analyzing services for enhanced wordlist recommendations...")
+            console.display_workflow_status('smartlist_analysis', 'starting', 'Generating wordlist recommendations')
             
             # Prepare enhanced previous results for SmartList
             previous_results = {
@@ -785,65 +780,26 @@ def display_spider_summary(spider_data: dict):
 
 
 def display_smartlist_summary(smartlist_data: dict):
-    """Display SmartList wordlist recommendations"""
-    recommendations = smartlist_data.get('wordlist_recommendations', [])
-    if not recommendations:
-        return
-    
-    console.print("\n📋 Recommended wordlists:")
-    
-    for service_rec in recommendations:
-        top_wordlists = service_rec.get('top_wordlists', [])[:2]  # Only top 2
-        if not top_wordlists:
-            continue
-            
-        service_name = service_rec['service']
-        tech = service_rec.get('detected_technology', 'Unknown')
-        confidence = service_rec.get('confidence', 'LOW')
-        
-        console.print(f"  {service_name} ({tech}):")
-        for i, wl in enumerate(top_wordlists, 1):
-            confidence_color = "green" if wl['confidence'] == "HIGH" else "yellow" if wl['confidence'] == "MEDIUM" else "red"
-            console.print(f"    {i}. [bold]{wl['wordlist']}[/bold] ([{confidence_color}]{wl['confidence']}[/{confidence_color}] - {wl['reason']})")
+    """Display SmartList wordlist recommendations using new console methods"""
+    console.display_smartlist_recommendations(smartlist_data)
 
 
 def display_minimal_summary(data: dict, workspace: Path):
-    """Display minimal analysis summary"""
-    scan_result = data
+    """Display clean analysis summary using new console methods"""
+    # Display key findings first
+    console.display_key_findings(data)
     
-    # Count open ports
-    total_open_ports = 0
-    for host in scan_result.get('hosts', []):
-        total_open_ports += sum(1 for p in host.get('ports', []) if p.get('state') == 'open')
+    # Display SmartList recommendations (main focus)
+    smartlist_data = data.get('smartlist', {})
+    if smartlist_data:
+        console.display_smartlist_recommendations(smartlist_data)
     
-    # Minimal summary
-    scan_mode = scan_result.get('scan_mode', 'unknown')
+    # Display scan summary
+    console.display_scan_summary(data)
     
-    summary = Table(show_header=False, box=None, padding=(0, 1))
-    summary.add_column("Key", style="dim")
-    summary.add_column("Value")
-    
-    summary.add_row("Target", f"[green]{scan_result.get('hosts', [{}])[0].get('ip', 'Unknown') if scan_result.get('hosts') else 'Unknown'}[/green]")
-    summary.add_row("Scan Mode", scan_mode)
-    
-    # Show discovery info if enabled
-    if scan_result.get('discovery_enabled'):
-        summary.add_row("Port Discovery", f"Enabled ({scan_result.get('discovered_ports', 0)} ports found)")
-    else:
-        summary.add_row("Port Discovery", "Disabled (full scan)")
-    
-    # Show discovered hostnames
-    if scan_result.get('hostname_mappings'):
-        hostnames = [m['hostname'] for m in scan_result['hostname_mappings']]
-        summary.add_row("Discovered Hostnames", ", ".join(hostnames))
-    
-    summary.add_row("Duration", f"{scan_result['duration']:.2f}s")
-    summary.add_row("Hosts Found", f"{scan_result['up_hosts']} up, {scan_result['down_hosts']} down")
-    summary.add_row("Open Ports", str(total_open_ports))
-    summary.add_row("Results Saved", f"[green]{workspace}[/green]")
-    
-    console.print("\n", summary, "\n")
-    console.print("View detailed results in the workspace directory")
+    # Add workspace info
+    console.print(f"\n[dim]📁 Full results saved to: [cyan]{workspace}[/cyan][/dim]")
+    console.print("[dim]💡 View detailed reports in the workspace directory[/dim]")
 
 
 
