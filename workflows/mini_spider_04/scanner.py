@@ -53,6 +53,28 @@ class MiniSpiderScanner(BaseWorkflow):
         
         debug_print(f"Starting mini spider scan for {target}")
         
+        # Check tool availability and warn user
+        from .config import get_config_manager
+        config_manager = get_config_manager()
+        
+        missing_tools = []
+        if not config_manager.tools_available.get('hakrawler', False):
+            missing_tools.append("hakrawler")
+        
+        # Check if httpx is available for custom crawler
+        try:
+            import httpx
+        except ImportError:
+            missing_tools.append("httpx")
+        
+        if missing_tools:
+            print(f"  ⚠ Missing optional tools: {', '.join(missing_tools)}")
+            print("  → Mini Spider will use basic discovery methods")
+            if 'hakrawler' in missing_tools:
+                print("    Install hakrawler: go install github.com/hakluke/hakrawler@latest")
+            if 'httpx' in missing_tools:
+                print("    Install httpx: pip install httpx")
+        
         try:
             # Initialize result object
             result = MiniSpiderResult(target=target)
@@ -71,20 +93,44 @@ class MiniSpiderScanner(BaseWorkflow):
                 result.seed_urls.extend(seed_urls)
             
             # Phase 2: Custom path sniffer (parallel with hakrawler)
+            print("  → Running custom path discovery...")
             custom_urls = await self.custom_crawler.discover_paths(
                 result.seed_urls, 
                 max_concurrent=self.max_concurrent_crawls
             )
+            print(f"  ✓ Custom crawler found {len(custom_urls)} URLs")
             
             # Phase 3: Hakrawler discovery (parallel with custom crawler)
+            print("  → Running hakrawler discovery...")
             hakrawler_urls = await self.hakrawler_wrapper.run_parallel_discovery(
                 result.seed_urls,
                 timeout=self.crawl_timeout
             )
             
+            # Check if hakrawler actually ran
+            if len(hakrawler_urls) == 0:
+                from .config import get_config_manager
+                config_manager = get_config_manager()
+                if not config_manager.tools_available.get('hakrawler', False):
+                    print("  ⚠ Hakrawler not available - install with: go install github.com/hakluke/hakrawler@latest")
+                else:
+                    print("  ⚠ Hakrawler found no additional URLs")
+            else:
+                print(f"  ✓ Hakrawler found {len(hakrawler_urls)} URLs")
+            
             # Phase 4: Combine and deduplicate results
             all_discovered_urls = custom_urls + hakrawler_urls
             unique_urls = deduplicate_urls(all_discovered_urls)
+            
+            # Inform user about discovery results
+            if len(unique_urls) == 0:
+                print("  ⚠ No URLs discovered - this might indicate:")
+                print("    • Target is not responding to HTTP requests")
+                print("    • Firewall/WAF is blocking crawler requests") 
+                print("    • Missing required tools (hakrawler, httpx)")
+                print("    • Try running with --debug for more details")
+            else:
+                print(f"  ✓ Total unique URLs discovered: {len(unique_urls)}")
             
             # Limit total URLs to prevent resource exhaustion
             if len(unique_urls) > self.max_total_urls:
@@ -118,6 +164,34 @@ class MiniSpiderScanner(BaseWorkflow):
             await self._save_results_to_workspace(target, result)
             
             debug_print(f"Mini spider scan completed: {len(result.discovered_urls)} URLs discovered")
+            
+            # Provide user feedback about results and next steps
+            print(f"  ✓ Mini Spider analysis completed:")
+            print(f"    • Total URLs discovered: {len(result.discovered_urls)}")
+            print(f"    • Interesting findings: {len(result.interesting_findings)}")
+            print(f"    • Execution time: {result.execution_time:.2f}s")
+            
+            if len(result.discovered_urls) > 0:
+                print(f"  📁 Results saved to scan reports")
+                if hasattr(result, 'summary') and result.summary:
+                    # Show categories found
+                    categories = result.categorized_results
+                    if categories:
+                        print(f"  📊 Discovered paths by category:")
+                        for category, urls in categories.items():
+                            if urls:
+                                print(f"    • {category}: {len(urls)} paths")
+                
+                print(f"  💡 Next recommended actions:")
+                print(f"    • Review interesting findings for potential vulnerabilities")
+                print(f"    • Use discovered paths for targeted fuzzing")
+                print(f"    • Analyze admin/config paths with caution")
+            else:
+                print(f"  💡 To improve discovery results:")
+                print(f"    • Ensure target is accessible over HTTP/HTTPS")
+                print(f"    • Install missing tools (hakrawler, httpx)")
+                print(f"    • Check firewall/WAF settings")
+                print(f"    • Verify the target has web services running")
             
             return WorkflowResult(
                 success=True,

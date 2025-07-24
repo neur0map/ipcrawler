@@ -42,16 +42,28 @@ class CustomCrawler:
         
         if not seed_urls:
             debug_print("No seed URLs provided for custom crawler")
+            print("    ⚠ No seed URLs available for custom crawler")
             return []
         
         debug_print(f"Starting custom crawler with {len(seed_urls)} seed URLs")
+        print(f"    → Testing {len(seed_urls)} seed URLs...")
         
         discovered = []
         
         try:
+            # Check HTTP library availability
+            if not HTTPX_AVAILABLE:
+                print("    ⚠ httpx not available, using curl fallback (slower)")
+            
             # Phase 1: Test seed URLs and extract base URLs
             active_base_urls = await self._validate_seed_urls(seed_urls)
             debug_print(f"Validated {len(active_base_urls)} active base URLs")
+            
+            if len(active_base_urls) == 0:
+                print("    ⚠ No seed URLs are responding - target may be down or filtered")
+                return []
+            else:
+                print(f"    ✓ {len(active_base_urls)} URLs responding, starting discovery...")
             
             # Phase 2: Common path discovery
             common_paths = await self._discover_common_paths(active_base_urls, max_concurrent)
