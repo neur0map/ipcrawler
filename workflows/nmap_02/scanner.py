@@ -6,6 +6,11 @@ from typing import List, Optional, Dict, Tuple
 
 from workflows.core.base import BaseWorkflow, WorkflowResult
 from workflows.core.output_cleaner import OutputCleaner
+from workflows.core.exceptions import (
+    ToolExecutionError, NetworkError, ParsingError, ValidationError,
+    ErrorCodes, create_error_context
+)
+from workflows.core.error_collector import collect_error
 from workflows.nmap_02.models import NmapScanResult, NmapHost, NmapPort
 from config import config
 
@@ -21,6 +26,14 @@ class NmapScanner(BaseWorkflow):
     def validate_input(self, target: str, **kwargs) -> bool:
         """Validate input parameters"""
         if not target or not target.strip():
+            # Create structured validation error
+            validation_error = ValidationError(
+                message="Target parameter is required and cannot be empty",
+                error_code=ErrorCodes.MISSING_REQUIRED_PARAM,
+                context=create_error_context(self.name, "input_validation", target),
+                suggestions=["Provide a valid IP address or hostname as target"]
+            )
+            # Note: This will be handled by safe_execute in BaseWorkflow
             return False
         return True
     
@@ -69,13 +82,6 @@ class NmapScanner(BaseWorkflow):
         """Execute nmap scan on target"""
         start_time = time.time()
         
-        if not self.validate_input(target):
-            return WorkflowResult(
-                success=False,
-                error="Invalid target provided",
-                execution_time=time.time() - start_time
-            )
-        
         try:
             is_root = self._is_root()
             
@@ -90,11 +96,16 @@ class NmapScanner(BaseWorkflow):
                 # Parallel batch scanning for all ports
                 return await self._parallel_scan(target, is_root, flags, progress_queue, start_time)
             
-        except Exception as e:
-            return WorkflowResult(
-                success=False,
-                error=f"Nmap execution failed: {str(e)}",
-                execution_time=time.time() - start_time
+        except Exception as exc:
+            # Use structured error handling
+            execution_time = time.time() - start_time
+            return self.handle_exception(
+                exc=exc,
+                operation="execute",
+                target=target,
+                execution_time=execution_time,
+                ports=ports,
+                flags=flags
             )
     
     async def _single_scan(self, target: str, ports: List[int], is_root: bool, 
@@ -118,9 +129,26 @@ class NmapScanner(BaseWorkflow):
             stdout, stderr = await process.communicate()
             
             if process.returncode != 0:
-                return WorkflowResult(
-                    success=False,
-                    error=f"Nmap failed: {stderr.decode()}",
+                error_msg = stderr.decode().strip()
+                return self.create_error_result(
+                    error=ToolExecutionError(
+                        message=f"Nmap execution failed: {error_msg}",
+                        tool_name="nmap",
+                        error_code=ErrorCodes.TOOL_EXECUTION_FAILED,
+                        context=create_error_context(
+                            self.name, "single_scan", target,
+                            command=" ".join(cmd),
+                            return_code=process.returncode,
+                            ports=port_spec
+                        ),
+                        suggestions=[
+                            "Check if nmap is installed and accessible",
+                            "Verify target is reachable",
+                            "Check network permissions"
+                        ]
+                    ),
+                    operation="single_scan",
+                    target=target,
                     execution_time=time.time() - start_time
                 )
             
@@ -136,17 +164,18 @@ class NmapScanner(BaseWorkflow):
             if progress_queue:
                 await progress_queue.put("batch_complete")
             
-            return WorkflowResult(
-                success=True,
+            return self.create_success_result(
                 data=scan_result_dict,
                 execution_time=time.time() - start_time
             )
             
-        except Exception as e:
-            return WorkflowResult(
-                success=False,
-                error=f"Single scan failed: {str(e)}",
-                execution_time=time.time() - start_time
+        except Exception as exc:
+            return self.handle_exception(
+                exc=exc,
+                operation="single_scan",
+                target=target,
+                execution_time=time.time() - start_time,
+                ports=ports
             )
     
     async def _parallel_scan(self, target: str, is_root: bool, flags: Optional[List[str]], 
@@ -317,7 +346,23 @@ class NmapScanner(BaseWorkflow):
             stdout, stderr = await process.communicate()
             
             if process.returncode != 0:
-                raise Exception(f"Nmap failed: {stderr.decode()}")
+                error_msg = stderr.decode().strip()
+                raise ToolExecutionError(
+                    message=f"Nmap execution failed: {error_msg}",
+                    tool_name="nmap",
+                    error_code=ErrorCodes.TOOL_EXECUTION_FAILED,
+                    context=create_error_context(
+                        self.name, "scan_specific_ports", target,
+                        command=" ".join(cmd),
+                        return_code=process.returncode,
+                        ports=port_spec
+                    ),
+                    suggestions=[
+                        "Check if nmap is installed and accessible",
+                        "Verify target is reachable",
+                        "Check network permissions"
+                    ]
+                )
             
             # Parse XML output
             xml_output = stdout.decode()
@@ -348,7 +393,24 @@ class NmapScanner(BaseWorkflow):
             stdout, stderr = await process.communicate()
             
             if process.returncode != 0:
-                raise Exception(f"Nmap failed: {stderr.decode()}")
+                error_msg = stderr.decode().strip()
+                raise ToolExecutionError(
+                    message=f"Nmap execution failed: {error_msg}",
+                    tool_name="nmap",
+                    error_code=ErrorCodes.TOOL_EXECUTION_FAILED,
+                    context=create_error_context(
+                        self.name, "scan_port_range", target,
+                        command=" ".join(cmd),
+                        return_code=process.returncode,
+                        port_range=port_spec
+                    ),
+                    suggestions=[
+                        "Check if nmap is installed and accessible",
+                        "Verify target is reachable",
+                        "Check network permissions",
+                        f"Try scanning smaller port ranges instead of {port_spec}"
+                    ]
+                )
             
             # Parse XML output
             xml_output = stdout.decode()
@@ -494,7 +556,27 @@ class NmapScanner(BaseWorkflow):
                 raw_output=xml_output
             )
             
-        except ET.ParseError:
+        except ET.ParseError as e:
+            # Create structured parsing error for collection
+            parsing_error = ParsingError(
+                message=f"Failed to parse nmap XML output: {str(e)}",
+                data_format="XML",
+                error_code=ErrorCodes.XML_PARSE_ERROR,
+                context=create_error_context(
+                    self.name, "parse_xml_output", None,
+                    command=command,
+                    xml_length=len(xml_output)
+                ),
+                suggestions=[
+                    "Check if nmap completed successfully",
+                    "Verify nmap XML output format",
+                    "Try running the scan with different parameters"
+                ]
+            )
+            
+            # Collect the error for analysis but continue with fallback
+            collect_error(parsing_error)
+            
             # Fallback for XML parsing errors
             return NmapScanResult(
                 command=command,
@@ -502,7 +584,8 @@ class NmapScanner(BaseWorkflow):
                 start_time="",
                 end_time="",
                 duration=0.0,
-                raw_output=xml_output
+                raw_output=xml_output,
+                warnings=[f"XML parsing failed: {str(e)}"]
             )
     
     def _parse_host(self, host_elem: ET.Element) -> NmapHost:

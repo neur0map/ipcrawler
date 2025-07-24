@@ -3,6 +3,8 @@ import datetime
 from pathlib import Path
 from typing import Optional
 import threading
+from .exceptions import IPCrawlerError
+from .error_collector import collect_error
 
 
 class CommandLogger:
@@ -31,9 +33,10 @@ class CommandLogger:
                    command: str, 
                    status: str = "started",
                    output: Optional[str] = None,
-                   error: Optional[str] = None):
+                   error: Optional[str] = None,
+                   ipc_error: Optional[IPCrawlerError] = None):
         """
-        Log a command execution
+        Log a command execution with enhanced error integration
         
         Args:
             workflow_name: Name of the workflow executing the command
@@ -41,8 +44,18 @@ class CommandLogger:
             status: Command status (started, completed, failed)
             output: Command output (optional)
             error: Error message if command failed (optional)
+            ipc_error: Structured IPCrawlerError for enhanced error tracking (optional)
         """
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        
+        # Collect structured error if provided
+        occurrence_id = None
+        if ipc_error and status.lower() == "failed":
+            try:
+                occurrence_id = collect_error(ipc_error)
+            except Exception:
+                # Don't let error collection break command logging
+                pass
         
         with self._lock:
             try:
@@ -63,6 +76,18 @@ class CommandLogger:
                     
                     if error:
                         f.write(f"   └─ ERROR: {error}\n")
+                        
+                        # Add structured error information if available
+                        if ipc_error:
+                            f.write(f"   └─ Error Code: {ipc_error.error_code}\n")
+                            f.write(f"   └─ Category: {ipc_error.category.value}\n")
+                            f.write(f"   └─ Severity: {ipc_error.severity.value}\n")
+                            
+                            if occurrence_id:
+                                f.write(f"   └─ Error ID: {occurrence_id}\n")
+                                
+                            if ipc_error.suggestions:
+                                f.write(f"   └─ Suggestions: {'; '.join(ipc_error.suggestions)}\n")
                     
                     f.write("\n")
             except (PermissionError, OSError):
@@ -121,10 +146,11 @@ def get_command_logger() -> CommandLogger:
 
 
 def log_command(workflow_name: str, command: str, status: str = "started", 
-                output: Optional[str] = None, error: Optional[str] = None):
-    """Convenience function to log a command"""
+                output: Optional[str] = None, error: Optional[str] = None,
+                ipc_error: Optional[IPCrawlerError] = None):
+    """Convenience function to log a command with enhanced error support"""
     logger = get_command_logger()
-    logger.log_command(workflow_name, command, status, output, error)
+    logger.log_command(workflow_name, command, status, output, error, ipc_error)
 
 
 def log_workflow_start(workflow_name: str, target: Optional[str] = None):
