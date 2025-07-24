@@ -1,0 +1,322 @@
+{# Comprehensive Text Report Template for IPCrawler #}
+{% extends "base/layout.txt.j2" %}
+
+{% block title %}{{ title | upper }}{% endblock %}
+
+{% block content -%}
+{# Executive Summary #}
+{% if summary -%}
+EXECUTIVE SUMMARY
+{{ "-" * 80 }}
+Total Hosts Scanned: {{ summary.total_hosts }}
+Hosts Responding: {{ summary.up_hosts }}
+Hosts Down: {{ summary.down_hosts }}
+Total Ports Checked: {{ summary.total_ports }}
+Open Ports Found: {{ summary.open_ports }}
+Services Detected: {{ summary.services_detected }}
+Vulnerabilities: {{ summary.vulnerabilities }}
+Scan Duration: {{ "%.2f"|format(summary.duration) }} seconds
+
+{% endif -%}
+
+{# Host Discovery Results #}
+{% if hosts -%}
+{{ "=" * 80 }}
+HOST DISCOVERY RESULTS
+{{ "=" * 80 }}
+
+Discovered {{ hosts|length }} host(s) during network reconnaissance:
+
+{% for host in hosts -%}
+{{ "-" * 80 }}
+Host: {{ host.ip }}
+{% if host.hostname -%}
+Hostname: {{ host.hostname }}
+{% endif -%}
+{% if host.os -%}
+Operating System: {{ host.os }}{% if host.os_accuracy %} ({{ host.os_accuracy }}% accuracy){% endif %}
+{% endif -%}
+{% if host.mac_address -%}
+MAC Address: {{ host.mac_address }}{% if host.mac_vendor %} ({{ host.mac_vendor }}){% endif %}
+{% endif -%}
+
+{% if host.open_ports -%}
+Open Ports ({{ host.open_ports|length }}):
+{% for port in host.open_ports -%}
+  {{ port.port }}/{{ port.protocol }} - {{ port.service | default('unknown') }}
+{% if port.version -%}
+    Version: {{ port.version }}
+{% endif -%}
+{% if port.product -%}
+    Product: {{ port.product }}
+{% endif -%}
+{% if port.scripts -%}
+{% for script in port.scripts -%}
+    Script Results ({{ script.id }}):
+{{ script.output | indent(6) }}
+{% endfor -%}
+{% endif -%}
+{% endfor -%}
+
+{% if host.service_summary_text -%}
+Service Summary: {{ host.service_summary_text }}
+{% endif -%}
+{% else -%}
+No open ports detected on this host.
+{% endif -%}
+{% endfor -%}
+
+{% endif -%}
+
+{# HTTP/HTTPS Security Assessment #}
+{% if http_scan -%}
+{{ "=" * 80 }}
+HTTP/HTTPS SECURITY ASSESSMENT
+{{ "=" * 80 }}
+
+{% if http_scan.fallback_mode -%}
+Note: HTTP scan completed using fallback mode ({{ http_scan.scan_engine | default('curl+nslookup') }}).
+{% endif -%}
+
+{% if http_scan.services -%}
+HTTP Services Analyzed: {{ http_scan.services|length }}
+
+{% for service in http_scan.services -%}
+{{ "-" * 40 }}
+URL: {{ service.url }}
+Status Code: {{ service.status_code }}
+Server: {{ service.server | default('Unknown') }}
+Technologies: {{ service.tech_list | default('None detected') }}
+{% if service.discovered_paths -%}
+Discovered Paths: {{ service.discovered_paths|length }} found
+{% for path in service.discovered_paths[:10] -%}
+  • {{ path }}
+{% endfor -%}
+{% if service.discovered_paths|length > 10 -%}
+  ... and {{ service.discovered_paths|length - 10 }} more paths
+{% endif -%}
+{% endif -%}
+{% endfor -%}
+
+{% endif -%}
+
+{% if http_scan.vulnerability_summary -%}
+Security Vulnerabilities Summary:
+{% if http_scan.vulnerability_summary.critical > 0 -%}
+  CRITICAL: {{ http_scan.vulnerability_summary.critical }}
+{% endif -%}
+{% if http_scan.vulnerability_summary.high > 0 -%}
+  HIGH: {{ http_scan.vulnerability_summary.high }}
+{% endif -%}
+{% if http_scan.vulnerability_summary.medium > 0 -%}
+  MEDIUM: {{ http_scan.vulnerability_summary.medium }}
+{% endif -%}
+{% if http_scan.vulnerability_summary.low > 0 -%}
+  LOW: {{ http_scan.vulnerability_summary.low }}
+{% endif -%}
+{% if http_scan.vulnerability_summary.info > 0 -%}
+  INFO: {{ http_scan.vulnerability_summary.info }}
+{% endif -%}
+
+{% if http_scan.vulnerabilities -%}
+{{ "-" * 40 }}
+Detailed Vulnerability Report:
+
+{% for vuln in http_scan.vulnerabilities -%}
+{{ vuln.severity | upper }}: {{ vuln.title | default('Unknown Vulnerability') }}
+{% if vuln.description -%}
+Description: {{ vuln.description }}
+{% endif -%}
+{% if vuln.evidence -%}
+Evidence: {{ vuln.evidence | truncate_smart(200) }}
+{% endif -%}
+{% if vuln.references -%}
+References: {{ vuln.references | join(', ') }}
+{% endif -%}
+
+{% endfor -%}
+{% endif -%}
+{% endif -%}
+
+{% if http_scan.subdomains -%}
+{{ "-" * 40 }}
+Discovered Subdomains ({{ http_scan.subdomains|length }}):
+{% for subdomain in http_scan.subdomains[:20] -%}
+  • {{ subdomain }}
+{% endfor -%}
+{% if http_scan.subdomains|length > 20 -%}
+  ... and {{ http_scan.subdomains|length - 20 }} more subdomains
+{% endif -%}
+
+{% endif -%}
+
+{% if http_scan.dns_records -%}
+{{ "-" * 40 }}
+DNS Records ({{ http_scan.dns_records|length }}):
+{% for record in http_scan.dns_records[:10] -%}
+  {{ record.type | default('N/A') }}: {{ record.value | default('N/A') }}
+{% endfor -%}
+{% if http_scan.dns_records|length > 10 -%}
+  ... and {{ http_scan.dns_records|length - 10 }} more DNS records
+{% endif -%}
+
+{% endif -%}
+{% endif -%}
+
+{# SmartList Wordlist Recommendations #}
+{% if smartlist -%}
+{{ "=" * 80 }}
+SMARTLIST WORDLIST RECOMMENDATIONS
+{{ "=" * 80 }}
+
+{% if smartlist.summary -%}
+Analysis Summary:
+{{ smartlist.summary.recommendation | default('Analyzed services and generated intelligent wordlist recommendations.') }}
+
+{% endif -%}
+{% if smartlist.stats -%}
+Statistics:
+  Services Analyzed: {{ smartlist.stats.services_analyzed }}
+  Total Wordlists Recommended: {{ smartlist.stats.total_wordlists }}
+  High Confidence Recommendations: {{ smartlist.stats.confidence_counts.high }}
+  Medium Confidence Recommendations: {{ smartlist.stats.confidence_counts.medium }}
+  Low Confidence Recommendations: {{ smartlist.stats.confidence_counts.low }}
+
+{% endif -%}
+
+{% if smartlist.wordlist_recommendations -%}
+{{ "-" * 40 }}
+Recommendations by Service:
+
+{% for service_rec in smartlist.wordlist_recommendations -%}
+Service: {{ service_rec.service }} ({{ service_rec.service_name }})
+{% if service_rec.detected_technology -%}
+Technology: {{ service_rec.detected_technology }}
+{% endif -%}
+Confidence: {{ service_rec.confidence | upper }} (Score: {{ service_rec.total_score }})
+
+{% if service_rec.top_wordlists -%}
+Top Wordlist Recommendations:
+{% for wl in service_rec.top_wordlists[:5] -%}
+  {{ loop.index }}. {{ wl.wordlist }} (Score: {{ wl.score }}, Confidence: {{ wl.confidence }})
+     Reason: {{ wl.reason }}
+{% if wl.matched_rule -%}
+     Rule: {{ wl.matched_rule }}
+{% endif -%}
+{% if wl.path -%}
+     Path: {{ wl.path }}
+{% endif -%}
+{% endfor -%}
+
+{% endif -%}
+{% if service_rec.context and service_rec.context.matched_rules -%}
+Matched Rules: {{ service_rec.context.matched_rules | join(', ') }}
+{% endif -%}
+{% if service_rec.context and service_rec.context.fallback_used -%}
+⚠ WARNING: Generic fallback was used for this service
+{% endif -%}
+
+{{ "-" * 20 }}
+{% endfor -%}
+{% endif -%}
+{% endif -%}
+
+{# Mini Spider URL Discovery #}
+{% if mini_spider -%}
+{{ "=" * 80 }}
+MINI SPIDER URL DISCOVERY
+{{ "=" * 80 }}
+
+{% if mini_spider.total_discovered_urls -%}
+URL Discovery Summary:
+Total URLs Discovered: {{ mini_spider.total_discovered_urls }}
+Categories: {{ mini_spider.category_stats|length }}
+
+{% if mini_spider.category_stats -%}
+URLs by Category:
+{% for category, count in mini_spider.category_stats.items() -%}
+  {{ category | title }}: {{ count }} URLs
+{% endfor -%}
+
+{% endif -%}
+{% else -%}
+URL discovery and crawling analysis completed.
+No URLs were discovered during the scan.
+
+{% endif -%}
+
+{% if mini_spider.categorized_results -%}
+{{ "-" * 40 }}
+Detailed URL Listings:
+
+{% for category, urls in mini_spider.categorized_results.items() -%}
+{{ category | title }} URLs ({{ urls|length }}):
+{% for url in urls[:15] -%}
+  • {{ url.url if url.url is defined else url }}
+{% endfor -%}
+{% if urls|length > 15 -%}
+  ... and {{ urls|length - 15 }} more {{ category }} URLs
+{% endif -%}
+
+{% endfor -%}
+{% endif -%}
+
+{% if mini_spider.findings_by_type -%}
+{{ "-" * 40 }}
+Interesting Findings:
+
+{% for finding_type, findings in mini_spider.findings_by_type.items() -%}
+{{ finding_type | title }} ({{ findings|length }}):
+{% for finding in findings[:5] -%}
+  {{ finding.url }}
+{% if finding.severity -%}
+    Severity: {{ finding.severity | upper }}
+{% endif -%}
+{% if finding.description -%}
+    Description: {{ finding.description }}
+{% endif -%}
+{% if finding.details -%}
+    Details: {{ finding.details | truncate_smart(150) }}
+{% endif -%}
+{% endfor -%}
+{% if findings|length > 5 -%}
+  ... and {{ findings|length - 5 }} more {{ finding_type }} findings
+{% endif -%}
+
+{% endfor -%}
+{% endif -%}
+{% endif -%}
+
+{# Additional Information #}
+{% if data.hostname_mappings -%}
+{{ "=" * 80 }}
+HOSTNAME MAPPINGS
+{{ "=" * 80 }}
+
+Discovered hostname mappings during fast scan:
+{% for mapping in data.hostname_mappings -%}
+  {{ mapping.hostname }} → {{ mapping.ip }}
+{% endfor -%}
+
+{% endif -%}
+
+{{ "=" * 80 }}
+SCAN METADATA
+{{ "=" * 80 }}
+
+Target: {{ target }}
+Workflow: {{ workflow | default('General Scan') }}
+Start Time: {{ metadata.timestamp | format_datetime }}
+Template: {{ metadata.template }}
+Theme: {{ theme.name }}
+Generator: {{ metadata.generator }} v{{ metadata.version }}
+
+{% if data.command -%}
+Command: {{ data.command }}
+{% endif -%}
+{% if summary and summary.duration -%}
+Total Duration: {{ "%.2f"|format(summary.duration) }} seconds
+{% endif -%}
+
+Report generated at {{ metadata.timestamp | format_datetime('%Y-%m-%d %H:%M:%S') }}
+{% endblock -%}

@@ -1,20 +1,31 @@
-"""Text report formatter for IPCrawler
+"""Text format reporter for IPCrawler
 
-Generates human-readable text reports from scan data.
+Generates human-readable text reports using Jinja2 templates.
 """
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 from ..base.reporter import BaseReporter
+from ..templates.engine import get_template_engine
+from src.core.ui.console.base import console
 
 
 class TextReporter(BaseReporter):
-    """Generates detailed text reports"""
+    """Generates detailed text reports using Jinja2 templates"""
     
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Optional[Path] = None, theme: str = 'default'):
+        """Initialize text reporter
+        
+        Args:
+            output_dir: Directory to save reports
+            theme: Theme to use (affects formatting preferences)
+        """
         super().__init__(output_dir)
+        self.theme = theme
+        self.template_engine = get_template_engine(theme)
+        console.debug(f"Text reporter initialized with theme '{theme}'")
     
     def get_format(self) -> str:
         """Get the report format name"""
@@ -25,241 +36,229 @@ class TextReporter(BaseReporter):
         
         Args:
             data: Scan data to format
-            **kwargs: Additional options (target, workflow, timestamp)
+            **kwargs: Additional options (target, workflow, timestamp, template)
             
         Returns:
             Path to generated text file
         """
-        target = kwargs.get('target', 'unknown')
-        workflow = kwargs.get('workflow', 'scan')
-        timestamp = kwargs.get('timestamp', datetime.now())
+        self.ensure_output_dir()
+        
+        # Prepare context
+        context = self._prepare_context(data, **kwargs)
+        
+        # Determine template to use
+        template_name = kwargs.get('template', 'base/layout.txt.j2')
         
         # Generate filename
-        filename = f"{workflow}_report_{target}_{timestamp.strftime('%Y%m%d_%H%M%S')}.txt"
-        filepath = self.output_dir / filename
+        filename = self._generate_filename(data, **kwargs)
+        output_path = self.output_dir / filename
         
-        # Format content
-        content = self._format_text_report(target, data)
-        
-        # Write file
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        return filepath
+        try:
+            # Render template
+            text_content = self.template_engine.render_template(template_name, context)
+            
+            # Write to file
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(text_content)
+            
+            console.success(f"Generated text report: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            console.error(f"Failed to generate text report: {e}")
+            raise
     
-    def _format_text_report(self, target: str, data: Dict[str, Any]) -> str:
-        """Generate detailed text report content"""
-        report = []
-        report.append("IP CRAWLER SCAN REPORT")
-        report.append(f"Target: {target}")
-        report.append(f"Scan Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report.append(f"Command: {data.get('command', 'N/A')}")
-        report.append(f"Duration: {data.get('duration', 0):.2f} seconds")
-        report.append(f"Hosts: {data.get('total_hosts', 0)} total, {data.get('up_hosts', 0)} up, {data.get('down_hosts', 0)} down")
+    def _prepare_context(self, data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        """Prepare context for template rendering"""
+        # Base context
+        context = {
+            'data': data,
+            'target': kwargs.get('target', data.get('target', 'Unknown')),
+            'workflow': kwargs.get('workflow', 'scan'),
+        }
         
-        # Add hostname mappings from fast scan
-        if 'hostname_mappings' in data and data['hostname_mappings']:
-            report.append(f"\nDiscovered Hostname Mappings (from fast scan):")
-            for mapping in data['hostname_mappings']:
-                report.append(f"  {mapping['hostname']} → {mapping['ip']}")
+        # Add summary statistics
+        context['summary'] = self._generate_summary(data)
         
-        report.append("=" * 80)
+        # Add processed data sections
+        if 'hosts' in data:
+            context['hosts'] = self._process_hosts(data['hosts'])
         
-        # Host details
-        for host in data.get('hosts', []):
-            report.append(f"\nHost: {host['ip']}")
-            if host.get('hostname'):
-                report.append(f"Hostname: {host['hostname']}")
-            if host.get('os'):
-                report.append(f"OS: {host['os']} (Accuracy: {host.get('os_accuracy', 'N/A')}%)")
-            if host.get('mac_address'):
-                report.append(f"MAC: {host['mac_address']} ({host.get('mac_vendor', 'Unknown vendor')})")
-            
-            # Open ports
-            open_ports = [p for p in host.get('ports', []) if p.get('state') == 'open']
-            if open_ports:
-                report.append(f"\nOpen Ports: {len(open_ports)}")
-                for port in open_ports:
-                    report.append(f"  {port['port']}/{port['protocol']} - {port.get('service', 'unknown')}")
-                    if port.get('version'):
-                        report.append(f"    Version: {port['version']}")
-                    if port.get('product'):
-                        report.append(f"    Product: {port['product']}")
-                    
-                    # Script results
-                    if port.get('scripts'):
-                        for script in port['scripts']:
-                            report.append(f"    Script: {script['id']}")
-                            for line in script['output'].strip().split('\n'):
-                                report.append(f"      {line}")
-            
-            report.append("-" * 80)
-        
-        # HTTP scan results
         if 'http_scan' in data:
-            report.extend(self._format_http_section(data['http_scan']))
+            context['http_scan'] = self._process_http_scan(data['http_scan'])
         
-        # SmartList recommendations
         if 'smartlist' in data:
-            report.extend(self._format_smartlist_section(data['smartlist']))
+            context['smartlist'] = self._process_smartlist(data['smartlist'])
         
-        # Mini Spider results
         if 'mini_spider' in data:
-            report.extend(self._format_mini_spider_section(data['mini_spider']))
+            context['mini_spider'] = self._process_mini_spider(data['mini_spider'])
         
-        return "\n".join(report)
+        return context
     
-    def _format_http_section(self, http_data: Dict[str, Any]) -> list:
-        """Format HTTP scan results section"""
-        report = []
-        report.append("\n" + "=" * 80)
-        report.append("HTTP/HTTPS SCAN RESULTS")
-        report.append("=" * 80)
+    def _generate_summary(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate summary statistics for the report"""
+        summary = {
+            'total_hosts': data.get('total_hosts', 0),
+            'up_hosts': data.get('up_hosts', 0),
+            'down_hosts': data.get('down_hosts', 0),
+            'total_ports': 0,
+            'open_ports': 0,
+            'services_detected': 0,
+            'vulnerabilities': 0,
+            'duration': data.get('duration', 0)
+        }
         
-        # Check if HTTP scan has any data
-        has_data = any([
-            http_data.get('services'),
-            http_data.get('vulnerabilities'),
-            http_data.get('dns_records'),
-            http_data.get('subdomains')
-        ])
+        # Count ports and services
+        if 'hosts' in data:
+            for host in data['hosts']:
+                if 'ports' in host:
+                    summary['total_ports'] += len(host['ports'])
+                    open_ports = [p for p in host['ports'] if p.get('state') == 'open']
+                    summary['open_ports'] += len(open_ports)
+                    
+                    # Count unique services
+                    services = {p.get('service', 'unknown') for p in open_ports if p.get('service')}
+                    summary['services_detected'] += len(services)
         
-        if not has_data:
-            if http_data.get('fallback_mode'):
-                report.append("\nHTTP scan completed using fallback mode (curl+nslookup).")
-                report.append("No HTTP services found or target not responding to HTTP requests.")
-            else:
-                report.append("\nNo HTTP scan data collected. This may be due to:")
-                report.append("  • Target not responding to HTTP requests")
-                report.append("  • Scanner configuration issues")
-                report.append("  • Network connectivity problems")
-        else:
-            # Add scan engine info
-            scan_engine = http_data.get('scan_engine', 'unknown')
-            if http_data.get('fallback_mode'):
-                report.append(f"\nHTTP scan completed using fallback mode ({scan_engine})")
-            else:
-                report.append(f"\nHTTP scan completed using {scan_engine}")
+        # Count vulnerabilities
+        if 'http_scan' in data and 'vulnerabilities' in data['http_scan']:
+            summary['vulnerabilities'] = len(data['http_scan']['vulnerabilities'])
         
-        # HTTP Services
-        services = http_data.get('services', [])
-        if services:
-            report.append(f"\nHTTP Services Found: {len(services)}")
-            for service in services:
-                report.append(f"\n  {service.get('url', 'Unknown URL')}")
-                report.append(f"    Status: {service.get('status_code', 'N/A')}")
-                report.append(f"    Server: {service.get('server', 'Unknown')}")
-                if service.get('technologies'):
-                    report.append(f"    Technologies: {', '.join(service['technologies'])}")
-                if service.get('discovered_paths'):
-                    report.append(f"    Discovered Paths: {len(service['discovered_paths'])}")
-                    for path in service['discovered_paths']:
-                        report.append(f"      • {path}")
-        
-        # Vulnerabilities
-        vulns = http_data.get('vulnerabilities', [])
-        if vulns:
-            report.append(f"\nHTTP Vulnerabilities: {len(vulns)}")
-            severity_order = ['critical', 'high', 'medium', 'low']
-            for severity in severity_order:
-                severity_vulns = [v for v in vulns if v.get('severity') == severity]
-                if severity_vulns:
-                    report.append(f"\n  {severity.upper()} ({len(severity_vulns)})")
-                    for vuln in severity_vulns[:3]:  # Show first 3 of each severity
-                        report.append(f"    • {vuln.get('description', 'N/A')}")
-                        if vuln.get('evidence'):
-                            report.append(f"      Evidence: {vuln['evidence']}")
-        
-        # DNS and Subdomains
-        subdomains = http_data.get('subdomains', [])
-        if subdomains:
-            report.append(f"\nDiscovered Subdomains: {len(subdomains)}")
-            for subdomain in subdomains[:10]:
-                report.append(f"  • {subdomain}")
-        
-        dns_records = http_data.get('dns_records', [])
-        if dns_records:
-            report.append(f"\nDNS Records: {len(dns_records)}")
-            for record in dns_records[:10]:
-                report.append(f"  {record.get('type', 'N/A')}: {record.get('value', 'N/A')}")
-        
-        return report
+        return summary
     
-    def _format_smartlist_section(self, smartlist_data: Dict[str, Any]) -> list:
-        """Format SmartList recommendations section"""
-        report = []
-        report.append("\n" + "=" * 80)
-        report.append("SMARTLIST WORDLIST RECOMMENDATIONS")
-        report.append("=" * 80)
+    def _process_hosts(self, hosts: list) -> list:
+        """Process host data for text display"""
+        processed_hosts = []
         
-        summary = smartlist_data.get('summary', {})
-        report.append(f"\nAnalysis Summary:")
-        report.append(f"  Services Analyzed: {summary.get('total_services_analyzed', 0)}")
-        report.append(f"  Total Wordlists: {summary.get('total_wordlists_recommended', 0)}")
-        report.append(f"  High Confidence: {summary.get('high_confidence_services', 0)}")
-        report.append(f"  Technologies: {', '.join(summary.get('detected_technologies', []))}")
-        report.append(f"\nRecommendation: {summary.get('recommendation', 'None')}")
-        
-        # Wordlist recommendations by service
-        recommendations = smartlist_data.get('wordlist_recommendations', [])
-        if recommendations:
-            report.append("\nWordlist Recommendations by Service:")
-            for service_rec in recommendations:
-                report.append(f"\n{service_rec['service']} ({service_rec['service_name']})")
-                if service_rec.get('detected_technology'):
-                    report.append(f"  Technology: {service_rec['detected_technology']}")
-                report.append(f"  Confidence: {service_rec['confidence']} (Score: {service_rec['total_score']})")
+        for host in hosts:
+            processed_host = host.copy()
+            
+            # Categorize ports
+            if 'ports' in host:
+                ports = host['ports']
+                processed_host['open_ports'] = [p for p in ports if p.get('state') == 'open']
+                processed_host['closed_ports'] = [p for p in ports if p.get('state') == 'closed']
+                processed_host['filtered_ports'] = [p for p in ports if p.get('state') == 'filtered']
                 
-                # Top wordlists
-                report.append("  Top Wordlists:")
-                for i, wl in enumerate(service_rec.get('top_wordlists', [])[:3], 1):
-                    report.append(f"    {i}. {wl['wordlist']} (Score: {wl['score']})")
-                    report.append(f"       Confidence: {wl['confidence']}")
-                    report.append(f"       Reason: {wl['reason']}")
-                    if wl.get('matched_rule'):
-                        report.append(f"       Rule: {wl['matched_rule']}")
-                    if wl.get('path'):
-                        report.append(f"       Path: {wl['path']}")
+                # Create service summary text
+                services = {}
+                for port in processed_host['open_ports']:
+                    service = port.get('service', 'unknown')
+                    if service not in services:
+                        services[service] = []
+                    services[service].append(str(port['port']))
                 
-                # Context information
-                context = service_rec.get('context', {})
-                if context.get('matched_rules'):
-                    report.append(f"  Matched Rules: {', '.join(context['matched_rules'])}")
-                if context.get('fallback_used'):
-                    report.append("  ⚠ Generic fallback was used")
+                service_lines = []
+                for service, ports in services.items():
+                    service_lines.append(f"{service}: {', '.join(ports)}")
+                processed_host['service_summary_text'] = '; '.join(service_lines)
+            
+            processed_hosts.append(processed_host)
         
-        return report
+        return processed_hosts
     
-    def _format_mini_spider_section(self, mini_spider_data: Dict[str, Any]) -> list:
-        """Format Mini Spider results section"""
-        report = []
-        report.append("\n" + "=" * 80)
-        report.append("MINI SPIDER RESULTS")
-        report.append("=" * 80)
+    def _process_http_scan(self, http_scan: Dict[str, Any]) -> Dict[str, Any]:
+        """Process HTTP scan data for text display"""
+        processed = http_scan.copy()
         
-        # Summary stats
-        discovered_urls = mini_spider_data.get('discovered_urls', [])
-        categorized_results = mini_spider_data.get('categorized_results', {})
+        # Create vulnerability summary by severity
+        if 'vulnerabilities' in http_scan:
+            vuln_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+            
+            for vuln in http_scan['vulnerabilities']:
+                severity = vuln.get('severity', 'info').lower()
+                if severity in vuln_counts:
+                    vuln_counts[severity] += 1
+            
+            processed['vulnerability_summary'] = vuln_counts
+            processed['total_vulnerabilities'] = sum(vuln_counts.values())
         
-        report.append(f"\nURLs Discovered: {len(discovered_urls)}")
+        # Process services for text display
+        if 'services' in http_scan:
+            for service in processed['services']:
+                # Create technology summary
+                if 'technologies' in service and service['technologies']:
+                    service['tech_list'] = ', '.join(service['technologies'])
+                else:
+                    service['tech_list'] = 'None detected'
         
-        if categorized_results:
-            report.append("\nURLs by Category:")
-            for category, urls in categorized_results.items():
+        return processed
+    
+    def _process_smartlist(self, smartlist: Dict[str, Any]) -> Dict[str, Any]:
+        """Process SmartList data for text display"""
+        processed = smartlist.copy()
+        
+        # Add recommendation statistics
+        if 'wordlist_recommendations' in smartlist:
+            total_wordlists = 0
+            confidence_counts = {'high': 0, 'medium': 0, 'low': 0}
+            
+            for service_rec in smartlist['wordlist_recommendations']:
+                if 'top_wordlists' in service_rec:
+                    total_wordlists += len(service_rec['top_wordlists'])
+                
+                confidence = service_rec.get('confidence', 'low').lower()
+                if confidence in confidence_counts:
+                    confidence_counts[confidence] += 1
+            
+            processed['stats'] = {
+                'total_wordlists': total_wordlists,
+                'confidence_counts': confidence_counts,
+                'services_analyzed': len(smartlist['wordlist_recommendations'])
+            }
+        
+        return processed
+    
+    def _process_mini_spider(self, mini_spider: Dict[str, Any]) -> Dict[str, Any]:
+        """Process Mini Spider data for text display"""
+        processed = mini_spider.copy()
+        
+        # Calculate URL statistics
+        if 'categorized_results' in mini_spider:
+            category_stats = {}
+            total_urls = 0
+            
+            for category, urls in mini_spider['categorized_results'].items():
                 category_name = category if isinstance(category, str) else str(category)
-                report.append(f"  {category_name}: {len(urls)} URLs")
+                url_count = len(urls)
+                category_stats[category_name] = url_count
+                total_urls += url_count
+            
+            processed['category_stats'] = category_stats
+            processed['total_discovered_urls'] = total_urls
         
-        # Show sample URLs from each category
-        if categorized_results:
-            report.append("\nSample URLs:")
-            for category, urls in categorized_results.items():
-                category_name = category if isinstance(category, str) else str(category)
-                if urls:
-                    report.append(f"\n  {category_name}:")
-                    for url in urls[:5]:  # Show first 5 URLs
-                        url_str = url if isinstance(url, str) else url.get('url', str(url))
-                        report.append(f"    • {url_str}")
-                    if len(urls) > 5:
-                        report.append(f"    ... and {len(urls) - 5} more")
+        return processed
+    
+    def _generate_filename(self, data: Dict[str, Any], **kwargs) -> str:
+        """Generate appropriate filename for the report"""
+        filename = kwargs.get('filename')
+        if filename:
+            if not filename.endswith('.txt'):
+                filename += '.txt'
+            return filename
         
-        return report
+        # Generate filename from context
+        target = kwargs.get('target', data.get('target', 'unknown'))
+        workflow = kwargs.get('workflow', 'scan')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Sanitize target for filename
+        safe_target = target.replace(':', '_').replace('/', '_').replace('.', '_')
+        
+        return f"{workflow}_report_{safe_target}_{timestamp}.txt"
+    
+    def validate_data(self, data: Dict[str, Any]) -> bool:
+        """Validate that data is suitable for text reporting
+        
+        Args:
+            data: Data to validate
+            
+        Returns:
+            True if data is valid, False otherwise
+        """
+        if not isinstance(data, dict):
+            console.error("Report data must be a dictionary")
+            return False
+        
+        # Allow empty reports
+        return True

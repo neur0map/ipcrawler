@@ -122,6 +122,22 @@ class IPCrawlerConsole:
     def save_text(self, path: str, clear: bool = True):
         """Save console output as text"""
         self.console.save_text(path, clear=clear)
+    
+    def get_time(self):
+        """Get current time (required by Rich Progress)"""
+        return self.console.get_time()
+    
+    def __enter__(self):
+        """Context manager entry (required by Rich components)"""
+        return self.console.__enter__()
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit (required by Rich components)"""
+        return self.console.__exit__(exc_type, exc_val, exc_tb)
+        
+    def __getattr__(self, name):
+        """Delegate any missing attributes to the underlying Rich Console"""
+        return getattr(self.console, name)
 
 
 # Global console instance

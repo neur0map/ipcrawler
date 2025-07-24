@@ -1,0 +1,244 @@
+{# Reusable HTML Macros for IPCrawler Reports #}
+
+{# Summary Card Component #}
+{% macro summary_card(value, label, icon="", class="", color="") -%}
+<div class="summary-card {{ class }}">
+    <div class="summary-value" {% if color %}style="color: {{ color }}"{% endif %}>
+        {% if icon %}{{ icon }} {% endif %}{{ value }}
+    </div>
+    <div class="summary-label">{{ label }}</div>
+</div>
+{%- endmacro %}
+
+{# Summary Grid Component #}
+{% macro summary_grid(cards) -%}
+<div class="summary-grid">
+    {% for card in cards %}
+        {{ summary_card(card.value, card.label, card.icon | default(""), card.class | default(""), card.color | default("")) }}
+    {% endfor %}
+</div>
+{%- endmacro %}
+
+{# Section Component #}
+{% macro section(title, icon="", collapsible=false, class="") -%}
+<div class="section {{ class }}">
+    <div class="section-header" {% if collapsible %}data-collapsible="true"{% endif %}>
+        {% if icon %}{{ icon }} {% endif %}{{ title }}
+        {% if collapsible %}<span class="collapse-icon">▼</span>{% endif %}
+    </div>
+    <div class="section-content">
+        {{ caller() }}
+    </div>
+</div>
+{%- endmacro %}
+
+{# Data Table Component #}
+{% macro data_table(headers, rows, sortable=false, class="") -%}
+<table class="data-table {{ class }}" {% if sortable %}data-sortable="true"{% endif %}>
+    <thead>
+        <tr>
+            {% for header in headers %}
+                <th {% if sortable %}data-sort="{{ loop.index0 }}"{% endif %}>{{ header }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+            <tr>
+                {% for cell in row %}
+                    <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{%- endmacro %}
+
+{# Port List Component #}
+{% macro port_list(ports) -%}
+<div class="port-list">
+    {% for port in ports %}
+        <div class="port-item {{ port.state | port_state_class }}">
+            <span class="port-number">{{ port.port }}/{{ port.protocol }}</span>
+            <span class="port-service">{{ port.service | default('unknown') }}</span>
+            {% if port.version %}
+                <span class="port-version">{{ port.version }}</span>
+            {% endif %}
+            {% if port.product %}
+                <span class="port-product">{{ port.product }}</span>
+            {% endif %}
+        </div>
+        {% if port.scripts %}
+            <div class="port-scripts">
+                {% for script in port.scripts %}
+                    <div class="script-result">
+                        <strong>{{ script.id }}:</strong>
+                        <pre class="script-output">{{ script.output | truncate_smart(500) }}</pre>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endfor %}
+</div>
+{%- endmacro %}
+
+{# Host Card Component #}
+{% macro host_card(host) -%}
+<div class="host-card">
+    <div class="host-header">
+        <h3>{{ icons.server }} {{ host.ip }}</h3>
+        {% if host.hostname %}
+            <div class="host-hostname">{{ host.hostname }}</div>
+        {% endif %}
+    </div>
+    
+    <div class="host-details">
+        {% if host.os %}
+            <div class="host-os">
+                <strong>OS:</strong> {{ host.os }}
+                {% if host.os_accuracy %}({{ host.os_accuracy }}% accuracy){% endif %}
+            </div>
+        {% endif %}
+        
+        {% if host.mac_address %}
+            <div class="host-mac">
+                <strong>MAC:</strong> {{ host.mac_address }}
+                {% if host.mac_vendor %}({{ host.mac_vendor }}){% endif %}
+            </div>
+        {% endif %}
+    </div>
+    
+    {% if host.ports %}
+        {% set open_ports = host.ports | selectattr('state', 'equalto', 'open') | list %}
+        {% if open_ports %}
+            <div class="host-ports">
+                <h4>Open Ports ({{ open_ports | length }})</h4>
+                {{ port_list(open_ports) }}
+            </div>
+        {% endif %}
+    {% endif %}
+</div>
+{%- endmacro %}
+
+{# Vulnerability List Component #}
+{% macro vulnerability_list(vulnerabilities) -%}
+<div class="vulnerability-list">
+    {% for vuln in vulnerabilities %}
+        <div class="vulnerability-item {{ vuln.severity | severity_class }}">
+            <div class="vuln-header">
+                <span class="vuln-severity">{{ vuln.severity | upper }}</span>
+                <span class="vuln-title">{{ vuln.title | default('Unknown Vulnerability') }}</span>
+            </div>
+            
+            {% if vuln.description %}
+                <div class="vuln-description">{{ vuln.description }}</div>
+            {% endif %}
+            
+            {% if vuln.evidence %}
+                <div class="vuln-evidence">
+                    <strong>Evidence:</strong>
+                    <pre class="evidence-text">{{ vuln.evidence | truncate_smart(300) }}</pre>
+                </div>
+            {% endif %}
+            
+            {% if vuln.references %}
+                <div class="vuln-references">
+                    <strong>References:</strong>
+                    {% for ref in vuln.references %}
+                        <a href="{{ ref }}" class="vuln-ref" target="_blank">{{ ref }}</a>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+{%- endmacro %}
+
+{# Progress Bar Component #}
+{% macro progress_bar(value, max_value, label="", show_percentage=true) -%}
+{% set percentage = (value / max_value * 100) if max_value > 0 else 0 %}
+<div class="progress-container">
+    {% if label %}
+        <div class="progress-label">{{ label }}</div>
+    {% endif %}
+    <div class="progress-bar">
+        <div class="progress-fill" style="width: {{ percentage }}%"></div>
+        {% if show_percentage %}
+            <div class="progress-text">{{ "%.1f"|format(percentage) }}%</div>
+        {% endif %}
+    </div>
+</div>
+{%- endmacro %}
+
+{# Badge Component #}
+{% macro badge(text, type="default", icon="") -%}
+<span class="badge badge-{{ type }}">
+    {% if icon %}{{ icon }} {% endif %}{{ text }}
+</span>
+{%- endmacro %}
+
+{# Confidence Badge #}
+{% macro confidence_badge(confidence) -%}
+{{ badge(confidence | title, confidence | lower, icons.check if confidence == 'high' else icons.warning if confidence == 'medium' else icons.info) }}
+{%- endmacro %}
+
+{# URL List Component #}
+{% macro url_list(urls, category="", max_display=50) -%}
+<div class="url-list">
+    {% if category %}
+        <h4>{{ category | title }} URLs ({{ urls | length }})</h4>
+    {% endif %}
+    
+    <div class="url-items">
+        {% for url in urls[:max_display] %}
+            <div class="url-item">
+                <a href="{{ url.url if url.url is defined else url }}" class="url-link" target="_blank">
+                    {{ url.url if url.url is defined else url }}
+                </a>
+                {% if url.status_code is defined %}
+                    <span class="url-status {{ 'status-success' if url.status_code < 400 else 'status-error' }}">
+                        {{ url.status_code }}
+                    </span>
+                {% endif %}
+            </div>
+        {% endfor %}
+        
+        {% if urls | length > max_display %}
+            <div class="url-more">
+                ... and {{ urls | length - max_display }} more URLs
+            </div>
+        {% endif %}
+    </div>
+</div>
+{%- endmacro %}
+
+{# Wordlist Recommendation Component #}
+{% macro wordlist_recommendations(recommendations) -%}
+<div class="wordlist-recommendations">
+    {% for rec in recommendations %}
+        <div class="wordlist-item">
+            <div class="wordlist-header">
+                <span class="wordlist-name">{{ rec.wordlist }}</span>
+                <span class="wordlist-score">Score: {{ rec.score }}</span>
+                {{ confidence_badge(rec.confidence) }}
+            </div>
+            
+            {% if rec.reason %}
+                <div class="wordlist-reason">{{ rec.reason }}</div>
+            {% endif %}
+            
+            {% if rec.path %}
+                <div class="wordlist-path">
+                    <code>{{ rec.path }}</code>
+                </div>
+            {% endif %}
+            
+            {% if rec.matched_rule %}
+                <div class="wordlist-rule">
+                    <small>Rule: {{ rec.matched_rule }}</small>
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+{%- endmacro %}
