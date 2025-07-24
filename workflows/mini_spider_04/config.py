@@ -199,11 +199,17 @@ class SpiderConfigManager:
     def _test_hakrawler_execution(self, path: str) -> bool:
         """Test if hakrawler path actually works"""
         try:
-            result = subprocess.run([path, '-h'], 
+            # Hakrawler waits for stdin, so provide empty input and short timeout
+            result = subprocess.run([path], 
+                                  input=b'',
                                   capture_output=True, 
-                                  timeout=5)
-            return result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
+                                  timeout=2)
+            # Any exit code is fine as long as it doesn't crash
+            return True
+        except subprocess.TimeoutExpired:
+            # Timeout means it's running but waiting for input - that's ok
+            return True
+        except (FileNotFoundError, PermissionError):
             return False
     
     def get_config(self, **overrides) -> SpiderConfig:

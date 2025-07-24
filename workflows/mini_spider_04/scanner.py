@@ -103,11 +103,17 @@ class MiniSpiderScanner(BaseWorkflow):
             
             # Phase 2: Custom path sniffer (parallel with hakrawler)
             print("  → Running custom path discovery...")
+            
+            # Use already discovered URLs from previous workflow as starting URLs
+            all_discovered = result.seed_urls.copy()
+            
+            # Add new paths discovered by custom crawler
             custom_urls = await self.custom_crawler.discover_paths(
                 result.seed_urls, 
                 max_concurrent=self.max_concurrent_crawls
             )
-            print(f"  ✓ Custom crawler found {len(custom_urls)} URLs")
+            all_discovered.extend(custom_urls)
+            print(f"  ✓ Custom crawler found {len(custom_urls)} additional URLs")
             
             # Phase 3: Hakrawler discovery (parallel with custom crawler)
             print("  → Running hakrawler discovery...")
@@ -128,7 +134,7 @@ class MiniSpiderScanner(BaseWorkflow):
                 print(f"  ✓ Hakrawler found {len(hakrawler_urls)} URLs")
             
             # Phase 4: Combine and deduplicate results
-            all_discovered_urls = custom_urls + hakrawler_urls
+            all_discovered_urls = all_discovered + hakrawler_urls
             unique_urls = deduplicate_urls(all_discovered_urls)
             
             # Inform user about discovery results
