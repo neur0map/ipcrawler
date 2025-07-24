@@ -210,6 +210,9 @@ class MiniSpiderResult(BaseModel):
     hakrawler_result: Optional[HakrawlerResult] = Field(None, description="Hakrawler execution result")
     custom_crawler_result: Optional[CustomCrawlerResult] = Field(None, description="Custom crawler result")
     
+    # Enhanced analysis results
+    enhanced_analysis: Optional[Dict[str, Any]] = Field(None, description="Enhanced intelligence analysis results")
+    
     # Metadata
     scan_timestamp: datetime = Field(default_factory=datetime.now, description="When scan was performed")
     workflow_version: str = Field(default="1.0.0", description="Workflow version")
@@ -231,6 +234,7 @@ class MiniSpiderResult(BaseModel):
             'execution_time': self.execution_time,
             'hakrawler_result': self.hakrawler_result.model_dump() if self.hakrawler_result else None,
             'custom_crawler_result': self.custom_crawler_result.model_dump() if self.custom_crawler_result else None,
+            'enhanced_analysis': self.enhanced_analysis,
             'scan_timestamp': self.scan_timestamp.isoformat(),
             'workflow_version': self.workflow_version,
             'tools_available': self.tools_available
