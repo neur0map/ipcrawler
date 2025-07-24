@@ -23,12 +23,12 @@ class URLExtractor:
     async def extract_from_http_results(self, http_results: Dict[str, Any]) -> List[CrawledURL]:
         """Extract URLs from HTTP_03 workflow results"""
         if not http_results or not http_results.get('success'):
-            debug_print("HTTP_03 results not available or failed", level="WARNING")
+            debug_print("HTTP_03 results not available or failed")
             return []
         
         data = http_results.get('data', {})
         if not data:
-            debug_print("No data in HTTP_03 results", level="WARNING")
+            debug_print("No data in HTTP_03 results")
             return []
         
         extracted_urls = []

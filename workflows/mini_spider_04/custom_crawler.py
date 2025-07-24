@@ -160,7 +160,12 @@ class CustomCrawler:
                 headers['User-Agent'] = random.choice(self.crawler_config.user_agents)
                 
                 debug_print(f"Making HEAD request to {url}")
-                response = await client.head(url, headers=headers)
+                try:
+                    response = await client.head(url, headers=headers)
+                except Exception as head_error:
+                    debug_print(f"HEAD request failed, trying GET: {head_error}")
+                    # Fallback to GET request if HEAD fails
+                    response = await client.get(url, headers=headers)
                 debug_print(f"Response status: {response.status_code} for {url}")
                 
                 if response.status_code < 400:
@@ -527,11 +532,18 @@ class CustomCrawler:
                 headers = self.crawler_config.custom_headers.copy()
                 headers['User-Agent'] = random.choice(self.crawler_config.user_agents)
                 
-                response = await client.head(url, headers=headers)
-                debug_print(f"HTTP response for {url}: {response.status_code}")
+                # Try HEAD first, fallback to GET if needed
+                try:
+                    response = await client.head(url, headers=headers)
+                    debug_print(f"HEAD response for {url}: {response.status_code}")
+                except Exception as head_error:
+                    debug_print(f"HEAD failed for {url}, trying GET: {head_error}")
+                    response = await client.get(url, headers=headers)
+                    debug_print(f"GET response for {url}: {response.status_code}")
                 
                 # Consider successful if status is informative
-                if response.status_code in [200, 201, 202, 204, 301, 302, 307, 308, 401, 403]:
+                # Include more status codes that indicate the path exists or is interesting
+                if response.status_code in [200, 201, 202, 204, 301, 302, 307, 308, 401, 403, 405, 500, 502, 503]:
                     content_length = None
                     content_type = None
                     
@@ -613,7 +625,7 @@ class CustomCrawler:
                             pass
                 
                 # Consider successful if status is informative
-                if status_code and status_code in [200, 201, 202, 204, 301, 302, 307, 308, 401, 403]:
+                if status_code and status_code in [200, 201, 202, 204, 301, 302, 307, 308, 401, 403, 405, 500, 502, 503]:
                     return CrawledURL(
                         url=url,
                         source=DiscoverySource.CUSTOM_CRAWLER,
