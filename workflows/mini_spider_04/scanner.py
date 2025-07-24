@@ -70,6 +70,7 @@ class MiniSpiderScanner(BaseWorkflow):
         except ImportError:
             missing_tools.append("httpx")
         
+        # Only show warnings for truly missing tools
         if missing_tools:
             print(f"  ⚠ Missing optional tools: {', '.join(missing_tools)}")
             print("  → Mini Spider will use basic discovery methods")
@@ -83,6 +84,7 @@ class MiniSpiderScanner(BaseWorkflow):
                 print("    Install options:")
                 print("      • Kali/Ubuntu: apt install hakrawler")
                 print("      • Go install: go install github.com/hakluke/hakrawler@latest")
+                print("      • Run: make install (automatic setup)")
             if 'httpx' in missing_tools:
                 print("    Install httpx: pip install httpx")
         
@@ -130,8 +132,9 @@ class MiniSpiderScanner(BaseWorkflow):
                 if not hakrawler_path:
                     print("  ⚠ Hakrawler not available - checked common locations")
                     print("    Install with: go install github.com/hakluke/hakrawler@latest")
+                    print("    Or run: make install (automatic setup)")
                 else:
-                    print("  ⚠ Hakrawler found no additional URLs")
+                    print("  ℹ Hakrawler found no additional URLs (normal for some targets)")
             else:
                 print(f"  ✓ Hakrawler found {len(hakrawler_urls)} URLs")
             
