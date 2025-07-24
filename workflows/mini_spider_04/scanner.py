@@ -58,8 +58,11 @@ class MiniSpiderScanner(BaseWorkflow):
         config_manager = get_config_manager()
         
         missing_tools = []
-        if not config_manager.tools_available.get('hakrawler', False):
+        hakrawler_path = config_manager.tools_available.get('hakrawler')
+        if not hakrawler_path:
             missing_tools.append("hakrawler")
+        else:
+            print(f"  ✓ Found hakrawler at: {hakrawler_path}")
         
         # Check if httpx is available for custom crawler
         try:
@@ -71,7 +74,13 @@ class MiniSpiderScanner(BaseWorkflow):
             print(f"  ⚠ Missing optional tools: {', '.join(missing_tools)}")
             print("  → Mini Spider will use basic discovery methods")
             if 'hakrawler' in missing_tools:
-                print("    Install hakrawler: go install github.com/hakluke/hakrawler@latest")
+                print("    Searched locations:")
+                print("      • $PATH directories")
+                print("      • ~/go/bin/")
+                print("      • /usr/local/go/bin/")
+                print("      • /opt/hakrawler/")
+                print("      • ~/.local/bin/")
+                print("    Install with: go install github.com/hakluke/hakrawler@latest")
             if 'httpx' in missing_tools:
                 print("    Install httpx: pip install httpx")
         
@@ -109,10 +118,10 @@ class MiniSpiderScanner(BaseWorkflow):
             
             # Check if hakrawler actually ran
             if len(hakrawler_urls) == 0:
-                from .config import get_config_manager
-                config_manager = get_config_manager()
-                if not config_manager.tools_available.get('hakrawler', False):
-                    print("  ⚠ Hakrawler not available - install with: go install github.com/hakluke/hakrawler@latest")
+                hakrawler_path = config_manager.tools_available.get('hakrawler')
+                if not hakrawler_path:
+                    print("  ⚠ Hakrawler not available - checked common locations")
+                    print("    Install with: go install github.com/hakluke/hakrawler@latest")
                 else:
                     print("  ⚠ Hakrawler found no additional URLs")
             else:

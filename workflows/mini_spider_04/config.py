@@ -121,17 +121,20 @@ class SpiderConfigManager:
         self.config_cache = {}
         self.tools_available = self._check_tool_availability()
     
-    def _check_tool_availability(self) -> Dict[str, bool]:
-        """Check availability of required tools"""
+    def _check_tool_availability(self) -> Dict[str, Any]:
+        """Check availability of required tools and store their paths"""
         tools = {}
         
-        # Check hakrawler
-        tools['hakrawler'] = shutil.which('hakrawler') is not None
-        if not tools['hakrawler']:
-            debug_print("hakrawler not found in PATH", level="WARNING")
+        # Check hakrawler with comprehensive search
+        hakrawler_path = self._find_hakrawler_path()
+        tools['hakrawler'] = hakrawler_path
+        if not hakrawler_path:
+            debug_print("hakrawler not found in common locations", level="WARNING")
+        else:
+            debug_print(f"Found hakrawler at: {hakrawler_path}")
         
-        # Check curl (fallback for custom crawler)
-        tools['curl'] = shutil.which('curl') is not None
+        # Check curl (fallback for custom crawler) 
+        tools['curl'] = shutil.which('curl')
         
         # Check python dependencies
         try:
@@ -142,6 +145,60 @@ class SpiderConfigManager:
             debug_print("httpx not available for custom crawler", level="WARNING")
         
         return tools
+    
+    def _find_hakrawler_path(self) -> Optional[str]:
+        """Find hakrawler in multiple common locations"""
+        
+        # 1. Check PATH first (fastest)
+        path = shutil.which('hakrawler')
+        if path and self._test_hakrawler_execution(path):
+            return path
+        
+        # 2. Check common Go paths
+        go_paths = [
+            os.path.expanduser('~/go/bin/hakrawler'),
+            '/usr/local/go/bin/hakrawler',
+        ]
+        
+        # Add GOPATH and GOROOT if they exist
+        if 'GOPATH' in os.environ:
+            go_paths.append(os.path.join(os.environ['GOPATH'], 'bin', 'hakrawler'))
+        if 'GOROOT' in os.environ:
+            go_paths.append(os.path.join(os.environ['GOROOT'], 'bin', 'hakrawler'))
+        
+        # 3. Check HTB/Kali common locations
+        htb_paths = [
+            '/opt/hakrawler/hakrawler',
+            '/usr/local/bin/hakrawler',
+            '/opt/go/bin/hakrawler',
+            '/snap/bin/hakrawler',  # Snap packages
+        ]
+        
+        # 4. Check user tool directories
+        user_paths = [
+            os.path.expanduser('~/.local/bin/hakrawler'),
+            os.path.expanduser('~/tools/hakrawler'),
+            os.path.expanduser('~/bin/hakrawler'),
+            os.path.expanduser('~/.cargo/bin/hakrawler'),  # Rust installations
+        ]
+        
+        # Test all paths
+        for path in go_paths + htb_paths + user_paths:
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                if self._test_hakrawler_execution(path):
+                    return path
+        
+        return None
+    
+    def _test_hakrawler_execution(self, path: str) -> bool:
+        """Test if hakrawler path actually works"""
+        try:
+            result = subprocess.run([path, '-h'], 
+                                  capture_output=True, 
+                                  timeout=5)
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
+            return False
     
     def get_config(self, **overrides) -> SpiderConfig:
         """Get spider configuration with optional overrides"""
@@ -217,7 +274,7 @@ class SpiderConfigManager:
     def _validate_and_adjust_config(self, config: SpiderConfig):
         """Validate configuration and adjust based on tool availability"""
         # Disable tools that aren't available
-        if not self.tools_available.get('hakrawler', False):
+        if not self.tools_available.get('hakrawler'):
             config.enable_hakrawler = False
             debug_print("Hakrawler disabled - tool not available")
         
@@ -248,10 +305,11 @@ class SpiderConfigManager:
     
     def get_hakrawler_command_args(self, config: SpiderConfig, target_url: str) -> List[str]:
         """Generate hakrawler command arguments"""
-        if not self.tools_available.get('hakrawler', False):
+        hakrawler_path = self.tools_available.get('hakrawler')
+        if not hakrawler_path:
             raise RuntimeError("hakrawler not available")
         
-        args = ['hakrawler']
+        args = [hakrawler_path]
         
         # Basic options
         args.extend(['-timeout', str(config.hakrawler.timeout)])
@@ -283,12 +341,13 @@ class SpiderConfigManager:
     
     def validate_hakrawler_installation(self) -> bool:
         """Validate hakrawler installation and get version"""
-        if not self.tools_available.get('hakrawler', False):
+        hakrawler_path = self.tools_available.get('hakrawler')
+        if not hakrawler_path:
             return False
         
         try:
             result = subprocess.run(
-                ['hakrawler', '-h'],
+                [hakrawler_path, '-h'],
                 capture_output=True,
                 text=True,
                 timeout=5

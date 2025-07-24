@@ -29,7 +29,7 @@ class HakrawlerWrapper:
         
     async def run_parallel_discovery(self, seed_urls: List[CrawledURL], timeout: int = 30) -> List[CrawledURL]:
         """Run hakrawler discovery in parallel on multiple seed URLs"""
-        if not self.config_manager.tools_available.get('hakrawler', False):
+        if not self.config_manager.tools_available.get('hakrawler'):
             debug_print("Hakrawler not available, skipping", level="WARNING")
             return []
         
