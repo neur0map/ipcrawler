@@ -66,6 +66,7 @@ class ScoringContext(BaseModel):
     os: Optional[str] = Field(None, description="Detected operating system")
     version: Optional[str] = Field(None, description="Service version")
     headers: Optional[Dict[str, str]] = Field(None, description="HTTP headers if available")
+    spider_data: Optional[Dict[str, Any]] = Field(None, description="Spider intelligence data from mini_spider_04")
 
 
 class AnonymizedScoringContext(BaseModel):

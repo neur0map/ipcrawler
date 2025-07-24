@@ -220,12 +220,12 @@ class NmapFastScanner(BaseWorkflow):
                 
                 port_list = ','.join(map(str, http_ports))
                 
-                # Use nmap HTTP scripts to discover hostnames
+                # Use nmap HTTP and SSL scripts to discover hostnames
                 cmd = [
                     "nmap",
                     "-p", port_list,
                     "-sC",                    # Default scripts (includes http-title, http-headers)
-                    "--script", "http-title,http-headers,http-methods,http-enum",
+                    "--script", "http-title,http-headers,http-methods,http-enum,ssl-cert",
                     "-T4",                    # Fast timing
                     "--max-retries", "1",     # Quick retries
                     "--host-timeout", "30s",  # Don't hang
@@ -275,6 +275,8 @@ class NmapFastScanner(BaseWorkflow):
         
         # Patterns to match hostnames in nmap output
         patterns = [
+            # SSL Certificate Subject Alternative Names (most reliable)
+            r'DNS:([a-zA-Z0-9.-]+)',
             # HTTP redirects (most common)
             r'Location:\s*https?://([^/\s<>]+)',
             # HTTP title
@@ -287,7 +289,9 @@ class NmapFastScanner(BaseWorkflow):
             r'([a-zA-Z0-9-]+\.local)',
             # Virtual host indicators
             r'Host:\s*([^"\'\s<>\r\n]+)',
-            r'hostname["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']'
+            r'hostname["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']',
+            # SSL Certificate Common Name
+            r'commonName=([a-zA-Z0-9.-]+)'
         ]
         
         for pattern in patterns:

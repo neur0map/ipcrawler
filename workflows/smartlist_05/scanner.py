@@ -406,6 +406,16 @@ class SmartListScanner(BaseWorkflow):
         
         service_desc = ' '.join(service_desc_parts) or f"Service on port {service_data['port']}"
         
+        # Build spider intelligence data
+        spider_intelligence = {
+            'url_count': service_data.get('spider_url_count', 0),
+            'categories': service_data.get('spider_categories', []),
+            'discovered_paths': service_data.get('spider_discovered_paths', []),
+            'tech_confidence': tech_confidence,
+            'tech_sources': tech_sources,
+            'has_spider_intel': service_data.get('spider_url_count', 0) > 0
+        }
+        
         # Create enhanced context with spider data
         context = ScoringContext(
             target=service_data['host'],
@@ -414,18 +424,9 @@ class SmartListScanner(BaseWorkflow):
             tech=tech,
             os=aggregated_data.get('os_info', {}).get('os') if aggregated_data.get('os_info') else None,
             version=service_data.get('version'),
-            headers=service_data.get('headers', {})
+            headers=service_data.get('headers', {}),
+            spider_data=spider_intelligence if spider_intelligence['has_spider_intel'] else None
         )
-        
-        # Add spider intelligence to context (custom attributes)
-        context.spider_data = {
-            'url_count': service_data.get('spider_url_count', 0),
-            'categories': service_data.get('spider_categories', []),
-            'discovered_paths': service_data.get('spider_discovered_paths', []),
-            'tech_confidence': tech_confidence,
-            'tech_sources': tech_sources,
-            'has_spider_intel': service_data.get('spider_url_count', 0) > 0
-        }
         
         debug_print(f"Built enhanced context for {context.target}:{context.port} - tech: {tech} (confidence: {tech_confidence:.2f}, sources: {tech_sources})")
         return context
@@ -447,7 +448,7 @@ class SmartListScanner(BaseWorkflow):
             result = score_wordlists(context)
         
         # Apply spider intelligence scoring boosts
-        if hasattr(context, 'spider_data') and context.spider_data.get('has_spider_intel'):
+        if context.spider_data and context.spider_data.get('has_spider_intel'):
             result = self._apply_spider_scoring_boosts(result, context, service_data)
         
         # Get wordlist paths if available
@@ -498,7 +499,7 @@ class SmartListScanner(BaseWorkflow):
         }
         
         # Add spider intelligence to context summary
-        if hasattr(context, 'spider_data') and context.spider_data.get('has_spider_intel'):
+        if context.spider_data and context.spider_data.get('has_spider_intel'):
             spider_data = context.spider_data
             context_summary.update({
                 'spider_intelligence': {
@@ -578,7 +579,7 @@ class SmartListScanner(BaseWorkflow):
         """Generate enhanced reason with spider intelligence"""
         base_reason = self._generate_reason(result, wordlist)
         
-        if not hasattr(context, 'spider_data') or not context.spider_data.get('has_spider_intel'):
+        if not context.spider_data or not context.spider_data.get('has_spider_intel'):
             return base_reason
         
         spider_data = context.spider_data

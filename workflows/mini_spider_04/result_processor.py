@@ -42,7 +42,7 @@ class ResultProcessor:
         return {
             'categories': categorized_results,
             'interesting': interesting_findings,
-            'statistics': statistics.dict(),
+            'statistics': statistics.model_dump(),
             'analysis': analysis
         }
     

@@ -155,6 +155,20 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 if service.is_https:
                     ssl_vulns = await self._analyze_ssl(service)
                     results.vulnerabilities.extend(ssl_vulns)
+                    
+                    # Extract additional hostnames from SSL certificate
+                    ssl_hostnames = await self._extract_ssl_hostnames(service)
+                    if ssl_hostnames:
+                        debug_print(f"Found SSL hostnames: {ssl_hostnames}")
+                        # Test newly discovered SSL hostnames on this port
+                        for ssl_hostname in ssl_hostnames:
+                            if ssl_hostname not in all_hostnames:
+                                all_hostnames.append(ssl_hostname)
+                                ssl_service = await self._scan_http_service(ssl_hostname, service.port, use_ip=self.original_ip)
+                                if ssl_service and self._is_unique_service(ssl_service, results.services):
+                                    ssl_service.actual_target = ssl_hostname
+                                    results.services.append(ssl_service)
+                                    debug_print(f"Found service via SSL hostname: {ssl_service.url}")
             
             # Cross-service analysis
             cross_vulns = self._cross_service_analysis(results)
@@ -1035,6 +1049,75 @@ class HTTPAdvancedScanner(BaseWorkflow):
             pass
             
         return vulnerabilities
+    
+    async def _extract_ssl_hostnames(self, service: HTTPService) -> List[str]:
+        """Extract hostnames from SSL certificate Subject Alternative Names"""
+        hostnames = []
+        
+        try:
+            # Extract hostname and port
+            parsed = urlparse(service.url)
+            hostname = parsed.hostname
+            port = parsed.port or 443
+            
+            # Get SSL certificate
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
+            with socket.create_connection((hostname, port), timeout=5) as sock:
+                with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                    cert = ssock.getpeercert()
+                    
+                    # Extract hostnames from Subject Alternative Names
+                    if cert and 'subjectAltName' in cert:
+                        for name_type, name_value in cert['subjectAltName']:
+                            if name_type == 'DNS' and name_value != self.original_ip:
+                                # Validate hostname before adding
+                                if self._is_valid_ssl_hostname(name_value):
+                                    hostnames.append(name_value)
+                    
+                    # Extract from Common Name as fallback
+                    if cert and 'subject' in cert:
+                        for field in cert['subject']:
+                            for key, value in field:
+                                if key == 'commonName' and value != self.original_ip:
+                                    if self._is_valid_ssl_hostname(value):
+                                        hostnames.append(value)
+                        
+        except Exception as e:
+            debug_print(f"SSL hostname extraction error: {e}")
+            
+        return list(set(hostnames))  # Remove duplicates
+    
+    def _is_valid_ssl_hostname(self, hostname: str) -> bool:
+        """Validate SSL certificate hostname"""
+        if not hostname or len(hostname) > 255:
+            return False
+            
+        # Skip wildcard certificates and invalid patterns
+        if hostname.startswith('*') or hostname.startswith('.'):
+            return False
+            
+        # Skip localhost and common non-targets
+        skip_patterns = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com']
+        if any(skip in hostname.lower() for skip in skip_patterns):
+            return False
+            
+        # Must contain at least one dot (domain.tld)
+        if '.' not in hostname:
+            return False
+            
+        # Validate characters
+        valid_chars = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-')
+        if not all(c in valid_chars for c in hostname):
+            return False
+            
+        # Must not be just numbers (IP address)
+        if hostname.replace('.', '').isdigit():
+            return False
+            
+        return True
     
     def _cross_service_analysis(self, results: HTTPScanResult) -> List[HTTPVulnerability]:
         """Analyze across multiple services for additional vulnerabilities"""

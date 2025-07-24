@@ -219,18 +219,18 @@ class MiniSpiderResult(BaseModel):
         """Convert to dictionary for JSON serialization"""
         return {
             'target': self.target,
-            'seed_urls': [url.dict() for url in self.seed_urls],
-            'discovered_urls': [url.dict() for url in self.discovered_urls],
+            'seed_urls': [url.model_dump() for url in self.seed_urls],
+            'discovered_urls': [url.model_dump() for url in self.discovered_urls],
             'categorized_results': {
-                category: [url.dict() for url in urls] 
+                category: [url.model_dump() for url in urls] 
                 for category, urls in self.categorized_results.items()
             },
-            'interesting_findings': [finding.dict() for finding in self.interesting_findings],
-            'statistics': self.statistics.dict(),
+            'interesting_findings': [finding.model_dump() for finding in self.interesting_findings],
+            'statistics': self.statistics.model_dump(),
             'summary': self.summary,
             'execution_time': self.execution_time,
-            'hakrawler_result': self.hakrawler_result.dict() if self.hakrawler_result else None,
-            'custom_crawler_result': self.custom_crawler_result.dict() if self.custom_crawler_result else None,
+            'hakrawler_result': self.hakrawler_result.model_dump() if self.hakrawler_result else None,
+            'custom_crawler_result': self.custom_crawler_result.model_dump() if self.custom_crawler_result else None,
             'scan_timestamp': self.scan_timestamp.isoformat(),
             'workflow_version': self.workflow_version,
             'tools_available': self.tools_available
