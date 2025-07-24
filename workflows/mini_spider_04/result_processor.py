@@ -42,7 +42,7 @@ class ResultProcessor:
         return {
             'categories': categorized_results,
             'interesting': interesting_findings,
-            'statistics': statistics.model_dump(),
+            'statistics': statistics.model_dump() if hasattr(statistics, 'model_dump') else statistics,
             'analysis': analysis
         }
     

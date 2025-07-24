@@ -67,6 +67,12 @@ class ScoringContext(BaseModel):
     version: Optional[str] = Field(None, description="Service version")
     headers: Optional[Dict[str, str]] = Field(None, description="HTTP headers if available")
     spider_data: Optional[Dict[str, Any]] = Field(None, description="Spider intelligence data from mini_spider_04")
+    
+    def get_cache_key(self) -> str:
+        """Generate a cache key for this scoring context."""
+        # Create anonymized context and use its cache key
+        anon_context = AnonymizedScoringContext.from_scoring_context(self)
+        return anon_context.get_cache_key()
 
 
 class AnonymizedScoringContext(BaseModel):

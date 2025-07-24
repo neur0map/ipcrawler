@@ -252,9 +252,11 @@ class NmapFastScanner(BaseWorkflow):
                     
                     hostnames = self._extract_hostnames_from_nmap_output(nmap_output, target)
                     
-                    # Show if no hostnames were found
-                    if not hostnames:
+                    # Show if no hostnames were found only if the scan actually ran
+                    if not hostnames and len(nmap_output.strip()) > 10:
                         console.print(f"  [dim]No hostnames discovered for {target}[/dim]")
+                    elif hostnames:
+                        console.print(f"  [green]Discovered {len(hostnames)} hostname(s): {', '.join(hostnames)}[/green]")
                     
                     for hostname in hostnames:
                         ip = await self._resolve_hostname_fast(hostname)
@@ -262,6 +264,11 @@ class NmapFastScanner(BaseWorkflow):
                             mappings.add((ip, hostname))
                         else:
                             mappings.add((target, hostname))
+                else:
+                    # If the nmap command failed, don't show the "no hostnames" message
+                    if stderr:
+                        stderr_str = stderr.decode('utf-8', errors='ignore')
+                        console.print(f"  [dim]Hostname discovery scan failed: {stderr_str[:100]}[/dim]")
                             
         except Exception as e:
             console.print(f"  [dim]Hostname discovery error: {str(e)[:50]}[/dim]")
