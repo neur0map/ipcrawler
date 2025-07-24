@@ -174,10 +174,14 @@ class SpiderConfigManager:
         
         # 3. Check HTB/Kali common locations
         htb_paths = [
-            '/opt/hakrawler/hakrawler',
-            '/usr/local/bin/hakrawler',
-            '/opt/go/bin/hakrawler',
-            '/snap/bin/hakrawler',  # Snap packages
+            '/usr/bin/hakrawler',           # apt install hakrawler puts it here
+            '/usr/local/bin/hakrawler',     # Manual installations
+            '/opt/hakrawler/hakrawler',     # Custom /opt installations
+            '/opt/go/bin/hakrawler',        # Go tools in /opt
+            '/snap/bin/hakrawler',          # Snap packages
+            '/usr/share/go/bin/hakrawler',  # Alternative Go bin path
+            '/bin/hakrawler',               # System binary path
+            '/sbin/hakrawler',              # System sbin path
         ]
         
         # 4. Check user tool directories

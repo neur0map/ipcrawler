@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from workflows.mini_spider_04.config import SpiderConfigManager
 
@@ -41,8 +41,12 @@ def test_hakrawler_detection():
         manual_paths = [
             os.path.expanduser('~/go/bin/hakrawler'),
             '/usr/local/go/bin/hakrawler',
+            '/usr/bin/hakrawler',           # apt install location
+            '/usr/local/bin/hakrawler',
             '/opt/hakrawler/hakrawler',
-            '/usr/local/bin/hakrawler'
+            '/opt/go/bin/hakrawler',
+            '/usr/share/go/bin/hakrawler',
+            '/bin/hakrawler'
         ]
         
         for path in manual_paths:

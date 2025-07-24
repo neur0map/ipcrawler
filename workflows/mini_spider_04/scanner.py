@@ -76,11 +76,13 @@ class MiniSpiderScanner(BaseWorkflow):
             if 'hakrawler' in missing_tools:
                 print("    Searched locations:")
                 print("      • $PATH directories")
-                print("      • ~/go/bin/")
-                print("      • /usr/local/go/bin/")
-                print("      • /opt/hakrawler/")
-                print("      • ~/.local/bin/")
-                print("    Install with: go install github.com/hakluke/hakrawler@latest")
+                print("      • ~/go/bin/, /usr/local/go/bin/")
+                print("      • /usr/bin/, /usr/local/bin/")
+                print("      • /opt/hakrawler/, /opt/go/bin/")
+                print("      • ~/.local/bin/, ~/tools/")
+                print("    Install options:")
+                print("      • Kali/Ubuntu: apt install hakrawler")
+                print("      • Go install: go install github.com/hakluke/hakrawler@latest")
             if 'httpx' in missing_tools:
                 print("    Install httpx: pip install httpx")
         
