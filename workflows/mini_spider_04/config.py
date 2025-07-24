@@ -27,7 +27,7 @@ class HakrawlerConfig:
 @dataclass
 class CustomCrawlerConfig:
     """Configuration for custom path sniffer"""
-    max_concurrent: int = 10
+    max_concurrent: int = 3  # Reduced from 10 to avoid triggering WAF/rate limits
     request_timeout: int = 15
     max_redirects: int = 3
     user_agents: List[str] = None
@@ -35,22 +35,31 @@ class CustomCrawlerConfig:
     follow_redirects: bool = True
     verify_ssl: bool = False
     max_content_length: int = 10485760  # 10MB limit
+    request_delay: float = 0.1  # Small delay between requests to avoid rate limiting
+    max_retries: int = 2  # Number of retries for failed requests
     
     def __post_init__(self):
         if self.user_agents is None:
             self.user_agents = [
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+                "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/121.0"
             ]
         
         if self.custom_headers is None:
             self.custom_headers = {
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.5",
-                "Accept-Encoding": "gzip, deflate",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
                 "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1"
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Cache-Control": "max-age=0"
             }
 
 

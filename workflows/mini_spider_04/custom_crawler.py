@@ -280,11 +280,15 @@ class CustomCrawler:
             async with semaphore:
                 return await self._test_single_path(base_url, path)
         
-        # Create tasks for all combinations
+        # Create tasks for all combinations - randomize to avoid predictable patterns
         tasks = []
         for base_url in base_urls:
             for path in common_paths:
                 tasks.append(test_path(base_url, path))
+        
+        # Randomize task order to avoid triggering pattern-based WAF rules
+        import random
+        random.shuffle(tasks)
         
         # Execute all tasks
         debug_print(f"Testing {len(tasks)} path combinations ({len(base_urls)} base URLs × {len(common_paths)} paths)")
@@ -484,32 +488,45 @@ class CustomCrawler:
             debug_print(f"URL already discovered: {full_url}")
             return None
         
-        try:
-            start_time = time.time()
-            debug_print(f"Testing path: {full_url}")
-            
-            if HTTPX_AVAILABLE:
-                result = await self._test_path_httpx(full_url)
-            else:
-                result = await self._test_path_curl(full_url)
-            
-            if result:
-                response_time = time.time() - start_time
-                result.response_time = response_time
-                result.tested_at = datetime.now()
+        # Add delay to avoid rate limiting
+        if self.crawler_config.request_delay > 0:
+            await asyncio.sleep(self.crawler_config.request_delay)
+        
+        # Retry logic for failed requests
+        for attempt in range(self.crawler_config.max_retries + 1):
+            try:
+                start_time = time.time()
+                debug_print(f"Testing path: {full_url} (attempt {attempt + 1})")
                 
-                self.discovered_urls.add(full_url)
-                self.stats.add_response(True, response_time, result.content_length)
+                if HTTPX_AVAILABLE:
+                    result = await self._test_path_httpx(full_url)
+                else:
+                    result = await self._test_path_curl(full_url)
                 
-                debug_print(f"Successfully discovered: {full_url} (status: {result.status_code})")
-                return result
-            else:
-                self.stats.add_response(False)
-                debug_print(f"Path test failed: {full_url}")
-                
-        except Exception as e:
-            debug_print(f"Error testing path {full_url}: {e}")
-            self.stats.add_response(False)
+                if result:
+                    response_time = time.time() - start_time
+                    result.response_time = response_time
+                    result.tested_at = datetime.now()
+                    
+                    self.discovered_urls.add(full_url)
+                    self.stats.add_response(True, response_time, result.content_length)
+                    
+                    debug_print(f"Successfully discovered: {full_url} (status: {result.status_code})")
+                    return result
+                else:
+                    debug_print(f"Path test failed: {full_url} (attempt {attempt + 1})")
+                    # Don't retry on 404 - it's a definitive "not found"
+                    self.stats.add_response(False)
+                    break
+                        
+            except Exception as e:
+                debug_print(f"Error testing path {full_url} (attempt {attempt + 1}): {e}")
+                if attempt < self.crawler_config.max_retries:
+                    await asyncio.sleep(0.5 * (2 ** attempt))
+                    continue
+                else:
+                    self.stats.add_response(False)
+                    break
         
         return None
     
