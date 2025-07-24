@@ -148,7 +148,7 @@ install:
 	@echo "  ipcrawler <target>       - Run as user"
 	@echo "  sudo ipcrawler <target>  - Run with privileges"
 	@echo ""
-	@echo "Checking SecLists installation in background..."
+	@echo "Generating SecLists catalog in the background..."
 	@nohup bash -c 'cd "$(pwd)" && AUTO_INSTALL=true ./scripts/check_seclists.sh > /tmp/seclists_install.log 2>&1 && \
 		if [ -f .seclists_path ] && [ -s .seclists_path ]; then \
 			source .seclists_path && \

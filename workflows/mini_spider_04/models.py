@@ -225,7 +225,7 @@ class MiniSpiderResult(BaseModel):
             'seed_urls': [url.model_dump() for url in self.seed_urls],
             'discovered_urls': [url.model_dump() for url in self.discovered_urls],
             'categorized_results': {
-                category: [url.model_dump() for url in urls] 
+                (category.value if hasattr(category, 'value') else str(category)): [url.model_dump() for url in urls] 
                 for category, urls in self.categorized_results.items()
             },
             'interesting_findings': [finding.model_dump() for finding in self.interesting_findings],
@@ -234,11 +234,35 @@ class MiniSpiderResult(BaseModel):
             'execution_time': self.execution_time,
             'hakrawler_result': self.hakrawler_result.model_dump() if self.hakrawler_result else None,
             'custom_crawler_result': self.custom_crawler_result.model_dump() if self.custom_crawler_result else None,
-            'enhanced_analysis': self.enhanced_analysis,
+            'enhanced_analysis': self._serialize_enhanced_analysis(self.enhanced_analysis),
             'scan_timestamp': self.scan_timestamp.isoformat(),
             'workflow_version': self.workflow_version,
             'tools_available': self.tools_available
         }
+    
+    def _serialize_enhanced_analysis(self, enhanced_analysis):
+        """Serialize enhanced analysis data, handling any enum types"""
+        if enhanced_analysis is None:
+            return None
+        
+        # Import json and enum handling locally to avoid circular imports
+        import json
+        from enum import Enum
+        
+        def serialize_value(value):
+            """Recursively serialize values, handling enums"""
+            if isinstance(value, Enum):
+                return value.value
+            elif isinstance(value, dict):
+                return {k: serialize_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [serialize_value(item) for item in value]
+            elif hasattr(value, 'model_dump'):
+                return value.model_dump()
+            else:
+                return value
+        
+        return serialize_value(enhanced_analysis)
     
     def get_urls_by_category(self, category: URLCategory) -> List[CrawledURL]:
         """Get URLs for a specific category"""

@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 from abc import ABC, abstractmethod
+from enum import Enum
 
 
 class BaseFormatter(ABC):
@@ -22,11 +23,21 @@ class BaseFormatter(ABC):
 
 
 class DateTimeJSONEncoder(json.JSONEncoder):
-    """Custom JSON encoder that handles datetime objects."""
+    """Custom JSON encoder that handles datetime objects and enums."""
     
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
+        elif isinstance(obj, Enum):
+            # Handle any enum type by returning its value
+            return obj.value
+        elif hasattr(obj, 'model_dump'):
+            # Handle Pydantic models
+            return obj.model_dump()
+        elif hasattr(obj, '__dict__'):
+            # Handle objects with __dict__ (fallback)
+            return {key: value for key, value in obj.__dict__.items() 
+                   if not key.startswith('_')}
         return super().default(obj)
 
 

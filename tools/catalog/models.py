@@ -203,6 +203,9 @@ class WordlistEntry(BaseModel):
     def is_suitable_for_port(self, port: int) -> bool:
         """Check if wordlist is suitable for port."""
         return port in self.port_compatibility or port in self.recommended_for_ports
+    
+    class Config:
+        use_enum_values = True
 
 
 class WordlistFilter(BaseModel):
@@ -216,6 +219,9 @@ class WordlistFilter(BaseModel):
     max_size: Optional[int] = None
     min_scorer_weight: Optional[float] = None
     use_cases: Optional[List[str]] = None
+    
+    class Config:
+        use_enum_values = True
 
 
 class WordlistCatalog(BaseModel):
@@ -240,6 +246,7 @@ class WordlistCatalog(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict, description="Catalog statistics")
     
     class Config:
+        use_enum_values = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
@@ -252,7 +259,7 @@ class WordlistCatalog(BaseModel):
     def _update_indexes(self, wordlist: WordlistEntry):
         """Update search indexes for a wordlist."""
         # Category index
-        category = wordlist.category.value
+        category = wordlist.category if isinstance(wordlist.category, str) else wordlist.category.value
         if category not in self.by_category:
             self.by_category[category] = []
         if wordlist.name not in self.by_category[category]:
@@ -370,7 +377,7 @@ class WordlistCatalog(BaseModel):
         # Quality distribution
         quality_dist = {}
         for wordlist in self.wordlists.values():
-            quality = wordlist.quality.value
+            quality = wordlist.quality if isinstance(wordlist.quality, str) else wordlist.quality.value
             quality_dist[quality] = quality_dist.get(quality, 0) + 1
         
         # Size statistics
