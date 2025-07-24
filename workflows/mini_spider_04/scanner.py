@@ -101,7 +101,14 @@ class MiniSpiderScanner(BaseWorkflow):
             
             result.categorized_results = processed_results['categories']
             result.interesting_findings = processed_results['interesting']
-            result.statistics = processed_results['statistics']
+            
+            # Handle statistics - reconstruct SpiderStatistics object if it's a dict
+            stats_data = processed_results['statistics']
+            if isinstance(stats_data, dict):
+                from .models import SpiderStatistics
+                result.statistics = SpiderStatistics(**stats_data)
+            else:
+                result.statistics = stats_data
             
             # Phase 6: Generate summary and save results
             result.summary = self._generate_summary(result)

@@ -177,10 +177,29 @@ class NmapFastScanner(BaseWorkflow):
                     mappings = await self._nmap_hostname_discovery(target, http_ports_found[:3])  # Max 3 ports
                     discovered_mappings.update(mappings)
                 
-                # Step 3: Update /etc/hosts if we found hostnames and have sudo
+                # Step 3: Update /etc/hosts if we found hostnames
                 hosts_updated = False
-                if discovered_mappings and is_root:
-                    hosts_updated = await self._update_etc_hosts(discovered_mappings)
+                if discovered_mappings:
+                    if is_root:
+                        hosts_updated = await self._update_etc_hosts(discovered_mappings)
+                        if hosts_updated:
+                            console.print(f"  [green]✓ Updated /etc/hosts with {len(discovered_mappings)} hostname mapping(s)[/green]")
+                        else:
+                            console.print(f"  [yellow]⚠ Failed to update /etc/hosts[/yellow]")
+                    else:
+                        console.print(f"  [yellow]⚠ Found {len(discovered_mappings)} hostname(s) but need root privileges to update /etc/hosts[/yellow]")
+                        # Save to file for manual addition
+                        hosts_file = await self._save_hosts_mappings(discovered_mappings, target)
+                        if hosts_file:
+                            console.print(f"  [cyan]→ Saved hostname mappings to: {hosts_file}[/cyan]")
+                            console.print(f"  [dim]  Run: sudo cat {hosts_file} >> /etc/hosts[/dim]")
+                        
+                        # Display the mappings for manual addition
+                        console.print(f"  [dim]Manual /etc/hosts entries:[/dim]")
+                        for ip, hostname in sorted(discovered_mappings):
+                            console.print(f"  [dim]  {ip}\\t{hostname}[/dim]")
+                else:
+                    console.print(f"  [dim]No hostname mappings discovered[/dim]")
                 
                 return WorkflowResult(
                     success=True,
@@ -250,25 +269,43 @@ class NmapFastScanner(BaseWorkflow):
                     with open(temp_output, 'r') as f:
                         nmap_output = f.read()
                     
+                    # Debug: Show scan output length for troubleshooting
+                    console.print(f"  [dim]Nmap hostname scan completed ({len(nmap_output)} chars output)[/dim]")
+                    
+                    # Optional: Save nmap output for debugging (uncomment if needed)
+                    # self._save_debug_output(nmap_output, target, port_list)
+                    
                     hostnames = self._extract_hostnames_from_nmap_output(nmap_output, target)
                     
-                    # Show if no hostnames were found only if the scan actually ran
-                    if not hostnames and len(nmap_output.strip()) > 10:
-                        console.print(f"  [dim]No hostnames discovered for {target}[/dim]")
+                    # Show results with better context
+                    if not hostnames and len(nmap_output.strip()) > 50:
+                        console.print(f"  [yellow]No hostnames discovered for {target} on ports {port_list}[/yellow]")
+                        # Debug: Show first few lines of output to help diagnose
+                        output_preview = '\n'.join(nmap_output.split('\n')[:3])
+                        console.print(f"  [dim]Scan output preview: {output_preview[:100]}...[/dim]")
                     elif hostnames:
-                        console.print(f"  [green]Discovered {len(hostnames)} hostname(s): {', '.join(hostnames)}[/green]")
+                        console.print(f"  [green]✓ Discovered {len(hostnames)} hostname(s): {', '.join(hostnames)}[/green]")
+                    elif len(nmap_output.strip()) <= 50:
+                        console.print(f"  [dim]Hostname scan produced minimal output, likely no HTTP services responding[/dim]")
                     
                     for hostname in hostnames:
                         ip = await self._resolve_hostname_fast(hostname)
                         if ip:
                             mappings.add((ip, hostname))
+                            console.print(f"  [green]  → {hostname} resolves to {ip}[/green]")
                         else:
                             mappings.add((target, hostname))
+                            console.print(f"  [yellow]  → {hostname} (no DNS resolution, mapped to {target})[/yellow]")
                 else:
-                    # If the nmap command failed, don't show the "no hostnames" message
+                    # If the nmap command failed, provide detailed error info
+                    console.print(f"  [red]Hostname discovery scan failed (exit code: {process.returncode})[/red]")
                     if stderr:
                         stderr_str = stderr.decode('utf-8', errors='ignore')
-                        console.print(f"  [dim]Hostname discovery scan failed: {stderr_str[:100]}[/dim]")
+                        console.print(f"  [dim]Error: {stderr_str[:150]}[/dim]")
+                    if stdout:
+                        stdout_str = stdout.decode('utf-8', errors='ignore')
+                        if stdout_str.strip():
+                            console.print(f"  [dim]Output: {stdout_str[:100]}[/dim]")
                             
         except Exception as e:
             console.print(f"  [dim]Hostname discovery error: {str(e)[:50]}[/dim]")
@@ -279,31 +316,73 @@ class NmapFastScanner(BaseWorkflow):
         """Extract hostnames from nmap script output"""
         hostnames = []
         
-        
-        # Patterns to match hostnames in nmap output
+        # Universal patterns to match ANY hostname in nmap output, prioritized by reliability
         patterns = [
             # SSL Certificate Subject Alternative Names (most reliable)
             r'DNS:([a-zA-Z0-9.-]+)',
-            # HTTP redirects (most common)
-            r'Location:\s*https?://([^/\s<>]+)',
-            # HTTP title
-            r'http-title:\s*.*?([a-zA-Z0-9-]+\.(?:htb|local|com|net|org|io))',
-            # href/src in HTML
-            r'href=["\']https?://([^/\s"\'<>]+)',
-            r'src=["\']https?://([^/\s"\'<>]+)',
-            # HTB specific patterns
-            r'([a-zA-Z0-9-]+\.htb)',
-            r'([a-zA-Z0-9-]+\.local)',
-            # Virtual host indicators
-            r'Host:\s*([^"\'\s<>\r\n]+)',
+            r'Subject Alternative Name:\s*DNS:([a-zA-Z0-9.-]+)',
+            
+            # HTTP redirects (very reliable)
+            r'Location:\s*https?://([^/\s<>\r\n]+)',
+            r'Redirects to:\s*https?://([^/\s<>\r\n]+)',
+            
+            # HTTP headers (nmap script output format)
+            r'^\s*\|\s*Host:\s*([a-zA-Z0-9.-]+)',  # Host header in nmap script format
+            r'Host:\s*([a-zA-Z0-9.-]+)',
+            r'server[:\s]*([a-zA-Z0-9.-]+)',
+            
+            # Nmap HTTP script specific patterns
+            r'http-headers:.*?Host:\s*([a-zA-Z0-9.-]+)',
+            r'http-methods:.*?Host:\s*([a-zA-Z0-9.-]+)',
+            r'\|\s*Host:\s*([a-zA-Z0-9.-]+)',  # Script output with pipe format
+            
+            # SSL Certificate Common Name and Subject
+            r'commonName=([a-zA-Z0-9.-]+)',
+            r'Subject:\s*.*?CN=([a-zA-Z0-9.-]+)',
+            r'CN=([a-zA-Z0-9.-]+)',
+            
+            # HTTP title with ANY domain pattern
+            r'http-title:\s*.*?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})',
+            r'<title>.*?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}).*?</title>',
+            
+            # href/src in HTML content
+            r'href=["\']https?://([^/\s"\'<>\r\n]+)',
+            r'src=["\']https?://([^/\s"\'<>\r\n]+)',
+            
+            # Virtual host and config indicators
+            r'vhost["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']',
             r'hostname["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']',
-            # SSL Certificate Common Name
-            r'commonName=([a-zA-Z0-9.-]+)'
+            r'domain["\']?\s*[:=]\s*["\']([^"\'<>\s]+)["\']',
+            
+            # JavaScript and config references
+            r'var\s+host\s*=\s*["\']([^"\'<>\s]+)["\']',
+            r'hostname["\']?\s*:\s*["\']([^"\'<>\s]+)["\']',
+            
+            # Meta tags and content with ANY domain
+            r'<meta[^>]+content=["\']([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})["\']',
+            
+            # Generic domain patterns - catch ANY valid hostname format
+            r'\b([a-zA-Z0-9-]{2,}\.[a-zA-Z0-9.-]{2,})\b',  # Any domain with subdomain
+            r'\b([a-zA-Z0-9-]+\.[a-zA-Z]{2,})\b',          # Basic domain.tld format
+            
+            # URLs and references with domains
+            r'https?://([a-zA-Z0-9.-]+)',
+            r'//([a-zA-Z0-9.-]+)',
+            
+            # Common hostname contexts
+            r'hostname[:\s]*([a-zA-Z0-9.-]+)',
+            r'domain[:\s]*([a-zA-Z0-9.-]+)',
+            r'server[:\s]*([a-zA-Z0-9.-]+)',
         ]
         
-        for pattern in patterns:
+        # Track which patterns find hostnames for debugging
+        pattern_matches = {}
+        
+        for i, pattern in enumerate(patterns):
             matches = re.findall(pattern, nmap_output, re.IGNORECASE | re.MULTILINE)
-            
+            if matches:
+                pattern_matches[f"pattern_{i}"] = {"pattern": pattern, "matches": matches}
+                
             for match in matches:
                 # Handle both string and tuple matches
                 if isinstance(match, tuple):
@@ -313,6 +392,11 @@ class NmapFastScanner(BaseWorkflow):
                 
                 if hostname and hostname != target and self._is_valid_hostname(hostname):
                     hostnames.append(hostname)
+                    console.print(f"  [cyan]  ✓ Pattern match: '{pattern[:50]}...' found '{hostname}'[/cyan]")
+        
+        # Debug: Show which patterns matched if any
+        if pattern_matches and len(nmap_output) > 100:
+            console.print(f"  [dim]Hostname extraction: {len(pattern_matches)} pattern(s) matched[/dim]")
                     
         return list(set(hostnames))
     
@@ -398,6 +482,52 @@ class NmapFastScanner(BaseWorkflow):
         except Exception as e:
             console.print(f"✗ Failed to update /etc/hosts: {e}")
             return False
+    
+    async def _save_hosts_mappings(self, mappings: Set[Tuple[str, str]], target: str) -> Optional[str]:
+        """Save hostname mappings to a file for manual addition to /etc/hosts"""
+        try:
+            import tempfile
+            from datetime import datetime
+            
+            # Create a temporary file in the working directory
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"ipcrawler_hosts_{target.replace('.', '_')}_{timestamp}.txt"
+            filepath = Path.cwd() / filename
+            
+            with open(filepath, 'w') as f:
+                f.write(f"# IPCrawler discovered hostname mappings for {target}\n")
+                f.write(f"# Generated: {datetime.now().isoformat()}\n")
+                f.write("# Add these entries to /etc/hosts:\n\n")
+                
+                for ip, hostname in sorted(mappings):
+                    f.write(f"{ip}\t{hostname}\n")
+                
+                f.write(f"\n# End IPCrawler entries\n")
+            
+            return str(filepath)
+            
+        except Exception as e:
+            console.print(f"  [dim]Failed to save hostname mappings: {e}[/dim]")
+            return None
+    
+    def _save_debug_output(self, nmap_output: str, target: str, port_list: str):
+        """Save nmap output for debugging hostname extraction"""
+        try:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"nmap_debug_{target.replace('.', '_')}_{timestamp}.txt"
+            filepath = Path.cwd() / filename
+            
+            with open(filepath, 'w') as f:
+                f.write(f"# Nmap output for hostname discovery debugging\n")
+                f.write(f"# Target: {target}, Ports: {port_list}\n")
+                f.write(f"# Generated: {datetime.now().isoformat()}\n")
+                f.write("=" * 80 + "\n\n")
+                f.write(nmap_output)
+            
+            console.print(f"  [dim]Debug: Saved nmap output to {filepath}[/dim]")
+        except Exception as e:
+            console.print(f"  [dim]Debug: Failed to save nmap output: {e}[/dim]")
             
     def _is_valid_hostname(self, hostname: str) -> bool:
         """Check if hostname is valid"""
@@ -408,14 +538,10 @@ class NmapFastScanner(BaseWorkflow):
         if hostname.startswith('.') or hostname.endswith('.'):
             return False
             
-        # Skip localhost and common non-targets
-        skip_patterns = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com', 'test.com']
-        if any(skip in hostname.lower() for skip in skip_patterns):
+        # Skip localhost and common non-targets (exact matches only)
+        skip_hostnames = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com', 'test.com']
+        if hostname.lower() in skip_hostnames:
             return False
-            
-        # HTB (HackTheBox) domains are valid targets (.htb extension)
-        if hostname.endswith('.htb'):
-            return True
             
         # Hostname must contain at least one dot
         if '.' not in hostname:
@@ -429,5 +555,7 @@ class NmapFastScanner(BaseWorkflow):
         # Must not be just numbers (IP address)
         if hostname.replace('.', '').isdigit():
             return False
-            
+        
+        # All valid hostnames are accepted - no TLD restrictions
+        # This allows discovery of ANY hostname structure
         return True

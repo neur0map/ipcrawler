@@ -193,7 +193,7 @@ def score_wordlists(context: ScoringContext) -> ScoringResult:
     
     logger.info(
         f"Scored {len(final_wordlists)} wordlists for {enriched_context.target}:{enriched_context.port} "
-        f"(score: {final_score:.3f}, confidence: {confidence}, entropy: {entropy_score:.3f if entropy_score else 'N/A'})"
+        f"(score: {final_score:.3f}, confidence: {confidence}, entropy: {entropy_score:.3f if entropy_score is not None else 'N/A'})"
     )
     
     # Cache the selection for tracking

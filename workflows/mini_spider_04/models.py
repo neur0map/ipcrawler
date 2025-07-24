@@ -226,7 +226,7 @@ class MiniSpiderResult(BaseModel):
                 for category, urls in self.categorized_results.items()
             },
             'interesting_findings': [finding.model_dump() for finding in self.interesting_findings],
-            'statistics': self.statistics.model_dump(),
+            'statistics': self.statistics.model_dump() if hasattr(self.statistics, 'model_dump') else self.statistics,
             'summary': self.summary,
             'execution_time': self.execution_time,
             'hakrawler_result': self.hakrawler_result.model_dump() if self.hakrawler_result else None,
