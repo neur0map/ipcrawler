@@ -126,7 +126,7 @@ class SpiderConfigManager:
         hakrawler_path = self._find_hakrawler_path()
         tools['hakrawler'] = hakrawler_path
         if not hakrawler_path:
-            debug_print("hakrawler not found in common locations", level="WARNING")
+            debug_print("hakrawler not found in common locations")
         else:
             debug_print(f"Found hakrawler at: {hakrawler_path}")
         
@@ -139,7 +139,7 @@ class SpiderConfigManager:
             tools['httpx'] = True
         except ImportError:
             tools['httpx'] = False
-            debug_print("httpx not available for custom crawler", level="WARNING")
+            debug_print("httpx not available for custom crawler")
         
         return tools
     
@@ -281,7 +281,7 @@ class SpiderConfigManager:
         
         # Ensure at least one crawler is enabled
         if not config.enable_hakrawler and not config.enable_custom_crawler:
-            debug_print("No crawlers available - enabling basic fallback", level="WARNING")
+            debug_print("No crawlers available - enabling basic fallback")
             # Force enable custom crawler with curl fallback
             config.enable_custom_crawler = True
         
@@ -354,11 +354,11 @@ class SpiderConfigManager:
                 debug_print("hakrawler validation successful")
                 return True
             else:
-                debug_print(f"hakrawler validation failed: {result.stderr}", level="ERROR")
+                debug_print(f"hakrawler validation failed: {result.stderr}")
                 return False
                 
         except Exception as e:
-            debug_print(f"hakrawler validation error: {e}", level="ERROR")
+            debug_print(f"hakrawler validation error: {e}")
             return False
 
 

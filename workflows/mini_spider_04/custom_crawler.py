@@ -19,7 +19,7 @@ try:
     HTTPX_AVAILABLE = True
 except ImportError:
     HTTPX_AVAILABLE = False
-    debug_print("httpx not available, will use curl fallback", level="WARNING")
+    debug_print("httpx not available, will use curl fallback")
 
 
 class CustomCrawler:
@@ -121,12 +121,18 @@ class CustomCrawler:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         for seed_url, result in zip(seed_urls, results):
+            debug_print(f"Validating {seed_url.url} -> {result}")
             if isinstance(result, str) and result:
                 active_bases.append(result)
                 self.stats.urls_tested += 1
                 self.stats.successful_requests += 1
+                debug_print(f"Successfully validated: {seed_url.url} -> {result}")
             elif isinstance(result, Exception):
                 debug_print(f"Error validating {seed_url.url}: {result}")
+                self.stats.urls_tested += 1
+                self.stats.failed_requests += 1
+            else:
+                debug_print(f"Failed validation {seed_url.url}: {result} (None or False)")
                 self.stats.urls_tested += 1
                 self.stats.failed_requests += 1
         
@@ -134,6 +140,7 @@ class CustomCrawler:
     
     async def _validate_url_httpx(self, url: str) -> Optional[str]:
         """Validate URL using httpx"""
+        debug_print(f"Validating URL with httpx: {url}")
         try:
             timeout = httpx.Timeout(
                 connect=5.0, 
@@ -152,13 +159,18 @@ class CustomCrawler:
                 headers = self.crawler_config.custom_headers.copy()
                 headers['User-Agent'] = random.choice(self.crawler_config.user_agents)
                 
+                debug_print(f"Making HEAD request to {url}")
                 response = await client.head(url, headers=headers)
+                debug_print(f"Response status: {response.status_code} for {url}")
                 
                 if response.status_code < 400:
                     # Extract base URL
                     parsed = urlparse(url)
                     base_url = f"{parsed.scheme}://{parsed.netloc}"
+                    debug_print(f"URL validation successful: {url} -> {base_url}")
                     return base_url
+                else:
+                    debug_print(f"URL validation failed: {url} (status {response.status_code})")
                     
         except Exception as e:
             debug_print(f"httpx validation failed for {url}: {e}")
