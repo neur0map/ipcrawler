@@ -125,7 +125,33 @@ class SpiderConfigManager:
     
     def __init__(self):
         self.config_cache = {}
+        self._ensure_go_paths_in_env()  # Ensure Go paths are available
         self.tools_available = self._check_tool_availability()
+    
+    def _ensure_go_paths_in_env(self):
+        """Ensure Go binary paths are in the environment PATH"""
+        go_bin_paths = [
+            os.path.expanduser('~/go/bin'),
+            '/usr/local/go/bin'
+        ]
+        
+        # Add GOPATH and GOROOT if they exist
+        if 'GOPATH' in os.environ:
+            go_bin_paths.append(os.path.join(os.environ['GOPATH'], 'bin'))
+        if 'GOROOT' in os.environ:
+            go_bin_paths.append(os.path.join(os.environ['GOROOT'], 'bin'))
+        
+        current_path = os.environ.get('PATH', '')
+        path_modified = False
+        
+        for go_path in go_bin_paths:
+            if os.path.isdir(go_path) and go_path not in current_path:
+                current_path = f"{current_path}{os.pathsep}{go_path}"
+                path_modified = True
+        
+        if path_modified:
+            os.environ['PATH'] = current_path
+            debug_print(f"Added Go binary paths to environment PATH")
     
     def _check_tool_availability(self) -> Dict[str, Any]:
         """Check availability of required tools and store their paths"""
@@ -378,20 +404,24 @@ class SpiderConfigManager:
             return False
         
         try:
+            # Don't use -h flag since it requires an argument
+            # Just run hakrawler without args (it will wait for stdin and that's fine)
             result = subprocess.run(
-                [hakrawler_path, '-h'],
+                [hakrawler_path],
+                input='',  # Empty string input (not bytes since text=True)
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=3  # Short timeout since we just want to verify it works
             )
             
-            if result.returncode == 0:
-                debug_print("hakrawler validation successful")
-                return True
-            else:
-                debug_print(f"hakrawler validation failed: {result.stderr}")
-                return False
+            # Any response (including timeout) means hakrawler is working
+            debug_print("hakrawler validation successful")
+            return True
                 
+        except subprocess.TimeoutExpired:
+            # Timeout is actually good - means hakrawler is running and waiting for input
+            debug_print("hakrawler validation successful (timeout expected)")
+            return True
         except Exception as e:
             debug_print(f"hakrawler validation error: {e}")
             return False

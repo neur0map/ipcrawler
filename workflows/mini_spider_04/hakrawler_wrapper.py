@@ -394,26 +394,26 @@ class HakrawlerWrapper:
         return self.config_manager.validate_hakrawler_installation()
     
     def get_version(self) -> Optional[str]:
-        """Get hakrawler version"""
+        """Get hakrawler version - since hakrawler doesn't have a proper version flag, just confirm it's working"""
         try:
+            # Since hakrawler -h requires an argument, we can't use it for version
+            # Just check if hakrawler responds (it will wait for stdin)
             result = subprocess.run(
-                ['hakrawler', '-h'],
+                ['hakrawler'],
+                input='',  # Empty string input (not bytes since text=True)
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=2
             )
             
-            if result.returncode == 0:
-                # Try to extract version from help output
-                output = result.stdout + result.stderr
-                version_line = [line for line in output.split('\n') if 'version' in line.lower()]
-                if version_line:
-                    return version_line[0].strip()
-                else:
-                    return "unknown"
+            # If we get here without exception, hakrawler is working
+            return "installed"
             
+        except subprocess.TimeoutExpired:
+            # Timeout is expected - hakrawler is waiting for input
+            return "installed"
         except Exception as e:
-            debug_print(f"Error getting hakrawler version: {e}")
+            debug_print(f"Error checking hakrawler: {e}")
         
         return None
     

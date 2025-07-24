@@ -327,9 +327,16 @@ def validate_input(target: str, **kwargs) -> Tuple[bool, List[str]]:
     elif not isinstance(target, str):
         errors.append("Target must be a string")
     else:
-        # Basic format validation
-        if not re.match(r'^[a-zA-Z0-9.-]+$', target.strip()):
-            errors.append("Invalid target format")
+        target = target.strip()
+        # Check if it's a URL or a domain/hostname
+        if target.startswith(('http://', 'https://')):
+            # Validate as URL
+            if not is_valid_url(target):
+                errors.append("Invalid URL format")
+        else:
+            # Validate as domain/hostname
+            if not re.match(r'^[a-zA-Z0-9.-]+$', target):
+                errors.append("Invalid domain/hostname format")
     
     # Validate optional parameters
     if 'ports' in kwargs:
