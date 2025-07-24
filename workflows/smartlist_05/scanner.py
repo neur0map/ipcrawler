@@ -67,6 +67,12 @@ class SmartListScanner(BaseWorkflow):
             # Aggregate scan results from previous workflows
             aggregated_data = self._aggregate_scan_results(previous_results)
             
+            # Try to load Mini Spider data from workspace
+            workspace_spider_data = await self._load_spider_workspace_data(target)
+            if workspace_spider_data:
+                debug_print(f"Loaded Mini Spider workspace data: {len(workspace_spider_data.get('discovered_urls', []))} URLs")
+                aggregated_data['spider_result'] = workspace_spider_data
+            
             if not aggregated_data['services']:
                 debug_print("No services found in previous scan results", level="WARNING")
                 result.summary = {
@@ -287,7 +293,12 @@ class SmartListScanner(BaseWorkflow):
                             categories = set()
                             for url_data in service_urls:
                                 if url_data.get('category'):
-                                    categories.add(url_data['category'])
+                                    category = url_data['category']
+                                    # Handle enum or string values
+                                    if hasattr(category, 'value'):
+                                        categories.add(category.value)
+                                    else:
+                                        categories.add(str(category))
                             service['spider_categories'] = list(categories)
                             
                             # Add spider-detected technologies
@@ -718,6 +729,69 @@ class SmartListScanner(BaseWorkflow):
                 summary['top_targets'].append(target_info)
         
         return summary
+    
+    async def _load_spider_workspace_data(self, target: str) -> Optional[Dict]:
+        """Load Mini Spider data from workspace files"""
+        try:
+            # Find workspace directory
+            workspace_dir = Path("workspaces") / target.replace(':', '_').replace('/', '_')
+            if not workspace_dir.exists():
+                debug_print(f"No workspace directory found for {target}")
+                return None
+            
+            spider_data = {
+                'discovered_urls': [],
+                'interesting_findings': [],
+                'categorized_results': {}
+            }
+            
+            # Load discovered URLs
+            urls_file = workspace_dir / "discovered_urls.txt"
+            if urls_file.exists():
+                with open(urls_file, 'r') as f:
+                    for line in f:
+                        url = line.strip()
+                        if url:
+                            spider_data['discovered_urls'].append({'url': url})
+            
+            # Load categorized URLs
+            for category_file in workspace_dir.glob("urls_*.txt"):
+                category = category_file.stem.replace('urls_', '')
+                spider_data['categorized_results'][category] = []
+                with open(category_file, 'r') as f:
+                    for line in f:
+                        url = line.strip()
+                        if url:
+                            spider_data['categorized_results'][category].append({
+                                'url': url,
+                                'category': category
+                            })
+            
+            # Load interesting findings
+            findings_file = workspace_dir / "interesting_findings.txt"
+            if findings_file.exists():
+                with open(findings_file, 'r') as f:
+                    for line in f:
+                        if ' - ' in line:
+                            url, reason = line.strip().split(' - ', 1)
+                            spider_data['interesting_findings'].append({
+                                'url': url,
+                                'reason': reason
+                            })
+            
+            # Load enhanced analysis if available
+            enhanced_file = workspace_dir / "enhanced_analysis.json"
+            if enhanced_file.exists():
+                with open(enhanced_file, 'r') as f:
+                    enhanced_data = json.load(f)
+                    spider_data['enhanced_analysis'] = enhanced_data
+            
+            debug_print(f"Loaded spider data: {len(spider_data['discovered_urls'])} URLs, {len(spider_data['interesting_findings'])} findings")
+            return spider_data
+            
+        except Exception as e:
+            debug_print(f"Failed to load spider workspace data: {str(e)}", level="WARNING")
+            return None
     
     def _get_enhanced_summary_recommendation(self, result: SmartListResult, spider_enhanced_services: int) -> str:
         """Generate enhanced overall recommendation with spider intelligence"""

@@ -159,14 +159,21 @@ class MiniSpiderScanner(BaseWorkflow):
             if hasattr(result, 'enhanced_analysis') and result.enhanced_analysis and not result.enhanced_analysis.get('error'):
                 try:
                     workspace_dir = Path("workspaces") / target.replace(':', '_').replace('/', '_')
+                    reports_dir = workspace_dir / "reports"
+                    # Ensure reports directory exists
+                    reports_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    debug_print(f"Generating reports in: {reports_dir}")
                     report_files = self.enhanced_reporter.generate_comprehensive_report(
                         result, 
-                        workspace_dir / "reports",
+                        reports_dir,
                         formats=['html', 'json', 'txt']
                     )
                     debug_print(f"Generated {len(report_files)} comprehensive reports")
                 except Exception as e:
                     debug_print(f"Report generation failed: {str(e)}", level="ERROR")
+                    import traceback
+                    debug_print(f"Traceback: {traceback.format_exc()}", level="ERROR")
             
             debug_print(f"Mini spider scan completed: {len(result.discovered_urls)} URLs discovered")
             
