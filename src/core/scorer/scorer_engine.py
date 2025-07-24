@@ -502,7 +502,7 @@ def get_wordlist_paths(wordlist_names: List[str],
         List of file paths
     """
     if not WORDLIST_RESOLVER_AVAILABLE or not wordlist_resolver.is_available():
-        logger.warning("Catalog not available - returning wordlist names as paths")
+        logger.debug("Catalog not available - returning wordlist names as paths")
         return wordlist_names
     
     # Resolve through catalog

@@ -100,12 +100,9 @@ class SpiderConfig:
             ]
         
         if self.include_patterns is None:
-            self.include_patterns = [
-                r'/admin', r'/api', r'/v\d+/', r'/app',
-                r'/dashboard', r'/portal', r'/console',
-                r'/config', r'/settings', r'/manage',
-                r'\.php$', r'\.asp$', r'\.aspx$', r'\.jsp$'
-            ]
+            # Use empty include patterns for maximum discovery
+            # When include_patterns is empty, all URLs are included (subject to exclude filters only)
+            self.include_patterns = []
         
         if self.hakrawler is None:
             self.hakrawler = HakrawlerConfig()

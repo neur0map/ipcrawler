@@ -83,7 +83,7 @@ class WordlistResolver:
             List of WordlistEntry objects sorted by relevance
         """
         if not self.catalog:
-            logger.warning("Catalog not available - cannot resolve wordlists")
+            logger.debug("Catalog not available - cannot resolve wordlists")
             return []
         
         resolved_entries = []

@@ -57,7 +57,7 @@ class CustomCrawler:
             
             # Phase 1: Test seed URLs and extract base URLs
             active_base_urls = await self._validate_seed_urls(seed_urls)
-            debug_print(f"Validated {len(active_base_urls)} active base URLs")
+            debug_print(f"Validated {len(active_base_urls)} active base URLs: {active_base_urls}")
             
             if len(active_base_urls) == 0:
                 print("    ⚠ No seed URLs are responding - target may be down or filtered")
@@ -66,20 +66,30 @@ class CustomCrawler:
                 print(f"    ✓ {len(active_base_urls)} URLs responding, starting discovery...")
             
             # Phase 2: Common path discovery
+            print(f"    → Phase 2: Testing common paths...")
             common_paths = await self._discover_common_paths(active_base_urls, max_concurrent)
             discovered.extend(common_paths)
+            print(f"    ✓ Common paths: {len(common_paths)} found")
             
             # Phase 3: Smart path generation based on responses
+            print(f"    → Phase 3: Smart path generation...")
             smart_paths = await self._discover_smart_paths(active_base_urls, max_concurrent)
             discovered.extend(smart_paths)
+            print(f"    ✓ Smart paths: {len(smart_paths)} found")
             
             # Phase 4: Directory traversal and path extension
-            extended_paths = await self._extend_discovered_paths(discovered[:20], max_concurrent)  # Limit to top 20
-            discovered.extend(extended_paths)
+            if discovered:
+                print(f"    → Phase 4: Extending discovered paths...")
+                extended_paths = await self._extend_discovered_paths(discovered[:20], max_concurrent)  # Limit to top 20
+                discovered.extend(extended_paths)
+                print(f"    ✓ Extended paths: {len(extended_paths)} found")
             
             # Phase 5: HTML link extraction from discovered pages
-            link_paths = await self._extract_links_from_pages(discovered[:10])  # Limit to top 10
-            discovered.extend(link_paths)
+            if discovered:
+                print(f"    → Phase 5: Extracting links from pages...")
+                link_paths = await self._extract_links_from_pages(discovered[:10])  # Limit to top 10
+                discovered.extend(link_paths)
+                print(f"    ✓ Extracted links: {len(link_paths)} found")
             
             execution_time = time.time() - start_time
             self.stats.total_bytes_downloaded = getattr(self.stats, 'total_bytes_downloaded', 0)
@@ -260,13 +270,26 @@ class CustomCrawler:
                 tasks.append(test_path(base_url, path))
         
         # Execute all tasks
+        debug_print(f"Testing {len(tasks)} path combinations ({len(base_urls)} base URLs × {len(common_paths)} paths)")
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
+        successful_count = 0
+        exception_count = 0
         for result in results:
             if isinstance(result, CrawledURL):
                 discovered.append(result)
+                successful_count += 1
+            elif isinstance(result, Exception):
+                exception_count += 1
+                debug_print(f"Path test exception: {result}")
         
-        debug_print(f"Common path discovery found {len(discovered)} URLs")
+        debug_print(f"Common path discovery: {successful_count} successful, {exception_count} exceptions, {len(discovered)} URLs found")
+        
+        # Show sample of discovered URLs for debugging
+        if discovered:
+            sample_size = min(5, len(discovered))
+            debug_print(f"Sample discovered URLs: {[url.url for url in discovered[:sample_size]]}")
+        
         return discovered
     
     async def _discover_smart_paths(self, base_urls: List[str], max_concurrent: int) -> List[CrawledURL]:
@@ -436,14 +459,17 @@ class CustomCrawler:
         # Check if URL should be included
         should_include, reason = self.url_filter.should_include_url(full_url)
         if not should_include:
+            debug_print(f"URL filtered out: {full_url} - reason: {reason}")
             return None
         
         # Check if already discovered
         if full_url in self.discovered_urls:
+            debug_print(f"URL already discovered: {full_url}")
             return None
         
         try:
             start_time = time.time()
+            debug_print(f"Testing path: {full_url}")
             
             if HTTPX_AVAILABLE:
                 result = await self._test_path_httpx(full_url)
@@ -458,9 +484,11 @@ class CustomCrawler:
                 self.discovered_urls.add(full_url)
                 self.stats.add_response(True, response_time, result.content_length)
                 
+                debug_print(f"Successfully discovered: {full_url} (status: {result.status_code})")
                 return result
             else:
                 self.stats.add_response(False)
+                debug_print(f"Path test failed: {full_url}")
                 
         except Exception as e:
             debug_print(f"Error testing path {full_url}: {e}")
@@ -488,6 +516,7 @@ class CustomCrawler:
                 headers['User-Agent'] = random.choice(self.crawler_config.user_agents)
                 
                 response = await client.head(url, headers=headers)
+                debug_print(f"HTTP response for {url}: {response.status_code}")
                 
                 # Consider successful if status is informative
                 if response.status_code in [200, 201, 202, 204, 301, 302, 307, 308, 401, 403]:
@@ -508,6 +537,7 @@ class CustomCrawler:
                     if response.status_code in [301, 302, 307, 308] and 'location' in response.headers:
                         redirect_url = response.headers['location']
                     
+                    debug_print(f"Accepted response: {url} -> {response.status_code}")
                     return CrawledURL(
                         url=url,
                         source=DiscoverySource.CUSTOM_CRAWLER,
@@ -517,6 +547,8 @@ class CustomCrawler:
                         redirect_url=redirect_url,
                         discovered_at=datetime.now()
                     )
+                else:
+                    debug_print(f"Rejected response: {url} -> {response.status_code}")
                     
         except Exception as e:
             debug_print(f"httpx test failed for {url}: {e}")
