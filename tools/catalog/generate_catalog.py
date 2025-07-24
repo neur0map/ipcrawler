@@ -544,9 +544,12 @@ def main():
         # Save catalog
         output_path = project_root / "database" / "wordlists" / "seclists_catalog.json"
         
+        # Create directory structure if it doesn't exist
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
         print(f"Saving catalog to: {output_path}")
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(catalog.dict(), f, indent=2, default=str, ensure_ascii=False)
+            json.dump(catalog.model_dump(), f, indent=2, default=str, ensure_ascii=False)
         
         # Print summary
         stats = catalog.get_stats()

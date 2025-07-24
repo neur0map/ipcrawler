@@ -149,12 +149,23 @@ install:
 	@echo "  sudo ipcrawler <target>  - Run with privileges"
 	@echo ""
 	@echo "Generating SecLists catalog in the background..."
+	@# Ensure database/wordlists directory exists
+	@mkdir -p database/wordlists
 	@nohup bash -c 'cd "$(pwd)" && AUTO_INSTALL=true ./scripts/check_seclists.sh > /tmp/seclists_install.log 2>&1 && \
 		if [ -f .seclists_path ] && [ -s .seclists_path ]; then \
 			source .seclists_path && \
 			if [ ! -z "$$SECLISTS_PATH" ]; then \
-				$(PYTHON_CMD) tools/catalog/generate_catalog.py >> /tmp/seclists_install.log 2>&1 || echo "⚠ Failed to generate wordlist catalog" >> /tmp/seclists_install.log; \
+				echo "→ Generating SecLists catalog..." >> /tmp/seclists_install.log && \
+				if $(PYTHON_CMD) tools/catalog/generate_catalog.py >> /tmp/seclists_install.log 2>&1; then \
+					echo "✓ SecLists catalog generated successfully" >> /tmp/seclists_install.log; \
+				else \
+					echo "⚠ Failed to generate wordlist catalog" >> /tmp/seclists_install.log; \
+				fi; \
+			else \
+				echo "⚠ SECLISTS_PATH is empty, skipping catalog generation" >> /tmp/seclists_install.log; \
 			fi; \
+		else \
+			echo "⚠ .seclists_path file missing or empty, skipping catalog generation" >> /tmp/seclists_install.log; \
 		fi; echo "SecLists installation completed" >> /tmp/seclists_install.log' & \
 		echo "  → SecLists check running in background (check /tmp/seclists_install.log for progress)" && \
 		echo "  → Installation complete! SecLists will be configured automatically."
