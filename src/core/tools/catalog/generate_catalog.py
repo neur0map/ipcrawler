@@ -16,7 +16,17 @@ from datetime import datetime
 import hashlib
 
 # Add project root to path for imports
-project_root = Path(__file__).parent.parent.parent.parent  # Go up 4 levels to reach project root
+current_file = Path(__file__).resolve()
+# Find project root by looking for the directory containing 'database' folder
+project_root = current_file.parent
+while project_root.parent != project_root:  # Not at filesystem root
+    if (project_root / 'database').exists() and (project_root / 'ipcrawler.py').exists():
+        break
+    project_root = project_root.parent
+else:
+    # Fallback to 4 levels up
+    project_root = current_file.parent.parent.parent.parent
+
 sys.path.insert(0, str(project_root))
 
 from src.core.tools.catalog.models import (
