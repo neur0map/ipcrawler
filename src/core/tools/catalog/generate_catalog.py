@@ -93,8 +93,25 @@ class SecListsParser:
         txt_files = list(self.seclists_path.rglob("*.txt"))
         print(f"Found {len(txt_files)} wordlist files")
         
-        processed = 0
+        # Separate files by size
+        regular_files = []
+        large_files = []
+        
         for txt_file in txt_files:
+            try:
+                file_size = txt_file.stat().st_size
+                if file_size > 50 * 1024 * 1024:  # 50MB
+                    large_files.append((txt_file, file_size))
+                else:
+                    regular_files.append(txt_file)
+            except Exception:
+                regular_files.append(txt_file)  # Default to regular if can't stat
+        
+        print(f"Processing {len(regular_files)} regular files and {len(large_files)} large files...")
+        
+        # Process regular files first
+        processed = 0
+        for txt_file in regular_files:
             try:
                 wordlist = self._parse_wordlist_file(txt_file)
                 if wordlist:
@@ -102,13 +119,29 @@ class SecListsParser:
                     processed += 1
                     
                     if processed % 100 == 0:
-                        print(f"Processed {processed}/{len(txt_files)} files...")
+                        print(f"Processed {processed}/{len(regular_files)} regular files...")
                         
             except Exception as e:
                 print(f"Warning: Failed to parse {txt_file}: {e}")
                 continue
         
-        print(f"Successfully processed {processed} wordlist files")
+        print(f"Successfully processed {processed} regular files")
+        
+        # Process large files with special handling
+        if large_files:
+            print(f"\nProcessing {len(large_files)} large files (>50MB)...")
+            for txt_file, file_size in large_files:
+                try:
+                    print(f"Processing large file: {txt_file.name} ({file_size // (1024*1024)}MB)")
+                    wordlist = self._parse_large_wordlist_file(txt_file)
+                    if wordlist:
+                        self.catalog.add_wordlist(wordlist)
+                        processed += 1
+                except Exception as e:
+                    print(f"Warning: Failed to parse large file {txt_file}: {e}")
+                    continue
+        
+        print(f"\nTotal: Successfully processed {processed} wordlist files")
         
         # Generate catalog metadata
         self._generate_metadata()
@@ -122,10 +155,7 @@ class SecListsParser:
             stat = file_path.stat()
             relative_path = file_path.relative_to(self.seclists_path)
             
-            # Skip very large files (>50MB) to avoid memory issues
-            if stat.st_size > 50 * 1024 * 1024:
-                print(f"Skipping large file: {file_path} ({stat.st_size // (1024*1024)}MB)")
-                return None
+            # Large files are handled separately now
             
             # Count lines efficiently
             line_count = self._count_lines(file_path)
@@ -186,6 +216,102 @@ class SecListsParser:
             return count
         except Exception:
             return 0
+    
+    def _parse_large_wordlist_file(self, file_path: Path) -> Optional[WordlistEntry]:
+        """Parse large wordlist file with memory-efficient methods."""
+        try:
+            # Basic file info
+            stat = file_path.stat()
+            relative_path = file_path.relative_to(self.seclists_path)
+            
+            # Count lines using memory-efficient method with buffer
+            line_count = self._count_lines_buffered(file_path)
+            
+            # Determine category from path
+            category = self._determine_category(relative_path)
+            
+            # Extract metadata from path and filename
+            display_name = self._generate_display_name(file_path.name, relative_path)
+            tags = self._extract_tags(file_path.name, relative_path)
+            tech_compatibility = self._extract_tech_compatibility(file_path.name, relative_path)
+            port_compatibility = self._extract_port_compatibility(file_path.name, relative_path)
+            
+            # Get limited sample entries for large files
+            sample_entries = self._get_sample_entries_large(file_path, max_samples=3)
+            
+            # Add 'large' tag
+            if 'large' not in tags:
+                tags.append('large')
+            
+            # Determine quality based on size
+            quality = WordlistQuality.EXCELLENT  # Large files are typically comprehensive
+            
+            # Calculate scorer weight
+            scorer_weight = self._calculate_scorer_weight(category, line_count, tech_compatibility)
+            
+            # Generate description
+            description = self._generate_description(file_path.name, relative_path, line_count)
+            description += " (Large file - may require special handling)"
+            
+            wordlist = WordlistEntry(
+                name=file_path.name,
+                display_name=display_name,
+                full_path=str(file_path),
+                relative_path=str(relative_path),
+                category=category,
+                subcategory=self._get_subcategory(relative_path),
+                tags=tags,
+                size_lines=line_count,
+                size_bytes=stat.st_size,
+                quality=quality,
+                tech_compatibility=tech_compatibility,
+                port_compatibility=port_compatibility,
+                scorer_weight=scorer_weight,
+                use_cases=self._determine_use_cases(relative_path, file_path.name),
+                description=description,
+                sample_entries=sample_entries,
+                last_modified=datetime.fromtimestamp(stat.st_mtime),
+                recommended_for_ports=self._get_recommended_ports(relative_path, file_path.name)
+            )
+            
+            return wordlist
+            
+        except Exception as e:
+            print(f"Error parsing large file {file_path}: {e}")
+            return None
+    
+    def _count_lines_buffered(self, file_path: Path, buffer_size: int = 1024 * 1024) -> int:
+        """Count lines in large files using buffered reading."""
+        try:
+            count = 0
+            with open(file_path, 'rb') as f:
+                buffer = f.read(buffer_size)
+                while buffer:
+                    count += buffer.count(b'\n')
+                    buffer = f.read(buffer_size)
+            return count
+        except Exception:
+            # Fallback: estimate based on file size (avg 10 chars per line)
+            return file_path.stat().st_size // 10
+    
+    def _get_sample_entries_large(self, file_path: Path, max_samples: int = 3) -> List[str]:
+        """Get sample entries from large files without loading entire file."""
+        samples = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                for i, line in enumerate(f):
+                    if i >= max_samples:
+                        break
+                    
+                    line = line.strip()
+                    if line and not line.startswith('#'):  # Skip comments
+                        samples.append(line[:50])  # Limit length
+            
+        except Exception:
+            pass
+        
+        return samples
     
     def _determine_category(self, relative_path: Path) -> WordlistCategory:
         """Determine category based on file path."""
