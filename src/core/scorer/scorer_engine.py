@@ -11,7 +11,7 @@ from .cache import cache_selection
 
 # Import wordlist resolver
 try:
-    from ..wordlists.resolver import resolver as wordlist_resolver
+    from ..tools.catalog.resolver import resolver as wordlist_resolver
     WORDLIST_RESOLVER_AVAILABLE = True
 except ImportError:
     WORDLIST_RESOLVER_AVAILABLE = False

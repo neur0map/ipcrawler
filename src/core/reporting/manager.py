@@ -12,6 +12,7 @@ from .formats.json_reporter import JSONReporter
 from .formats.html_reporter import HTMLReporter
 from .formats.text_reporter import TextReporter
 from .formats.wordlist_reporter import WordlistReporter
+from .formats.master_reporter import MasterReporter, MasterTextReporter
 from src.core.ui.console.base import console
 
 
@@ -35,6 +36,8 @@ class ReportManager:
             'html': HTMLReporter(self.output_dir),
             'txt': TextReporter(self.output_dir),
             'wordlist': WordlistReporter(self.output_dir),
+            'master_html': MasterReporter(self.output_dir),
+            'master_txt': MasterTextReporter(self.output_dir),
             # TODO: Add more formats (MD, xml)
         }
     
@@ -119,6 +122,56 @@ class ReportManager:
                 reporter.output_dir = original_dirs[fmt]
         
         return results
+    
+    def generate_master_report(self,
+                             data: Dict[str, Any],
+                             target: Optional[str] = None,
+                             format_type: str = 'txt',
+                             **kwargs) -> Path:
+        """Generate a master report consolidating all workflow findings
+        
+        Args:
+            data: Combined scan data from all workflows
+            target: Target identifier for filename
+            format_type: Report format ('txt', 'html', or 'both')
+            **kwargs: Additional options
+            
+        Returns:
+            Path to generated master report (or TXT if both formats)
+        """
+        master_format = f'master_{format_type}'
+        
+        if format_type == 'both':
+            # Generate both HTML and TXT master reports
+            html_results = self.generate_report(
+                data, 
+                formats=['master_html'], 
+                target=target, 
+                workflow='comprehensive',
+                **kwargs
+            )
+            txt_results = self.generate_report(
+                data, 
+                formats=['master_txt'], 
+                target=target, 
+                workflow='comprehensive',
+                **kwargs
+            )
+            console.success(f"Generated master reports in both formats", internal=True)
+            return txt_results.get('master_txt', list(txt_results.values())[0])
+        
+        elif master_format in self.reporters:
+            results = self.generate_report(
+                data, 
+                formats=[master_format], 
+                target=target, 
+                workflow='comprehensive',
+                **kwargs
+            )
+            return results.get(master_format, list(results.values())[0])
+        else:
+            console.error(f"Unsupported master report format: {format_type}", internal=True)
+            raise ValueError(f"Unsupported format: {format_type}")
     
     def add_reporter(self, format_name: str, reporter):
         """Add a custom reporter

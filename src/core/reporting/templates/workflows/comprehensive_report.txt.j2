@@ -185,39 +185,80 @@ Statistics:
 {% endif -%}
 
 {% if smartlist.wordlist_recommendations -%}
-{{ "-" * 40 }}
-Recommendations by Service:
-
+{# Group recommendations by port for better organization #}
+{% set port_groups = {} -%}
 {% for service_rec in smartlist.wordlist_recommendations -%}
-Service: {{ service_rec.service }} ({{ service_rec.service_name }})
+  {% set port = service_rec.service.split(':')[1] if ':' in service_rec.service else 'unknown' -%}
+  {% set service_name = service_rec.service_name or 'unknown service' -%}
+  {% set port_key = port + '/' + service_name -%}
+  {% if port_key not in port_groups -%}
+    {% set _ = port_groups.update({port_key: []}) -%}
+  {% endif -%}
+  {% set _ = port_groups[port_key].append(service_rec) -%}
+{% endfor -%}
+
+{% for port_key, services in port_groups.items() -%}
+{% set port_info = port_key.split('/') -%}
+{% set port_num = port_info[0] -%}
+{% set service_name = port_info[1] -%}
+
+{{ "=" * 60 }}
+PORT {{ port_num }}/tcp - {{ service_name.title() }} Service
+{{ "=" * 60 }}
+
+{% for service_rec in services -%}
+Target: {{ service_rec.service }}
 {% if service_rec.detected_technology -%}
 Technology: {{ service_rec.detected_technology }}
 {% endif -%}
-Confidence: {{ service_rec.confidence | upper }} (Score: {{ service_rec.total_score }})
+Overall Confidence: {{ service_rec.confidence | upper }} (Score: {{ service_rec.total_score }})
 
 {% if service_rec.top_wordlists -%}
-Top Wordlist Recommendations:
-{% for wl in service_rec.top_wordlists[:5] -%}
-  {{ loop.index }}. {{ wl.wordlist }} (Score: {{ wl.score }}, Confidence: {{ wl.confidence }})
-     Reason: {{ wl.reason }}
-{% if wl.matched_rule -%}
-     Rule: {{ wl.matched_rule }}
-{% endif -%}
+PRIORITY WORDLIST RECOMMENDATIONS:
+{{ "-" * 50 }}
+
+{# Sort wordlists by score (highest first) #}
+{% set sorted_wordlists = service_rec.top_wordlists|sort(attribute='score', reverse=true) -%}
+{% for wl in sorted_wordlists[:8] -%}
+{# Determine priority level based on score and confidence #}
+{% set priority = "CRITICAL" if (wl.score >= 80 or wl.confidence == "high") else ("HIGH" if wl.score >= 60 else ("MEDIUM" if wl.score >= 40 else "LOW")) -%}
+
+{{ priority }}: {{ wl.wordlist }} (Score: {{ wl.score }})
 {% if wl.path -%}
-     Path: {{ wl.path }}
+  📁 Path: {{ wl.path }}
+{% else -%}
+  📁 Path: [Catalog not available - check /usr/share/seclists/]
 {% endif -%}
+  🎯 Reason: {{ wl.reason }}
+{% if wl.category and wl.category != "none" -%}
+  📂 Category: {{ wl.category }}
+{% endif -%}
+{% if wl.matched_rule and wl.matched_rule != "none" -%}
+  ⚙️  Rule: {{ wl.matched_rule }}
+{% endif -%}
+
 {% endfor -%}
 
-{% endif -%}
 {% if service_rec.context and service_rec.context.matched_rules -%}
-Matched Rules: {{ service_rec.context.matched_rules | join(', ') }}
+Scoring Rules Applied: {{ service_rec.context.matched_rules | join(', ') }}
 {% endif -%}
 {% if service_rec.context and service_rec.context.fallback_used -%}
-⚠ WARNING: Generic fallback was used for this service
+⚠️  WARNING: Generic fallback was used for this service - consider manual verification
+{% endif -%}
+{% else -%}
+No specific wordlist recommendations available for this service.
 {% endif -%}
 
-{{ "-" * 20 }}
 {% endfor -%}
+{% endfor -%}
+
+{{ "-" * 80 }}
+💡 USAGE NOTES:
+• Use CRITICAL and HIGH priority wordlists first for maximum efficiency
+• Paths shown are for SecLists installation - adjust for your environment  
+• Combine multiple wordlists for comprehensive coverage
+• Consider service-specific context when selecting wordlists
+
 {% endif -%}
 {% endif -%}
 

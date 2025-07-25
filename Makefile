@@ -19,7 +19,7 @@ else
 	PYTHON_CMD = python3
 endif
 
-.PHONY: install uninstall clean clean-install fix-deps test setup-tools help
+.PHONY: install uninstall clean clean-install fix-deps test setup-tools master-report help
 
 # Default target
 all: help
@@ -36,6 +36,7 @@ help:
 	@echo "  make fix-deps     - Fix Python dependencies for sudo access"
 	@echo "  make clean        - Clean Python cache files"
 	@echo "  make test         - Test installation"
+	@echo "  make master-report - Generate master TXT report from scan workspace"
 	@echo ""
 	@echo "Tool Management:"
 	@echo "  make setup-tools  - Install hakrawler and other essential tools"
@@ -315,3 +316,37 @@ setup-tools:
 	@echo "You may need to restart your terminal or run:"
 	@echo "  source ~/.bashrc (Linux)"
 	@echo "  source ~/.zshrc (macOS with zsh)"
+
+master-report:
+	@echo "IPCrawler Master Report Generator"
+	@echo "================================"
+	@echo ""
+	@if [ -z "$(WORKSPACE)" ]; then \
+		echo "Usage: make master-report WORKSPACE=<workspace_name>"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make master-report WORKSPACE=scan_perc_gg_20250723_213926"; \
+		echo "  make master-report WORKSPACE=scan_google_com_20250724_143317"; \
+		echo ""; \
+		echo "Available workspaces:"; \
+		if [ -d workspaces ]; then \
+			for ws in workspaces/scan_*; do \
+				if [ -d "$$ws" ]; then \
+					basename "$$ws"; \
+				fi; \
+			done | sort | sed 's/^/  /'; \
+		else \
+			echo "  No workspaces/ directory found"; \
+		fi; \
+		echo ""; \
+		echo "This generates a comprehensive master TXT report that consolidates"; \
+		echo "ALL findings from ALL workflows into one organized file."; \
+		exit 1; \
+	else \
+		echo "Generating master report for workspace: $(WORKSPACE)"; \
+		if [ ! -d "workspaces/$(WORKSPACE)" ]; then \
+			echo "❌ Workspace not found: workspaces/$(WORKSPACE)"; \
+			exit 1; \
+		fi; \
+		$(PYTHON_CMD) scripts/master_report "$(WORKSPACE)"; \
+	fi

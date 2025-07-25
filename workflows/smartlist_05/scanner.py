@@ -470,8 +470,9 @@ class SmartListScanner(BaseWorkflow):
                 tech=context.tech,
                 port=context.port
             )
+            debug_print(f"Resolved {len(wordlist_paths)} wordlist paths for port {context.port}")
         except Exception as e:
-            debug_print(f"Could not resolve wordlist paths: {e}")
+            debug_print(f"Could not resolve wordlist paths: {e}", level="WARNING")
             wordlist_paths = [None] * len(result.wordlists)
         
         # Build enhanced recommendations with spider context
@@ -482,6 +483,10 @@ class SmartListScanner(BaseWorkflow):
             
             # Use full path if available, otherwise just the wordlist name
             wordlist_path = wordlist_paths[i] if i < len(wordlist_paths) and wordlist_paths[i] else None
+            if wordlist_path:
+                debug_print(f"Wordlist '{wordlist}' resolved to path: {wordlist_path}")
+            else:
+                debug_print(f"No path resolved for wordlist '{wordlist}'", level="WARNING")
             
             # Generate enhanced reason with spider context
             reason = self._generate_enhanced_reason(result, wordlist, context)
