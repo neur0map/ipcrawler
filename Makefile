@@ -148,27 +148,28 @@ install:
 	@echo "  ipcrawler <target>       - Run as user"
 	@echo "  sudo ipcrawler <target>  - Run with privileges"
 	@echo ""
-	@echo "Generating SecLists catalog in the background..."
+	@echo "Setting up SecLists and generating catalog..."
 	@# Ensure database/wordlists directory exists
 	@mkdir -p database/wordlists
-	@nohup bash -c 'cd "$(pwd)" && AUTO_INSTALL=true ./scripts/check_seclists.sh > /tmp/seclists_install.log 2>&1 && \
+	@# Run SecLists check and catalog generation in foreground
+	@cd "$(pwd)" && AUTO_INSTALL=true ./scripts/check_seclists.sh && \
 		if [ -f .seclists_path ] && [ -s .seclists_path ]; then \
-			source .seclists_path && \
+			. .seclists_path && \
 			if [ ! -z "$$SECLISTS_PATH" ]; then \
-				echo "→ Generating SecLists catalog..." >> /tmp/seclists_install.log && \
-				if $(PYTHON_CMD) src/core/tools/catalog/generate_catalog.py >> /tmp/seclists_install.log 2>&1; then \
-					echo "✓ SecLists catalog generated successfully" >> /tmp/seclists_install.log; \
+				echo "→ Generating SecLists catalog..."; \
+				if $(PYTHON_CMD) -m src.core.tools.catalog.generate_catalog; then \
+					echo "✓ SecLists catalog generated successfully"; \
 				else \
-					echo "⚠ Failed to generate wordlist catalog" >> /tmp/seclists_install.log; \
+					echo "⚠ Failed to generate wordlist catalog - SmartList will use fallback mode"; \
 				fi; \
 			else \
-				echo "⚠ SECLISTS_PATH is empty, skipping catalog generation" >> /tmp/seclists_install.log; \
+				echo "⚠ SECLISTS_PATH is empty, skipping catalog generation"; \
 			fi; \
 		else \
-			echo "⚠ .seclists_path file missing or empty, skipping catalog generation" >> /tmp/seclists_install.log; \
-		fi; echo "SecLists installation completed" >> /tmp/seclists_install.log' & \
-		echo "  → SecLists check running in background (check /tmp/seclists_install.log for progress)" && \
-		echo "  → Installation complete! SecLists will be configured automatically."
+			echo "⚠ .seclists_path file missing or empty, skipping catalog generation"; \
+		fi
+	@echo ""
+	@echo "✓ Installation complete!"
 
 uninstall:
 	@echo "Uninstalling IPCrawler..."

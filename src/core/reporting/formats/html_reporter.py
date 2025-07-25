@@ -363,7 +363,9 @@ class HTMLReporter(BaseReporter):
         workflow = kwargs.get('workflow', 'scan')
         
         # Sanitize target for filename
-        safe_target = target.replace(':', '_').replace('/', '_').replace('.', '_')
+        import re
+        safe_target = re.sub(r'[<>:"/\\|?*]', '_', target)
+        safe_target = re.sub(r'_+', '_', safe_target).strip('_')
         
         return f"{workflow}_report_{safe_target}.html"
     

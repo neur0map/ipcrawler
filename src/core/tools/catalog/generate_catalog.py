@@ -16,10 +16,10 @@ from datetime import datetime
 import hashlib
 
 # Add project root to path for imports
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent  # Go up 4 levels to reach project root
 sys.path.insert(0, str(project_root))
 
-from tools.catalog.models import (
+from src.core.tools.catalog.models import (
     WordlistEntry, WordlistCatalog, WordlistCategory, WordlistQuality
 )
 

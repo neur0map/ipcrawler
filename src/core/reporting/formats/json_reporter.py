@@ -64,7 +64,9 @@ class JSONReporter(BaseReporter):
         if not filename:
             target = kwargs.get('target', 'unknown')
             workflow = kwargs.get('workflow', 'scan')
-            safe_target = target.replace(':', '_').replace('/', '_').replace('.', '_')
+            import re
+            safe_target = re.sub(r'[<>:"/\\|?*]', '_', target)
+            safe_target = re.sub(r'_+', '_', safe_target).strip('_')
             filename = f"{workflow}_report_{safe_target}.json"
         
         # Ensure .json extension

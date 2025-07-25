@@ -166,11 +166,12 @@ class MasterReporter(BaseReporter):
         return workflows
     
     def _sanitize_filename(self, filename: str) -> str:
-        """Sanitize filename for filesystem compatibility"""
+        """Sanitize filename for filesystem compatibility, preserving dots for IPs"""
         import re
-        # Replace invalid characters
+        # Replace only truly invalid filesystem characters
         sanitized = re.sub(r'[<>:"/\\|?*]', '_', filename)
-        sanitized = sanitized.replace('.', '_').replace(':', '_')
+        # Remove multiple consecutive underscores
+        sanitized = re.sub(r'_+', '_', sanitized).strip('_')
         return sanitized[:50]  # Limit length
     
     def _generate_simple_master_report(self, data: Dict[str, Any], output_path: Path, **kwargs) -> Path:

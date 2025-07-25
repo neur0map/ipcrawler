@@ -111,12 +111,10 @@ class ResultManager:
     
     @staticmethod
     def _sanitize_target_name(target: str) -> str:
-        """Sanitize target name for use as directory name"""
+        """Sanitize target name for use as directory name, preserving dots for IPs"""
         import re
-        # Replace invalid characters with underscores
+        # Replace only truly invalid filesystem characters
         sanitized = re.sub(r'[<>:"/\\|?*]', '_', target)
-        # Replace dots and other special chars commonly found in hostnames/IPs
-        sanitized = sanitized.replace('.', '_').replace(':', '_').replace('/', '_')
         # Remove multiple consecutive underscores
         sanitized = re.sub(r'_+', '_', sanitized)
         # Remove leading/trailing underscores

@@ -92,7 +92,11 @@ class WorkflowReporter(BaseReporter):
         Returns:
             Generated filename
         """
-        safe_target = target.replace(':', '_').replace('/', '_').replace('.', '_')
+        # Import re module for regex
+        import re
+        # Preserve dots for IP addresses, only replace truly problematic characters
+        safe_target = re.sub(r'[<>:"/\\|?*]', '_', target)
+        safe_target = re.sub(r'_+', '_', safe_target).strip('_')
         return f"{self.workflow_name}_{safe_target}.{extension}"
 
 

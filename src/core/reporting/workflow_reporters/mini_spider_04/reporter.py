@@ -63,7 +63,10 @@ class EnhancedReporter:
     
     def _generate_html_report(self, spider_result: MiniSpiderResult, output_dir: Path) -> Path:
         """Generate HTML report with interactive elements"""
-        html_file = output_dir / f"mini_spider_report_{spider_result.target.replace(':', '_')}.html"
+        import re
+        safe_target = re.sub(r'[<>:"/\\|?*]', '_', spider_result.target)
+        safe_target = re.sub(r'_+', '_', safe_target).strip('_')
+        html_file = output_dir / f"mini_spider_report_{safe_target}.html"
         
         # Prepare data for template
         report_data = self._prepare_report_data(spider_result)
@@ -78,7 +81,10 @@ class EnhancedReporter:
     
     def _generate_json_report(self, spider_result: MiniSpiderResult, output_dir: Path) -> Path:
         """Generate comprehensive JSON report"""
-        json_file = output_dir / f"mini_spider_report_{spider_result.target.replace(':', '_')}.json"
+        import re
+        safe_target = re.sub(r'[<>:"/\\|?*]', '_', spider_result.target)
+        safe_target = re.sub(r'_+', '_', safe_target).strip('_')
+        json_file = output_dir / f"mini_spider_report_{safe_target}.json"
         
         # Create comprehensive report structure
         report_data = {
@@ -121,7 +127,10 @@ class EnhancedReporter:
     
     def _generate_csv_report(self, spider_result: MiniSpiderResult, output_dir: Path) -> Path:
         """Generate CSV report for findings analysis"""
-        csv_file = output_dir / f"mini_spider_findings_{spider_result.target.replace(':', '_')}.csv"
+        import re
+        safe_target = re.sub(r'[<>:"/\\|?*]', '_', spider_result.target)
+        safe_target = re.sub(r'_+', '_', safe_target).strip('_')
+        csv_file = output_dir / f"mini_spider_findings_{safe_target}.csv"
         
         with open(csv_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -153,7 +162,10 @@ class EnhancedReporter:
     
     def _generate_text_report(self, spider_result: MiniSpiderResult, output_dir: Path) -> Path:
         """Generate human-readable text report"""
-        txt_file = output_dir / f"mini_spider_summary_{spider_result.target.replace(':', '_')}.txt"
+        import re
+        safe_target = re.sub(r'[<>:"/\\|?*]', '_', spider_result.target)
+        safe_target = re.sub(r'_+', '_', safe_target).strip('_')
+        txt_file = output_dir / f"mini_spider_summary_{safe_target}.txt"
         
         with open(txt_file, 'w', encoding='utf-8') as f:
             f.write("="*80 + "\n")
