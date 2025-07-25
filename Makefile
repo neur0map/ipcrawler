@@ -152,9 +152,9 @@ install:
 	@# Ensure database/wordlists directory exists
 	@mkdir -p database/wordlists
 	@# Run SecLists check and catalog generation in foreground
-	@cd "$(pwd)" && AUTO_INSTALL=true ./scripts/check_seclists.sh && \
+	@AUTO_INSTALL=true ./scripts/check_seclists.sh && \
 		if [ -f .seclists_path ] && [ -s .seclists_path ]; then \
-			. .seclists_path && \
+			. ./.seclists_path && \
 			if [ ! -z "$$SECLISTS_PATH" ]; then \
 				echo "→ Generating SecLists catalog..."; \
 				if $(PYTHON_CMD) -m src.core.tools.catalog.generate_catalog; then \
