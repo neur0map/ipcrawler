@@ -192,8 +192,16 @@ class SecListsParser:
     
     def _count_lines(self, file_path: Path) -> int:
         """Efficiently count lines in file."""
-        count = sum(1 for _ in f)
-        return count
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                count = sum(1 for _ in f)
+            return count
+        except Exception as e:
+            # Fallback: estimate based on file size (avg 15 chars per line)
+            try:
+                return int(file_path.stat().st_size / 15)
+            except:
+                return 0
     
     def _count_lines_buffered(self, file_path: Path, buffer_size: int = 1024 * 1024) -> int:
         """Count lines in large files using buffered reading."""
