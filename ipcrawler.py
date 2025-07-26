@@ -45,12 +45,49 @@ from workflows.mini_spider_04.scanner import MiniSpiderScanner
 from src.core.config import config
 from src.core.reporting.orchestrator import reporting_orchestrator
 
+
+def version_callback(value: bool):
+    """Handle --version flag"""
+    if value:
+        # Import console here to avoid circular imports
+        from src.core.ui.console.base import console
+        
+        # Read ASCII art from correct location
+        ascii_art_path = Path(__file__).parent / "scripts" / "media" / "ascii-art.txt"
+        if ascii_art_path.exists():
+            with open(ascii_art_path, 'r') as f:
+                ascii_art = f.read()
+                console.print(ascii_art, style="cyan")
+        else:
+            # Fallback ASCII art if file not found
+            console.print("""
+                     ██╗██████╗  ██████╗██████╗  █████╗ ██╗    ██╗██╗     ███████╗██████╗ 
+                     ██║██╔══██╗██╔════╝██╔══██╗██╔══██╗██║    ██║██║     ██╔════╝██╔══██╗
+                     ██║██████╔╝██║     ██████╔╝███████║██║ █╗ ██║██║     █████╗  ██████╔╝
+                     ██║██╔═══╝ ██║     ██╔══██╗██╔══██║██║███╗██║██║     ██╔══╝  ██╔══██╗
+                     ██║██║     ╚██████╗██║  ██║██║  ██║╚███╔███╔╝███████╗███████╗██║  ██║
+                     ╚═╝╚═╝      ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝  ╚═╝
+            """, style="cyan")
+        
+        # Display version from config
+        console.print(f"\n[bold]IPCrawler SmartList Engine[/bold] version [success]{config.version}[/success]")
+        console.print("Intelligent wordlist recommendations powered by target analysis\n")
+        raise typer.Exit()
+
+
+def main_callback(
+    version: bool = typer.Option(False, "--version", callback=version_callback, help="Show version information")
+):
+    """IPCrawler SmartList Engine - Intelligent wordlist recommendations for security testing"""
+    pass
+
 app = typer.Typer(
     name="ipcrawler", 
     help="SmartList Engine - Intelligent wordlist recommendations for security testing",
     no_args_is_help=True,
     add_completion=False,
-    context_settings={"help_option_names": ["-h", "--help"]}
+    context_settings={"help_option_names": ["-h", "--help"]},
+    callback=main_callback
 )
 
 # Using centralized console from src.core.ui.console.base
@@ -91,22 +128,6 @@ def cleanup_existing_nmap_processes():
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
-
-
-def version_callback(value: bool):
-    """Handle --version flag"""
-    if value:
-        # Read ASCII art
-        ascii_art_path = Path(__file__).parent / "media" / "ascii-art.txt"
-        if ascii_art_path.exists():
-            with open(ascii_art_path, 'r') as f:
-                ascii_art = f.read()
-                console.print(ascii_art, style="cyan")
-        
-        # Display version from config
-        console.print(f"\n[bold]IPCrawler SmartList Engine[/bold] version [success]{config.version}[/success]")
-        console.print("Intelligent wordlist recommendations powered by target analysis\n")
-        raise typer.Exit()
 
 
 @app.command("scan", help="Analyze target and recommend optimal wordlists for security testing")
