@@ -84,45 +84,102 @@ class SmartListResult:
 
 
 def score_wordlists(context: ScoringContext) -> SmartListResult:
-    """Score wordlists based on context - simple fallback version"""
-    default_wordlists = [
-        "common.txt",
-        "directory-list-2.3-medium.txt", 
-        "directory-list-2.3-small.txt",
-        "raft-medium-directories.txt",
-        "raft-medium-files.txt"
-    ]
+    """Score wordlists based on context - dynamic catalog-only version (no hardcoded lists)"""
     
-    # Basic scoring logic
-    score = 0.5  # Base score
-    matched_rules = []
+    # Try to get wordlists from catalog first
+    catalog_wordlists = []
+    try:
+        # Check if database is available
+        db_stats = get_database_availability()
+        
+        if db_stats.get('catalog_available', False):
+            # Load catalog and select appropriate wordlists
+            catalog_path = Path(db_stats['catalog_path'])
+            with open(catalog_path, 'r') as f:
+                catalog_data = json.load(f)
+            
+            wordlists = catalog_data.get('wordlists', {})
+            
+            # Smart wordlist selection based on context
+            selected_wordlists = []
+            score_boost = 0.0
+            matched_rules = []
+            
+            # Tech-specific wordlists
+            if context.tech:
+                tech_lower = context.tech.lower()
+                for name, info in wordlists.items():
+                    if tech_lower in name.lower() or tech_lower in info.get('display_name', '').lower():
+                        selected_wordlists.append(name)
+                        score_boost += 0.3
+                        matched_rules.append(f"tech_match:{context.tech}")
+                        if len(selected_wordlists) >= 2:  # Limit tech-specific
+                            break
+            
+            # Port-specific wordlists for web services
+            if context.port in [80, 443, 8080, 8443, 3000, 5000, 9000]:
+                for name, info in wordlists.items():
+                    if any(tag in ['web', 'directories', 'files'] for tag in info.get('tags', [])):
+                        if name not in selected_wordlists:
+                            selected_wordlists.append(name)
+                        score_boost += 0.2
+                        matched_rules.append(f"port:{context.port}")
+                        if len(selected_wordlists) >= 3:
+                            break
+            
+            # Add high-quality general wordlists from catalog
+            if len(selected_wordlists) < 5:
+                for name, info in wordlists.items():
+                    if info.get('quality_score', 0) >= 7 and name not in selected_wordlists:
+                        selected_wordlists.append(name)
+                        if len(selected_wordlists) >= 5:
+                            break
+            
+            catalog_wordlists = selected_wordlists
     
-    # Boost score based on context
-    if context.tech:
-        score += 0.2
-        matched_rules.append(f"tech_category:{context.tech}")
+    except Exception as e:
+        logger.debug(f"Could not load catalog for basic scoring: {e}")
     
-    if context.port in [80, 443, 8080, 8443]:  # Web ports
-        score += 0.1
-        matched_rules.append(f"port:{context.port}")
-    
-    confidence = Confidence.HIGH if score > 0.7 else Confidence.MEDIUM if score > 0.4 else Confidence.LOW
-    fallback_used = score <= 0.5
-    
-    return SmartListResult(
-        wordlists=default_wordlists,
-        score=min(score, 1.0),
-        confidence=confidence,
-        matched_rules=matched_rules or ["generic_fallback"],
-        fallback_used=fallback_used,
-        explanation=ScoreExplanation(
-            exact_match=0.0,
-            tech_category=0.2 if context.tech else 0.0,
-            port_context=0.1 if context.port in [80, 443, 8080, 8443] else 0.0,
-            service_keywords=0.0,
-            generic_fallback=0.5 if fallback_used else 0.0
+    # Calculate scoring based on available wordlists
+    if catalog_wordlists:
+        # We found catalog wordlists - calculate score
+        base_score = 0.4  # Base score when using catalog
+        tech_bonus = 0.2 if context.tech and any('tech_match:' in r for r in matched_rules) else 0.0
+        port_bonus = 0.1 if context.port in [80, 443, 8080, 8443] else 0.0
+        
+        final_score = min(base_score + tech_bonus + port_bonus, 1.0)
+        confidence = Confidence.MEDIUM if final_score >= 0.5 else Confidence.LOW
+        
+        return SmartListResult(
+            wordlists=catalog_wordlists,
+            score=final_score,
+            confidence=confidence,
+            matched_rules=matched_rules or ["catalog_basic"],
+            fallback_used=False,
+            explanation=ScoreExplanation(
+                exact_match=0.0,
+                tech_category=tech_bonus,
+                port_context=port_bonus,
+                service_keywords=0.0,
+                generic_fallback=0.0
+            )
         )
-    )
+    else:
+        # No catalog available - return minimal result indicating catalog needed
+        return SmartListResult(
+            wordlists=[],  # No hardcoded fallbacks - SmartList engine requires catalog
+            score=0.1,  # Very low score to indicate incomplete data
+            confidence=Confidence.LOW,
+            matched_rules=["no_catalog_available"],
+            fallback_used=True,
+            explanation=ScoreExplanation(
+                exact_match=0.0,
+                tech_category=0.0,
+                port_context=0.0,
+                service_keywords=0.0,
+                generic_fallback=0.1  # Minimal score indicating fallback state
+            )
+        )
 
 
 def score_wordlists_with_catalog(context: ScoringContext) -> SmartListResult:
@@ -165,15 +222,17 @@ def score_wordlists_with_catalog(context: ScoringContext) -> SmartListResult:
                         if len(selected_wordlists) >= 3:
                             break
             
-            # Add some general-purpose wordlists
-            general_wordlists = [
-                'common.txt', 'directory-list-2.3-medium.txt', 'raft-medium-directories.txt'
-            ]
-            for general in general_wordlists:
-                if general in wordlists and general not in selected_wordlists:
-                    selected_wordlists.append(general)
-                    if len(selected_wordlists) >= 5:
-                        break
+            # Add high-quality general-purpose wordlists from catalog (no hardcoding)
+            if len(selected_wordlists) < 5:
+                # Get wordlists with high quality scores or common tags
+                for name, info in wordlists.items():
+                    if name not in selected_wordlists:
+                        # Prioritize by quality score or common usage tags
+                        if (info.get('quality_score', 0) >= 8 or 
+                            any(tag in ['common', 'general', 'basic'] for tag in info.get('tags', []))):
+                            selected_wordlists.append(name)
+                            if len(selected_wordlists) >= 5:
+                                break
             
             # If we found catalog-specific wordlists, return enhanced result
             if selected_wordlists:

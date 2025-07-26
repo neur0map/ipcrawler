@@ -37,19 +37,45 @@ class WordlistRecommendationReporter(BaseReporter):
             
             for rec in recommendations:
                 service = rec.get('service', 'Unknown')
-                lines.append(f"Service: {service}")
-                lines.append("-" * 20)
+                service_name = rec.get('service_name', '')
+                detected_tech = rec.get('detected_technology', '')
+                confidence = rec.get('confidence', 'LOW')
+                
+                # Enhanced service header with technology info
+                service_header = f"Service: {service}"
+                if service_name and service_name != 'unknown':
+                    service_header += f" ({service_name})"
+                if detected_tech:
+                    service_header += f" - {detected_tech} detected"
+                
+                lines.append(service_header)
+                lines.append("-" * len(service_header))
+                lines.append(f"Confidence: {confidence}")
+                lines.append("")
                 
                 wordlists = rec.get('top_wordlists', [])
-                for wl in wordlists:
-                    wordlist_name = wl.get('wordlist', 'Unknown')
-                    confidence = wl.get('confidence', 'LOW')
-                    path = f"/usr/share/seclists/Discovery/Web-Content/{wordlist_name}"
-                    lines.append(f"  [{confidence}] {path}")
+                if not wordlists:
+                    lines.append("  No specific wordlists recommended for this service")
+                else:
+                    for wl in wordlists:
+                        wordlist_name = wl.get('wordlist', 'Unknown')
+                        wl_confidence = wl.get('confidence', 'LOW')
+                        reason = wl.get('reason', 'No reason provided')
+                        wl_path = wl.get('path')  # Use resolved path from SmartList
+                        
+                        # Use resolved path if available, otherwise fallback to default path
+                        if wl_path:
+                            display_path = wl_path
+                        else:
+                            display_path = f"/usr/share/seclists/Discovery/Web-Content/{wordlist_name}"
+                        
+                        lines.append(f"  [{wl_confidence}] {display_path}")
+                        lines.append(f"      Reason: {reason}")
                 
                 lines.append("")
         else:
-            lines.append("No wordlist recommendations available")
+            lines.append("No SmartList recommendations available")
+            lines.append("Note: Run the complete scan workflow including SmartList analysis for intelligent recommendations.")
         
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(lines))
