@@ -120,9 +120,20 @@ class WorkspaceManager:
     
     def _clean_target_name(self, target: str) -> str:
         """Clean target name for use in filesystem paths"""
+        import re
+        
         # Replace problematic characters
         clean_name = sanitize_target(target)
-        clean_name = ''.join(c for c in clean_name if c.isalnum() or c in '_-')
+        
+        # Check if it's an IP address pattern and preserve dots
+        ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+        if re.match(ip_pattern, clean_name):
+            # For IP addresses, keep dots and only allow digits, dots, underscores, and hyphens
+            clean_name = ''.join(c for c in clean_name if c.isdigit() or c in '._-')
+        else:
+            # For other targets, remove dots as they could cause issues
+            clean_name = ''.join(c for c in clean_name if c.isalnum() or c in '_-')
+        
         return clean_name[:50]  # Limit length
     
     def _get_workspace_info(self, workspace_path: Path) -> WorkspaceInfo:

@@ -754,9 +754,6 @@ async def run_workflow(target: str, debug: bool = False):
                 total_execution_time += smartlist_result.execution_time or 0.0
                 # SmartList analysis completed
                 smartlist_data = smartlist_result.data
-                
-                # Display top wordlist recommendations
-                display_smartlist_summary(smartlist_data)
             else:
                 error_msg = smartlist_result.error or "Unknown error"
                 console.print(f"⚠ SmartList analysis failed: {error_msg}")
@@ -795,24 +792,33 @@ async def run_workflow(target: str, debug: bool = False):
         # All analysis completed - Save each workflow's results separately
         
         # Save base nmap scan results (text only)
-        reporting_orchestrator.generate_workflow_reports(workspace, 'nmap_02', result.data)
+        nmap_data_with_target = result.data.copy()
+        nmap_data_with_target['target'] = resolved_target
+        reporting_orchestrator.generate_workflow_reports(workspace, 'nmap_02', nmap_data_with_target)
         
         # Save HTTP scan results if available (text only)
         if http_scan_data:
-            reporting_orchestrator.generate_workflow_reports(workspace, 'http_03', http_scan_data)
+            http_data_with_target = http_scan_data.copy()
+            http_data_with_target['target'] = resolved_target
+            reporting_orchestrator.generate_workflow_reports(workspace, 'http_03', http_data_with_target)
         
         # Save Mini Spider results if available (text only)
         if spider_data:
-            reporting_orchestrator.generate_workflow_reports(workspace, 'mini_spider_04', spider_data)
+            spider_data_with_target = spider_data.copy()
+            spider_data_with_target['target'] = resolved_target
+            reporting_orchestrator.generate_workflow_reports(workspace, 'mini_spider_04', spider_data_with_target)
         
         # Save SmartList results with wordlist file (text + wordlist only)
         if smartlist_data:
-            reporting_orchestrator.generate_workflow_reports(workspace, 'smartlist_05', smartlist_data)
+            smartlist_data_with_target = smartlist_data.copy()
+            smartlist_data_with_target['target'] = resolved_target
+            reporting_orchestrator.generate_workflow_reports(workspace, 'smartlist_05', smartlist_data_with_target)
         
         # Generate master TXT report and wordlist recommendations
         try:
             # Collect all workflow data for final report generation
             all_workflow_data = {
+                'target': resolved_target,  # Ensure target is included
                 'nmap_fast_01': discovery_result.data if 'discovery_result' in locals() else None,
                 'nmap_02': result.data,
                 'http_03': http_scan_data,
