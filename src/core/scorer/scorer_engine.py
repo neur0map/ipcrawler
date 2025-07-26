@@ -105,16 +105,46 @@ def score_wordlists(context: ScoringContext) -> SmartListResult:
             score_boost = 0.0
             matched_rules = []
             
-            # Tech-specific wordlists
+            # Tech-specific wordlists with version awareness
             if context.tech:
                 tech_lower = context.tech.lower()
+                version_info = getattr(context, 'version', None)
+                
+                version_matches = []
+                tech_matches = []
+                
                 for name, info in wordlists.items():
-                    if tech_lower in name.lower() or tech_lower in info.get('display_name', '').lower():
-                        selected_wordlists.append(name)
-                        score_boost += 0.3
+                    name_lower = name.lower()
+                    display_name_lower = info.get('display_name', '').lower()
+                    
+                    # Check for version-specific matches first
+                    if version_info:
+                        version_patterns = [
+                            f"{tech_lower}_{version_info}",
+                            f"{tech_lower}-{version_info}",
+                            f"{tech_lower}.{version_info}",
+                            f"{tech_lower} {version_info}"
+                        ]
+                        
+                        for pattern in version_patterns:
+                            if pattern in name_lower or pattern in display_name_lower:
+                                version_matches.append(name)
+                                matched_rules.append(f"version_match:{context.tech}:{version_info}")
+                                score_boost += 0.4  # Higher boost for version match
+                                break
+                    
+                    # Check for general tech matches
+                    if tech_lower in name_lower or tech_lower in display_name_lower:
+                        tech_matches.append(name)
+                
+                # Add version matches first, then general tech matches
+                selected_wordlists.extend(version_matches[:1])  # Top version match
+                remaining_slots = max(0, 2 - len(version_matches))
+                for tech_match in tech_matches[:remaining_slots]:
+                    if tech_match not in selected_wordlists:
+                        selected_wordlists.append(tech_match)
                         matched_rules.append(f"tech_match:{context.tech}")
-                        if len(selected_wordlists) >= 2:  # Limit tech-specific
-                            break
+                        score_boost += 0.3
             
             # Port-specific wordlists for web services
             if context.port in [80, 443, 8080, 8443, 3000, 5000, 9000]:
@@ -201,15 +231,68 @@ def score_wordlists_with_catalog(context: ScoringContext) -> SmartListResult:
             score_boost = 0.0
             matched_rules = []
             
-            # Tech-specific wordlists
+            # Enhanced tech-specific wordlists with version awareness
             if context.tech:
                 tech_lower = context.tech.lower()
+                version_info = getattr(context, 'version', None)
+                
+                # First, look for version-specific wordlists
+                version_matches = []
+                tech_matches = []
+                
                 for name, info in wordlists.items():
-                    if tech_lower in name.lower() or tech_lower in info.get('display_name', '').lower():
-                        selected_wordlists.append(name)
-                        score_boost += 0.3
-                        matched_rules.append(f"exact:{context.tech}:{context.port}")
-                        break
+                    name_lower = name.lower()
+                    display_name_lower = info.get('display_name', '').lower()
+                    
+                    # Check for version-specific matches first (highest priority)
+                    if version_info:
+                        version_patterns = [
+                            f"{tech_lower}_{version_info}",
+                            f"{tech_lower}-{version_info}",
+                            f"{tech_lower}.{version_info}",
+                            f"{tech_lower} {version_info}"
+                        ]
+                        
+                        for pattern in version_patterns:
+                            if pattern in name_lower or pattern in display_name_lower:
+                                version_matches.append({
+                                    'name': name,
+                                    'score_boost': 0.5,  # Highest boost for version match
+                                    'rule': f"version_exact:{context.tech}:{version_info}:{context.port}"
+                                })
+                                break
+                    
+                    # Check for general tech matches
+                    if tech_lower in name_lower or tech_lower in display_name_lower:
+                        # Check tech compatibility if available
+                        tech_compatibility = info.get('tech_compatibility', [])
+                        compatibility_boost = 0.0
+                        
+                        if tech_compatibility:
+                            for tech_compat in tech_compatibility:
+                                if tech_lower in tech_compat.lower():
+                                    compatibility_boost = 0.1
+                                    break
+                        
+                        tech_matches.append({
+                            'name': name,
+                            'score_boost': 0.3 + compatibility_boost,
+                            'rule': f"tech_match:{context.tech}:{context.port}"
+                        })
+                
+                # Add version-specific matches first (highest priority)
+                for match in version_matches[:2]:  # Limit to top 2 version matches
+                    selected_wordlists.append(match['name'])
+                    score_boost += match['score_boost']
+                    matched_rules.append(match['rule'])
+                
+                # Add general tech matches if we don't have enough version-specific ones
+                remaining_slots = max(0, 3 - len(version_matches))
+                for match in tech_matches[:remaining_slots]:
+                    if match['name'] not in selected_wordlists:
+                        selected_wordlists.append(match['name'])
+                        score_boost += match['score_boost']
+                        matched_rules.append(match['rule'])
             
             # Port-specific wordlists for web services
             if context.port in [80, 443, 8080, 8443, 3000, 5000, 9000]:

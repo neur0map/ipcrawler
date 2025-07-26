@@ -19,6 +19,7 @@ try:
         get_port_context,
         explain_scoring,
         get_scoring_stats,
+        get_database_availability,
         ScoringContext
     )
     SMARTLIST_AVAILABLE = True
@@ -127,13 +128,21 @@ class SmartListScanner(BaseWorkflow):
             )
     
     def _aggregate_scan_results(self, previous_results: Dict[str, Any]) -> Dict[str, Any]:
-        """Aggregate data from previous workflow results"""
+        """Enhanced cross-workflow data aggregation with correlation analysis"""
         aggregated = {
             'services': [],
             'technologies': {},
             'os_info': None,
             'dns_records': [],
-            'vulnerabilities': []
+            'vulnerabilities': [],
+            'correlation_metadata': {
+                'workflow_sources': [],
+                'data_quality_scores': {},
+                'cross_validation': {},
+                'technology_consensus': {},
+                'version_correlation': {},
+                'confidence_matrix': {}
+            }
         }
         
         # Extract from nmap_fast_01
@@ -337,82 +346,86 @@ class SmartListScanner(BaseWorkflow):
                                 service['technologies'] = all_techs
                                 service['spider_technologies'] = spider_techs
         
-        debug_print(f"Aggregated {len(aggregated['services'])} services from previous scans")
+        # Perform cross-workflow correlation analysis
+        aggregated = self._analyze_cross_workflow_correlations(aggregated, previous_results)
+        
+        debug_print(f"Aggregated {len(aggregated['services'])} services from previous scans with enhanced correlation")
         return aggregated
     
     def _build_service_context(self, service_data: Dict[str, Any], 
                               aggregated_data: Dict[str, Any]) -> ScoringContext:
         """Build ScoringContext from service data with spider intelligence"""
-        # Extract technology with multi-source confidence scoring
+        # Extract technology using enhanced cross-workflow correlation
         tech = None
         tech_confidence = 0.0
         tech_sources = []
         
-        # 1. Check technologies array (from http scan) - High confidence
-        if service_data.get('technologies') and len(service_data['technologies']) > 0 and service_data['technologies'][0]:
-            tech = service_data['technologies'][0].lower()
-            tech_confidence = 0.8
-            tech_sources.append('http_scan')
+        # First, check if we have consensus technology from correlation analysis
+        service_key = f"{service_data['host']}:{service_data['port']}"
+        correlation_meta = aggregated_data.get('correlation_metadata', {})
+        tech_consensus = correlation_meta.get('technology_consensus', {})
         
-        # 2. Check spider-detected technologies - High confidence if found
-        elif service_data.get('spider_technologies'):
-            tech = service_data['spider_technologies'][0].lower()
-            tech_confidence = 0.9  # Spider is very thorough
-            tech_sources.append('spider_scan')
-        
-        # 3. Check product/version from nmap - Medium confidence
-        elif service_data.get('product'):
-            # Extract technology from product name
-            product = service_data['product'].lower()
-            # Common technology patterns
-            tech_patterns = {
-                'apache': 'apache',
-                'nginx': 'nginx',
-                'mysql': 'mysql',
-                'mariadb': 'mariadb',
-                'postgresql': 'postgresql',
-                'mongodb': 'mongodb',
-                'redis': 'redis',
-                'tomcat': 'tomcat',
-                'wordpress': 'wordpress',
-                'drupal': 'drupal',
-                'joomla': 'joomla',
-                'jenkins': 'jenkins',
-                'gitlab': 'gitlab',
-                'phpmyadmin': 'phpmyadmin'
-            }
+        if service_key in tech_consensus:
+            consensus_info = tech_consensus[service_key]
+            tech = consensus_info['technology']
+            tech_confidence = consensus_info['confidence']
+            tech_sources.append(f"consensus_({consensus_info['consensus_score']}_votes)")
+            debug_print(f"Using consensus technology for {service_key}: {tech} (confidence: {tech_confidence:.2f})")
             
-            for pattern, tech_name in tech_patterns.items():
-                if pattern in product:
-                    tech = tech_name
-                    tech_confidence = 0.7
-                    tech_sources.append('nmap_product')
-                    break
-        
-        # 4. Check X-Powered-By header - Medium confidence
-        elif service_data.get('headers', {}).get('X-Powered-By'):
-            powered_by = service_data['headers']['X-Powered-By']
-            if powered_by:
-                tech = powered_by.split('/')[0].lower()
-                tech_confidence = 0.6
-                tech_sources.append('http_header')
-        
-        # 5. Infer from spider URL categories - Lower confidence but useful
-        elif service_data.get('spider_categories'):
-            category_tech_map = {
-                'admin': 'admin_panel',
-                'api': 'rest_api',
-                'auth': 'authentication',
-                'docs': 'documentation',
-                'dev': 'development'
-            }
+        # If no consensus, fall back to individual workflow detection
+        if not tech:
+            # 1. Check technologies array (from http scan) - High confidence
+            if service_data.get('technologies') and len(service_data['technologies']) > 0 and service_data['technologies'][0]:
+                tech = service_data['technologies'][0].lower()
+                tech_confidence = 0.8
+                tech_sources.append('http_scan')
             
-            for category in service_data['spider_categories']:
-                if category in category_tech_map:
-                    tech = category_tech_map[category]
-                    tech_confidence = 0.4
-                    tech_sources.append('spider_categories')
-                    break
+            # 2. Check spider-detected technologies - High confidence if found
+            elif service_data.get('spider_technologies'):
+                tech = service_data['spider_technologies'][0].lower()
+                tech_confidence = 0.9  # Spider is very thorough
+                tech_sources.append('spider_scan')
+            
+            # 3. Check product/version from nmap using database patterns - Medium confidence
+            elif service_data.get('product'):
+                product = service_data['product'].lower()
+                detected_tech = self._detect_technology_from_database(
+                    product_string=product,
+                    port=service_data.get('port')
+                )
+                
+                if detected_tech:
+                    tech = detected_tech['technology']
+                    tech_confidence = detected_tech['confidence']
+                    tech_sources.append(f"nmap_product_db:{detected_tech['source']}")
+                    debug_print(f"Database-detected tech from product '{product}': {tech} (confidence: {tech_confidence:.2f})")
+            
+            # 4. Database-driven HTTP header analysis - Medium to High confidence
+            elif service_data.get('headers'):
+                headers = service_data['headers']
+                detected_tech = self._detect_technology_from_headers(
+                    headers=headers,
+                    port=service_data.get('port')
+                )
+                
+                if detected_tech:
+                    tech = detected_tech['technology']
+                    tech_confidence = detected_tech['confidence']
+                    tech_sources.append(f"http_header_db:{detected_tech['source']}")
+                    debug_print(f"Database-detected tech from headers: {tech} (confidence: {tech_confidence:.2f}, source: {detected_tech['source']})")
+            
+            # 5. Database-driven spider category analysis - Lower confidence but useful  
+            elif service_data.get('spider_categories'):
+                detected_tech = self._detect_technology_from_spider_categories(
+                    categories=service_data['spider_categories'],
+                    port=service_data.get('port')
+                )
+                
+                if detected_tech:
+                    tech = detected_tech['technology']
+                    tech_confidence = detected_tech['confidence']
+                    tech_sources.append(f"spider_categories_db:{detected_tech['source']}")
+                    debug_print(f"Database-detected tech from spider categories: {tech} (confidence: {tech_confidence:.2f})")
         
         # Build enhanced service description with spider intelligence
         service_desc_parts = []
@@ -445,14 +458,26 @@ class SmartListScanner(BaseWorkflow):
             'has_spider_intel': service_data.get('spider_url_count', 0) > 0
         }
         
-        # Create enhanced context with spider data
+        # Get enhanced version information from correlation analysis
+        version = service_data.get('version')
+        correlation_meta = aggregated_data.get('correlation_metadata', {})
+        version_correlations = correlation_meta.get('version_correlation', {})
+        
+        # Use consensus version if available (higher accuracy)
+        if service_key in version_correlations:
+            consensus_version = version_correlations[service_key].get('consensus_version')
+            if consensus_version:
+                version = consensus_version
+                debug_print(f"Using consensus version for {service_key}: {version}")
+        
+        # Create enhanced context with spider data and consensus information
         context = ScoringContext(
             target=service_data['host'],
             port=service_data['port'],
             service=service_desc,
             tech=tech,
             os=aggregated_data.get('os_info', {}).get('os') if aggregated_data.get('os_info') else None,
-            version=service_data.get('version'),
+            version=version,
             headers=service_data.get('headers', {}),
             spider_data=spider_intelligence if spider_intelligence['has_spider_intel'] else None
         )
@@ -568,46 +593,673 @@ class SmartListScanner(BaseWorkflow):
         return service_rec
     
     def _apply_spider_scoring_boosts(self, result, context: ScoringContext, service_data: Dict[str, Any]):
-        """Apply scoring boosts based on spider intelligence"""
+        """Enhanced spider intelligence with database-driven content categorization"""
         spider_data = context.spider_data
         boost_factor = 1.0
         additional_rules = []
         
-        # High tech confidence boost
+        # Enhanced content analysis using database patterns
+        content_analysis = self._analyze_spider_content_with_database(spider_data, context.tech, context.port)
+        
+        # Apply database-driven category boosts
+        for category, analysis in content_analysis.items():
+            if analysis['confidence'] > 0.6:  # Only high-confidence categorizations
+                boost_factor *= analysis['boost_factor']
+                additional_rules.append(f"spider_db_category:{category}:{analysis['confidence']:.2f}")
+                debug_print(f"Applied database-driven category boost: {category} (confidence: {analysis['confidence']:.2f}, boost: {analysis['boost_factor']:.2f})")
+        
+        # Technology-specific pattern boosts
         if spider_data.get('tech_confidence', 0) > 0.8:
-            boost_factor *= 1.2
-            additional_rules.append(f"spider_tech_confidence:{spider_data['tech_confidence']:.2f}")
+            tech_boost = self._calculate_tech_specific_boost(context.tech, spider_data)
+            boost_factor *= tech_boost
+            additional_rules.append(f"spider_tech_specific:{context.tech}:{tech_boost:.2f}")
         
-        # URL category boosts
-        category_boosts = {
-            'admin': 1.3,  # Admin panels are high value targets
-            'api': 1.2,    # APIs are important
-            'auth': 1.25,  # Authentication endpoints
-            'config': 1.4, # Config files are critical
-            'dev': 1.1     # Development resources
-        }
+        # Path pattern analysis
+        path_analysis = self._analyze_discovered_paths(spider_data.get('discovered_paths', []), context.tech)
+        if path_analysis['security_relevance'] > 0.7:
+            boost_factor *= (1.0 + path_analysis['security_relevance'] * 0.3)
+            additional_rules.append(f"spider_security_paths:{path_analysis['security_relevance']:.2f}")
         
-        for category in spider_data.get('categories', []):
-            if category in category_boosts:
-                boost_factor *= category_boosts[category]
-                additional_rules.append(f"spider_category:{category}")
-        
-        # Path discovery boost - more paths = better targeting
-        path_count = len(spider_data.get('discovered_paths', []))
-        if path_count > 10:
-            boost_factor *= 1.15
-            additional_rules.append(f"spider_paths_rich:{path_count}")
-        elif path_count > 5:
-            boost_factor *= 1.1
-            additional_rules.append(f"spider_paths_good:{path_count}")
+        # File extension intelligence
+        file_ext_boost = self._analyze_file_extensions(spider_data.get('discovered_paths', []), context.tech)
+        if file_ext_boost > 1.0:
+            boost_factor *= file_ext_boost
+            additional_rules.append(f"spider_file_extensions:{file_ext_boost:.2f}")
         
         # Apply boosts to result
         if boost_factor > 1.0:
             result.score = min(result.score * boost_factor, 1.0)  # Cap at 1.0
             result.matched_rules.extend(additional_rules)
-            debug_print(f"Applied spider boost factor {boost_factor:.2f} to recommendations")
+            debug_print(f"Applied enhanced spider boost factor {boost_factor:.2f} to recommendations")
         
         return result
+    
+    def _analyze_cross_workflow_correlations(self, aggregated: Dict[str, Any], previous_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze and correlate data across workflows for improved accuracy"""
+        try:
+            correlation_meta = aggregated['correlation_metadata']
+            
+            # Track workflow sources
+            correlation_meta['workflow_sources'] = list(previous_results.keys())
+            
+            # Analyze technology consensus across workflows
+            tech_consensus = {}
+            version_correlations = {}
+            
+            for service in aggregated['services']:
+                service_key = f"{service['host']}:{service['port']}"
+                
+                # Collect technology detections from different sources
+                tech_sources = {
+                    'nmap': service.get('service', ''),
+                    'http': service.get('technologies', []),
+                    'spider': service.get('spider_technologies', []),
+                    'product': service.get('product', ''),
+                    'headers': service.get('headers', {})
+                }
+                
+                # Build technology consensus
+                tech_votes = {}
+                confidence_scores = {}
+                
+                # Process nmap service detection
+                if tech_sources['nmap']:
+                    tech_name = tech_sources['nmap'].lower()
+                    tech_votes[tech_name] = tech_votes.get(tech_name, 0) + 2  # High weight
+                    confidence_scores[tech_name] = confidence_scores.get(tech_name, []) + [0.8]
+                
+                # Process HTTP-detected technologies
+                if tech_sources['http']:
+                    for tech in tech_sources['http']:
+                        tech_name = tech.lower()
+                        tech_votes[tech_name] = tech_votes.get(tech_name, 0) + 3  # Highest weight
+                        confidence_scores[tech_name] = confidence_scores.get(tech_name, []) + [0.9]
+                
+                # Process spider-detected technologies
+                if tech_sources['spider']:
+                    for tech in tech_sources['spider']:
+                        tech_name = tech.lower()
+                        tech_votes[tech_name] = tech_votes.get(tech_name, 0) + 2  # High weight
+                        confidence_scores[tech_name] = confidence_scores.get(tech_name, []) + [0.8]
+                
+                # Process product string
+                if tech_sources['product']:
+                    # Use database detection for product string
+                    detected_tech = self._detect_technology_from_database(
+                        tech_sources['product'].lower(),
+                        service.get('port')
+                    )
+                    if detected_tech:
+                        tech_name = detected_tech['technology']
+                        tech_votes[tech_name] = tech_votes.get(tech_name, 0) + 1
+                        confidence_scores[tech_name] = confidence_scores.get(tech_name, []) + [detected_tech['confidence']]
+                
+                # Process headers
+                if tech_sources['headers']:
+                    detected_tech = self._detect_technology_from_headers(
+                        tech_sources['headers'],
+                        service.get('port')
+                    )
+                    if detected_tech:
+                        tech_name = detected_tech['technology']
+                        tech_votes[tech_name] = tech_votes.get(tech_name, 0) + 1
+                        confidence_scores[tech_name] = confidence_scores.get(tech_name, []) + [detected_tech['confidence']]
+                
+                # Calculate consensus technology
+                if tech_votes:
+                    # Find technology with highest consensus
+                    consensus_tech = max(tech_votes.items(), key=lambda x: x[1])
+                    tech_name, vote_count = consensus_tech
+                    
+                    # Calculate average confidence
+                    avg_confidence = sum(confidence_scores.get(tech_name, [0.5])) / len(confidence_scores.get(tech_name, [1]))
+                    
+                    tech_consensus[service_key] = {
+                        'technology': tech_name,
+                        'consensus_score': vote_count,
+                        'confidence': avg_confidence,
+                        'sources': list(tech_sources.keys()),
+                        'alternative_detections': {k: v for k, v in tech_votes.items() if k != tech_name and v > 0}
+                    }
+                    
+                    # Update service with consensus technology
+                    service['consensus_technology'] = tech_name
+                    service['technology_confidence'] = avg_confidence
+                    service['technology_sources'] = len([s for s in tech_sources.values() if s])
+                
+                # Analyze version correlations
+                version_info = {
+                    'nmap_version': service.get('version'),
+                    'product_version': None,
+                    'header_version': None
+                }
+                
+                # Extract version from product string
+                if service.get('product'):
+                    import re
+                    version_match = re.search(r'(\d+\.[\d\.]+)', service['product'])
+                    if version_match:
+                        version_info['product_version'] = version_match.group(1)
+                
+                # Extract version from headers
+                headers = service.get('headers', {})
+                for header_name, header_value in headers.items():
+                    if 'version' in header_name.lower():
+                        import re
+                        version_match = re.search(r'(\d+\.[\d\.]+)', header_value)
+                        if version_match:
+                            version_info['header_version'] = version_match.group(1)
+                            break
+                
+                # Store version correlation if multiple sources agree
+                versions_found = [v for v in version_info.values() if v]
+                if len(versions_found) > 1:
+                    version_correlations[service_key] = {
+                        'detected_versions': version_info,
+                        'correlation_strength': len(versions_found),
+                        'consensus_version': max(set(versions_found), key=versions_found.count) if versions_found else None
+                    }
+                    
+                    # Update service with consensus version
+                    if version_correlations[service_key]['consensus_version']:
+                        service['consensus_version'] = version_correlations[service_key]['consensus_version']
+            
+            # Calculate overall data quality score
+            total_services = len(aggregated['services'])
+            services_with_consensus = len(tech_consensus)
+            services_with_versions = len(version_correlations)
+            
+            quality_score = 0.0
+            if total_services > 0:
+                quality_score = (
+                    (services_with_consensus / total_services) * 0.6 +  # Technology consensus weight
+                    (services_with_versions / total_services) * 0.2 +   # Version correlation weight
+                    (len(correlation_meta['workflow_sources']) / 4) * 0.2  # Workflow completeness weight
+                )
+            
+            # Store correlation results
+            correlation_meta['technology_consensus'] = tech_consensus
+            correlation_meta['version_correlation'] = version_correlations
+            correlation_meta['data_quality_scores'] = {
+                'overall_quality': quality_score,
+                'technology_consensus_rate': services_with_consensus / total_services if total_services > 0 else 0,
+                'version_correlation_rate': services_with_versions / total_services if total_services > 0 else 0,
+                'workflow_completeness': len(correlation_meta['workflow_sources']) / 4
+            }
+            
+            debug_print(f"Cross-workflow correlation analysis complete:")
+            debug_print(f"  - Technology consensus: {services_with_consensus}/{total_services} services")
+            debug_print(f"  - Version correlations: {services_with_versions}/{total_services} services") 
+            debug_print(f"  - Overall data quality: {quality_score:.2f}")
+            
+            return aggregated
+            
+        except Exception as e:
+            debug_print(f"Error in cross-workflow correlation analysis: {e}", level="ERROR")
+            return aggregated
+    
+    def _detect_technology_from_database(self, product_string: str, port: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """Detect technology from product string using database patterns"""
+        try:
+            # Get database availability
+            db_stats = get_database_availability()
+            if not db_stats.get('port_database_available'):
+                debug_print("Port database not available for technology detection", level="WARNING")
+                return None
+            
+            # Load port database
+            port_db_path = Path(db_stats['port_database_path'])
+            with open(port_db_path, 'r') as f:
+                port_db = json.load(f)
+            
+            best_match = None
+            best_confidence = 0.0
+            
+            # Check each port's alternative services and banners
+            for port_num, port_info in port_db.items():
+                # Check alternative services (exact and partial matches)
+                if 'alternative_services' in port_info:
+                    for service in port_info['alternative_services']:
+                        service_lower = service.lower()
+                        
+                        # Exact match - high confidence
+                        if service_lower == product_string:
+                            return {
+                                'technology': service_lower,
+                                'confidence': 0.9,
+                                'source': f'alternative_service_exact_{port_num}'
+                            }
+                        
+                        # Partial match - medium confidence
+                        elif service_lower in product_string or product_string in service_lower:
+                            if 0.7 > best_confidence:
+                                best_match = {
+                                    'technology': service_lower,
+                                    'confidence': 0.7,
+                                    'source': f'alternative_service_partial_{port_num}'
+                                }
+                                best_confidence = 0.7
+                
+                # Check default service
+                if 'default_service' in port_info:
+                    default_service = port_info['default_service'].lower()
+                    if default_service in product_string or product_string in default_service:
+                        if 0.6 > best_confidence:
+                            best_match = {
+                                'technology': default_service,
+                                'confidence': 0.6,
+                                'source': f'default_service_{port_num}'
+                            }
+                            best_confidence = 0.6
+                
+                # Check banners for pattern matching
+                if 'indicators' in port_info and 'banners' in port_info['indicators']:
+                    for banner in port_info['indicators']['banners']:
+                        banner_lower = banner.lower()
+                        if banner_lower in product_string:
+                            if 0.5 > best_confidence:
+                                best_match = {
+                                    'technology': banner_lower,
+                                    'confidence': 0.5,
+                                    'source': f'banner_match_{port_num}'
+                                }
+                                best_confidence = 0.5
+            
+            return best_match
+            
+        except Exception as e:
+            debug_print(f"Error in database technology detection: {e}", level="ERROR")
+            return None
+    
+    def _detect_technology_from_headers(self, headers: Dict[str, str], port: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """Detect technology from HTTP headers using database patterns"""
+        try:
+            # Get database availability
+            db_stats = get_database_availability()
+            if not db_stats.get('port_database_available'):
+                return None
+            
+            # Load port database
+            port_db_path = Path(db_stats['port_database_path'])
+            with open(port_db_path, 'r') as f:
+                port_db = json.load(f)
+            
+            # Header importance and confidence mapping
+            header_importance = {
+                'x-powered-by': 0.8,
+                'server': 0.7,
+                'x-generator': 0.9,
+                'x-drupal-cache': 0.95,
+                'x-pingback': 0.9,
+                'x-aspnet-version': 0.95,
+                'x-aspnetmvc-version': 0.95,
+                'x-frame-options': 0.3
+            }
+            
+            best_match = None
+            best_confidence = 0.0
+            
+            # Check each header against database patterns
+            for header_name, header_value in headers.items():
+                header_lower = header_name.lower()
+                value_lower = header_value.lower()
+                
+                base_confidence = header_importance.get(header_lower, 0.4)
+                
+                # Check against all services in database
+                for port_num, port_info in port_db.items():
+                    # Check alternative services
+                    if 'alternative_services' in port_info:
+                        for service in port_info['alternative_services']:
+                            service_lower = service.lower()
+                            
+                            if service_lower in value_lower:
+                                confidence = base_confidence * 0.9  # Slight reduction for partial match
+                                if confidence > best_confidence:
+                                    best_match = {
+                                        'technology': service_lower,
+                                        'confidence': confidence,
+                                        'source': f'{header_lower}_service_match'
+                                    }
+                                    best_confidence = confidence
+                    
+                    # Check tech stack information
+                    if 'tech_stack' in port_info:
+                        tech_stack = port_info['tech_stack']
+                        for stack_key, stack_value in tech_stack.items():
+                            if stack_value and isinstance(stack_value, str):
+                                if stack_value.lower() in value_lower:
+                                    confidence = base_confidence * 0.8
+                                    if confidence > best_confidence:
+                                        best_match = {
+                                            'technology': stack_value.lower(),
+                                            'confidence': confidence,
+                                            'source': f'{header_lower}_tech_stack_{stack_key}'
+                                        }
+                                        best_confidence = confidence
+            
+            return best_match
+            
+        except Exception as e:
+            debug_print(f"Error in header-based technology detection: {e}", level="ERROR")
+            return None
+    
+    def _detect_technology_from_spider_categories(self, categories: List[str], port: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """Detect technology from spider categories using database patterns"""
+        try:
+            # Get database availability  
+            db_stats = get_database_availability()
+            if not db_stats.get('port_database_available'):
+                return None
+            
+            # Load port database
+            port_db_path = Path(db_stats['port_database_path'])
+            with open(port_db_path, 'r') as f:
+                port_db = json.load(f)
+            
+            # Category to technology inference patterns
+            category_patterns = {}
+            
+            # Build patterns from database
+            for port_num, port_info in port_db.items():
+                if 'classification' in port_info and 'category' in port_info['classification']:
+                    db_category = port_info['classification']['category']
+                    default_service = port_info.get('default_service', 'unknown')
+                    
+                    if db_category not in category_patterns:
+                        category_patterns[db_category] = []
+                    category_patterns[db_category].append(default_service)
+            
+            best_match = None
+            best_confidence = 0.0
+            
+            # Match spider categories against database categories
+            for spider_category in categories:
+                spider_lower = spider_category.lower()
+                
+                # Direct category match
+                if spider_lower in category_patterns:
+                    # Use most common service for this category
+                    services = category_patterns[spider_lower]
+                    most_common = max(set(services), key=services.count) if services else 'unknown'
+                    
+                    if most_common != 'unknown':
+                        confidence = 0.4  # Low confidence for category inference
+                        if confidence > best_confidence:
+                            best_match = {
+                                'technology': most_common,
+                                'confidence': confidence,
+                                'source': f'category_inference_{spider_lower}'
+                            }
+                            best_confidence = confidence
+                
+                # Partial category matching
+                for db_category, services in category_patterns.items():
+                    if spider_lower in db_category or db_category in spider_lower:
+                        most_common = max(set(services), key=services.count) if services else 'unknown'
+                        
+                        if most_common != 'unknown':
+                            confidence = 0.3  # Lower confidence for partial match
+                            if confidence > best_confidence:
+                                best_match = {
+                                    'technology': most_common,
+                                    'confidence': confidence,
+                                    'source': f'category_partial_{db_category}'
+                                }
+                                best_confidence = confidence
+            
+            return best_match
+            
+        except Exception as e:
+            debug_print(f"Error in spider category technology detection: {e}", level="ERROR")
+            return None
+    
+    def _analyze_spider_content_with_database(self, spider_data: Dict[str, Any], tech: Optional[str], port: Optional[int]) -> Dict[str, Dict[str, float]]:
+        """Analyze spider content using database-driven categorization patterns"""
+        try:
+            # Get database availability
+            db_stats = get_database_availability()
+            if not db_stats.get('port_database_available'):
+                return self._fallback_content_analysis(spider_data)
+            
+            # Load port database
+            port_db_path = Path(db_stats['port_database_path'])
+            with open(port_db_path, 'r') as f:
+                port_db = json.load(f)
+            
+            content_analysis = {}
+            discovered_paths = spider_data.get('discovered_paths', [])
+            
+            # Build category patterns from database
+            db_patterns = {}
+            for port_num, port_info in port_db.items():
+                if 'classification' in port_info:
+                    category = port_info['classification'].get('category', 'unknown')
+                    
+                    # Extract path patterns if available
+                    if 'indicators' in port_info and 'paths' in port_info['indicators']:
+                        if category not in db_patterns:
+                            db_patterns[category] = {
+                                'paths': [],
+                                'keywords': [],
+                                'boost_factor': 1.0
+                            }
+                        db_patterns[category]['paths'].extend(port_info['indicators']['paths'])
+                    
+                    # Set boost factors based on category importance
+                    category_boost_map = {
+                        'web': 1.2,
+                        'database': 1.4,
+                        'admin-panel': 1.5,
+                        'cms': 1.3,
+                        'development': 1.25,
+                        'api': 1.3,
+                        'authentication': 1.4,
+                        'file-transfer': 1.1,
+                        'remote-access': 1.2
+                    }
+                    
+                    if category in db_patterns:
+                        db_patterns[category]['boost_factor'] = category_boost_map.get(category, 1.1)
+            
+            # Analyze discovered paths against database patterns
+            for category, patterns in db_patterns.items():
+                matches = 0
+                total_patterns = len(patterns['paths'])
+                
+                if total_patterns > 0:
+                    for path in discovered_paths:
+                        path_str = path if isinstance(path, str) else str(path)
+                        for pattern in patterns['paths']:
+                            if pattern.lower() in path_str.lower():
+                                matches += 1
+                                break
+                    
+                    confidence = min(matches / max(len(discovered_paths), 1), 1.0)
+                    
+                    if confidence > 0.3:  # Only include meaningful matches
+                        content_analysis[category] = {
+                            'confidence': confidence,
+                            'boost_factor': patterns['boost_factor'],
+                            'matches': matches,
+                            'total_paths': len(discovered_paths)
+                        }
+            
+            return content_analysis
+            
+        except Exception as e:
+            debug_print(f"Error in database-driven content analysis: {e}", level="ERROR")
+            return self._fallback_content_analysis(spider_data)
+    
+    def _fallback_content_analysis(self, spider_data: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
+        """Fallback content analysis when database is unavailable"""
+        fallback_patterns = {
+            'admin': {'keywords': ['admin', 'management', 'dashboard', 'control'], 'boost_factor': 1.3},
+            'api': {'keywords': ['api', 'rest', 'graphql', 'endpoint'], 'boost_factor': 1.2},
+            'auth': {'keywords': ['login', 'auth', 'signin', 'oauth'], 'boost_factor': 1.25},
+            'config': {'keywords': ['config', 'settings', 'env', '.config'], 'boost_factor': 1.4},
+            'dev': {'keywords': ['dev', 'debug', 'test', 'staging'], 'boost_factor': 1.1}
+        }
+        
+        content_analysis = {}
+        discovered_paths = spider_data.get('discovered_paths', [])
+        
+        for category, pattern_info in fallback_patterns.items():
+            matches = 0
+            for path in discovered_paths:
+                path_str = path if isinstance(path, str) else str(path)
+                for keyword in pattern_info['keywords']:
+                    if keyword in path_str.lower():
+                        matches += 1
+                        break
+            
+            if matches > 0:
+                confidence = min(matches / max(len(discovered_paths), 1), 1.0)
+                content_analysis[category] = {
+                    'confidence': confidence,
+                    'boost_factor': pattern_info['boost_factor'],
+                    'matches': matches,
+                    'total_paths': len(discovered_paths)
+                }
+        
+        return content_analysis
+    
+    def _calculate_tech_specific_boost(self, tech: Optional[str], spider_data: Dict[str, Any]) -> float:
+        """Calculate technology-specific boost based on spider findings"""
+        if not tech:
+            return 1.0
+        
+        tech_lower = tech.lower()
+        discovered_paths = spider_data.get('discovered_paths', [])
+        boost = 1.0
+        
+        # Technology-specific path patterns
+        tech_patterns = {
+            'wordpress': ['/wp-admin/', '/wp-content/', '/wp-includes/', '.php'],
+            'drupal': ['/admin/', '/node/', '/modules/', '/themes/'],
+            'apache': ['/server-status', '/server-info', '.htaccess'],
+            'nginx': ['/nginx_status', '.conf'],
+            'tomcat': ['/manager/', '/host-manager/', '.jsp'],
+            'jenkins': ['/job/', '/build/', '/configure'],
+            'php': ['.php', '/phpinfo', '/index.php'],
+            'mysql': ['/phpmyadmin/', '/adminer/', '/mysql/'],
+            'nodejs': ['/node_modules/', '.js', 'package.json'],
+            'python': ['.py', '/admin/', '__pycache__/']
+        }
+        
+        if tech_lower in tech_patterns:
+            pattern_matches = 0
+            total_patterns = len(tech_patterns[tech_lower])
+            
+            for path in discovered_paths:
+                path_str = path if isinstance(path, str) else str(path)
+                for pattern in tech_patterns[tech_lower]:
+                    if pattern in path_str.lower():
+                        pattern_matches += 1
+                        break
+            
+            if pattern_matches > 0:
+                match_ratio = pattern_matches / max(len(discovered_paths), 1)
+                boost = 1.0 + (match_ratio * 0.3)  # Up to 30% boost
+        
+        return min(boost, 1.5)  # Cap at 50% boost
+    
+    def _analyze_discovered_paths(self, discovered_paths: List[Any], tech: Optional[str]) -> Dict[str, float]:
+        """Analyze discovered paths for security relevance"""
+        if not discovered_paths:
+            return {'security_relevance': 0.0}
+        
+        # Security-relevant path patterns
+        security_patterns = {
+            'high_value': ['/admin/', '/manager/', '/config/', '/backup/', '/private/', '/.env', '/secret'],
+            'medium_value': ['/login', '/auth/', '/user/', '/account/', '/dashboard/', '/control'],
+            'low_value': ['/info', '/status', '/health/', '/debug/', '/test/']
+        }
+        
+        high_matches = 0
+        medium_matches = 0
+        low_matches = 0
+        
+        for path in discovered_paths:
+            path_str = path if isinstance(path, str) else str(path)
+            path_lower = path_str.lower()
+            
+            # Check high value patterns
+            for pattern in security_patterns['high_value']:
+                if pattern in path_lower:
+                    high_matches += 1
+                    break
+            else:
+                # Check medium value patterns
+                for pattern in security_patterns['medium_value']:
+                    if pattern in path_lower:
+                        medium_matches += 1
+                        break
+                else:
+                    # Check low value patterns
+                    for pattern in security_patterns['low_value']:
+                        if pattern in path_lower:
+                            low_matches += 1
+                            break
+        
+        # Calculate weighted security relevance
+        total_paths = len(discovered_paths)
+        security_score = (
+            (high_matches * 3.0 + medium_matches * 2.0 + low_matches * 1.0) / 
+            max(total_paths * 3.0, 1)
+        )
+        
+        return {
+            'security_relevance': min(security_score, 1.0),
+            'high_value_paths': high_matches,
+            'medium_value_paths': medium_matches,
+            'low_value_paths': low_matches,
+            'total_analyzed': total_paths
+        }
+    
+    def _analyze_file_extensions(self, discovered_paths: List[Any], tech: Optional[str]) -> float:
+        """Analyze file extensions for technology-specific boost"""
+        if not discovered_paths:
+            return 1.0
+        
+        # Technology-specific file extension mappings
+        tech_extensions = {
+            'php': ['.php', '.phtml', '.php3', '.php4', '.php5'],
+            'asp': ['.asp', '.aspx', '.ashx', '.asmx'],
+            'jsp': ['.jsp', '.jspx', '.jsw'],
+            'python': ['.py', '.pyc', '.pyo', '.wsgi'], 
+            'nodejs': ['.js', '.json', '.node'],
+            'ruby': ['.rb', '.rhtml', '.erb'],
+            'perl': ['.pl', '.pm', '.cgi'],
+            'coldfusion': ['.cfm', '.cfc', '.cfml']
+        }
+        
+        if not tech or tech.lower() not in tech_extensions:
+            return 1.0
+        
+        tech_exts = tech_extensions[tech.lower()]
+        matching_files = 0
+        total_files = 0
+        
+        for path in discovered_paths:
+            path_str = path if isinstance(path, str) else str(path)
+            
+            # Count files (paths with extensions)
+            if '.' in path_str:
+                total_files += 1
+                for ext in tech_exts:
+                    if path_str.lower().endswith(ext):
+                        matching_files += 1
+                        break
+        
+        if total_files == 0:
+            return 1.0
+        
+        match_ratio = matching_files / total_files
+        # Boost based on match ratio: higher ratio = higher confidence in technology
+        boost = 1.0 + (match_ratio * 0.2)  # Up to 20% boost
+        
+        return min(boost, 1.3)  # Cap at 30% boost
     
     def _generate_enhanced_reason(self, result, wordlist: str, context: ScoringContext) -> str:
         """Generate enhanced reason with spider intelligence"""
