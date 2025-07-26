@@ -1,32 +1,22 @@
-"""JSON format reporter for IPCrawler
-
-Provides JSON output formatting for all workflows.
-"""
+"""JSON format reporter for IPCrawler"""
 
 import json
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
-from typing import Dict, Any, Optional
-from enum import Enum
-
-from ..base.reporter import BaseReporter
+from typing import Optional, Dict, Any
+from ..base_reporter import BaseReporter
 
 
 class DateTimeJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects and enums"""
     
     def default(self, obj):
-        if isinstance(obj, datetime):
+        if isinstance(obj, (datetime, date)):
             return obj.isoformat()
-        elif isinstance(obj, Enum):
-            return obj.value
-        elif hasattr(obj, 'model_dump'):
-            # Handle Pydantic models
-            return obj.model_dump()
         elif hasattr(obj, '__dict__'):
-            # Handle objects with __dict__ (fallback)
-            return {key: value for key, value in obj.__dict__.items() 
-                   if not key.startswith('_')}
+            return obj.__dict__
+        elif hasattr(obj, 'model_dump'):
+            return obj.model_dump()
         return super().default(obj)
 
 
@@ -34,12 +24,7 @@ class JSONReporter(BaseReporter):
     """JSON format reporter"""
     
     def __init__(self, output_dir: Optional[Path] = None, indent: int = 2):
-        """Initialize JSON reporter
-        
-        Args:
-            output_dir: Directory to save reports
-            indent: JSON indentation level
-        """
+        """Initialize JSON reporter"""
         super().__init__(output_dir)
         self.indent = indent
     
@@ -47,37 +32,27 @@ class JSONReporter(BaseReporter):
         """Generate JSON report from data
         
         Args:
-            data: Data to generate report from
+            data: Report data
             **kwargs: Additional options (filename, target)
-            
+        
         Returns:
-            Path to generated JSON file
+            Path to generated report file
         """
-        if not self.validate_data(data):
-            raise ValueError("Invalid data provided for JSON report")
         
         # Add metadata
         report_data = self.add_metadata(data)
         
-        # Get filename
+        # Get filename using shared utility
         filename = kwargs.get('filename')
         if not filename:
             target = kwargs.get('target', 'unknown')
             workflow = kwargs.get('workflow', 'scan')
-            import re
-            safe_target = re.sub(r'[<>:"/\\|?*]', '_', target)
-            safe_target = re.sub(r'_+', '_', safe_target).strip('_')
-            filename = f"{workflow}_report_{safe_target}.json"
-        
-        # Ensure .json extension
-        if not filename.endswith('.json'):
-            filename += '.json'
+            filename = self.generate_filename(target, workflow)
         
         output_path = self.get_output_path(filename)
         
-        # Generate JSON with custom encoder
         json_content = json.dumps(
-            report_data, 
+            report_data,
             indent=self.indent, 
             cls=DateTimeJSONEncoder,
             ensure_ascii=False
@@ -89,9 +64,9 @@ class JSONReporter(BaseReporter):
         
         return output_path
     
-    def get_format(self) -> str:
+    def get_format_name(self) -> str:
         """Get the report format name"""
-        return "json"
+        return "JSON"
     
     def validate_data(self, data: Dict[str, Any]) -> bool:
         """Validate that data can be serialized to JSON"""

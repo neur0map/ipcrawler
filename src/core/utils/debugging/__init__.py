@@ -1,7 +1,4 @@
-"""Debug utilities
-
-Provides debugging capabilities with centralized console integration.
-"""
+"""Debug utilities"""
 
 from .debug import (
     set_debug,

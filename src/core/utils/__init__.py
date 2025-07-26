@@ -1,21 +1,20 @@
-"""Core utilities for IPCrawler
+"""Core utilities for IPCrawler"""
 
-Centralized utility functions and classes used across workflows.
-"""
+# Import new utilities
+from .target_sanitizer import sanitize_target, generate_safe_filename, create_workspace_path
+from .nmap_utils import is_root, build_nmap_command, build_fast_discovery_command, build_hostname_discovery_command
+from .subprocess_utils import ProcessManager, CommandBuilder, register_process_cleanup
 
-# Re-export result management for backward compatibility
-from .results import result_manager, DateTimeJSONEncoder, ResultManager
-
-# Re-export debugging utilities for backward compatibility  
+# Re-export debugging and result utilities for backward compatibility
 from .debugging import debug_print, set_debug, is_debug_enabled, debug_error, DebugContext
+from .results import DateTimeJSONEncoder, ResultManager, result_manager
 
 __all__ = [
-    'result_manager',
-    'DateTimeJSONEncoder', 
-    'ResultManager',
-    'debug_print',
-    'set_debug', 
-    'is_debug_enabled',
-    'debug_error',
-    'DebugContext'
+    # New utilities
+    'sanitize_target', 'generate_safe_filename', 'create_workspace_path',
+    'is_root', 'build_nmap_command', 'build_fast_discovery_command', 'build_hostname_discovery_command',
+    'ProcessManager', 'CommandBuilder', 'register_process_cleanup',
+    # Legacy utilities
+    'result_manager', 'DateTimeJSONEncoder', 'ResultManager',
+    'debug_print', 'set_debug', 'is_debug_enabled', 'debug_error', 'DebugContext'
 ]

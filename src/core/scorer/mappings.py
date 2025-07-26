@@ -1,9 +1,6 @@
 """
-Hardcoded mappings and rule hierarchies for wordlist scoring.
 """
 
-from typing import Dict, List, Tuple, Any, Set
-import re
 
 
 # Level 1: Exact tech + port combinations
@@ -466,22 +463,14 @@ WORDLIST_ALTERNATIVES: Dict[str, List[str]] = {
 }
 
 
-def get_exact_match(tech: str, port: int) -> List[str]:
     """Get wordlists for exact tech+port match."""
     key = (tech.lower() if tech else "", port)
-    return EXACT_MATCH_RULES.get(key, [])
 
 
-def get_wordlist_alternatives(wordlist: str) -> List[str]:
     """Get alternative wordlists for diversification."""
-    return WORDLIST_ALTERNATIVES.get(wordlist, [])
 
 
-def has_alternatives(wordlist: str) -> bool:
     """Check if a wordlist has alternatives available."""
-    return wordlist in WORDLIST_ALTERNATIVES
 
 
-def get_all_wordlists_with_alternatives() -> Set[str]:
     """Get set of all wordlists that have alternatives."""
-    return set(WORDLIST_ALTERNATIVES.keys())

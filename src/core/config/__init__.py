@@ -1,7 +1,4 @@
-"""Configuration management for IPCrawler
-
-Provides centralized configuration loading and management.
-"""
+"""Configuration management for IPCrawler"""
 
 from .loader import Config, config
 

@@ -14,7 +14,7 @@ from .custom_crawler import CustomCrawler
 from .hakrawler_wrapper import HakrawlerWrapper
 from .result_processor import ResultProcessor
 from .enhanced_analyzer import EnhancedAnalyzer
-from src.core.reporting.workflow_reporters.mini_spider_04.reporter import EnhancedReporter
+# Reporting is now handled centrally by the orchestrator
 from src.core.utils.debugging import debug_print
 
 
@@ -31,7 +31,7 @@ class MiniSpiderScanner(BaseWorkflow):
         self.hakrawler_wrapper = HakrawlerWrapper()
         self.result_processor = ResultProcessor()
         self.enhanced_analyzer = EnhancedAnalyzer()
-        self.enhanced_reporter = EnhancedReporter()
+# Enhanced reporter removed - reporting handled centrally
         
         # Runtime settings
         self.max_concurrent_crawls = 5
@@ -152,33 +152,8 @@ class MiniSpiderScanner(BaseWorkflow):
             result.summary = self._generate_summary(result)
             result.execution_time = (datetime.now() - start_time).total_seconds()
             
-            # Save to workspace
-            await self._save_results_to_workspace(target, result)
-            
-            # Generate comprehensive reports (always attempt if we have discovered URLs)
-            if result.discovered_urls:
-                debug_print(f"Attempting to generate reports for {len(result.discovered_urls)} discovered URLs")
-                try:
-                    workspace_dir = Path("workspaces") / target.replace(':', '_').replace('/', '_')
-                    reports_dir = workspace_dir / "reports"
-                    # Ensure reports directory exists
-                    reports_dir.mkdir(parents=True, exist_ok=True)
-                    
-                    debug_print(f"Generating reports in: {reports_dir}")
-                    debug_print(f"Enhanced analysis available: {hasattr(result, 'enhanced_analysis') and bool(result.enhanced_analysis)}")
-                    
-                    report_files = self.enhanced_reporter.generate_comprehensive_report(
-                        result, 
-                        reports_dir,
-                        formats=['html', 'json', 'txt']
-                    )
-                    debug_print(f"Generated {len(report_files)} comprehensive reports: {list(report_files.keys())}")
-                except Exception as e:
-                    debug_print(f"Report generation failed: {str(e)}", level="ERROR")
-                    import traceback
-                    debug_print(f"Traceback: {traceback.format_exc()}", level="ERROR")
-            else:
-                debug_print("No URLs discovered, skipping report generation")
+            # File creation is now handled centrally by the ReportingOrchestrator
+            # Data is returned in WorkflowResult for centralized file generation
             
             debug_print(f"Mini spider scan completed: {len(result.discovered_urls)} URLs discovered")
             
@@ -255,74 +230,3 @@ class MiniSpiderScanner(BaseWorkflow):
         else:
             return f"Limited discovery of {total_urls} URLs. Consider additional reconnaissance or different techniques."
     
-    async def _save_results_to_workspace(self, target: str, result: MiniSpiderResult):
-        """Save spider results to workspace files"""
-        try:
-            # Create workspace directory if it doesn't exist
-            workspace_dir = Path("workspaces") / target.replace(':', '_').replace('/', '_')
-            workspace_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Save all discovered URLs to a text file for easy consumption by other tools
-            urls_file = workspace_dir / "discovered_urls.txt"
-            with open(urls_file, 'w') as f:
-                for url in result.discovered_urls:
-                    f.write(f"{url.url}\n")
-            
-            # Save categorized results
-            if result.categorized_results:
-                for category, urls in result.categorized_results.items():
-                    category_file = workspace_dir / f"urls_{category.lower().replace(' ', '_')}.txt"
-                    with open(category_file, 'w') as f:
-                        for url in urls:
-                            f.write(f"{url.url}\n")
-            
-            # Save interesting findings
-            if result.interesting_findings:
-                interesting_file = workspace_dir / "interesting_findings.txt"
-                with open(interesting_file, 'w') as f:
-                    for finding in result.interesting_findings:
-                        f.write(f"{finding.url} - {finding.reason}\n")
-            
-            # Save enhanced analysis results if available
-            if hasattr(result, 'enhanced_analysis') and result.enhanced_analysis:
-                enhanced_file = workspace_dir / "enhanced_analysis.json"
-                with open(enhanced_file, 'w') as f:
-                    import json
-                    json.dump(result.enhanced_analysis, f, indent=2, default=str)
-                
-                # Save priority wordlists if available
-                if 'wordlist_recommendations' in result.enhanced_analysis:
-                    wordlist_recs = result.enhanced_analysis['wordlist_recommendations']
-                    if 'priority_wordlists' in wordlist_recs:
-                        wordlist_file = workspace_dir / "recommended_wordlists.txt"
-                        with open(wordlist_file, 'w') as f:
-                            f.write("# Priority Wordlist Recommendations\n")
-                            f.write("# Generated by Enhanced Mini Spider Analysis\n\n")
-                            
-                            for rec in wordlist_recs['priority_wordlists']:
-                                f.write(f"{rec['priority']}: {rec['wordlist']} (Score: {rec['score']:.1f})\n")
-                                for reason in rec.get('reasons', []):
-                                    f.write(f"  - {reason}\n")
-                                f.write("\n")
-                
-                # Save critical intelligence summary
-                if 'critical_intelligence' in result.enhanced_analysis:
-                    critical_intel = result.enhanced_analysis['critical_intelligence']
-                    critical_file = workspace_dir / "critical_intelligence.txt"
-                    with open(critical_file, 'w') as f:
-                        f.write("# Critical Intelligence Summary\n\n")
-                        
-                        for category, findings in critical_intel.items():
-                            if findings:
-                                f.write(f"## {category.replace('_', ' ').title()}\n")
-                                for url, data in findings.items():
-                                    f.write(f"- {url}\n")
-                                    if isinstance(data, dict) and 'security_issues' in data:
-                                        for issue in data['security_issues']:
-                                            f.write(f"  ! {issue.get('type', 'unknown')}: {issue.get('match', '')}\n")
-                                f.write("\n")
-            
-            debug_print(f"Results saved to workspace: {workspace_dir}")
-            
-        except Exception as e:
-            debug_print(f"Failed to save results to workspace: {e}", level="ERROR")

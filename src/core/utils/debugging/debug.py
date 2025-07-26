@@ -1,19 +1,13 @@
-"""Debug utilities for controlling debug output
+"""Debug utilities for controlling debug output"""
 
-Provides backward compatibility with legacy debug utilities while
-integrating with the centralized console system.
-"""
-
-from typing import Optional
-import sys
-
-from ...ui.console.base import console
+import os
+from ...ui.console import console
 
 # Global debug state
 _debug_enabled = False
 
 
-def set_debug(enabled: bool):
+def set_debug(enabled: bool) -> None:
     """Set global debug state"""
     global _debug_enabled
     _debug_enabled = enabled
@@ -21,41 +15,41 @@ def set_debug(enabled: bool):
 
 def is_debug_enabled() -> bool:
     """Check if debug mode is enabled"""
-    return _debug_enabled
+    return _debug_enabled or os.getenv('DEBUG', '').lower() in ('1', 'true', 'yes')
 
 
-def debug_print(*args, **kwargs):
-    """Print only if debug mode is enabled
+def debug_print(*args, **kwargs) -> None:
+    """Print only if debug mode is enabled"""
+    if not is_debug_enabled():
+        return
+        
+    # Join all arguments into a message
+    message = ' '.join(str(arg) for arg in args)
     
-    This function provides backward compatibility with legacy debug_print usage
-    while redirecting to the centralized console system.
-    """
-    if _debug_enabled:
-        # Join all arguments into a message
-        message = ' '.join(str(arg) for arg in args)
-        
-        # Check for level specification in kwargs
-        level = kwargs.pop('level', 'DEBUG').upper()
-        
-        # Route to appropriate console method based on level
-        if level == 'ERROR':
-            console.error(message)
-        elif level == 'WARNING' or level == 'WARN':
-            console.warning(message)
-        elif level == 'INFO':
-            console.info(message)
-        elif level == 'SUCCESS':
-            console.success(message)
-        else:
-            console.debug(message)
+    # Check for level specification in kwargs
+    level = kwargs.pop('level', 'DEBUG').upper()
+    
+    # Route to appropriate console method based on level
+    if level == 'ERROR':
+        console.error(f"[DEBUG] {message}", **kwargs)
+    elif level == 'WARNING' or level == 'WARN':
+        console.warning(f"[DEBUG] {message}", **kwargs)
+    elif level == 'INFO':
+        console.info(f"[DEBUG] {message}", **kwargs)
+    elif level == 'SUCCESS':
+        console.success(f"[DEBUG] {message}", **kwargs)
+    else:
+        console.debug(message, **kwargs)
 
 
-def debug_error(*args, **kwargs):
+def debug_error(*args, **kwargs) -> None:
     """Print error debug messages to stderr if debug enabled"""
-    if _debug_enabled:
-        # Join all arguments into a message
-        message = ' '.join(str(arg) for arg in args)
-        console.error(message)
+    if not is_debug_enabled():
+        return
+        
+    # Join all arguments into a message
+    message = ' '.join(str(arg) for arg in args)
+    console.error(f"[DEBUG ERROR] {message}", **kwargs)
 
 
 class DebugContext:

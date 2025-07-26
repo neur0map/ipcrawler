@@ -1,20 +1,15 @@
-"""Result management utilities
+"""Result management utilities"""
 
-Provides compatibility with legacy utils/results.py while integrating
-with the centralized reporting system.
-"""
-
-from .compatibility import (
+from .formatters import (
     DateTimeJSONEncoder,
-    BaseFormatter,
+    BaseFormatter, 
     JSONFormatter,
     TextFormatter,
-    HTMLFormatter,
-    ResultManager,
-    result_manager_compat
 )
+from .manager import ResultManager
 
 # Legacy compatibility exports
+result_manager_compat = ResultManager()
 result_manager = result_manager_compat
 
 __all__ = [
@@ -22,7 +17,6 @@ __all__ = [
     'BaseFormatter', 
     'JSONFormatter',
     'TextFormatter',
-    'HTMLFormatter',
     'ResultManager',
     'result_manager',
     'result_manager_compat'

@@ -43,11 +43,10 @@ from workflows.smartlist_05.scanner import SmartListScanner
 from workflows.mini_spider_04.scanner import MiniSpiderScanner
 
 from src.core.config import config
-from src.core.reporting.manager import report_manager
-from src.core.utils.results import result_manager
+from src.core.reporting.orchestrator import reporting_orchestrator
 
 app = typer.Typer(
-    name="ipcrawler",
+    name="ipcrawler", 
     help="SmartList Engine - Intelligent wordlist recommendations for security testing",
     no_args_is_help=True,
     add_completion=False,
@@ -105,29 +104,53 @@ def version_callback(value: bool):
                 console.print(ascii_art, style="cyan")
         
         # Display version from config
-        console.print(f"\n[bold]IPCrawler SmartList Engine[/bold] version [green]{config.version}[/green]")
+        console.print(f"\n[bold]IPCrawler SmartList Engine[/bold] version [success]{config.version}[/success]")
         console.print("Intelligent wordlist recommendations powered by target analysis\n")
         raise typer.Exit()
 
 
-@app.command()
-def main(
-    target: str = typer.Argument(None, help="Target IP address or hostname to analyze for wordlist recommendations"),
-    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug output"),
-    audit: bool = typer.Option(False, "--audit", help="Run comprehensive SmartList audit (rules, entropy, usage)"),
-    details: bool = typer.Option(False, "--details", help="Show detailed conflict analysis (use with --audit)"),
-    version: bool = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version information")
+@app.command("scan", help="Analyze target and recommend optimal wordlists for security testing")
+def main_command(
+    target: str = typer.Argument(..., help="Target IP address or hostname to analyze for wordlist recommendations"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug output")
 ):
-    """Analyze target and recommend optimal wordlists for security testing"""
-    if audit:
-        # Run comprehensive audit instead of normal workflow
-        exit_code = run_comprehensive_audit(show_details=details)
-        raise typer.Exit(exit_code)
-    
-    if target is None:
-        console.print("[red]Error:[/red] Target is required")
+    """Main scanning command"""
+    # Validate target format
+    if not target or target.strip() == "":
+        console.error("Target cannot be empty")
+        console.info("Usage: ipcrawler <target>")
+        console.info("Example: ipcrawler hackerhub.me")
         raise typer.Exit(1)
-    asyncio.run(run_workflow(target, debug))
+        
+    # Additional validation for common mistakes
+    invalid_targets = ['localhost', '127.0.0.1', '0.0.0.0']
+    if target.lower() in invalid_targets:
+        console.warning(f"Scanning {target} - make sure this is intended")
+        if not typer.confirm(f"Continue scanning {target}?", default=False):
+            console.info("Scan cancelled")
+            raise typer.Exit(0)
+    
+    try:
+        asyncio.run(run_workflow(target, debug))
+    except KeyboardInterrupt:
+        console.warning("Scan interrupted by user")
+        raise typer.Exit(130)  # Standard exit code for SIGINT
+    except Exception as e:
+        console.error(f"Scan failed: {e}")
+        if debug:
+            import traceback
+            console.error("Stack trace:")
+            console.print(traceback.format_exc())
+        raise typer.Exit(1)
+
+
+@app.command("audit")  
+def audit_command(
+    details: bool = typer.Option(False, "--details", help="Show detailed conflict analysis")
+):
+    """Run comprehensive SmartList audit (rules, entropy, usage)"""
+    exit_code = run_comprehensive_audit(show_details=details)
+    raise typer.Exit(exit_code)
 
 def run_comprehensive_audit(show_details: bool = False):
     """Run enhanced comprehensive SmartList audit with advanced flaw detection"""
@@ -239,7 +262,7 @@ def run_legacy_audit():
         console.print(f"[red]Stats analysis failed:[/red] {e}")
     
     console.print()
-    console.print("[bold green]✅ Audit Complete![/bold green]")
+    console.print("[success]✅ Audit Complete![/success]")
     console.print()
     console.print("💡 [bold]Next Steps:[/bold]")
     console.print("   1. Review and fix any ❌ ERROR issues first")
@@ -392,12 +415,12 @@ async def check_and_offer_sudo_escalation():
     
     # Skip if already running as root
     if os.geteuid() == 0:
-        console.print("✓ Running with [green]root privileges[/green] - Enhanced fingerprinting capabilities enabled")
+        console.print("✓ Running with [success]root privileges[/success] - Enhanced fingerprinting capabilities enabled")
         return
     
     # Check configuration settings
     if not config.prompt_for_sudo and not config.auto_escalate:
-        console.print("ℹ Running with [yellow]user privileges[/yellow] - sudo escalation disabled in config")
+        console.print("ℹ Running with [warning]user privileges[/warning] - sudo escalation disabled in config")
         return
     
     # Check if sudo is available
@@ -414,7 +437,7 @@ async def check_and_offer_sudo_escalation():
         sudo_available = False
     
     if not sudo_available:
-        console.print("ℹ Running with [yellow]user privileges[/yellow] - sudo not available")
+        console.print("ℹ Running with [warning]user privileges[/warning] - sudo not available")
         console.print("  → TCP connect analysis (slower than SYN fingerprinting)")
         console.print("  → No OS detection capabilities")
         console.print("  → Limited timing optimizations")
@@ -429,7 +452,12 @@ async def check_and_offer_sudo_escalation():
         console.display_privilege_escalation_prompt()
         
         # Get user choice
-        escalate = typer.confirm("Would you like to restart with sudo for enhanced analysis?", default=True)
+        try:
+            escalate = typer.confirm("Would you like to restart with sudo for enhanced analysis?", default=True)
+        except typer.Abort:
+            # User pressed Ctrl+C or cancelled
+            console.info("Continuing with user privileges...")
+            escalate = False
     
     if escalate:
         # Build the correct sudo command based on how script was called
@@ -467,7 +495,7 @@ async def run_workflow(target: str, debug: bool = False):
     
     console.display_workflow_status('port_discovery', 'starting', 'Hostname discovery and port scanning')
     
-    workspace = result_manager.create_workspace(target)
+    workspace = reporting_orchestrator.create_versioned_workspace(target, enable_versioning=True)
     
     # IMPORTANT: Default behavior is to scan ONLY discovered ports
     # Full 65535 port scan only happens when fast_port_discovery is explicitly set to false
@@ -495,11 +523,11 @@ async def run_workflow(target: str, debug: bool = False):
             if hostname_mappings:
                 console.print(f"  → Discovered {len(hostname_mappings)} hostname(s):")
                 for mapping in hostname_mappings:
-                    console.print(f"    • [cyan]{mapping['hostname']}[/cyan] → {mapping['ip']}")
+                    console.print(f"    • [secondary]{mapping['hostname']}[/secondary] → {mapping['ip']}")
                 if discovery_result.data.get("etc_hosts_updated"):
-                    console.print("    ✓ [green]/etc/hosts updated[/green]")
+                    console.print("    ✓ [success]/etc/hosts updated[/success]")
                 elif discovery_result.data.get("scan_mode") == "unprivileged":
-                    console.print("    ℹ️  [yellow]Restart with 'sudo' to update /etc/hosts[/yellow]")
+                    console.print("    ℹ️  [warning]Restart with 'sudo' to update /etc/hosts[/warning]")
             
             if port_count == 0:
                 console.print("⚠ No open ports found. Skipping detailed analysis.")
@@ -516,14 +544,12 @@ async def run_workflow(target: str, debug: bool = False):
                     "discovery_enabled": True,
                     "discovered_ports": 0
                 }
-                result_manager.save_results(workspace, target, empty_data, 
-                                          workflow='nmap_fast_01', formats=['json', 'txt'])
+                reporting_orchestrator.generate_workflow_reports(workspace, 'nmap_fast_01', empty_data)
                 display_minimal_summary(empty_data, workspace)
                 return
             
             # Save fast discovery results (text only)
-            result_manager.save_results(workspace, target, discovery_result.data, 
-                                      workflow='nmap_fast_01', formats=['json', 'txt'])
+            reporting_orchestrator.generate_workflow_reports(workspace, 'nmap_fast_01', discovery_result.data)
             
             if port_count > config.max_detailed_ports:
                 console.print(f"⚠ Found {port_count} services, limiting detailed analysis to top {config.max_detailed_ports}")
@@ -748,33 +774,41 @@ async def run_workflow(target: str, debug: bool = False):
         # All analysis completed - Save each workflow's results separately
         
         # Save base nmap scan results (text only)
-        result_manager.save_results(workspace, target, result.data, 
-                                  workflow='nmap_02', formats=['json', 'txt'])
+        reporting_orchestrator.generate_workflow_reports(workspace, 'nmap_02', result.data)
         
         # Save HTTP scan results if available (text only)
         if http_scan_data:
-            result_manager.save_results(workspace, target, http_scan_data, 
-                                      workflow='http_03', formats=['json', 'txt'])
+            reporting_orchestrator.generate_workflow_reports(workspace, 'http_03', http_scan_data)
         
         # Save Mini Spider results if available (text only)
         if spider_data:
-            result_manager.save_results(workspace, target, spider_data, 
-                                      workflow='mini_spider_04', formats=['json', 'txt'])
+            reporting_orchestrator.generate_workflow_reports(workspace, 'mini_spider_04', spider_data)
         
         # Save SmartList results with wordlist file (text + wordlist only)
         if smartlist_data:
-            result_manager.save_results(workspace, target, smartlist_data, 
-                                      workflow='smartlist_05', 
-                                      formats=['json', 'txt', 'wordlist'])
+            reporting_orchestrator.generate_workflow_reports(workspace, 'smartlist_05', smartlist_data)
         
-        # Generate single master HTML report combining all workflows
+        # Generate master TXT report and wordlist recommendations
         try:
-            from src.core.reporting.formats.master_reporter import MasterReporter
-            master_reporter = MasterReporter(workspace)
-            master_html_path = master_reporter.generate(result.data, target=target)
-            console.print(f"📊 Master report generated: [cyan]{master_html_path}[/cyan]")
+            # Collect all workflow data for final report generation
+            all_workflow_data = {
+                'nmap_fast_01': discovery_result.data if 'discovery_result' in locals() else None,
+                'nmap_02': result.data,
+                'http_03': http_scan_data,
+                'mini_spider_04': spider_data, 
+                'smartlist_05': smartlist_data
+            }
+            
+            # Generate final master report and wordlist recommendations
+            report_paths = reporting_orchestrator.generate_all_reports(workspace, all_workflow_data)
+            
+            if 'master_report' in report_paths:
+                console.print(f"📊 Master TXT report: [secondary]{report_paths['master_report']}[/secondary]")
+            if 'wordlist_recommendations' in report_paths:
+                console.print(f"📋 Wordlist recommendations: [secondary]{report_paths['wordlist_recommendations']}[/secondary]")
+                
         except Exception as e:
-            console.error(f"Failed to generate master HTML report: {e}")
+            console.error(f"Failed to generate final reports: {e}")
         
         # Display minimal summary only
         display_minimal_summary(result.data, workspace)
@@ -830,13 +864,14 @@ def display_minimal_summary(data: dict, workspace: Path):
     console.display_scan_summary(data)
     
     # Add workspace info with new structure
-    console.print(f"\n[dim]📁 Results saved to: [cyan]{workspace}[/cyan][/dim]")
-    console.print("[dim]   ├── nmap_fast_01/         (Port discovery - text reports)[/dim]")
-    console.print("[dim]   ├── nmap_02/              (Service fingerprinting - text reports)[/dim]")
-    console.print("[dim]   ├── http_03/              (HTTP analysis - text reports)[/dim]")
-    console.print("[dim]   ├── mini_spider_04/       (URL discovery - text reports)[/dim]")
-    console.print("[dim]   ├── smartlist_05/         (Wordlist recommendations + wordlists.txt)[/dim]")
-    console.print("[dim]   └── master_report_*.html   (📊 Comprehensive HTML report)[/dim]")
+    console.print(f"\n[dim]📁 Results saved to: [secondary]{workspace}[/secondary][/dim]")
+    console.print("[dim]   ├── nmap_fast_01_results.json    (Port discovery data)[/dim]")
+    console.print("[dim]   ├── nmap_02_results.json         (Service fingerprinting data)[/dim]")
+    console.print("[dim]   ├── http_03_results.json         (HTTP analysis data)[/dim]")
+    console.print("[dim]   ├── mini_spider_04_results.json  (URL discovery data)[/dim]")
+    console.print("[dim]   ├── smartlist_05_results.json    (Wordlist recommendations data)[/dim]")
+    console.print("[dim]   ├── master_report.txt            (📊 Comprehensive TXT report)[/dim]")
+    console.print("[dim]   └── wordlists_for_{target}/      (📋 Recommended wordlists)[/dim]")
 
 
 
@@ -863,12 +898,12 @@ def display_http_summary(http_data: dict):
     # Technologies detected
     techs = http_data.get('summary', {}).get('technologies', [])
     if techs:
-        console.print(f"\n[cyan]Technologies detected:[/cyan] {', '.join(techs)}")
+        console.print(f"\n[secondary]Technologies detected:[/secondary] {', '.join(techs)}")
     
     # Discovered paths
     paths = http_data.get('summary', {}).get('discovered_paths', [])
     if paths:
-        console.print(f"\n[green]Discovered {len(paths)} paths[/green]")
+        console.print(f"\n[success]Discovered {len(paths)} paths[/success]")
         for path in paths[:5]:  # Show first 5
             console.print(f"  • {path}")
         if len(paths) > 5:
@@ -884,5 +919,105 @@ def display_http_summary(http_data: dict):
             console.print(f"  ... and {len(subdomains) - 5} more")
 
 
+# Add report command subgroup
+report_app = typer.Typer(
+    name="report",
+    help="Report generation and management commands",
+    no_args_is_help=True
+)
+app.add_typer(report_app)
+
+@report_app.command("master-report")
+def generate_master_report(
+    workspace: str = typer.Option(..., "--workspace", "-w", help="Workspace name to generate report from")
+):
+    """Generate master report from workspace data"""
+    from src.core.reporting.commands.generate_master_report import MasterReportCommand
+    
+    command = MasterReportCommand()
+    result = command.execute(workspace)
+    
+    if not result:
+        raise typer.Exit(1)
+
+@report_app.command("list-workspaces")
+def list_workspaces(
+    target: str = typer.Option(None, "--target", "-t", help="Filter by target name"),
+    details: bool = typer.Option(False, "--details", "-d", help="Show detailed information")
+):
+    """List available workspaces"""
+    from src.core.reporting.commands.workspace_list import WorkspaceListCommand
+    
+    options = {'details': details}
+    command = WorkspaceListCommand()
+    result = command.execute(target, options)
+    
+    if not result:
+        raise typer.Exit(1)
+
+@report_app.command("clean-workspaces")
+def clean_workspaces(
+    target: str = typer.Option(None, "--target", "-t", help="Clean only specified target"),
+    keep: int = typer.Option(5, "--keep", "-k", help="Number of workspaces to keep per target"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be removed without deleting")
+):
+    """Clean up old workspaces"""
+    from src.core.reporting.commands.workspace_clean import WorkspaceCleanCommand
+    
+    options = {'keep_count': keep, 'dry_run': dry_run}
+    command = WorkspaceCleanCommand()
+    result = command.execute(target, options)
+    
+    if not result:
+        raise typer.Exit(1)
+
+def preprocess_args():
+    """Preprocess command line arguments to handle direct target execution"""
+    import sys
+    import re
+    
+    # If no arguments, let typer handle it (will show help)
+    if len(sys.argv) == 1:
+        return
+        
+    # If first argument is a known command, let typer handle it normally
+    known_commands = ['scan', 'audit', 'report', '--help', '-h', '--version']
+    if len(sys.argv) > 1 and sys.argv[1] in known_commands:
+        return
+        
+    # If first argument starts with '-', it's a flag, let typer handle it
+    if len(sys.argv) > 1 and sys.argv[1].startswith('-'):
+        return
+        
+    # Otherwise, assume first argument is a target and prepend 'scan'
+    if len(sys.argv) > 1:
+        potential_target = sys.argv[1]
+        
+        # Basic validation - check if it looks like a target
+        target_patterns = [
+            r'^[\w\.-]+\.\w+$',          # domain.com
+            r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',  # IP address
+            r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}$',  # CIDR
+            r'^[\w\.-]+$'                # hostname
+        ]
+        
+        looks_like_target = any(re.match(pattern, potential_target) for pattern in target_patterns)
+        
+        if looks_like_target and potential_target not in known_commands:
+            # Insert 'scan' command before the target
+            sys.argv.insert(1, 'scan')
+        elif not looks_like_target:
+            # Provide helpful error message for invalid targets
+            console.error(f"Invalid target format: {potential_target}")
+            console.info("Valid target formats:")
+            console.info("  • Domain: hackerhub.me")
+            console.info("  • IP: 192.168.1.1") 
+            console.info("  • CIDR: 192.168.1.0/24")
+            console.info("  • Hostname: localhost")
+            console.info("\nFor help: ipcrawler --help")
+            sys.exit(1)
+
+
 if __name__ == "__main__":
+    preprocess_args()
     app()

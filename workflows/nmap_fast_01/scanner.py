@@ -9,6 +9,8 @@ from pathlib import Path
 from rich.console import Console
 
 from workflows.core.base import BaseWorkflow, WorkflowResult
+from src.core.utils.nmap_utils import is_root, build_fast_discovery_command, build_hostname_discovery_command
+from src.core.utils.target_sanitizer import sanitize_target
 
 console = Console()
 
@@ -26,9 +28,6 @@ class NmapFastScanner(BaseWorkflow):
             return False
         return True
     
-    def _is_root(self) -> bool:
-        """Check if running with root privileges"""
-        return os.geteuid() == 0
     
     
     async def execute(self, target: str, **kwargs) -> WorkflowResult:
@@ -44,47 +43,12 @@ class NmapFastScanner(BaseWorkflow):
         
         try:
             # Use secure temporary file for grepable output
-            with tempfile.NamedTemporaryFile(mode='w+', suffix='.gnmap', prefix=f'nmap_fast_{target.replace(".", "_")}_', delete=True) as temp_file:
+            with tempfile.NamedTemporaryFile(mode='w+', suffix='.gnmap', prefix=f'nmap_fast_{sanitize_target(target)}_', delete=True) as temp_file:
                 temp_output = Path(temp_file.name)
                 
-                is_root = self._is_root()
+                root_privileged = is_root()
                 
-                if is_root:
-                    # Privileged scan - faster SYN scan
-                    cmd = [
-                        "nmap",
-                        "-p-",                  # Scan all 65535 ports
-                        "-sS",                  # SYN scan (requires root)
-                        "-T4",                  # Aggressive timing
-                        "--min-rate", "1000",   # Minimum packet rate
-                        "--max-retries", "2",   # Maximum retries
-                        "--max-rtt-timeout", "100ms", # Prevent hanging on slow hosts
-                        "--host-timeout", "5m", # Overall timeout
-                        "--open",               # Only show open ports
-                        "-Pn",                  # Skip ping (assume host is up)
-                        "-n",                   # No DNS resolution for fast scan
-                        "-v",                   # Verbose for real-time updates
-                        "-oG", str(temp_output), # Grepable output to file
-                        target
-                    ]
-                else:
-                    # Unprivileged scan - TCP connect
-                    cmd = [
-                        "nmap",
-                        "-p-",                  # Scan all 65535 ports
-                        "-sT",                  # TCP connect scan
-                        "-T4",                  # Aggressive timing
-                        "--min-rate", "500",    # Lower rate for stability without root
-                        "--max-retries", "2",   # Maximum retries
-                        "--max-rtt-timeout", "100ms", # Prevent hanging on slow hosts
-                        "--host-timeout", "5m", # Overall timeout
-                        "--open",               # Only show open ports
-                        "-Pn",                  # Skip ping (assume host is up)
-                        "-n",                   # No DNS resolution for fast scan
-                        "-v",                   # Verbose for real-time updates
-                        "-oG", str(temp_output), # Grepable output to file
-                        target
-                    ]
+                cmd = build_fast_discovery_command(target, str(temp_output), root_privileged)
                 
                 
                 # Execute nmap with real-time output parsing
@@ -151,7 +115,7 @@ class NmapFastScanner(BaseWorkflow):
                             "target": target,
                             "open_ports": [],
                             "port_count": 0,
-                            "scan_mode": "privileged" if is_root else "unprivileged",
+                            "scan_mode": "privileged" if root_privileged else "unprivileged",
                             "hostname_mappings": [],
                             "etc_hosts_updated": False
                         },
@@ -180,10 +144,10 @@ class NmapFastScanner(BaseWorkflow):
                 # Step 3: Update /etc/hosts if we found hostnames
                 hosts_updated = False
                 if discovered_mappings:
-                    if is_root:
+                    if root_privileged:
                         hosts_updated = await self._update_etc_hosts(discovered_mappings)
                         if hosts_updated:
-                            console.print(f"  [green]✓ Updated /etc/hosts with {len(discovered_mappings)} hostname mapping(s)[/green]")
+                            console.print(f"  [success]✓ Updated /etc/hosts with {len(discovered_mappings)} hostname mapping(s)[/success]")
                         else:
                             console.print(f"  [yellow]⚠ Failed to update /etc/hosts[/yellow]")
                     else:
@@ -208,7 +172,7 @@ class NmapFastScanner(BaseWorkflow):
                         "target": target,
                         "open_ports": sorted_ports,
                         "port_count": len(sorted_ports),
-                        "scan_mode": "privileged" if is_root else "unprivileged",
+                        "scan_mode": "privileged" if root_privileged else "unprivileged",
                         "hostname_mappings": [{"ip": ip, "hostname": hostname} for ip, hostname in discovered_mappings],
                         "etc_hosts_updated": hosts_updated
                     },
@@ -234,24 +198,10 @@ class NmapFastScanner(BaseWorkflow):
         
         try:
             # Use nmap with http scripts for hostname discovery
-            with tempfile.NamedTemporaryFile(mode='w+', suffix='.nmap', prefix=f'nmap_http_{target.replace(".", "_")}_', delete=True) as temp_file:
+            with tempfile.NamedTemporaryFile(mode='w+', suffix='.nmap', prefix=f'nmap_http_{sanitize_target(target)}_', delete=True) as temp_file:
                 temp_output = Path(temp_file.name)
                 
-                port_list = ','.join(map(str, http_ports))
-                
-                # Use nmap HTTP and SSL scripts to discover hostnames
-                cmd = [
-                    "nmap",
-                    "-p", port_list,
-                    "-sC",                    # Default scripts (includes http-title, http-headers)
-                    "--script", "http-title,http-headers,http-methods,http-enum,ssl-cert",
-                    "-T4",                    # Fast timing
-                    "--max-retries", "1",     # Quick retries
-                    "--host-timeout", "30s",  # Don't hang
-                    "-Pn",                    # Skip ping
-                    "-oN", str(temp_output),  # Normal output to file
-                    target
-                ]
+                cmd = build_hostname_discovery_command(target, http_ports, str(temp_output))
                 
                 # Log the actual command being executed
                 from workflows.core.command_logger import get_command_logger
@@ -284,7 +234,7 @@ class NmapFastScanner(BaseWorkflow):
                         output_preview = '\n'.join(nmap_output.split('\n')[:3])
                         console.print(f"  [dim]Scan output preview: {output_preview[:100]}...[/dim]")
                     elif hostnames:
-                        console.print(f"  [green]✓ Discovered {len(hostnames)} hostname(s): {', '.join(hostnames)}[/green]")
+                        console.print(f"  [success]✓ Discovered {len(hostnames)} hostname(s): {', '.join(hostnames)}[/success]")
                     elif len(nmap_output.strip()) <= 50:
                         console.print(f"  [dim]Hostname scan produced minimal output, likely no HTTP services responding[/dim]")
                     
@@ -292,7 +242,7 @@ class NmapFastScanner(BaseWorkflow):
                         ip = await self._resolve_hostname_fast(hostname)
                         if ip:
                             mappings.add((ip, hostname))
-                            console.print(f"  [green]  → {hostname} resolves to {ip}[/green]")
+                            console.print(f"  [success]  → {hostname} resolves to {ip}[/success]")
                         else:
                             mappings.add((target, hostname))
                             console.print(f"  [yellow]  → {hostname} (no DNS resolution, mapped to {target})[/yellow]")
@@ -491,7 +441,7 @@ class NmapFastScanner(BaseWorkflow):
             
             # Create a temporary file in the working directory
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"ipcrawler_hosts_{target.replace('.', '_')}_{timestamp}.txt"
+            filename = f"ipcrawler_hosts_{sanitize_target(target)}_{timestamp}.txt"
             filepath = Path.cwd() / filename
             
             with open(filepath, 'w') as f:
@@ -515,7 +465,7 @@ class NmapFastScanner(BaseWorkflow):
         try:
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"nmap_debug_{target.replace('.', '_')}_{timestamp}.txt"
+            filename = f"nmap_debug_{sanitize_target(target)}_{timestamp}.txt"
             filepath = Path.cwd() / filename
             
             with open(filepath, 'w') as f:

@@ -1,30 +1,23 @@
-"""Report manager for IPCrawler
-
-Provides unified interface for generating reports in multiple formats.
-"""
+"""Report manager for IPCrawler"""
 
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Optional, Dict, List, Any
 from datetime import datetime
 
-from .base.reporter import MultiFormatReporter
+from ..ui.console import console
 from .formats.json_reporter import JSONReporter
-from .formats.html_reporter import HTMLReporter
 from .formats.text_reporter import TextReporter
 from .formats.wordlist_reporter import WordlistReporter
-from .formats.master_reporter import MasterReporter, MasterTextReporter
-from src.core.ui.console.base import console
+from .formats.master_text_reporter import MasterTextReporter
+from .formats.wordlist_recommendation_reporter import WordlistRecommendationReporter
+from .multi_format_reporter import MultiFormatReporter
 
 
 class ReportManager:
     """Centralized report management for IPCrawler"""
     
     def __init__(self, output_dir: Optional[Path] = None):
-        """Initialize report manager
-        
-        Args:
-            output_dir: Base directory for all reports
-        """
+        """Initialize report manager"""
         self.output_dir = Path(output_dir) if output_dir else Path.cwd()
         self.reporters = self._initialize_reporters()
         self.multi_reporter = MultiFormatReporter(list(self.reporters.values()))
@@ -33,41 +26,24 @@ class ReportManager:
         """Initialize format-specific reporters"""
         return {
             'json': JSONReporter(self.output_dir),
-            'html': HTMLReporter(self.output_dir),
             'txt': TextReporter(self.output_dir),
             'wordlist': WordlistReporter(self.output_dir),
-            'master_html': MasterReporter(self.output_dir),
             'master_txt': MasterTextReporter(self.output_dir),
-            # TODO: Add more formats (MD, xml)
+            'wordlist_recommendation': WordlistRecommendationReporter(self.output_dir),
         }
     
-    def generate_report(self, 
-                       data: Dict[str, Any], 
+    def generate_report(self, data: Dict[str, Any],
                        formats: Optional[List[str]] = None,
                        target: Optional[str] = None,
                        workflow: Optional[str] = None,
                        **kwargs) -> Dict[str, Path]:
-        """Generate reports in specified formats
-        
-        Args:
-            data: Data to generate reports from
-            formats: List of formats to generate (None = all available)
-            target: Target identifier for filename generation
-            workflow: Workflow name for organization
-            **kwargs: Additional options passed to reporters
-            
-        Returns:
-            Dictionary mapping format names to generated file paths
-        """
+        """Generate reports in specified formats"""
         if formats is None:
             formats = self.get_available_formats()
         
-        # Create workflow-specific subdirectory if specified
-        # Skip if reporters are already set to correct directories
-        if workflow and not str(self.reporters['json'].output_dir).endswith(workflow):
+        if workflow:
             workflow_dir = self.output_dir / workflow
             workflow_dir.mkdir(parents=True, exist_ok=True)
-            # Update reporter output directories
             for reporter in self.reporters.values():
                 reporter.output_dir = workflow_dir
         
@@ -78,8 +54,6 @@ class ReportManager:
             'timestamp': datetime.now()
         })
         
-        console.debug(f"Generating reports in formats: {formats}")
-        
         try:
             results = self.multi_reporter.generate_all(data, formats)
             console.success(f"Generated {len(results)} report files", internal=True)
@@ -88,23 +62,11 @@ class ReportManager:
             console.error(f"Report generation failed: {e}", internal=True)
             return {}
     
-    def generate_workspace_reports(self,
+    def generate_workspace_report(self, data: Dict[str, Any],
                                  workspace_dir: Path,
-                                 data: Dict[str, Any],
                                  formats: Optional[List[str]] = None,
                                  **kwargs) -> Dict[str, Path]:
-        """Generate reports in a specific workspace directory
-        
-        Args:
-            workspace_dir: Workspace directory for reports
-            data: Data to generate reports from
-            formats: List of formats to generate
-            **kwargs: Additional options
-            
-        Returns:
-            Dictionary mapping format names to generated file paths
-        """
-        # Create reports subdirectory in workspace
+        """Generate reports in a specific workspace directory"""
         reports_dir = workspace_dir / "reports"
         reports_dir.mkdir(parents=True, exist_ok=True)
         
@@ -123,99 +85,68 @@ class ReportManager:
         
         return results
     
-    def generate_master_report(self,
-                             data: Dict[str, Any],
+    def generate_master_report(self, data: Dict[str, Any],
                              target: Optional[str] = None,
                              format_type: str = 'txt',
                              **kwargs) -> Path:
-        """Generate a master report consolidating all workflow findings
+        """Generate a master TXT report consolidating all workflow findings"""
+        if format_type != 'txt':
+            console.warning(f"Only TXT format supported for master reports, using 'txt'", internal=True)
+            format_type = 'txt'
         
-        Args:
-            data: Combined scan data from all workflows
-            target: Target identifier for filename
-            format_type: Report format ('txt', 'html', or 'both')
-            **kwargs: Additional options
-            
-        Returns:
-            Path to generated master report (or TXT if both formats)
-        """
         master_format = f'master_{format_type}'
         
-        if format_type == 'both':
-            # Generate both HTML and TXT master reports
-            html_results = self.generate_report(
-                data, 
-                formats=['master_html'], 
-                target=target, 
-                workflow='comprehensive',
-                **kwargs
-            )
-            txt_results = self.generate_report(
-                data, 
-                formats=['master_txt'], 
-                target=target, 
-                workflow='comprehensive',
-                **kwargs
-            )
-            console.success(f"Generated master reports in both formats", internal=True)
-            return txt_results.get('master_txt', list(txt_results.values())[0])
-        
-        elif master_format in self.reporters:
+        if master_format in self.reporters:
             results = self.generate_report(
-                data, 
+                data,
                 formats=[master_format], 
                 target=target, 
                 workflow='comprehensive',
                 **kwargs
             )
-            return results.get(master_format, list(results.values())[0])
+            return results.get(master_format)
         else:
-            console.error(f"Unsupported master report format: {format_type}", internal=True)
-            raise ValueError(f"Unsupported format: {format_type}")
+            console.error(f"Master TXT reporter not found", internal=True)
+            return None
     
-    def add_reporter(self, format_name: str, reporter):
-        """Add a custom reporter
-        
-        Args:
-            format_name: Format identifier
-            reporter: Reporter instance
-        """
+    def generate_wordlist_recommendations(self, data: Dict[str, Any],
+                                        target: Optional[str] = None,
+                                        enable_versioning: bool = False,
+                                        **kwargs) -> Path:
+        """Generate wordlist recommendations file"""
+        if 'wordlist_recommendation' in self.reporters:
+            reporter = self.reporters['wordlist_recommendation']
+            return reporter.generate(
+                data,
+                target=target,
+                enable_versioning=enable_versioning,
+                **kwargs
+            )
+        else:
+            console.error(f"Wordlist recommendation reporter not found", internal=True)
+            return None
+    
+    def add_reporter(self, format_name: str, reporter) -> None:
+        """Add a custom reporter"""
         self.reporters[format_name] = reporter
-        self.multi_reporter.add_reporter(reporter)
     
-    def remove_reporter(self, format_name: str):
-        """Remove a reporter
-        
-        Args:
-            format_name: Format identifier to remove
-        """
+    def remove_reporter(self, format_name: str) -> None:
+        """Remove a reporter"""
         if format_name in self.reporters:
             del self.reporters[format_name]
-            self.multi_reporter.remove_reporter(format_name)
     
     def get_available_formats(self) -> List[str]:
         """Get list of available report formats"""
         return list(self.reporters.keys())
     
-    def set_output_directory(self, output_dir: Path):
-        """Set output directory for all reporters
-        
-        Args:
-            output_dir: New output directory
-        """
+    def set_output_directory(self, output_dir: Path) -> None:
+        """Set output directory for all reporters"""
         self.output_dir = Path(output_dir)
         for reporter in self.reporters.values():
             reporter.output_dir = self.output_dir
     
-    def create_workflow_manager(self, workflow_name: str) -> 'WorkflowReportManager':
-        """Create a workflow-specific report manager
-        
-        Args:
-            workflow_name: Name of the workflow
-            
-        Returns:
-            Workflow-specific report manager
-        """
+    def create_workflow_manager(self, workflow_name: str):
+        """Create a workflow-specific report manager"""
         return WorkflowReportManager(self, workflow_name)
 
 
@@ -223,52 +154,26 @@ class WorkflowReportManager:
     """Workflow-specific report manager"""
     
     def __init__(self, parent_manager: ReportManager, workflow_name: str):
-        """Initialize workflow report manager
-        
-        Args:
-            parent_manager: Parent report manager
-            workflow_name: Name of the workflow
-        """
+        """Initialize workflow report manager"""
         self.parent = parent_manager
         self.workflow_name = workflow_name
         self.workflow_dir = parent_manager.output_dir / workflow_name
         self.workflow_dir.mkdir(parents=True, exist_ok=True)
     
-    def generate(self, 
-                data: Dict[str, Any], 
-                formats: Optional[List[str]] = None,
-                **kwargs) -> Dict[str, Path]:
-        """Generate workflow reports
-        
-        Args:
-            data: Data to generate reports from
-            formats: List of formats to generate
-            **kwargs: Additional options
-            
-        Returns:
-            Dictionary mapping format names to generated file paths
-        """
+    def generate_report(self, data: Dict[str, Any],
+                       formats: Optional[List[str]] = None,
+                       **kwargs) -> Dict[str, Path]:
+        """Generate workflow reports"""
         kwargs['workflow'] = self.workflow_name
         return self.parent.generate_report(data, formats, **kwargs)
     
-    def generate_in_workspace(self,
-                            workspace_dir: Path,
-                            data: Dict[str, Any],
-                            formats: Optional[List[str]] = None,
-                            **kwargs) -> Dict[str, Path]:
-        """Generate reports in workspace directory
-        
-        Args:
-            workspace_dir: Workspace directory
-            data: Data to generate reports from
-            formats: List of formats to generate
-            **kwargs: Additional options
-            
-        Returns:
-            Dictionary mapping format names to generated file paths
-        """
+    def generate_workspace_report(self, data: Dict[str, Any],
+                                workspace_dir: Path,
+                                formats: Optional[List[str]] = None,
+                                **kwargs) -> Dict[str, Path]:
+        """Generate reports in workspace directory"""
         kwargs['workflow'] = self.workflow_name
-        return self.parent.generate_workspace_reports(workspace_dir, data, formats, **kwargs)
+        return self.parent.generate_workspace_report(data, workspace_dir, formats, **kwargs)
 
 
 # Global report manager instance

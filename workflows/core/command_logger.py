@@ -8,11 +8,21 @@ import threading
 class CommandLogger:
     """Logs all commands executed by workflows to a commands.txt file in workspaces"""
     
-    def __init__(self, workspace_dir: str = "workspaces"):
+    def __init__(self, workspace_dir: str = "workspaces", enabled: bool = True):
         self.workspace_dir = Path(workspace_dir)
         self.commands_file = self.workspace_dir / "commands.txt"
         self._lock = threading.Lock()
-        self._ensure_workspace_exists()
+        self.enabled = enabled
+        
+        # Check environment variable for global disable
+        if os.getenv('IPCRAWLER_DISABLE_COMMAND_LOGGING', '').lower() in ('true', '1', 'yes'):
+            self.enabled = False
+        
+        if self.enabled:
+            self._ensure_workspace_exists()
+        else:
+            # Create a dummy logger that does nothing
+            pass
     
     def _ensure_workspace_exists(self):
         """Ensure the workspace directory exists"""
@@ -34,6 +44,10 @@ class CommandLogger:
             output: Command output (optional)
             error: Error message if command failed (optional)
         """
+        # Skip logging if disabled
+        if not self.enabled:
+            return
+            
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         
         with self._lock:
@@ -66,6 +80,10 @@ class CommandLogger:
     
     def log_workflow_start(self, workflow_name: str, target: Optional[str] = None):
         """Log when a workflow starts"""
+        # Skip logging if disabled
+        if not self.enabled:
+            return
+            
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         with self._lock:
@@ -77,6 +95,10 @@ class CommandLogger:
     
     def log_workflow_end(self, workflow_name: str, success: bool, execution_time: Optional[float] = None):
         """Log when a workflow ends"""
+        # Skip logging if disabled
+        if not self.enabled:
+            return
+            
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         status_symbol = "🎉" if success else "💥"
         status_text = "COMPLETED" if success else "FAILED"
@@ -90,6 +112,10 @@ class CommandLogger:
     
     def clear_log(self):
         """Clear the commands log file"""
+        # Skip if disabled
+        if not self.enabled:
+            return
+            
         with self._lock:
             if self.commands_file.exists():
                 self.commands_file.unlink()
@@ -99,11 +125,13 @@ class CommandLogger:
 _command_logger: Optional[CommandLogger] = None
 
 
-def get_command_logger() -> CommandLogger:
+def get_command_logger(enabled: Optional[bool] = None) -> CommandLogger:
     """Get the global command logger instance"""
     global _command_logger
     if _command_logger is None:
-        _command_logger = CommandLogger()
+        # Default to disabled for new system behavior
+        default_enabled = os.getenv('IPCRAWLER_ENABLE_COMMAND_LOGGING', 'false').lower() in ('true', '1', 'yes')
+        _command_logger = CommandLogger(enabled=enabled if enabled is not None else default_enabled)
     return _command_logger
 
 
