@@ -87,6 +87,7 @@ class SmartListResult:
                 'service_name': service.service_name,
                 'detected_technology': service.detected_tech,
                 'confidence': service.confidence_level,
+                'port': service.port,
                 'total_score': round(service.total_score, 3),
                 'top_wordlists': []
             }
