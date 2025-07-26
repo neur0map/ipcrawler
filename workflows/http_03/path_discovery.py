@@ -1,39 +1,48 @@
-"""
-Path discovery for HTTP scanner workflow.
+"""Path Discovery Engine Module for HTTP_03 Workflow
 
-This module handles SmartList integration, traditional path discovery,
-HTML content parsing, and comprehensive path validation.
+Handles intelligent path discovery using SmartList algorithm and traditional methods.
 """
 
 import asyncio
 import time
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Dict, List, Any, Tuple
 from urllib.parse import urlparse, urljoin
+import re
+
 from .models import HTTPService, PathDiscoveryMetadata
-from .config import get_scanner_config
-from .utils import extract_paths_from_html, get_valid_status_codes, get_error_indicators, get_valid_content_indicators
+
+# SmartList imports
+try:
+    from src.core.tools.smartlist.core import score_wordlists, score_wordlists_with_catalog, ScoringContext
+    from src.core.tools.smartlist.utils import get_wordlist_paths
+    SMARTLIST_AVAILABLE = True
+except ImportError:
+    SMARTLIST_AVAILABLE = False
+
+# HTTP dependencies
+try:
+    import httpx
+    HTTP_AVAILABLE = True
+except ImportError:
+    HTTP_AVAILABLE = False
+
+# Utils
+from src.core.utils.debugging import debug_print
 from workflows.core.command_logger import get_command_logger
-from utils.debug import debug_print
 
 
-class PathDiscovery:
-    """Path discovery handler with SmartList and traditional methods"""
+class PathDiscoveryEngine:
+    """Handles intelligent path discovery using multiple methods"""
     
-    def __init__(self, original_ip: str):
-        self.config = get_scanner_config()
-        self.original_ip = original_ip
+    def __init__(self, user_agents: List[str], config: Dict[str, Any]):
+        """Initialize with user agents and configuration"""
+        self.user_agents = user_agents
+        self.config = config
+        self.original_ip = None  # Set by parent scanner
     
     async def discover_paths(self, service: HTTPService) -> List[str]:
-        """
-        Enhanced path discovery using SmartList algorithm and traditional methods.
-        
-        Args:
-            service: HTTPService object to scan
-            
-        Returns:
-            List of discovered paths
-        """
+        """Enhanced path discovery using SmartList algorithm and traditional methods"""
         start_time = time.time()
         discovered = []
         total_paths_tested = 0
@@ -42,10 +51,10 @@ class PathDiscovery:
         confidence = None
         
         # Get configuration - simple enhanced discovery toggle
-        discovery_config = self.config.get_discovery_config()
+        discovery_config = self.config.get('discovery', {})
         enhanced_discovery = discovery_config.get('enhanced', True)
         
-        smartlist_enabled = enhanced_discovery and self.config.smartlist_available
+        smartlist_enabled = enhanced_discovery and SMARTLIST_AVAILABLE
         discovery_enabled = True  # Always enabled, but mode depends on 'enhanced' setting
         
         # 1. SmartList intelligent discovery (if enabled and available)
@@ -74,7 +83,7 @@ class PathDiscovery:
         
         # 3. Parse HTML for links (always enabled)
         if service.response_body:
-            html_paths = extract_paths_from_html(service.response_body, self.config.scanner_config_manager)
+            html_paths = self._extract_paths_from_html(service.response_body)
             discovered.extend(html_paths)
         
         # Remove duplicates and clean up
@@ -94,25 +103,8 @@ class PathDiscovery:
         return unique_paths
     
     async def _discover_paths_with_smartlist(self, service: HTTPService) -> Dict[str, Any]:
-        """
-        Use SmartList algorithm for intelligent path discovery.
-        
-        Args:
-            service: HTTPService object
-            
-        Returns:
-            Dictionary with discovery results
-        """
-        if not self.config.smartlist_available:
-            return {'paths': [], 'paths_tested': 0}
-        
-        try:
-            from src.core.scorer import (
-                score_wordlists_with_catalog, score_wordlists, 
-                get_wordlist_paths, ScoringContext
-            )
-        except ImportError:
-            debug_print("SmartList imports failed", level="WARNING")
+        """Use SmartList algorithm for intelligent path discovery"""
+        if not SMARTLIST_AVAILABLE:
             return {'paths': [], 'paths_tested': 0}
         
         # Build context for SmartList
@@ -151,9 +143,8 @@ class PathDiscovery:
             return {'paths': [], 'paths_tested': 0}
         
         # Sensible defaults for SmartList operation
-        concurrency = self.config.get_concurrency_limits()
-        max_wordlists = concurrency.get('max_wordlists', 3)
-        max_paths_per_wordlist = concurrency.get('max_paths_per_wordlist', 100)
+        max_wordlists = 3
+        max_paths_per_wordlist = 100
         min_confidence = 'MEDIUM'
         
         # Filter by confidence if needed
@@ -194,10 +185,7 @@ class PathDiscovery:
                     
                     # Log the equivalent fuzzing command
                     base_url = service.url.rstrip('/')
-                    get_command_logger().log_command(
-                        "http_03", 
-                        f"ffuf -w {wordlist_path}:FUZZ -u {base_url}/FUZZ -mc 200,301,302,401,403 -t 20"
-                    )
+                    get_command_logger().log_command("http_03", f"ffuf -w {wordlist_path}:FUZZ -u {base_url}/FUZZ -mc 200,301,302,401,403 -t 20")
                     
                     # Test paths
                     valid_paths = await self._test_paths_batch(service, paths)
@@ -227,47 +215,19 @@ class PathDiscovery:
         }
     
     async def _discover_paths_traditional(self, service: HTTPService, config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Traditional path discovery methods.
-        
-        Args:
-            service: HTTPService object
-            config: Discovery configuration
-            
-        Returns:
-            Dictionary with discovery results
-        """
+        """Traditional path discovery methods"""
         discovered = []
         paths_tested = 0
         
-        # Common application patterns from database
-        common_paths = []
-        if self.config.scanner_config_manager:
-            try:
-                common_paths = self.config.scanner_config_manager.get_common_application_paths()
-            except Exception as e:
-                debug_print(f"Error getting common paths from database: {e}", level="WARNING")
-        
-        # Fallback patterns if database unavailable
-        if not common_paths:
-            common_paths = [
-                '/robots.txt', '/sitemap.xml', '/.well-known/security.txt',
-                '/api/', '/api/v1/', '/api/v2/', '/graphql',
-                '/.git/config', '/.env', '/config.php', '/wp-config.php',
-                '/admin/', '/login', '/dashboard', '/console',
-                '/swagger-ui/', '/api-docs/', '/docs/',
-                '/.DS_Store', '/thumbs.db', '/web.config'
-            ]
-        
-        # Add service-specific paths from port database
-        try:
-            port = int(service.url.split(':')[-1].split('/')[0]) if ':' in service.url else (443 if 'https' in service.url else 80)
-            db_paths = self.config.get_service_specific_paths(port)
-            if db_paths:
-                debug_print(f"Adding {len(db_paths)} database-specific paths for port {port}")
-                common_paths.extend([path for path in db_paths if path not in common_paths])
-        except Exception as e:
-            debug_print(f"Error adding database paths: {e}", level="WARNING")
+        # Common application patterns (always included)
+        common_paths = [
+            '/robots.txt', '/sitemap.xml', '/.well-known/security.txt',
+            '/api/', '/api/v1/', '/api/v2/', '/graphql',
+            '/.git/config', '/.env', '/config.php', '/wp-config.php',
+            '/admin/', '/login', '/dashboard', '/console',
+            '/swagger-ui/', '/api-docs/', '/docs/',
+            '/.DS_Store', '/thumbs.db', '/web.config'
+        ]
         
         # Log the equivalent manual commands for common paths
         base_url = service.url.rstrip('/')
@@ -280,8 +240,16 @@ class PathDiscovery:
         discovered.extend(valid_common)
         paths_tested += len(common_paths)
         
-        # Technology-specific paths from database
-        tech_paths = self._get_technology_specific_paths(service)
+        # Technology-specific paths (always included)
+        tech_paths = []
+        if service.server:
+            server_lower = service.server.lower()
+            if 'apache' in server_lower:
+                tech_paths.extend(['/server-status', '/server-info'])
+            elif 'nginx' in server_lower:
+                tech_paths.extend(['/nginx_status'])
+            elif 'tomcat' in server_lower:
+                tech_paths.extend(['/manager/', '/host-manager/'])
         
         if tech_paths:
             # Log technology-specific commands
@@ -298,119 +266,29 @@ class PathDiscovery:
             'method': 'traditional'
         }
     
-    def _get_technology_specific_paths(self, service: HTTPService) -> List[str]:
-        """
-        Get technology-specific paths based on detected technologies and server.
+    def _extract_paths_from_html(self, html_content: str) -> List[str]:
+        """Extract paths from HTML content"""
+        paths = []
         
-        Args:
-            service: HTTPService object
-            
-        Returns:
-            List of technology-specific paths
-        """
-        tech_paths = []
+        # Find all href and src attributes
+        links = re.findall(r'(?:href|src)=["\']([^"\']+)["\']', html_content)
+        for link in links:
+            parsed = urlparse(link)
+            if parsed.path and parsed.path != '/':
+                # Only include relative paths or paths on same domain
+                if not parsed.netloc or parsed.netloc == '':
+                    paths.append(parsed.path)
         
-        # Technology-specific paths from database
-        if service.server and self.config.scanner_config_manager:
-            try:
-                server_lower = service.server.lower()
-                for server_type in ['apache', 'nginx', 'tomcat', 'iis', 'jetty']:
-                    if server_type in server_lower:
-                        server_paths = self.config.scanner_config_manager.get_server_specific_paths(server_type)
-                        tech_paths.extend(server_paths)
-                        break
-            except Exception as e:
-                debug_print(f"Error getting server-specific paths: {e}", level="WARNING")
-        
-        # Fallback server-specific paths if database unavailable
-        elif service.server:
-            server_lower = service.server.lower()
-            if 'apache' in server_lower:
-                tech_paths.extend(['/server-status', '/server-info'])
-            elif 'nginx' in server_lower:
-                tech_paths.extend(['/nginx_status'])
-            elif 'tomcat' in server_lower:
-                tech_paths.extend(['/manager/', '/host-manager/'])
-        
-        # Add monitoring-specific paths based on content analysis
-        monitoring_paths = self._get_monitoring_specific_paths(service)
-        tech_paths.extend(monitoring_paths)
-        
-        return tech_paths
-    
-    def _get_monitoring_specific_paths(self, service: HTTPService) -> List[str]:
-        """
-        Get monitoring-specific paths based on response content analysis.
-        
-        Args:
-            service: HTTPService object
-            
-        Returns:
-            List of monitoring-specific paths
-        """
-        monitoring_paths = []
-        
-        if not service.response_body:
-            return monitoring_paths
-        
-        response_lower = service.response_body.lower()
-        
-        # Grafana-specific paths
-        if any(indicator in response_lower for indicator in ['grafana', '/grafana', 'grafana.js', 'grafana-app']):
-            monitoring_paths.extend([
-                '/grafana/', '/grafana/api/health', '/grafana/login',
-                '/grafana/api/dashboards', '/grafana/api/datasources',
-                '/api/health', '/api/dashboards', '/api/datasources'
-            ])
-            debug_print("Detected Grafana indicators, adding Grafana-specific paths")
-        
-        # Generic monitoring dashboard paths
-        if any(indicator in response_lower for indicator in ['dashboard', 'monitoring', 'metrics', 'telemetry']):
-            monitoring_paths.extend([
-                '/metrics', '/health', '/status', '/api/health',
-                '/monitoring/', '/dashboard/', '/admin/monitoring',
-                '/api/v1/query', '/prometheus/', '/kibana/'
-            ])
-            debug_print("Detected monitoring indicators, adding dashboard paths")
-        
-        # Prometheus-specific paths
-        if any(indicator in response_lower for indicator in ['prometheus', '/metrics', 'prom_']):
-            monitoring_paths.extend([
-                '/metrics', '/api/v1/query', '/api/v1/label',
-                '/prometheus/', '/prometheus/api/v1/query'
-            ])
-            debug_print("Detected Prometheus indicators, adding Prometheus paths")
-        
-        return monitoring_paths
+        return paths
     
     async def _test_paths_batch(self, service: HTTPService, paths: List[str]) -> List[str]:
-        """
-        Test a batch of paths efficiently with detailed validation.
-        
-        Args:
-            service: HTTPService object
-            paths: List of paths to test
-            
-        Returns:
-            List of valid paths
-        """
-        if not paths:
+        """Test a batch of paths efficiently with detailed validation"""
+        if not paths or not HTTP_AVAILABLE:
             return []
         
-        if not self.config.deps_available:
-            debug_print("HTTP dependencies not available for path testing")
-            return []
-        
-        try:
-            import httpx
-        except ImportError:
-            debug_print("httpx not available for path testing")
-            return []
-        
-        # Get settings from config
-        timeout_settings = self.config.get_timeout_settings()
-        concurrency = self.config.get_concurrency_limits()
-        max_concurrent = concurrency.get('max_concurrent', 20)
+        # Sensible defaults for path testing
+        timeout = 5
+        max_concurrent = 20
         
         # Create semaphore to limit concurrent requests
         semaphore = asyncio.Semaphore(max_concurrent)
@@ -424,10 +302,7 @@ class PathDiscovery:
             'filtered_out': 0
         }
         
-        async with httpx.AsyncClient(
-            verify=False, 
-            timeout=httpx.Timeout(connect=timeout_settings['connect'], read=timeout_settings['read'])
-        ) as client:
+        async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
             # Create tasks with semaphore
             async def test_with_semaphore(path):
                 async with semaphore:
@@ -446,35 +321,16 @@ class PathDiscovery:
                     stats['error_count'] += 1
                     debug_print(f"Error testing path {path}: {result}")
             
-            # Run technology detection on discovered paths that might contain new tech
-            if valid_paths and self.config.technology_matcher:
-                try:
-                    from .tech_detector import TechnologyDetector
-                    tech_detector = TechnologyDetector()
-                    await tech_detector.run_tech_detection_on_paths(service, valid_paths)
-                except Exception as e:
-                    debug_print(f"Error running tech detection on paths: {e}", level="WARNING")
-            
             return valid_paths
     
-    async def _check_path_with_stats(self, client, url: str, stats: dict) -> Tuple[str, bool]:
-        """
-        Check path with actual command logging and statistics.
-        
-        Args:
-            client: httpx.AsyncClient instance
-            url: Full URL to test
-            stats: Statistics dictionary to update
-            
-        Returns:
-            Tuple of (path, is_valid)
-        """
+    async def _check_path_with_stats(self, client: httpx.AsyncClient, url: str, stats: dict) -> Tuple[str, bool]:
+        """Check path with actual command logging"""
         path = urlparse(url).path
         stats['total_tested'] += 1
         
         try:
             # Try HEAD first for efficiency
-            response = await client.head(url, headers={"User-Agent": self.config.get_user_agents()[0]})
+            response = await client.head(url, headers={"User-Agent": self.user_agents[0]})
             
             # Track status codes
             status_code = response.status_code
@@ -482,11 +338,11 @@ class PathDiscovery:
             
             # If HEAD fails, try GET for directories
             if response.status_code in [405, 501]:  # Method not allowed
-                response = await client.get(url, headers={"User-Agent": self.config.get_user_agents()[0]})
+                response = await client.get(url, headers={"User-Agent": self.user_agents[0]})
                 stats['status_counts'][response.status_code] = stats['status_counts'].get(response.status_code, 0) + 1
             
-            # Get valid status codes
-            valid_status_codes = get_valid_status_codes(self.config.scanner_config_manager)
+            # Use strict validation by default - only meaningful, accessible content
+            valid_status_codes = [200, 201, 202, 204, 301, 302, 307, 308, 401, 403]
             
             # Exclude common false positives
             if response.status_code not in valid_status_codes:
@@ -508,18 +364,9 @@ class PathDiscovery:
             debug_print(f"Error checking path {path}: {e}")
             return path, False
     
-    async def _validate_path_content(self, response, url: str, client) -> bool:
-        """
-        Validate that the path contains meaningful content.
+    async def _validate_path_content(self, response: 'httpx.Response', url: str, client: 'httpx.AsyncClient') -> bool:
+        """Validate that the path contains meaningful content"""
         
-        Args:
-            response: httpx.Response object
-            url: Full URL
-            client: httpx.AsyncClient instance
-            
-        Returns:
-            True if content is meaningful, False otherwise
-        """
         # Status code based validation
         status_code = response.status_code
         
@@ -538,7 +385,7 @@ class PathDiscovery:
                 # If it's a HEAD request with no content-length, try GET for small files
                 if response.request.method == 'HEAD' and not content_length:
                     try:
-                        get_response = await client.get(url, headers={"User-Agent": self.config.get_user_agents()[0]})
+                        get_response = await client.get(url, headers={"User-Agent": self.user_agents[0]})
                         if get_response.status_code != status_code:
                             return False
                         
@@ -548,8 +395,20 @@ class PathDiscovery:
                         if len(content.strip()) < 10:
                             return False
                         
-                        # Filter out default error pages
-                        error_indicators = get_error_indicators(self.config.scanner_config_manager)
+                        # Filter out default error pages and server defaults
+                        error_indicators = [
+                            'not found', '404', 'file not found',
+                            'forbidden', '403', 'access denied', 
+                            'internal server error', '500',
+                            'bad request', '400',
+                            'default apache', 'default nginx',
+                            'it works!', 'welcome to nginx',
+                            'directory listing', 'index of /',
+                            'apache http server test page',
+                            'nginx welcome page',
+                            'test page for the apache',
+                            'welcome to caddy'
+                        ]
                         
                         content_lower = content.lower()
                         for indicator in error_indicators:
@@ -562,26 +421,23 @@ class PathDiscovery:
                         if '.' in path.split('/')[-1]:  # Has file extension
                             return True
                         
-                        # Check for meaningful content indicators
-                        valid_content_indicators = get_valid_content_indicators(self.config.scanner_config_manager)
-                        
                         # Directories with meaningful content
-                        if any(tag in content_lower for tag in valid_content_indicators):
+                        if any(tag in content_lower for tag in ['<html>', '<title>', '<h1>', '<form>', 'api']):
                             return True
                         
                         # JSON/API responses
-                        if get_response.headers.get('content-type', '').startswith('application/json'):
+                        if response.headers.get('content-type', '').startswith('application/json'):
                             return True
                         
-                        return True  # Default to true for other content
+                        return False
                         
                     except Exception:
-                        # If GET fails, assume HEAD was correct
-                        return True
-                
-                return True  # Valid status with content-length
-                
+                        return False
+                else:
+                    # For HEAD requests with content-length, trust the server
+                    return True
+                    
             except Exception:
-                return True  # Default to true if we can't validate content
+                return False
         
         return False

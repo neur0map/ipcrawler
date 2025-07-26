@@ -19,7 +19,7 @@ else
 	PYTHON_CMD = python3
 endif
 
-.PHONY: install uninstall clean clean-install fix-deps test help
+.PHONY: install uninstall clean clean-install fix-deps test setup-tools help
 
 # Default target
 all: help
@@ -29,12 +29,16 @@ help:
 	@echo "====================="
 	@echo ""
 	@echo "Commands:"
-	@echo "  make install      - Install IPCrawler system-wide (with cleanup)"
+	@echo "  make install      - Install IPCrawler system-wide (with tool setup)"
+	@echo "  make setup-tools  - Install and configure essential tools only"
 	@echo "  make uninstall    - Remove IPCrawler from system"
 	@echo "  make clean-install - Clean all existing IPCrawler installations"
 	@echo "  make fix-deps     - Fix Python dependencies for sudo access"
 	@echo "  make clean        - Clean Python cache files"
 	@echo "  make test         - Test installation"
+	@echo ""
+	@echo "Tool Management:"
+	@echo "  make setup-tools  - Install hakrawler and other essential tools"
 	@echo ""
 	@echo "System info:"
 	@echo "  OS: $(OS_TYPE)"
@@ -42,6 +46,12 @@ help:
 	@echo "  Python: $(PYTHON_CMD)"
 	@echo "  Current dir: $$(pwd)"
 	@echo "  User home: $(USER_HOME)"
+	@echo ""
+	@echo "Features:"
+	@echo "  • Automatic tool installation (hakrawler, etc.)"
+	@echo "  • PATH configuration for Go tools"
+	@echo "  • System-wide symlinks for easy access"
+	@echo "  • Smart dependency management"
 	@echo ""
 	@echo "Usage after install:"
 	@echo "  ipcrawler <target>       - Run as user"
@@ -78,6 +88,14 @@ install:
 	else \
 		echo "⚠ Failed to install dependencies - HTTP scanner will use fallback mode"; \
 		echo "⚠ You may need to install dependencies manually"; \
+	fi
+	@echo "Setting up essential tools..."
+	@# Install and configure hakrawler
+	@echo "→ Installing hakrawler for enhanced URL discovery..."
+	@if $(PYTHON_CMD) scripts/install_hakrawler.py; then \
+		echo "✓ Hakrawler setup completed"; \
+	else \
+		echo "⚠ Hakrawler setup had issues - Mini Spider will still work"; \
 	fi
 	@if [ ! -f ipcrawler ]; then \
 		echo "Creating wrapper script..."; \
@@ -130,9 +148,27 @@ install:
 	@echo "  ipcrawler <target>       - Run as user"
 	@echo "  sudo ipcrawler <target>  - Run with privileges"
 	@echo ""
-	@echo "Setting up SecLists and wordlist catalog..."
-	@echo "This may take a few minutes for first-time installation..."
-	@AUTO_INSTALL=true ./scripts/generate_catalog.sh || echo "⚠ Catalog generation failed - you can run 'bash scripts/generate_catalog.sh' manually later"
+	@echo "Setting up SecLists and generating catalog..."
+	@# Ensure database/wordlists directory exists
+	@mkdir -p database/wordlists
+	@# Run SecLists check and catalog generation in foreground
+	@AUTO_INSTALL=true ./scripts/check_seclists.sh && \
+		if [ -f .seclists_path ] && [ -s .seclists_path ]; then \
+			. ./.seclists_path && \
+			if [ ! -z "$$SECLISTS_PATH" ]; then \
+				echo "→ Generating SecLists catalog..."; \
+				if $(PYTHON_CMD) -m src.core.tools.catalog.generate_catalog; then \
+					echo "✓ SecLists catalog generated successfully"; \
+				else \
+					echo "⚠ Failed to generate wordlist catalog - SmartList will use fallback mode"; \
+				fi; \
+			else \
+				echo "⚠ SECLISTS_PATH is empty, skipping catalog generation"; \
+			fi; \
+		else \
+			echo "⚠ .seclists_path file missing or empty, skipping catalog generation"; \
+		fi
+	@echo ""
 	@echo "✓ Installation complete!"
 
 uninstall:
@@ -244,3 +280,41 @@ test:
 	@echo ""
 	@echo "Testing dependencies..."
 	@$(PYTHON_CMD) -c "import httpx, dns.resolver" 2>/dev/null && echo "✓ HTTP scanner ready" || echo "⚠ HTTP scanner will use fallback mode"
+	@echo ""
+	@echo "Testing tool integration..."
+	@echo -n "Hakrawler detection: "
+	@if $(PYTHON_CMD) scripts/check_hakrawler.py >/dev/null 2>&1; then \
+		echo "✓ Working"; \
+	else \
+		echo "⚠ Issues detected - run 'python scripts/check_hakrawler.py' for details"; \
+	fi
+
+setup-tools:
+	@echo "Setting up essential tools for IPCrawler..."
+	@echo "=========================================="
+	@echo ""
+	@echo "→ Installing and configuring hakrawler..."
+	@if $(PYTHON_CMD) scripts/install_hakrawler.py; then \
+		echo "✓ Hakrawler setup completed successfully"; \
+	else \
+		echo "⚠ Hakrawler setup encountered issues"; \
+		echo "  Run 'python scripts/check_hakrawler.py' for diagnostics"; \
+	fi
+	@echo ""
+	@echo "→ Testing tool integration..."
+	@if $(PYTHON_CMD) scripts/check_hakrawler.py >/dev/null 2>&1; then \
+		echo "✓ All tools working correctly"; \
+	else \
+		echo "⚠ Some tools may have issues"; \
+		echo "  Run 'python scripts/check_hakrawler.py' for details"; \
+	fi
+	@echo ""
+	@echo "✓ Tool setup completed!"
+	@echo ""
+	@echo "Tools are now ready for IPCrawler workflows."
+	@echo "You may need to restart your terminal or run:"
+	@echo "  source ~/.bashrc (Linux)"
+	@echo "  source ~/.zshrc (macOS with zsh)"
+
+# Master report generation has been moved to centralized reporting system
+# Use: ipcrawler report master-report --workspace=<workspace_name>

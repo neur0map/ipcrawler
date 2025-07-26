@@ -18,27 +18,101 @@ SECLISTS_REPO="https://github.com/danielmiessler/SecLists.git"
 SECLISTS_SIZE="~1.5GB"
 
 # Possible SecLists locations (in order of preference)
-# System-wide locations first, then user locations
 SECLISTS_PATHS=(
-    "/usr/share/seclists"              # HTB/Kali standard (lowercase)
-    "/usr/share/SecLists"              # Alternative system location
-    "/opt/seclists"                    # Alternative system location (lowercase)
-    "/opt/SecLists"                    # Alternative system location
-    "/usr/local/share/seclists"        # Local system installation (lowercase)
-    "/usr/local/share/SecLists"        # Local system installation
-    "$HOME/SecLists"                   # User installation
-    "$HOME/.local/share/SecLists"      # User local installation
+    "/opt/SecLists"
+    "/usr/share/SecLists" 
+    "/usr/local/share/SecLists"
+    "/usr/share/seclists"          # Kali/Ubuntu package manager location
+    "/usr/share/wordlists/seclists" # Alternative Kali location
+    "/usr/share/wordlists/SecLists" # Alternative Kali location
+    "/opt/seclists"                # Lowercase variant
+    "/home/kali/SecLists"          # Default Kali user
+    "/root/SecLists"               # Root user location
+    "$HOME/SecLists"
+    "$HOME/.local/share/SecLists"
+    "$HOME/seclists"               # Lowercase in home
+    "$HOME/tools/SecLists"         # Common tools directory
+    "$HOME/tools/seclists"         # Lowercase tools directory
+    "/pentest/SecLists"            # Pentest environment
+    "/tools/SecLists"              # Common tools location
 )
 
 # Function to check if SecLists exists and is valid
 check_seclists_installation() {
+    local found_paths=()
+    
+    # Check predefined paths
     for path in "${SECLISTS_PATHS[@]}"; do
-        if [ -d "$path" ] && [ -d "$path/Discovery" ] && [ -d "$path/Discovery/Web-Content" ]; then
-            echo "$path"
-            return 0
+        if validate_seclists_directory "$path"; then
+            found_paths+=("$path")
         fi
     done
+    
+    # Additional dynamic searches
+    # Search for seclists in common package manager locations
+    if command -v find >/dev/null 2>&1; then
+        # Search in /usr/share for any seclists-related directories
+        while IFS= read -r -d '' dir; do
+            if validate_seclists_directory "$dir"; then
+                found_paths+=("$dir")
+            fi
+        done < <(find /usr/share -maxdepth 2 -type d -iname "*seclists*" 2>/dev/null | head -10 | tr '\n' '\0')
+        
+        # Search in /opt for seclists
+        while IFS= read -r -d '' dir; do
+            if validate_seclists_directory "$dir"; then
+                found_paths+=("$dir")
+            fi
+        done < <(find /opt -maxdepth 2 -type d -iname "*seclists*" 2>/dev/null | head -5 | tr '\n' '\0')
+    fi
+    
+    # Return the best match (prefer standard locations)
+    if [ ${#found_paths[@]} -gt 0 ]; then
+        # Sort by preference (shorter paths and standard locations first)
+        printf '%s\n' "${found_paths[@]}" | sort -t/ -k2,2n | head -1
+        return 0
+    fi
+    
     return 1
+}
+
+# Function to validate if a directory contains valid SecLists structure
+validate_seclists_directory() {
+    local path="$1"
+    
+    # Skip if path doesn't exist or isn't a directory
+    [ -d "$path" ] || return 1
+    
+    # Check for key SecLists directories/files
+    local required_indicators=(
+        "Discovery/Web-Content"
+        "Discovery/DNS"
+        "Passwords"
+        "Usernames"
+    )
+    
+    local found_indicators=0
+    for indicator in "${required_indicators[@]}"; do
+        if [ -d "$path/$indicator" ] || [ -f "$path/$indicator" ]; then
+            ((found_indicators++))
+        fi
+    done
+    
+    # Also check for common wordlist files
+    local wordlist_files=(
+        "Discovery/Web-Content/common.txt"
+        "Discovery/Web-Content/directory-list-2.3-medium.txt"
+        "Discovery/DNS/subdomains-top1million-5000.txt"
+    )
+    
+    for wordlist in "${wordlist_files[@]}"; do
+        if [ -f "$path/$wordlist" ]; then
+            ((found_indicators++))
+        fi
+    done
+    
+    # Require at least 2 indicators to consider it valid SecLists
+    [ $found_indicators -ge 2 ]
 }
 
 # Function to get best installation path
@@ -169,9 +243,55 @@ display_seclists_info() {
     fi
 }
 
+# Function to debug SecLists detection
+debug_seclists_detection() {
+    echo -e "${YELLOW}=== SecLists Detection Debug ===${NC}"
+    echo -e "Checking predefined paths:"
+    
+    for path in "${SECLISTS_PATHS[@]}"; do
+        if [ -d "$path" ]; then
+            echo -e "  ${GREEN}✓${NC} $path (exists)"
+            if validate_seclists_directory "$path"; then
+                echo -e "    ${GREEN}✓${NC} Valid SecLists structure"
+            else
+                echo -e "    ${RED}✗${NC} Invalid SecLists structure"
+            fi
+        else
+            echo -e "  ${RED}✗${NC} $path (not found)"
+        fi
+    done
+    
+    echo -e "\nSearching dynamically:"
+    if command -v find >/dev/null 2>&1; then
+        echo -e "  Searching /usr/share..."
+        find /usr/share -maxdepth 2 -type d -iname "*seclists*" 2>/dev/null | while read dir; do
+            if validate_seclists_directory "$dir"; then
+                echo -e "    ${GREEN}✓${NC} $dir (valid)"
+            else
+                echo -e "    ${YELLOW}?${NC} $dir (invalid structure)"
+            fi
+        done
+        
+        echo -e "  Searching /opt..."
+        find /opt -maxdepth 2 -type d -iname "*seclists*" 2>/dev/null | while read dir; do
+            if validate_seclists_directory "$dir"; then
+                echo -e "    ${GREEN}✓${NC} $dir (valid)"
+            else
+                echo -e "    ${YELLOW}?${NC} $dir (invalid structure)"
+            fi
+        done
+    fi
+    echo -e "${YELLOW}================================${NC}\n"
+}
+
 # Main execution
 main() {
     echo -e "${BLUE}Checking SecLists installation...${NC}"
+    
+    # Show debug info if requested
+    if [ "$DEBUG_SECLISTS" = "true" ]; then
+        debug_seclists_detection
+    fi
     
     # Check if SecLists is already installed
     if seclists_path=$(check_seclists_installation); then
@@ -219,6 +339,10 @@ while [[ $# -gt 0 ]]; do
             UPDATE_SECLISTS="true"
             shift
             ;;
+        --debug)
+            DEBUG_SECLISTS="true"
+            shift
+            ;;
         --help)
             echo "SecLists Installation Checker"
             echo ""
@@ -227,6 +351,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --auto    Automatically install SecLists without prompting"
             echo "  --update  Update existing SecLists installation"
+            echo "  --debug   Show detailed detection information"
             echo "  --help    Show this help message"
             exit 0
             ;;

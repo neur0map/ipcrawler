@@ -62,12 +62,6 @@ logs/
 *.temp
 .cache/
 
-# Coverage reports
-coverage.xml
-htmlcov/
-.coverage
-.coverage.*
-
 # Security sensitive files
 *.key
 *.pem
@@ -79,4 +73,6 @@ secrets.yaml
 ipcrawler
 .seclists_path
 seclists_catalog.json
-
+coverage.xml
+local-docs/
+development/

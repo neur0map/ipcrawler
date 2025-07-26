@@ -12,7 +12,8 @@ from workflows.core.exceptions import (
 )
 from workflows.core.error_collector import collect_error
 from workflows.nmap_02.models import NmapScanResult, NmapHost, NmapPort
-from config import config
+from src.core.config import config
+from src.core.utils.nmap_utils import is_root, build_nmap_command
 
 
 class NmapScanner(BaseWorkflow):
@@ -37,37 +38,7 @@ class NmapScanner(BaseWorkflow):
             return False
         return True
     
-    def _is_root(self) -> bool:
-        """Check if running with root privileges"""
-        return os.geteuid() == 0
     
-    def _build_nmap_command(self, is_root: bool, port_spec: str, flags: Optional[List[str]] = None) -> List[str]:
-        """Build nmap command based on privileges and port specification"""
-        if is_root:
-            cmd = [
-                "nmap",
-                "-sS",     # SYN scan (requires root)
-                "-sV",     # Version detection
-                "-sC",     # Default scripts only (fast)
-                "-T4",     # Aggressive timing
-                f"-p{port_spec}",  # Port specification
-                "-oX", "-" # Output XML to stdout
-            ]
-        else:
-            cmd = [
-                "nmap",
-                "-sT",     # TCP connect scan
-                "-sV",     # Version detection
-                "-sC",     # Default scripts only (fast)
-                "-T4",     # Aggressive timing
-                f"-p{port_spec}",  # Port specification
-                "-oX", "-" # Output XML to stdout
-            ]
-        
-        if flags:
-            cmd.extend(flags)
-        
-        return cmd
     
     def _create_port_ranges(self, total_ports: int = 65535) -> List[Tuple[int, int]]:
         """Create port ranges for parallel scanning"""
@@ -83,18 +54,18 @@ class NmapScanner(BaseWorkflow):
         start_time = time.time()
         
         try:
-            is_root = self._is_root()
+            root_privileged = is_root()
             
             # If specific ports are provided, choose scan method based on real-time setting
             if ports:
                 # Use batched scanning for real-time results, single scan otherwise
                 if len(ports) > 5:
-                    return await self._batched_port_scan(target, ports, is_root, flags, progress_queue, start_time)
+                    return await self._batched_port_scan(target, ports, root_privileged, flags, progress_queue, start_time)
                 else:
-                    return await self._single_scan(target, ports, is_root, flags, start_time, progress_queue)
+                    return await self._single_scan(target, ports, root_privileged, flags, start_time, progress_queue)
             else:
                 # Parallel batch scanning for all ports
-                return await self._parallel_scan(target, is_root, flags, progress_queue, start_time)
+                return await self._parallel_scan(target, root_privileged, flags, progress_queue, start_time)
             
         except Exception as exc:
             # Use structured error handling
@@ -116,7 +87,7 @@ class NmapScanner(BaseWorkflow):
             port_spec = ','.join(map(str, ports))
             
             # Build nmap command
-            cmd = self._build_nmap_command(is_root, port_spec, flags)
+            cmd = build_nmap_command(port_spec, is_root, flags, "detailed")
             cmd.append(target)
             
             # Execute nmap
@@ -333,7 +304,7 @@ class NmapScanner(BaseWorkflow):
             port_spec = ','.join(map(str, ports))
             
             # Build command for these specific ports
-            cmd = self._build_nmap_command(is_root, port_spec, flags)
+            cmd = build_nmap_command(port_spec, is_root, flags, "detailed")
             cmd.append(target)
             
             # Execute nmap
@@ -380,7 +351,7 @@ class NmapScanner(BaseWorkflow):
         try:
             # Build command for this port range
             port_spec = f"{start_port}-{end_port}"
-            cmd = self._build_nmap_command(is_root, port_spec, flags)
+            cmd = build_nmap_command(port_spec, is_root, flags, "detailed")
             cmd.append(target)
             
             # Execute nmap

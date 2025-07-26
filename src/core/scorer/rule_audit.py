@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 """
-Rule audit tool for analyzing SmartList mapping quality and detecting problems.
+SmartList Rule Auditor
+
+Audits SmartList mapping rules for quality and conflicts.
 
 Usage:
     python rule_audit.py [--verbose] [--cache-days=30]
 """
 
-import argparse
 import sys
+import argparse
 from pathlib import Path
 from collections import defaultdict, Counter
-from typing import Dict, List, Set, Tuple, Any
-import re
+from typing import Dict, Any, List
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from .mappings import (
-    EXACT_MATCH_RULES, TECH_CATEGORY_RULES, PORT_CATEGORY_RULES, 
-    SERVICE_KEYWORD_RULES, GENERIC_FALLBACK
+from src.core.scorer.rules import (
+    EXACT_MATCH_RULES, TECH_CATEGORY_RULES, PORT_CATEGORY_RULES,
+    SERVICE_KEYWORD_RULES, GENERIC_FALLBACK_RULES
 )
-from .cache import cache
-
+from src.core.scorer.cache import cache
 
 class RuleAuditor:
     """Audits SmartList mapping rules for quality and conflicts."""
@@ -35,33 +35,24 @@ class RuleAuditor:
     
     def run_full_audit(self, cache_days: int = 30) -> Dict[str, Any]:
         """Run complete audit of mapping rules."""
-        print("🔍 SmartList Rule Audit Report")
         print("=" * 50)
         
         # 1. Analyze wordlist overlaps
-        print("\n📊 WORDLIST OVERLAP ANALYSIS")
         overlap_issues = self.analyze_wordlist_overlaps()
         
         # 2. Analyze rule usage from cache
-        print("\n📈 RULE USAGE ANALYSIS")
         usage_issues = self.analyze_rule_usage(cache_days)
         
         # 3. Analyze repetitive patterns
-        print("\n🔄 REPETITION ANALYSIS") 
         repetition_issues = self.analyze_repetitive_patterns()
         
         # 4. Analyze port conflicts
-        print("\n⚠️  PORT CONFLICT ANALYSIS")
         port_issues = self.analyze_port_conflicts()
         
         # 5. Analyze pattern quality
-        print("\n🎯 PATTERN QUALITY ANALYSIS")
         pattern_issues = self.analyze_pattern_quality()
         
         # Summary
-        print("\n📋 AUDIT SUMMARY")
-        self.print_summary()
-        
         return {
             "overlap_issues": overlap_issues,
             "usage_issues": usage_issues,
@@ -72,7 +63,7 @@ class RuleAuditor:
             "total_warnings": len(self.warnings)
         }
     
-    def analyze_wordlist_overlaps(self) -> List[Dict[str, Any]]:
+    def analyze_wordlist_overlaps(self):
         """Detect wordlists that appear in multiple rule categories."""
         wordlist_sources = defaultdict(list)
         
@@ -88,13 +79,13 @@ class RuleAuditor:
         # Tech category rules
         for category, config in TECH_CATEGORY_RULES.items():
             source = f"tech_category:{category}"
-            for wl in config["wordlists"]:
+            for wl in config.get('wordlists', []):
                 wordlist_sources[wl].append(source)
         
         # Port category rules
         for category, config in PORT_CATEGORY_RULES.items():
             source = f"port_category:{category}"
-            for wl in config["wordlists"]:
+            for wl in config.get('wordlists', []):
                 wordlist_sources[wl].append(source)
         
         # Service keyword rules
@@ -104,7 +95,7 @@ class RuleAuditor:
                 wordlist_sources[wl].append(source)
         
         # Generic fallback
-        for wl in GENERIC_FALLBACK:
+        for wl in GENERIC_FALLBACK_RULES:
             wordlist_sources[wl].append("generic_fallback")
         
         # Find overlaps
@@ -121,34 +112,25 @@ class RuleAuditor:
                 overlap_issues.append(issue)
                 
                 if severity == "ERROR":
-                    self.issues.append(f"❌ OVERLAP: '{wordlist}' appears in {len(sources)} categories: {', '.join(sources)}")
+                    self.issues.append(issue)
                 else:
-                    self.warnings.append(f"⚠️  OVERLAP: '{wordlist}' appears in {len(sources)} categories: {', '.join(sources)}")
+                    self.warnings.append(issue)
         
         # Print results
         if overlap_issues:
+            print("\n📋 Wordlist Overlap Analysis:")
             overlap_issues.sort(key=lambda x: x["count"], reverse=True)
             for issue in overlap_issues[:10]:  # Top 10
                 icon = "❌" if issue["severity"] == "ERROR" else "⚠️ "
-                print(f"{icon} '{issue['wordlist']}' in {issue['count']} categories")
-                if self.verbose:
-                    for source in issue["sources"]:
-                        print(f"    - {source}")
-        else:
-            print("✅ No wordlist overlaps detected")
+                print(f"   {icon} {issue['wordlist']}: {issue['count']} sources")
         
         return overlap_issues
     
-    def analyze_rule_usage(self, days_back: int) -> List[Dict[str, Any]]:
+    def analyze_rule_usage(self, days_back: int = 30):
         """Analyze rule usage patterns from cache data."""
         try:
             entries = cache.search_selections(days_back=days_back, limit=500)
-        except Exception as e:
-            print(f"⚠️  Could not access cache data: {e}")
-            return []
-        
-        if not entries:
-            print("⚠️  No cache data available for analysis")
+        except Exception:
             return []
         
         # Count rule usage
@@ -156,17 +138,22 @@ class RuleAuditor:
         wordlist_usage = Counter()
         
         for entry in entries:
-            for rule in entry.result.matched_rules:
-                rule_usage[rule] += 1
-            for wl in entry.result.wordlists:
+            rule = entry.get('rule_matched', 'unknown')
+            wordlists = entry.get('selected_wordlists', [])
+            
+            rule_usage[rule] += 1
+            for wl in wordlists:
                 wordlist_usage[wl] += 1
         
         total_selections = len(entries)
         usage_issues = []
         
+        if total_selections == 0:
+            return usage_issues
+        
         # Find overused rules/wordlists (>80% of selections)
         overuse_threshold = total_selections * 0.8
-        for item, count in wordlist_usage.most_common():
+        for item, count in wordlist_usage.most_common(5):
             if count > overuse_threshold:
                 percentage = (count / total_selections) * 100
                 issue = {
@@ -177,14 +164,14 @@ class RuleAuditor:
                     "severity": "WARNING"
                 }
                 usage_issues.append(issue)
-                self.warnings.append(f"⚠️  OVERUSED: '{item}' appears in {percentage:.1f}% of selections")
+                self.warnings.append(issue)
         
         # Find unused exact rules
         used_exact_rules = {rule for rule in rule_usage.keys() if rule.startswith("exact:")}
         all_exact_rules = {f"exact:{tech}:{port}" for (tech, port) in EXACT_MATCH_RULES.keys()}
         unused_exact = all_exact_rules - used_exact_rules
         
-        for rule in unused_exact:
+        for rule in list(unused_exact)[:5]:  # Limit to 5
             issue = {
                 "type": "unused_exact_rule",
                 "item": rule,
@@ -192,22 +179,19 @@ class RuleAuditor:
                 "severity": "INFO"
             }
             usage_issues.append(issue)
-            if self.verbose:
-                print(f"ℹ️  UNUSED: '{rule}' - 0 matches in {days_back} days")
         
         # Print top usage
-        print(f"📊 Analysis of {total_selections} selections over {days_back} days:")
-        print("\nMost used wordlists:")
-        for wl, count in wordlist_usage.most_common(5):
-            percentage = (count / total_selections) * 100
-            icon = "🔥" if percentage > 50 else "📈"
-            print(f"{icon} {wl}: {count} times ({percentage:.1f}%)")
-        
-        print(f"\nUnused exact rules: {len(unused_exact)}")
+        if total_selections > 0:
+            print("\n📊 Rule Usage Analysis:")
+            for item, count in wordlist_usage.most_common(3):
+                percentage = (count / total_selections) * 100
+                icon = "🔥" if percentage > 50 else "📈"
+                print(f"   {icon} {item}: {count} times ({percentage:.1f}%)")
         
         return usage_issues
+        
     
-    def analyze_repetitive_patterns(self) -> List[Dict[str, Any]]:
+    def analyze_repetitive_patterns(self):
         """Find rules that always recommend the same wordlists."""
         repetitive_issues = []
         
@@ -224,7 +208,7 @@ class RuleAuditor:
                     "severity": "WARNING"
                 }
                 repetitive_issues.append(issue)
-                self.warnings.append(f"🔄 REPETITIVE: tech_category '{category}' always recommends same {len(set(wordlists))} wordlists")
+                self.warnings.append(issue)
         
         # Check port categories
         for category, config in PORT_CATEGORY_RULES.items():
@@ -238,26 +222,24 @@ class RuleAuditor:
                     "severity": "WARNING"
                 }
                 repetitive_issues.append(issue)
-                self.warnings.append(f"🔄 REPETITIVE: port_category '{category}' always recommends same {len(set(wordlists))} wordlists")
+                self.warnings.append(issue)
         
         # Print results
         if repetitive_issues:
-            print(f"Found {len(repetitive_issues)} repetitive patterns:")
-            for issue in repetitive_issues:
-                if self.verbose:
-                    print(f"🔄 {issue['type']}: {issue['category']} -> {issue['wordlists']}")
-        else:
-            print("✅ No repetitive patterns detected")
+            print("\n🔄 Repetitive Pattern Analysis:")
+            for issue in repetitive_issues[:5]:
+                print(f"   ⚠️  {issue['category']}: {issue['unique_count']} unique wordlists")
         
         return repetitive_issues
+        
     
-    def analyze_port_conflicts(self) -> List[Dict[str, Any]]:
+    def analyze_port_conflicts(self):
         """Detect ports that appear in multiple exclusive categories."""
         port_assignments = defaultdict(list)
         
         # Collect port assignments
         for category, config in PORT_CATEGORY_RULES.items():
-            for port in config["ports"]:
+            for port in config.get('ports', []):
                 port_assignments[port].append(category)
         
         # Find conflicts
@@ -271,35 +253,34 @@ class RuleAuditor:
                     "severity": "WARNING"
                 }
                 port_issues.append(issue)
-                self.warnings.append(f"⚠️  PORT CONFLICT: Port {port} in categories: {', '.join(categories)}")
+                self.warnings.append(issue)
         
         # Print results
         if port_issues:
-            print(f"Found {len(port_issues)} port conflicts:")
-            for issue in port_issues:
-                print(f"⚠️  Port {issue['port']}: {', '.join(issue['categories'])}")
-        else:
-            print("✅ No port conflicts detected")
+            print("\n🔍 Port Conflict Analysis:")
+            for issue in port_issues[:5]:
+                print(f"   ⚠️  Port {issue['port']}: {issue['count']} categories")
         
         return port_issues
+        
     
-    def analyze_pattern_quality(self) -> List[Dict[str, Any]]:
+    def analyze_pattern_quality(self):
         """Analyze regex pattern quality for potential issues."""
         pattern_issues = []
         
         for category, config in TECH_CATEGORY_RULES.items():
-            if "fallback_pattern" not in config:
+            if 'fallback_pattern' not in config:
                 continue
-            
+                
             pattern = config["fallback_pattern"]
             
             # Check for overly broad patterns
             broad_patterns = [
-                r"admin", r"management", r"api", r"web", r"http"
+                ".*", ".+", "\\w+", "\\S+", "[^\\s]+"
             ]
             
             for broad in broad_patterns:
-                if broad in pattern.lower():
+                if broad in pattern:
                     issue = {
                         "type": "broad_pattern",
                         "category": category,
@@ -308,10 +289,10 @@ class RuleAuditor:
                         "severity": "WARNING"
                     }
                     pattern_issues.append(issue)
-                    self.warnings.append(f"⚠️  BROAD PATTERN: '{category}' pattern contains '{broad}' - may match too widely")
+                    self.warnings.append(issue)
             
             # Check for missing word boundaries
-            if r"\b" not in pattern:
+            if not ("\\b" in pattern or "^" in pattern or "$" in pattern):
                 issue = {
                     "type": "missing_word_boundary",
                     "category": category,
@@ -319,52 +300,48 @@ class RuleAuditor:
                     "severity": "INFO"
                 }
                 pattern_issues.append(issue)
-                if self.verbose:
-                    print(f"ℹ️  PATTERN: '{category}' could benefit from word boundaries (\\b)")
         
         # Print results
-        print(f"Analyzed {len(TECH_CATEGORY_RULES)} patterns:")
         if pattern_issues:
-            for issue in pattern_issues:
+            print("\n🎯 Pattern Quality Analysis:")
+            for issue in pattern_issues[:5]:
                 if issue["severity"] == "WARNING":
-                    print(f"⚠️  {issue['category']}: {issue.get('broad_term', 'issue detected')}")
-        else:
-            print("✅ No major pattern issues detected")
+                    print(f"   ⚠️  {issue['category']}: {issue['type']}")
         
         return pattern_issues
+        
     
     def print_summary(self):
         """Print audit summary."""
         total_issues = len(self.issues)
         total_warnings = len(self.warnings)
         
-        print(f"\n🎯 AUDIT RESULTS:")
-        print(f"   Issues (❌): {total_issues}")
-        print(f"   Warnings (⚠️ ): {total_warnings}")
+        print("\n" + "=" * 50)
+        print("📋 AUDIT SUMMARY")
+        print("=" * 50)
         
         if total_issues == 0 and total_warnings == 0:
-            print("✅ All rules passed audit!")
+            print("✅ No issues found - rules look good!")
         elif total_issues == 0:
-            print("✅ No critical issues found")
+            print(f"⚠️  {total_warnings} warnings found (no critical issues)")
         else:
-            print("❌ Critical issues need attention")
+            print(f"❌ {total_issues} issues and {total_warnings} warnings found")
         
         # Top priority fixes
-        if self.issues:
-            print(f"\n🔥 TOP PRIORITY FIXES:")
-            for issue in self.issues[:5]:
-                print(f"   {issue}")
+        if total_issues > 0:
+            print("\n🚨 Top Priority Fixes:")
+            for issue in self.issues[:3]:
+                print(f"   • {issue}")
         
         # Recommendations
-        print(f"\n💡 RECOMMENDATIONS:")
-        if total_issues > 0:
-            print("   1. Fix wordlist overlaps to improve specificity")
-        if total_warnings > 5:
-            print("   2. Consider narrowing broad patterns")
-        if any("OVERUSED" in w for w in self.warnings):
-            print("   3. Add alternative wordlists for overused items")
-        if any("PORT CONFLICT" in w for w in self.warnings):
-            print("   4. Implement port priority system")
+        print("\n💡 Recommendations:")
+        if total_issues == 0 and total_warnings == 0:
+            print("   • Rules are well-configured")
+            print("   • Consider running audit regularly")
+        else:
+            print("   • Review wordlist overlaps to reduce conflicts")
+            print("   • Consider consolidating repetitive rules")
+            print("   • Monitor rule usage patterns")
 
 
 def main():
@@ -381,11 +358,8 @@ def main():
     results = auditor.run_full_audit(cache_days=args.cache_days)
     
     # Exit with error code if critical issues found
-    if results["total_issues"] > 0:
-        sys.exit(1)
-    else:
-        sys.exit(0)
+    return 1 if len(auditor.issues) > 0 else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

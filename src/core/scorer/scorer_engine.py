@@ -1,623 +1,595 @@
-"""
-Core scoring engine for wordlist recommendation.
-"""
+"""IPCrawler scoring engine for wordlist recommendations"""
 
-from typing import List, Set, Optional, Dict, Any, Tuple
+import json
 import logging
-from .models import ScoringContext, ScoringResult, ScoreBreakdown, Confidence, AnonymizedScoringContext
-from .rules import rule_engine
-from .mappings import GENERIC_FALLBACK, get_wordlist_alternatives
-from .cache import cache_selection
-
-# Import wordlist resolver
-try:
-    import sys
-    from pathlib import Path
-    # Add tools directory to path for resolver import
-    tools_path = Path(__file__).parent.parent.parent.parent / "tools"
-    sys.path.insert(0, str(tools_path))
-    from catalog.resolver import resolver as wordlist_resolver
-    WORDLIST_RESOLVER_AVAILABLE = True
-except ImportError:
-    WORDLIST_RESOLVER_AVAILABLE = False
-    wordlist_resolver = None
-
-# Import port database
-try:
-    import json
-    import sys
-    from pathlib import Path
-    
-    # Define project root first
-    project_root = Path(__file__).parent.parent.parent.parent
-    sys.path.insert(0, str(project_root))
-    from database.ports import PortDatabase, load_port_database
-    
-    # Load port database on module import
-    port_db_path = project_root / "database" / "ports" / "port_db.json"
-    if port_db_path.exists():
-        with open(port_db_path, 'r', encoding='utf-8') as f:
-            port_db_data = json.load(f)
-        port_database = load_port_database(port_db_data)
-        PORT_DATABASE_AVAILABLE = True
-    else:
-        port_database = None
-        PORT_DATABASE_AVAILABLE = False
-except ImportError:
-    port_database = None
-    PORT_DATABASE_AVAILABLE = False
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Tuple
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
 
-def enrich_context_with_port_data(context: ScoringContext) -> ScoringContext:
-    """
-    Enrich scoring context with technology information from port database.
-    
-    Args:
-        context: Original scoring context
-        
-    Returns:
-        Enhanced context with port database technology information
-    """
-    if not PORT_DATABASE_AVAILABLE or not port_database:
-        logger.debug("Port database not available - using original context")
-        return context
-    
-    # Get port entry from database
-    port_entry = port_database.get_port(context.port)
-    if not port_entry:
-        logger.debug(f"No port entry found for port {context.port}")
-        return context
-    
-    # Extract technology information
-    tech_stack = port_entry.get_technology_stack()
-    
-    # If no tech specified in context, try to extract from port database
-    enhanced_tech = context.tech
-    if not enhanced_tech and tech_stack:
-        # Use the most specific technology from the stack
-        enhanced_tech = tech_stack[0] if tech_stack else None
-        logger.debug(f"Enhanced tech from port DB: {enhanced_tech}")
-    
-    # Create enhanced context
-    enhanced_context = ScoringContext(
-        target=context.target,
-        port=context.port,
-        service=context.service,
-        tech=enhanced_tech,
-        os=context.os,
-        version=context.version,
-        headers=context.headers
-    )
-    
-    logger.debug(f"Context enriched with port DB data: tech={enhanced_tech}, stack={tech_stack}")
-    return enhanced_context
+@dataclass
+class ScoringContext:
+    """Context for scoring wordlists"""
+    target: str
+    port: int
+    service: str
+    tech: Optional[str] = None
+    os: Optional[str] = None
+    version: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
+    spider_data: Optional[Dict[str, Any]] = None
 
 
-def score_wordlists(context: ScoringContext) -> ScoringResult:
-    """
-    Main function to score wordlists based on context with entropy checking.
+@dataclass
+class ScoreBreakdown:
+    """Breakdown of scoring factors"""
+    service_match: float = 0.0
+    tech_match: float = 0.0
+    port_match: float = 0.0
+    popularity: float = 0.0
+    total: float = 0.0
+
+
+@dataclass
+class WordlistScore:
+    """Score for a specific wordlist"""
+    wordlist: str
+    score: float
+    confidence: str
+    breakdown: ScoreBreakdown
+    reason: str
+
+
+@dataclass
+class ScoringResult:
+    """Result of wordlist scoring"""
+    context: ScoringContext
+    scores: List[WordlistScore]
+    total_wordlists: int
+    execution_time: float
+
+
+from enum import Enum
+class Confidence(Enum):
+    """Confidence levels for scoring results"""
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+@dataclass
+class ScoreExplanation:
+    """Detailed breakdown of scoring components"""
+    exact_match: float = 0.0
+    tech_category: float = 0.0
+    port_context: float = 0.0
+    service_keywords: float = 0.0
+    generic_fallback: float = 0.0
+
+
+@dataclass
+class SmartListResult:
+    """Result structure expected by SmartList workflow"""
+    wordlists: List[str]
+    score: float
+    confidence: Confidence
+    matched_rules: List[str]
+    fallback_used: bool
+    explanation: ScoreExplanation
+
+
+# Old ScoringResult-based function removed - now using SmartListResult format
+
+
+def score_wordlists(context: ScoringContext) -> SmartListResult:
+    """Score wordlists based on context - dynamic catalog-only version (no hardcoded lists)"""
     
-    Args:
-        context: ScoringContext with target information
-        
-    Returns:
-        ScoringResult with recommendations and explanations
-    """
-    # Enrich context with port database information
-    enriched_context = enrich_context_with_port_data(context)
-    
-    logger.debug(f"Scoring wordlists for {enriched_context.target}:{enriched_context.port}")
-    
-    # Initialize scoring components
-    breakdown = ScoreBreakdown()
-    all_wordlists: Set[str] = set()
-    matched_rules: List[str] = []
-    frequency_adjustments: Dict[str, float] = {}
-    synergy_bonuses: Dict[str, float] = {}
-    
-    # Level 1: Exact match rules (highest priority)
-    exact_wordlists, exact_rules, exact_score = rule_engine.apply_exact_match(enriched_context)
-    if exact_wordlists:
-        breakdown.exact_match = exact_score
-        all_wordlists.update(exact_wordlists)
-        matched_rules.extend(exact_rules)
-        logger.debug(f"Exact match: {exact_rules} -> {exact_wordlists}")
-    
-    # Level 2: Technology category rules
-    tech_wordlists, tech_rules, tech_score = rule_engine.apply_tech_category(enriched_context)
-    if tech_wordlists:
-        breakdown.tech_category = tech_score
-        all_wordlists.update(tech_wordlists)
-        matched_rules.extend(tech_rules)
-        logger.debug(f"Tech category: {tech_rules} -> {tech_wordlists}")
-    
-    # Level 3: Port category rules (always apply for fallback)
-    port_wordlists, port_rules, port_score = rule_engine.apply_port_category(enriched_context)
-    if port_wordlists:
-        breakdown.port_context = port_score
-        all_wordlists.update(port_wordlists)
-        matched_rules.extend(port_rules)
-        logger.debug(f"Port category: {port_rules} -> {port_wordlists}")
-    
-    # Level 4: Service keyword matching
-    keyword_wordlists, keyword_rules, keyword_score = rule_engine.apply_service_keywords(enriched_context)
-    if keyword_wordlists:
-        breakdown.service_keywords = keyword_score
-        all_wordlists.update(keyword_wordlists)
-        matched_rules.extend(keyword_rules)
-        logger.debug(f"Service keywords: {keyword_rules} -> {keyword_wordlists}")
-    
-    # Level 5: Generic fallback if nothing matched
-    fallback_used = False
-    if not all_wordlists:
-        breakdown.generic_fallback = 0.4
-        all_wordlists.update(GENERIC_FALLBACK)
-        matched_rules.append("generic_fallback")
-        fallback_used = True
-        logger.debug(f"Generic fallback: {GENERIC_FALLBACK}")
-    
-    # Calculate final score (take the highest component score)
-    final_score = max([
-        breakdown.exact_match,
-        breakdown.tech_category,
-        breakdown.port_context,
-        breakdown.service_keywords,
-        breakdown.generic_fallback
-    ])
-    
-    # Remove duplicates and sort wordlists
-    initial_wordlists = rule_engine.deduplicate_wordlists(list(all_wordlists))
-    
-    # Apply entropy-based diversification if needed
-    final_wordlists, diversification_applied, entropy_score = _apply_entropy_diversification(
-        initial_wordlists, enriched_context
-    )
-    
-    # Determine confidence level
-    confidence = _determine_confidence(final_score, fallback_used, matched_rules)
-    
-    # Generate cache key using anonymized context
-    anon_context = AnonymizedScoringContext.from_scoring_context(enriched_context)
-    cache_key = anon_context.get_cache_key()
-    
-    # Create result with entropy data
-    result = ScoringResult(
-        score=final_score,
-        explanation=breakdown,
-        wordlists=final_wordlists,
-        matched_rules=matched_rules,
-        fallback_used=fallback_used,
-        cache_key=cache_key,
-        confidence=confidence,
-        entropy_score=entropy_score,
-        diversification_applied=diversification_applied,
-        frequency_adjustments=frequency_adjustments or None,
-        synergy_bonuses=synergy_bonuses or None
-    )
-    
-    entropy_str = f"{entropy_score:.3f}" if entropy_score is not None else "N/A"
-    logger.info(
-        f"Scored {len(final_wordlists)} wordlists for {enriched_context.target}:{enriched_context.port} "
-        f"(score: {final_score:.3f}, confidence: {confidence}, entropy: {entropy_str})"
-    )
-    
-    # Cache the selection for tracking
+    # Try to get wordlists from catalog first
+    catalog_wordlists = []
     try:
-        cache_selection(enriched_context, result)
-    except Exception as e:
-        logger.warning(f"Failed to cache selection: {e}")
-    
-    return result
-
-
-def _determine_confidence(score: float, fallback_used: bool, matched_rules: List[str]) -> Confidence:
-    """
-    Determine confidence level based on score and matching conditions.
-    
-    Args:
-        score: Final score
-        fallback_used: Whether generic fallback was used
-        matched_rules: List of matched rule names
+        # Check if database is available
+        db_stats = get_database_availability()
         
-    Returns:
-        Confidence level
-    """
-    # If we used fallback, confidence is always low
-    if fallback_used:
-        return Confidence.LOW
+        if db_stats.get('catalog_available', False):
+            # Load catalog and select appropriate wordlists
+            catalog_path = Path(db_stats['catalog_path'])
+            with open(catalog_path, 'r') as f:
+                catalog_data = json.load(f)
+            
+            wordlists_array = catalog_data.get('wordlists', [])
+            # Convert array to dict with name as key for compatibility
+            wordlists = {wl.get('name', f'wordlist_{i}'): wl for i, wl in enumerate(wordlists_array)}
+            
+            # Smart wordlist selection based on context
+            selected_wordlists = []
+            score_boost = 0.0
+            matched_rules = []
+            
+            # Tech-specific wordlists with version awareness
+            if context.tech:
+                tech_lower = context.tech.lower()
+                version_info = getattr(context, 'version', None)
+                
+                version_matches = []
+                tech_matches = []
+                
+                for name, info in wordlists.items():
+                    name_lower = name.lower()
+                    display_name_lower = info.get('display_name', '').lower()
+                    
+                    # Check for version-specific matches first
+                    if version_info:
+                        version_patterns = [
+                            f"{tech_lower}_{version_info}",
+                            f"{tech_lower}-{version_info}",
+                            f"{tech_lower}.{version_info}",
+                            f"{tech_lower} {version_info}"
+                        ]
+                        
+                        for pattern in version_patterns:
+                            if pattern in name_lower or pattern in display_name_lower:
+                                version_matches.append(name)
+                                matched_rules.append(f"version_match:{context.tech}:{version_info}")
+                                score_boost += 0.4  # Higher boost for version match
+                                break
+                    
+                    # Check for general tech matches
+                    if tech_lower in name_lower or tech_lower in display_name_lower:
+                        tech_matches.append(name)
+                
+                # Add version matches first, then general tech matches
+                selected_wordlists.extend(version_matches[:1])  # Top version match
+                remaining_slots = max(0, 2 - len(version_matches))
+                for tech_match in tech_matches[:remaining_slots]:
+                    if tech_match not in selected_wordlists:
+                        selected_wordlists.append(tech_match)
+                        matched_rules.append(f"tech_match:{context.tech}")
+                        score_boost += 0.3
+            
+            # Port-specific wordlists for web services
+            if context.port in [80, 443, 8080, 8443, 3000, 5000, 9000]:
+                for name, info in wordlists.items():
+                    if any(tag in ['web', 'directories', 'files'] for tag in info.get('tags', [])):
+                        if name not in selected_wordlists:
+                            selected_wordlists.append(name)
+                        score_boost += 0.2
+                        matched_rules.append(f"port:{context.port}")
+                        if len(selected_wordlists) >= 3:
+                            break
+            
+            # Add high-quality general wordlists from catalog
+            if len(selected_wordlists) < 5:
+                for name, info in wordlists.items():
+                    if info.get('quality_score', 0) >= 7 and name not in selected_wordlists:
+                        selected_wordlists.append(name)
+                        if len(selected_wordlists) >= 5:
+                            break
+            
+            catalog_wordlists = selected_wordlists
     
-    # If we have exact matches, confidence is high
-    if any(rule.startswith("exact:") for rule in matched_rules):
-        return Confidence.HIGH
+    except Exception as e:
+        logger.debug(f"Could not load catalog for basic scoring: {e}")
     
-    # Otherwise use score thresholds
-    if score >= 0.8:
-        return Confidence.HIGH
-    elif score >= 0.6:
-        return Confidence.MEDIUM
+    # Calculate scoring based on available wordlists
+    if catalog_wordlists:
+        # We found catalog wordlists - calculate score
+        base_score = 0.4  # Base score when using catalog
+        tech_bonus = 0.2 if context.tech and any('tech_match:' in r for r in matched_rules) else 0.0
+        port_bonus = 0.1 if context.port in [80, 443, 8080, 8443] else 0.0
+        
+        final_score = min(base_score + tech_bonus + port_bonus, 1.0)
+        confidence = Confidence.MEDIUM if final_score >= 0.5 else Confidence.LOW
+        
+        return SmartListResult(
+            wordlists=catalog_wordlists,
+            score=final_score,
+            confidence=confidence,
+            matched_rules=matched_rules or ["catalog_basic"],
+            fallback_used=False,
+            explanation=ScoreExplanation(
+                exact_match=0.0,
+                tech_category=tech_bonus,
+                port_context=port_bonus,
+                service_keywords=0.0,
+                generic_fallback=0.0
+            )
+        )
     else:
-        return Confidence.LOW
+        # No catalog available - return minimal result indicating catalog needed
+        return SmartListResult(
+            wordlists=[],  # No hardcoded fallbacks - SmartList engine requires catalog
+            score=0.1,  # Very low score to indicate incomplete data
+            confidence=Confidence.LOW,
+            matched_rules=["no_catalog_available"],
+            fallback_used=True,
+            explanation=ScoreExplanation(
+                exact_match=0.0,
+                tech_category=0.0,
+                port_context=0.0,
+                service_keywords=0.0,
+                generic_fallback=0.1  # Minimal score indicating fallback state
+            )
+        )
+
+
+def score_wordlists_with_catalog(context: ScoringContext) -> SmartListResult:
+    """Score wordlists using catalog data - enhanced version with database integration"""
+    try:
+        # Check if database is available
+        db_stats = get_database_availability()
+        
+        if db_stats.get('catalog_available', False):
+            # Load catalog and select appropriate wordlists
+            catalog_path = Path(db_stats['catalog_path'])
+            with open(catalog_path, 'r') as f:
+                catalog_data = json.load(f)
+            
+            wordlists_array = catalog_data.get('wordlists', [])
+            # Convert array to dict with name as key for compatibility
+            wordlists = {wl.get('name', f'wordlist_{i}'): wl for i, wl in enumerate(wordlists_array)}
+            
+            # Smart wordlist selection based on context
+            selected_wordlists = []
+            score_boost = 0.0
+            matched_rules = []
+            
+            # Enhanced tech-specific wordlists with version awareness
+            if context.tech:
+                tech_lower = context.tech.lower()
+                version_info = getattr(context, 'version', None)
+                
+                # First, look for version-specific wordlists
+                version_matches = []
+                tech_matches = []
+                
+                for name, info in wordlists.items():
+                    name_lower = name.lower()
+                    display_name_lower = info.get('display_name', '').lower()
+                    
+                    # Check for version-specific matches first (highest priority)
+                    if version_info:
+                        version_patterns = [
+                            f"{tech_lower}_{version_info}",
+                            f"{tech_lower}-{version_info}",
+                            f"{tech_lower}.{version_info}",
+                            f"{tech_lower} {version_info}"
+                        ]
+                        
+                        for pattern in version_patterns:
+                            if pattern in name_lower or pattern in display_name_lower:
+                                version_matches.append({
+                                    'name': name,
+                                    'score_boost': 0.5,  # Highest boost for version match
+                                    'rule': f"version_exact:{context.tech}:{version_info}:{context.port}"
+                                })
+                                break
+                    
+                    # Check for general tech matches
+                    if tech_lower in name_lower or tech_lower in display_name_lower:
+                        # Check tech compatibility if available
+                        tech_compatibility = info.get('tech_compatibility', [])
+                        compatibility_boost = 0.0
+                        
+                        if tech_compatibility:
+                            for tech_compat in tech_compatibility:
+                                if tech_lower in tech_compat.lower():
+                                    compatibility_boost = 0.1
+                                    break
+                        
+                        tech_matches.append({
+                            'name': name,
+                            'score_boost': 0.3 + compatibility_boost,
+                            'rule': f"tech_match:{context.tech}:{context.port}"
+                        })
+                
+                # Add version-specific matches first (highest priority)
+                for match in version_matches[:2]:  # Limit to top 2 version matches
+                    selected_wordlists.append(match['name'])
+                    score_boost += match['score_boost']
+                    matched_rules.append(match['rule'])
+                
+                # Add general tech matches if we don't have enough version-specific ones
+                remaining_slots = max(0, 3 - len(version_matches))
+                for match in tech_matches[:remaining_slots]:
+                    if match['name'] not in selected_wordlists:
+                        selected_wordlists.append(match['name'])
+                        score_boost += match['score_boost']
+                        matched_rules.append(match['rule'])
+            
+            # Port-specific wordlists for web services
+            if context.port in [80, 443, 8080, 8443, 3000, 5000, 9000]:
+                for name, info in wordlists.items():
+                    if any(tag in ['web', 'directories', 'files'] for tag in info.get('tags', [])):
+                        if name not in selected_wordlists:
+                            selected_wordlists.append(name)
+                        score_boost += 0.2
+                        matched_rules.append(f"port:{context.port}")
+                        if len(selected_wordlists) >= 3:
+                            break
+            
+            # Add high-quality general-purpose wordlists from catalog (no hardcoding)
+            if len(selected_wordlists) < 5:
+                # Get wordlists with high quality scores or common tags
+                for name, info in wordlists.items():
+                    if name not in selected_wordlists:
+                        # Prioritize by quality score or common usage tags
+                        if (info.get('quality_score', 0) >= 8 or 
+                            any(tag in ['common', 'general', 'basic'] for tag in info.get('tags', []))):
+                            selected_wordlists.append(name)
+                            if len(selected_wordlists) >= 5:
+                                break
+            
+            # If we found catalog-specific wordlists, return enhanced result
+            if selected_wordlists:
+                final_score = min(0.6 + score_boost, 1.0)
+                confidence = Confidence.HIGH if final_score > 0.8 else Confidence.MEDIUM
+                
+                return SmartListResult(
+                    wordlists=selected_wordlists,
+                    score=final_score,
+                    confidence=confidence,
+                    matched_rules=matched_rules or ["catalog_fallback"],
+                    fallback_used=False,
+                    explanation=ScoreExplanation(
+                        exact_match=0.3 if context.tech and any('exact:' in r for r in matched_rules) else 0.0,
+                        tech_category=0.2 if context.tech else 0.0,
+                        port_context=0.2 if any('port:' in r for r in matched_rules) else 0.0,
+                        service_keywords=0.1,
+                        generic_fallback=0.0
+                    )
+                )
+        
+        # Fallback to basic scoring if catalog not available
+        logger.debug("Catalog not available, using basic scoring")
+        
+    except Exception as e:
+        logger.warning(f"Error in catalog scoring: {e}")
+    
+    # Fallback to basic scoring
+    return score_wordlists(context)
+
+
+def get_wordlist_paths(wordlist_names: List[str], tech: str = None, port: int = None) -> List[Optional[str]]:
+    """Get full paths for wordlist names using catalog if available"""
+    paths = []
+    
+    try:
+        # Get database availability
+        db_stats = get_database_availability()
+        if not db_stats.get('catalog_available', False):
+            logger.debug("Wordlist catalog not available - SmartList engine requires catalog")
+            # No hardcoded fallbacks - SmartList engine requires catalog
+            return [None] * len(wordlist_names)
+        
+        # Load wordlist catalog
+        catalog_path = Path(db_stats['catalog_path'])
+        with open(catalog_path, 'r') as f:
+            catalog_data = json.load(f)
+        
+        wordlists_array = catalog_data.get('wordlists', [])
+        # Convert array to dict with name as key for compatibility
+        wordlists = {wl.get('name', f'wordlist_{i}'): wl for i, wl in enumerate(wordlists_array)}
+        
+        for name in wordlist_names:
+            path = None
+            
+            # Try exact match first
+            if name in wordlists:
+                path = wordlists[name].get('full_path')
+            else:
+                # Try fuzzy matching (remove extensions, case insensitive)
+                name_base = name.lower().replace('.txt', '').replace('.list', '')
+                for catalog_name, info in wordlists.items():
+                    catalog_base = catalog_name.lower().replace('.txt', '').replace('.list', '')
+                    if name_base in catalog_base or catalog_base in name_base:
+                        path = info.get('full_path')
+                        logger.debug(f"Fuzzy matched '{name}' to '{catalog_name}'")
+                        break
+            
+            if path and Path(path).exists():
+                paths.append(path)
+                logger.debug(f"Resolved '{name}' to: {path}")
+            else:
+                # Fallback to default path
+                fallback_path = f"/usr/share/seclists/Discovery/Web-Content/{name}"
+                if Path(fallback_path).exists():
+                    paths.append(fallback_path)
+                    logger.debug(f"Using fallback path for '{name}': {fallback_path}")
+                else:
+                    paths.append(None)
+                    logger.warning(f"Could not resolve path for wordlist: {name}")
+        
+    except Exception as e:
+        logger.warning(f"Error resolving wordlist paths: {e}")
+        # Return fallback paths
+        return [f"/usr/share/seclists/Discovery/Web-Content/{name}" for name in wordlist_names]
+    
+    return paths
+
+
+def get_port_context(port: int, service: str = None) -> Dict[str, Any]:
+    """Get context information for a port from database"""
+    # Default response
+    context = {
+        "port": port,
+        "service": service or "unknown",
+        "common_services": [],
+        "technology_stack": [],
+        "category": "unknown",
+        "risk_level": "unknown",
+        "is_web_service": False,
+        "technologies": []
+    }
+    
+    try:
+        # Get database availability
+        db_stats = get_database_availability()
+        if not db_stats.get('port_database_available', False):
+            logger.debug(f"Port database not available, returning default context for port {port}")
+            return context
+        
+        # Load port database
+        port_db_path = Path(db_stats['port_db_path'])
+        with open(port_db_path, 'r') as f:
+            port_data = json.load(f)
+        
+        # Look up port information
+        port_str = str(port)
+        if port_str in port_data:
+            port_info = port_data[port_str]
+            
+            # Update context with database information
+            context.update({
+                "service": port_info.get('default_service', service or "unknown"),
+                "common_services": port_info.get('alternative_services', []),
+                "technology_stack": port_info.get('tech_stack', {}),
+                "category": port_info.get('classification', {}).get('category', 'unknown'),
+                "risk_level": port_info.get('classification', {}).get('risk_level', 'unknown'),
+                "is_web_service": port_info.get('classification', {}).get('category') in ['web-service', 'web'],
+                "technologies": port_info.get('indicators', {}).get('tech_indicators', []),
+                "description": port_info.get('description', ''),
+                "banners": port_info.get('indicators', {}).get('banners', [])
+            })
+            
+            logger.debug(f"Loaded port context for {port}: {context['service']} ({context['category']})")
+        else:
+            logger.debug(f"Port {port} not found in database, using defaults")
+            
+    except Exception as e:
+        logger.warning(f"Error loading port context for {port}: {e}")
+    
+    return context
 
 
 def explain_scoring(result: ScoringResult) -> str:
-    """
-    Generate a human-readable explanation of the scoring result.
+    """Explain how scoring was calculated"""
+    explanation = f"Scored {result.total_wordlists} wordlists for {result.context.service} on port {result.context.port}\n"
+    explanation += f"Top results:\n"
     
-    Args:
-        result: ScoringResult to explain
-        
-    Returns:
-        Formatted explanation string
-    """
-    lines = [
-        f"Wordlist Scoring Result (Score: {result.score:.3f}, Confidence: {result.confidence})",
-        "=" * 60
-    ]
+    for score in result.scores[:3]:
+        explanation += f"- {score.wordlist}: {score.score:.2f} ({score.confidence}) - {score.reason}\n"
     
-    # Add matched rules
-    lines.append("Matched Rules:")
-    for rule in result.matched_rules:
-        lines.append(f"  • {rule}")
-    
-    lines.append("")
-    
-    # Add score breakdown
-    lines.append("Score Breakdown:")
-    breakdown = result.explanation
-    
-    if breakdown.exact_match > 0:
-        lines.append(f"  • Exact Match: {breakdown.exact_match:.3f}")
-    
-    if breakdown.tech_category > 0:
-        lines.append(f"  • Tech Category: {breakdown.tech_category:.3f}")
-    
-    if breakdown.port_context > 0:
-        lines.append(f"  • Port Context: {breakdown.port_context:.3f}")
-    
-    if breakdown.service_keywords > 0:
-        lines.append(f"  • Service Keywords: {breakdown.service_keywords:.3f}")
-    
-    if breakdown.generic_fallback > 0:
-        lines.append(f"  • Generic Fallback: {breakdown.generic_fallback:.3f}")
-    
-    lines.append("")
-    
-    # Add recommended wordlists
-    lines.append(f"Recommended Wordlists ({len(result.wordlists)}):")
-    for i, wordlist in enumerate(result.wordlists, 1):
-        lines.append(f"  {i:2d}. {wordlist}")
-    
-    if result.fallback_used:
-        lines.append("")
-        lines.append("⚠️  Generic fallback was used - consider adding specific rules for this service")
-    
-    return "\n".join(lines)
+    return explanation
 
 
-def validate_context(context: ScoringContext) -> List[str]:
-    """
-    Validate scoring context and return any warnings.
-    
-    Args:
-        context: ScoringContext to validate
-        
-    Returns:
-        List of validation warnings
-    """
-    warnings = []
-    
-    # Check for common issues
-    if not context.service.strip():
-        warnings.append("Empty service description - results may be generic")
-    
-    if context.tech and len(context.tech) < 2:
-        warnings.append("Very short tech name - might not match rules properly")
-    
-    # Check for common port/service mismatches
-    web_ports = [80, 443, 8080, 8443]
-    if context.port in web_ports and context.tech:
-        if context.tech in ["mysql", "postgresql", "mongodb"]:
-            warnings.append(f"Database tech '{context.tech}' on web port {context.port} - unusual configuration")
-    
-    # Check for unusual port ranges
-    if context.port > 50000:
-        warnings.append(f"High port number {context.port} - results may be generic")
-    
-    return warnings
-
-
-def _apply_entropy_diversification(wordlists: List[str], 
-                                  context: ScoringContext) -> Tuple[List[str], bool, Optional[float]]:
-    """
-    Apply entropy-based diversification to wordlist recommendations.
-    
-    Args:
-        wordlists: Initial wordlist recommendations
-        context: Scoring context
-        
-    Returns:
-        Tuple of (diversified_wordlists, diversification_applied, entropy_score)
-    """
+def get_database_availability() -> Dict[str, Any]:
+    """Check availability of database files"""
     try:
-        # Import here to avoid circular imports
-        from .entropy import analyzer, should_diversify
+        # Find project root - go up from scorer directory
+        current_path = Path(__file__).parent
+        project_root = None
         
-        # Analyze current entropy
-        entropy_metrics = analyzer.analyze_recent_selections(days_back=7, context=context)
-        entropy_score = entropy_metrics.entropy_score
+        # Look for database directory in parent directories
+        for parent in [current_path] + list(current_path.parents):
+            database_path = parent / "database"
+            if database_path.exists():
+                project_root = parent
+                break
         
-        # Check if diversification is needed
-        if should_diversify(wordlists, context, entropy_threshold=0.7):
-            logger.debug(f"Applying entropy diversification (entropy: {entropy_score:.3f})")
-            
-            # Get diversification alternatives
-            diversified = analyzer.get_diversification_candidates(
-                wordlists, 
-                context, 
-                get_wordlist_alternatives_dict()
-            )
-            
-            if diversified != wordlists:
-                logger.info(f"Diversified wordlists: {len(set(wordlists) - set(diversified))} replaced")
-                return diversified, True, entropy_score
+        if not project_root:
+            logger.warning("Could not find database directory")
+            return {
+                "port_database_available": False,
+                "catalog_available": False,
+                "error": "Database directory not found"
+            }
         
-        return wordlists, False, entropy_score
+        database_path = project_root / "database"
+        port_db_path = database_path / "ports" / "port_db.json"
+        catalog_path = database_path / "wordlists" / "seclists_catalog.json"
+        
+        # Check port database
+        port_db_available = False
+        port_db_error = None
+        try:
+            if port_db_path.exists():
+                with open(port_db_path, 'r') as f:
+                    port_data = json.load(f)
+                    # Verify it has expected structure
+                    if isinstance(port_data, dict) and len(port_data) > 0:
+                        port_db_available = True
+                        logger.debug(f"Port database loaded: {len(port_data)} ports")
+                    else:
+                        port_db_error = "Port database is empty or invalid format"
+            else:
+                port_db_error = f"Port database not found at {port_db_path}"
+        except Exception as e:
+            port_db_error = f"Error loading port database: {e}"
+            logger.warning(port_db_error)
+        
+        # Check wordlist catalog
+        catalog_available = False
+        catalog_error = None
+        try:
+            if catalog_path.exists():
+                with open(catalog_path, 'r') as f:
+                    catalog_data = json.load(f)
+                    # Verify it has expected structure
+                    if isinstance(catalog_data, dict) and 'wordlists' in catalog_data:
+                        wordlists = catalog_data['wordlists']
+                        # Handle both array and dict formats
+                        if isinstance(wordlists, list) and len(wordlists) > 0:
+                            catalog_available = True
+                            logger.debug(f"Wordlist catalog loaded: {len(wordlists)} wordlists")
+                        elif isinstance(wordlists, dict) and len(wordlists) > 0:
+                            catalog_available = True
+                            logger.debug(f"Wordlist catalog loaded: {len(wordlists)} wordlists")
+                        else:
+                            catalog_error = "Wordlist catalog has no wordlists"
+                    else:
+                        catalog_error = "Wordlist catalog is invalid format"
+            else:
+                catalog_error = f"Wordlist catalog not found at {catalog_path}"
+        except Exception as e:
+            catalog_error = f"Error loading wordlist catalog: {e}"
+            logger.warning(catalog_error)
+        
+        result = {
+            "port_database_available": port_db_available,
+            "catalog_available": catalog_available,
+            "database_path": str(database_path),
+            "port_db_path": str(port_db_path),
+            "port_database_path": str(port_db_path),  # For compatibility with SmartList scanner
+            "catalog_path": str(catalog_path)
+        }
+        
+        # Add error details if any
+        if port_db_error:
+            result["port_db_error"] = port_db_error
+        if catalog_error:
+            result["catalog_error"] = catalog_error
+        
+        return result
         
     except Exception as e:
-        logger.warning(f"Entropy diversification failed: {e}")
-        return wordlists, False, None
-
-
-def get_wordlist_alternatives_dict() -> Dict[str, List[str]]:
-    """
-    Get wordlist alternatives mapping for diversification.
-    
-    Returns:
-        Dict mapping wordlist names to their alternatives
-    """
-    from .mappings import WORDLIST_ALTERNATIVES
-    return WORDLIST_ALTERNATIVES
-
-
-def score_wordlists_with_catalog(context: ScoringContext) -> ScoringResult:
-    """
-    Enhanced scoring function that uses SecLists catalog when available.
-    Falls back to original rule-based scoring if catalog unavailable.
-    
-    Args:
-        context: ScoringContext with target information
-        
-    Returns:
-        ScoringResult with enhanced wordlist recommendations
-    """
-    if WORDLIST_RESOLVER_AVAILABLE and wordlist_resolver.is_available():
-        return _score_with_catalog(context)
-    else:
-        logger.info("SecLists catalog not available, using rule-based scoring")
-        return score_wordlists(context)
-
-
-def _score_with_catalog(context: ScoringContext) -> ScoringResult:
-    """
-    Score wordlists using SecLists catalog for enhanced accuracy.
-    
-    Args:
-        context: ScoringContext with target information
-        
-    Returns:
-        ScoringResult with catalog-enhanced recommendations
-    """
-    # Enrich context with port database information  
-    enriched_context = enrich_context_with_port_data(context)
-    
-    logger.debug(f"Scoring with catalog for {enriched_context.target}:{enriched_context.port}")
-    
-    # First get rule-based recommendations (using enriched context)
-    rule_result = score_wordlists(context)  # This will internally enrich again, but that's okay
-    
-    # Enhance with catalog wordlists
-    catalog_wordlists = wordlist_resolver.get_wordlists_for_context(
-        tech=enriched_context.tech,
-        port=enriched_context.port,
-        max_results=15
-    )
-    
-    # Resolve rule-based wordlists through catalog
-    resolved_wordlists = wordlist_resolver.resolve_scorer_recommendations(
-        scorer_wordlists=rule_result.wordlists,
-        tech=enriched_context.tech,
-        port=enriched_context.port,
-        max_results=10
-    )
-    
-    # Combine and deduplicate
-    all_catalog_entries = {}
-    
-    # Add resolved rule-based wordlists (higher priority)
-    for entry in resolved_wordlists:
-        all_catalog_entries[entry.name] = entry
-    
-    # Add context-based wordlists
-    for entry in catalog_wordlists:
-        if entry.name not in all_catalog_entries:
-            all_catalog_entries[entry.name] = entry
-    
-    # Score and rank all entries
-    scored_entries = []
-    for entry in all_catalog_entries.values():
-        relevance_score = entry.get_relevance_score(enriched_context.tech, enriched_context.port)
-        scored_entries.append((entry, relevance_score))
-    
-    # Sort by relevance
-    scored_entries.sort(key=lambda x: x[1], reverse=True)
-    
-    # Extract final wordlist names and paths
-    final_wordlists = []
-    wordlist_paths = []
-    
-    for entry, score in scored_entries[:10]:  # Top 10
-        final_wordlists.append(entry.name)
-        wordlist_paths.append(entry.full_path)
-    
-    # Calculate enhanced scoring breakdown
-    breakdown = rule_result.explanation
-    
-    # Boost confidence if we have catalog matches
-    enhanced_score = rule_result.score
-    if scored_entries:
-        # Boost score based on catalog match quality
-        avg_relevance = sum(score for _, score in scored_entries[:5]) / min(5, len(scored_entries))
-        catalog_boost = min(0.2, avg_relevance * 0.2)
-        enhanced_score = min(1.0, rule_result.score + catalog_boost)
-    
-    # Update matched rules to indicate catalog enhancement
-    enhanced_rules = rule_result.matched_rules.copy()
-    if scored_entries:
-        enhanced_rules.append(f"catalog_enhanced:{len(scored_entries)}_matches")
-    
-    # Create enhanced result with catalog wordlists
-    enhanced_result = ScoringResult(
-        score=enhanced_score,
-        explanation=breakdown,
-        wordlists=final_wordlists,
-        matched_rules=enhanced_rules,
-        fallback_used=rule_result.fallback_used,
-        cache_key=rule_result.cache_key,
-        confidence=_determine_confidence(enhanced_score, rule_result.fallback_used, enhanced_rules)
-    )
-    
-    return enhanced_result
-
-
-def get_wordlist_paths(wordlist_names: List[str], 
-                      tech: Optional[str] = None, 
-                      port: Optional[int] = None) -> List[str]:
-    """
-    Get actual file paths for wordlist names.
-    
-    Args:
-        wordlist_names: List of wordlist names
-        tech: Technology context for better matching
-        port: Port context for better matching
-        
-    Returns:
-        List of file paths
-    """
-    if not WORDLIST_RESOLVER_AVAILABLE or not wordlist_resolver.is_available():
-        logger.warning("Catalog not available - returning wordlist names as paths")
-        return wordlist_names
-    
-    # Resolve through catalog
-    entries = wordlist_resolver.resolve_scorer_recommendations(
-        scorer_wordlists=wordlist_names,
-        tech=tech,
-        port=port,
-        max_results=len(wordlist_names)
-    )
-    
-    return [entry.full_path for entry in entries]
-
-
-def get_port_context(port: int) -> dict:
-    """
-    Get port context information from the port database.
-    
-    Args:
-        port: Port number to lookup
-        
-    Returns:
-        Dict with port context information including technologies, service info, etc.
-    """
-    if not PORT_DATABASE_AVAILABLE or not port_database:
+        logger.error(f"Error checking database availability: {e}")
         return {
-            "available": False,
-            "technologies": [],
-            "service_name": None,
-            "category": None,
-            "risk_level": None
+            "port_database_available": False,
+            "catalog_available": False,
+            "error": str(e)
         }
-    
-    port_entry = port_database.get_port(port)
-    if not port_entry:
-        return {
-            "available": False,
-            "technologies": [],
-            "service_name": None,
-            "category": None,
-            "risk_level": None
-        }
-    
-    return {
-        "available": True,
-        "technologies": port_entry.get_technology_stack(),
-        "service_name": port_entry.default_service,
-        "category": port_entry.classification.category.value,
-        "risk_level": port_entry.classification.misuse_potential.value,
-        "is_web_service": port_entry.is_web_service(),
-        "description": port_entry.description,
-        "alternative_services": port_entry.alternative_services
-    }
 
 
-def get_scoring_stats() -> dict:
+def get_scoring_stats(result: ScoringResult = None) -> Dict[str, Any]:
+    """Get statistics about scoring results and database availability
+    
+    Args:
+        result: Optional ScoringResult to analyze. If None, returns only database stats.
     """
-    Get statistics about the scoring system configuration.
+    # Always include database availability
+    stats = get_database_availability()
     
-    Returns:
-        Dict with scoring system statistics
-    """
-    from .mappings import EXACT_MATCH_RULES, TECH_CATEGORY_RULES, PORT_CATEGORY_RULES, WORDLIST_ALTERNATIVES
-    
-    # Count exact rules
-    exact_count = len(EXACT_MATCH_RULES)
-    
-    # Count tech categories
-    tech_count = len(TECH_CATEGORY_RULES)
-    
-    # Count port categories
-    port_count = len(PORT_CATEGORY_RULES)
-    
-    # Count total wordlists referenced
-    all_wordlists = set()
-    
-    for wordlist_group in EXACT_MATCH_RULES.values():
-        all_wordlists.update(wordlist_group)
-    
-    for config in TECH_CATEGORY_RULES.values():
-        all_wordlists.update(config["wordlists"])
-    
-    for config in PORT_CATEGORY_RULES.values():
-        all_wordlists.update(config["wordlists"])
-    
-    stats = {
-        "exact_rules": exact_count,
-        "tech_categories": tech_count,
-        "port_categories": port_count,
-        "total_wordlists": len(all_wordlists),
-        "generic_fallbacks": len(GENERIC_FALLBACK),
-        "wordlist_alternatives": len(WORDLIST_ALTERNATIVES),
-        "catalog_available": WORDLIST_RESOLVER_AVAILABLE and wordlist_resolver.is_available() if wordlist_resolver else False,
-        "port_database_available": PORT_DATABASE_AVAILABLE
-    }
-    
-    # Add catalog stats if available
-    if WORDLIST_RESOLVER_AVAILABLE and wordlist_resolver and wordlist_resolver.is_available():
-        catalog_stats = wordlist_resolver.get_catalog_stats()
-        stats["catalog_stats"] = catalog_stats
-    
-    # Add entropy analysis stats
-    try:
-        from .entropy import analyzer
-        entropy_metrics = analyzer.analyze_recent_selections(days_back=30)
-        stats["entropy_stats"] = {
-            "recent_entropy_score": entropy_metrics.entropy_score,
-            "recommendation_quality": entropy_metrics.recommendation_quality,
-            "clustering_percentage": entropy_metrics.clustering_percentage
-        }
-    except Exception as e:
-        logger.debug(f"Could not get entropy stats: {e}")
-        stats["entropy_stats"] = {"available": False}
+    # Add scoring statistics if result provided
+    if result:
+        stats.update({
+            "total_wordlists": result.total_wordlists,
+            "high_confidence": len([s for s in result.scores if s.confidence == "HIGH"]),
+            "medium_confidence": len([s for s in result.scores if s.confidence == "MEDIUM"]),
+            "low_confidence": len([s for s in result.scores if s.confidence == "LOW"]),
+            "average_score": sum(s.score for s in result.scores) / len(result.scores) if result.scores else 0,
+            "execution_time": result.execution_time
+        })
     
     return stats
