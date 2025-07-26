@@ -2,48 +2,39 @@
 
 import os
 import sys
-os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
-sys.dont_write_bytecode = True
 
-# Self-cleaning: Remove any cached bytecode to ensure fresh execution
-import shutil
-from pathlib import Path
+# Import cache utilities and ensure no bytecode
+from src.core.utils.cache_utils import ensure_no_bytecode, clean_project_cache
 
-def clean_cache():
-    """Remove all __pycache__ directories in the project"""
-    try:
-        project_root = Path(__file__).parent
-        for cache_dir in project_root.rglob('__pycache__'):
-            if cache_dir.is_dir():
-                shutil.rmtree(cache_dir, ignore_errors=True)
-    except Exception:
-        pass  # Fail silently if cache cleanup fails
+# Configure Python to not write bytecode
+ensure_no_bytecode()
 
 # Clean cache before imports
-clean_cache()
+clean_project_cache()
 
 import asyncio
-import tempfile
-import socket
-import signal
 import sys
-import re
-from datetime import datetime
-from urllib.parse import urlparse
+from pathlib import Path
 
 import typer
 from src.core.ui.console.base import console
-from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+# Import workflows
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
 from workflows.http_03.scanner import HTTPAdvancedScanner
 from workflows.smartlist_05.scanner import SmartListScanner
 from workflows.mini_spider_04.scanner import MiniSpiderScanner
 
+# Import utilities
 from src.core.config import config
 from src.core.reporting.orchestrator import reporting_orchestrator
+from src.core.utils.cli_utils import preprocess_args, validate_target_input
+from src.core.utils.target_utils import resolve_target, is_localhost_target
+from src.core.utils.privilege_utils import check_and_offer_sudo_escalation
+from src.core.utils.process_utils import cleanup_processes, cleanup_existing_nmap_processes
+from src.core.scorer.audit_runner import audit_runner
 
 
 def version_callback(value: bool):
@@ -92,43 +83,6 @@ app = typer.Typer(
 
 # Using centralized console from src.core.ui.console.base
 
-# Global list to track running processes for cleanup
-running_processes = []
-
-def cleanup_processes():
-    """Clean up any running nmap processes"""
-    global running_processes
-    for process in running_processes:
-        try:
-            if process and process.returncode is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=2)
-                except:
-                    process.kill()
-        except:
-            pass
-    running_processes.clear()
-
-def signal_handler(signum, frame):
-    """Handle Ctrl+C and other signals"""
-    console.print("\n⚠ Scan interrupted. Cleaning up...")
-    cleanup_processes()
-    sys.exit(0)
-
-def cleanup_existing_nmap_processes():
-    """Kill any existing nmap processes to prevent conflicts"""
-    try:
-        import subprocess
-        # Kill any existing nmap processes
-        subprocess.run(['pkill', '-f', 'nmap'], capture_output=True, check=False)
-    except:
-        pass  # Ignore errors
-
-# Register signal handlers
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
-
 
 @app.command("scan", help="Analyze target and recommend optimal wordlists for security testing")
 def main_command(
@@ -137,15 +91,11 @@ def main_command(
 ):
     """Main scanning command"""
     # Validate target format
-    if not target or target.strip() == "":
-        console.error("Target cannot be empty")
-        console.info("Usage: ipcrawler <target>")
-        console.info("Example: ipcrawler hackerhub.me")
+    if not validate_target_input(target):
         raise typer.Exit(1)
         
     # Additional validation for common mistakes
-    invalid_targets = ['localhost', '127.0.0.1', '0.0.0.0']
-    if target.lower() in invalid_targets:
+    if is_localhost_target(target):
         console.warning(f"Scanning {target} - make sure this is intended")
         if not typer.confirm(f"Continue scanning {target}?", default=False):
             console.info("Scan cancelled")
@@ -175,328 +125,25 @@ def audit_command(
 
 def run_comprehensive_audit(show_details: bool = False):
     """Run enhanced comprehensive SmartList audit with advanced flaw detection"""
-    try:
-        import subprocess
-        import sys
-        from pathlib import Path
-        
-        # Run enhanced audit script as module
-        result = subprocess.run([sys.executable, "-m", "src.core.scorer.enhanced_audit"], 
-                              capture_output=True, text=True, cwd=Path(__file__).parent)
-        
-        # Display the output directly (enhanced audit handles its own formatting)
-        if result.stdout:
-            console.print(result.stdout)
-        
-        if result.stderr:
-            console.print(f"[red]Audit warnings:[/red] {result.stderr}")
-            
-        # If details requested, run the conflict analyzer
-        if show_details and result.returncode == 0:
-            console.print("\n[bold cyan]🔍 Running Detailed Conflict Analysis...[/bold cyan]")
-            detail_result = subprocess.run([sys.executable, "-m", "src.core.scorer.conflict_analyzer", "--detailed"], 
-                                         capture_output=True, text=True, cwd=Path(__file__).parent)
-            
-            if detail_result.stdout:
-                console.print(detail_result.stdout)
-            if detail_result.stderr:
-                console.print(f"[red]Detail analysis errors:[/red] {detail_result.stderr}")
-        
-        # Exit with the same code as the audit
-        if result.returncode != 0:
-            console.print(f"\n[yellow]⚠ Audit completed with issues (exit code: {result.returncode})[/yellow]")
-        
-        return result.returncode
-        
-    except Exception as e:
-        console.print(f"[red]Enhanced audit failed:[/red] {e}")
-        console.print("[yellow]Falling back to legacy audit...[/yellow]")
-        return run_legacy_audit()
+    return audit_runner.run_comprehensive_audit(show_details)
 
 def run_legacy_audit():
     """Legacy audit system as fallback"""
-    console.print("🔍 [bold cyan]SmartList Comprehensive Audit[/bold cyan]")
-    console.print("=" * 60)
-    console.print()
-    
-    # Part 1: Rule Quality Audit
-    console.print("[bold]📋 Part 1: Rule Quality Analysis[/bold]")
-    console.print("-" * 50)
-    try:
-        import subprocess
-        import sys
-        from pathlib import Path
-        
-        # Run rule audit script as module
-        result = subprocess.run([sys.executable, "-m", "src.core.scorer.rule_audit"], 
-                              capture_output=True, text=True, cwd=Path(__file__).parent)
-        
-        # Parse and display key findings
-        output_lines = result.stdout.split('\n')
-        for line in output_lines:
-            if any(keyword in line for keyword in ['❌', '⚠️', '🔄', '✅', '📊']):
-                console.print(line)
-    except Exception as e:
-        console.print(f"[red]Rule audit failed:[/red] {e}")
-    
-    console.print()
-    
-    # Part 2: Entropy Analysis
-    console.print("[bold]📊 Part 2: Entropy & Diversity Analysis[/bold]")
-    console.print("-" * 50)
-    run_entropy_audit(days_back=30)
-    
-    console.print()
-    
-    # Part 3: Scoring Statistics
-    console.print("[bold]📈 Part 3: Scoring System Statistics[/bold]")
-    console.print("-" * 50)
-    try:
-        from src.core.scorer.scorer_engine import get_scoring_stats
-        from src.core.scorer.rules import get_rule_frequency_stats
-        
-        # Get scoring stats
-        stats = get_scoring_stats()
-        console.print(f"   Exact Rules: {stats.get('exact_rules', 0)}")
-        console.print(f"   Tech Categories: {stats.get('tech_categories', 0)}")
-        console.print(f"   Port Categories: {stats.get('port_categories', 0)}")
-        console.print(f"   Total Wordlists: {stats.get('total_wordlists', 0)}")
-        console.print(f"   Wordlist Alternatives: {stats.get('wordlist_alternatives', 0)}")
-        
-        # Get frequency stats
-        freq_stats = get_rule_frequency_stats()
-        if freq_stats['total_rules'] > 0:
-            console.print(f"\n   [bold]Rule Frequency Analysis:[/bold]")
-            console.print(f"   Rules Tracked: {freq_stats['total_rules']}")
-            console.print(f"   Average Frequency: {freq_stats['average_frequency']:.3f}")
-            
-            if freq_stats['most_frequent']:
-                console.print(f"\n   🔥 Most Frequent Rules:")
-                for rule, freq in freq_stats['most_frequent'][:3]:
-                    console.print(f"      {rule}: {freq:.2%}")
-            
-            if freq_stats['least_frequent']:
-                console.print(f"\n   ❄️  Least Frequent Rules:")
-                for rule, freq in freq_stats['least_frequent'][:3]:
-                    console.print(f"      {rule}: {freq:.2%}")
-    except Exception as e:
-        console.print(f"[red]Stats analysis failed:[/red] {e}")
-    
-    console.print()
-    console.print("[success]✅ Audit Complete![/success]")
-    console.print()
-    console.print("💡 [bold]Next Steps:[/bold]")
-    console.print("   1. Review and fix any ❌ ERROR issues first")
-    console.print("   2. Address ⚠️  WARNING items to improve quality")
-    console.print("   3. Monitor entropy scores regularly")
-    console.print("   4. Update wordlist alternatives for overused items")
+    return audit_runner.run_legacy_audit()
 
 
 def run_entropy_audit(days_back: int = 30, context_tech: str = None, context_port: int = None):
     """Run entropy analysis portion of the audit"""
-    
     try:
-        from src.core.scorer.entropy import analyzer
-        from src.core.scorer.models import ScoringContext
-        from src.core.scorer.cache import cache
-        
-        # Create context filter if specified
-        context_filter = None
-        if context_tech or context_port:
-            context_filter = ScoringContext(
-                target="audit",
-                port=context_port or 80,
-                service="audit",
-                tech=context_tech
-            )
-        
-        # Run entropy analysis
-        console.print(f"\n📊 Analyzing {days_back} days of recommendation data...")
-        metrics = analyzer.analyze_recent_selections(days_back, context_filter)
-        
-        # Display results
-        console.print(f"\n📈 [bold]Entropy Analysis Results[/bold]")
-        console.print(f"   Entropy Score: [{'green' if metrics.entropy_score > 0.7 else 'yellow' if metrics.entropy_score > 0.4 else 'red'}]{metrics.entropy_score:.3f}[/]")
-        console.print(f"   Quality: [{'green' if metrics.recommendation_quality in ['excellent', 'good'] else 'yellow' if metrics.recommendation_quality == 'acceptable' else 'red'}]{metrics.recommendation_quality}[/]")
-        console.print(f"   Total Recommendations: {metrics.total_recommendations}")
-        console.print(f"   Unique Wordlists: {metrics.unique_wordlists}")
-        console.print(f"   Clustering: {metrics.clustering_percentage:.1f}%")
-        console.print(f"   Context Diversity: {metrics.context_diversity:.3f}")
-        
-        if metrics.warning_message:
-            console.print(f"\n⚠️  [yellow]{metrics.warning_message}[/]")
-        
-        # Show most common wordlists
-        if metrics.most_common_wordlists:
-            console.print(f"\n🔄 [bold]Most Common Wordlists:[/bold]")
-            for wordlist, count in metrics.most_common_wordlists[:5]:
-                percentage = (count / metrics.total_recommendations) * 100
-                icon = "🔥" if percentage > 50 else "📈" if percentage > 25 else "📊"
-                console.print(f"   {icon} {wordlist}: {count} times ({percentage:.1f}%)")
-        
-        # Show context clusters
-        console.print(f"\n🎯 [bold]Context Clustering Analysis:[/bold]")
-        clusters = analyzer.detect_context_clusters(days_back)
-        
-        if clusters:
-            for cluster in clusters[:5]:  # Top 5 clusters
-                console.print(f"\n   📦 {cluster.tech or 'Unknown'}:{cluster.port_category}")
-                console.print(f"      Count: {cluster.count} contexts")
-                console.print(f"      Common wordlists: {', '.join(cluster.wordlists[:3])}")
-        else:
-            console.print("   ✅ No significant clustering detected")
-        
-        # Cache statistics
-        try:
-            cache_stats = cache.get_stats()
-            console.print(f"\n💾 [bold]Cache Statistics:[/bold]")
-            console.print(f"   Total Files: {cache_stats['total_files']}")
-            console.print(f"   Date Directories: {cache_stats['date_directories']}")
-        except Exception as e:
-            console.print(f"\n⚠️  Could not get cache stats: {e}")
-        
-        # Recommendations
-        console.print(f"\n💡 [bold]Recommendations:[/bold]")
-        if metrics.entropy_score < 0.5:
-            console.print("   🔧 Critical: Enable diversification alternatives")
-            console.print("   📝 Review rule mappings for overlap reduction")
-        elif metrics.entropy_score < 0.7:
-            console.print("   ⚠️  Consider adding more specific wordlist alternatives")
-        else:
-            console.print("   ✅ Entropy levels are healthy")
-        
-        if metrics.clustering_percentage > 50:
-            console.print("   🎯 High clustering detected - review port/tech categorization")
-        
-    except ImportError as e:
-        console.print(f"[red]Error:[/red] Entropy analysis not available: {e}")
-        raise typer.Exit(1)
-    except Exception as e:
-        console.print(f"[red]Error:[/red] Audit failed: {e}")
-        import traceback
-        console.print(traceback.format_exc())
+        audit_runner.run_entropy_audit(days_back, context_tech, context_port)
+    except Exception:
         raise typer.Exit(1)
 
 
-async def resolve_target(target: str) -> str:
-    """Resolve target hostname to IP with visual feedback"""
-    import ipaddress
-    
-    # Check if target is already an IP address
-    try:
-        ipaddress.ip_address(target)
-        console.display_target_resolution(target, target_type='ip')
-        return target
-    except ValueError:
-        pass
-    
-    # Check if target is CIDR notation
-    try:
-        ipaddress.ip_network(target, strict=False)
-        console.display_target_resolution(target, target_type='cidr')
-        return target
-    except ValueError:
-        pass
-    
-    # It's a hostname, resolve it with visual feedback
-    # Show simple resolving message that works in all terminals
-    console.display_target_resolution(target, resolving=True)
-    
-    result = None
-    resolved_ip = None
-    
-    try:
-        # Use getaddrinfo for proper async DNS resolution
-        result = await asyncio.get_event_loop().run_in_executor(
-            None, 
-            lambda: socket.getaddrinfo(target, None, socket.AF_INET)
-        )
-        
-        if result:
-            resolved_ip = result[0][4][0]
-            
-    except Exception as e:
-        console.error(f"DNS resolution error: {str(e)}")
-        return target
-    
-    # Display result
-    if result and resolved_ip:
-        console.display_target_resolution(target, resolved_ip=resolved_ip)
-        return target
-    else:
-        console.error(f"Failed to resolve {target}")
-        return target
+# Moved to src.core.utils.target_utils
 
 
-async def check_and_offer_sudo_escalation():
-    """Check current privileges and offer sudo escalation if beneficial"""
-    import os
-    import subprocess
-    import sys
-    
-    # Skip if already running as root
-    if os.geteuid() == 0:
-        console.print("✓ Running with [success]root privileges[/success] - Enhanced fingerprinting capabilities enabled")
-        return
-    
-    # Check configuration settings
-    if not config.prompt_for_sudo and not config.auto_escalate:
-        console.print("ℹ Running with [warning]user privileges[/warning] - sudo escalation disabled in config")
-        return
-    
-    # Check if sudo is available
-    try:
-        # Check if sudo command exists
-        subprocess.run(['which', 'sudo'], capture_output=True, check=True)
-        
-        # Check if user is in sudoers (can use sudo with or without password)
-        # This approach assumes sudo is available if the command exists and user is not root
-        # sudo availability check assumes user can use sudo if command exists
-        sudo_available = True
-        
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        sudo_available = False
-    
-    if not sudo_available:
-        console.print("ℹ Running with [warning]user privileges[/warning] - sudo not available")
-        console.print("  → TCP connect analysis (slower than SYN fingerprinting)")
-        console.print("  → No OS detection capabilities")
-        console.print("  → Limited timing optimizations")
-        return
-    
-    # Auto-escalate if configured
-    if config.auto_escalate:
-        console.print("→ Auto-escalating to sudo (configured in config.yaml)")
-        escalate = True
-    else:
-        # Offer escalation with table display
-        console.display_privilege_escalation_prompt()
-        
-        # Get user choice
-        try:
-            escalate = typer.confirm("Would you like to restart with sudo for enhanced analysis?", default=True)
-        except typer.Abort:
-            # User pressed Ctrl+C or cancelled
-            console.info("Continuing with user privileges...")
-            escalate = False
-    
-    if escalate:
-        # Build the correct sudo command based on how script was called
-        script_path = os.path.abspath(__file__)
-        original_args = sys.argv[1:]  # Get arguments without script name
-        
-        # Build sudo command with explicit Python execution
-        sudo_cmd = ['sudo', sys.executable, script_path] + original_args
-        
-        console.print(f"\n→ Restarting with sudo: [dim]{' '.join(sudo_cmd)}[/dim]")
-        
-        try:
-            os.execvp('sudo', sudo_cmd)
-        except Exception as e:
-            console.print(f"✗ Failed to escalate privileges: {e}")
-            console.print("→ Continuing with user privileges...")
-    else:
-        console.print("→ Continuing with user privileges...")
+# Moved to src.core.utils.privilege_utils
 
 
 async def run_workflow(target: str, debug: bool = False):
@@ -509,7 +156,7 @@ async def run_workflow(target: str, debug: bool = False):
     cleanup_existing_nmap_processes()
     
     # Check if we should offer sudo escalation BEFORE starting any workflows
-    await check_and_offer_sudo_escalation()
+    await check_and_offer_sudo_escalation(sys.argv[1:])
     
     # Resolve target first
     resolved_target = await resolve_target(target)
@@ -592,7 +239,16 @@ async def run_workflow(target: str, debug: bool = False):
         transient=True
     ) as progress:
         if discovered_ports is not None:
-            task = progress.add_task(f"Detailed analysis of {len(discovered_ports)} discovered services...", total=None)
+            # Estimate time based on port count
+            estimated_time = len(discovered_ports) * 10  # ~10 seconds per port with scripts
+            if config.fast_detailed_scan:
+                estimated_time = len(discovered_ports) * 3  # ~3 seconds per port without scripts
+            
+            time_msg = f" (~{estimated_time//60}m {estimated_time%60}s)" if estimated_time > 60 else f" (~{estimated_time}s)"
+            task = progress.add_task(f"Detailed analysis of {len(discovered_ports)} discovered services{time_msg}...", total=None)
+            
+            if not config.fast_detailed_scan and len(discovered_ports) > 10:
+                console.print("[yellow]💡 Tip: Enable 'fast_detailed_scan' in config for 3x faster scans (disables scripts)[/yellow]")
         else:
             task = progress.add_task(f"Full analysis of all 65535 ports (10 parallel batches)...", total=None)
         
@@ -831,8 +487,6 @@ async def run_workflow(target: str, debug: bool = False):
             
             if 'master_report' in report_paths:
                 console.print(f"📊 Master TXT report: [secondary]{report_paths['master_report']}[/secondary]")
-            if 'wordlist_recommendations' in report_paths:
-                console.print(f"📋 Wordlist recommendations: [secondary]{report_paths['wordlist_recommendations']}[/secondary]")
                 
         except Exception as e:
             console.error(f"Failed to generate final reports: {e}")
@@ -850,100 +504,21 @@ async def run_workflow(target: str, debug: bool = False):
 
 def display_spider_summary(spider_data: dict):
     """Display Mini Spider findings summary"""
-    discovered_urls = spider_data.get('discovered_urls', [])
-    interesting_findings = spider_data.get('interesting_findings', [])
-    
-    if not discovered_urls:
-        return
-    
-    # Show only critical and high priority findings
-    if interesting_findings:
-        critical_findings = [f for f in interesting_findings if f.get('severity') == 'critical']
-        high_findings = [f for f in interesting_findings if f.get('severity') == 'high']
-        
-        if critical_findings:
-            console.print(f"🚨 {len(critical_findings)} Critical findings")
-            for finding in critical_findings[:3]:
-                console.print(f"  • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
-        
-        if high_findings:
-            console.print(f"⚠️  {len(high_findings)} High priority findings")
-            for finding in high_findings[:2]:
-                console.print(f"  • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
+    console.display_spider_summary(spider_data)
 
 
-def display_smartlist_summary(smartlist_data: dict):
-    """Display SmartList wordlist recommendations using new console methods"""
-    console.display_smartlist_recommendations(smartlist_data)
+# display_smartlist_summary already moved to console
 
 
 def display_minimal_summary(data: dict, workspace: Path):
     """Display clean analysis summary using new console methods"""
-    # Display key findings first
-    console.display_key_findings(data)
-    
-    # Display SmartList recommendations (main focus)
-    smartlist_data = data.get('smartlist', {})
-    if smartlist_data:
-        console.display_smartlist_recommendations(smartlist_data)
-    
-    # Display scan summary
-    console.display_scan_summary(data)
-    
-    # Add workspace info with new structure
-    console.print(f"\n[dim]📁 Results saved to: [secondary]{workspace}[/secondary][/dim]")
-    console.print("[dim]   ├── nmap_fast_01_results.json    (Port discovery data)[/dim]")
-    console.print("[dim]   ├── nmap_02_results.json         (Service fingerprinting data)[/dim]")
-    console.print("[dim]   ├── http_03_results.json         (HTTP analysis data)[/dim]")
-    console.print("[dim]   ├── mini_spider_04_results.json  (URL discovery data)[/dim]")
-    console.print("[dim]   ├── smartlist_05_results.json    (Wordlist recommendations data)[/dim]")
-    console.print("[dim]   ├── master_report.txt            (📊 Comprehensive TXT report)[/dim]")
-    console.print("[dim]   └── wordlists_for_{target}/      (📋 Recommended wordlists)[/dim]")
+    console.display_minimal_summary(data, workspace)
 
 
 
 def display_http_summary(http_data: dict):
     """Display summary of HTTP scan findings"""
-    if not http_data:
-        return
-    
-    # Vulnerabilities summary
-    vuln_summary = http_data.get('summary', {}).get('severity_counts', {})
-    total_vulns = sum(vuln_summary.values())
-    
-    if total_vulns > 0:
-        console.print(f"\n[yellow]⚠ Found {total_vulns} potential vulnerabilities:[/yellow]")
-        if vuln_summary.get('critical', 0) > 0:
-            console.print(f"  [red]● Critical: {vuln_summary['critical']}[/red]")
-        if vuln_summary.get('high', 0) > 0:
-            console.print(f"  [red]● High: {vuln_summary['high']}[/red]")
-        if vuln_summary.get('medium', 0) > 0:
-            console.print(f"  [yellow]● Medium: {vuln_summary['medium']}[/yellow]")
-        if vuln_summary.get('low', 0) > 0:
-            console.print(f"  [blue]● Low: {vuln_summary['low']}[/blue]")
-    
-    # Technologies detected
-    techs = http_data.get('summary', {}).get('technologies', [])
-    if techs:
-        console.print(f"\n[secondary]Technologies detected:[/secondary] {', '.join(techs)}")
-    
-    # Discovered paths
-    paths = http_data.get('summary', {}).get('discovered_paths', [])
-    if paths:
-        console.print(f"\n[success]Discovered {len(paths)} paths[/success]")
-        for path in paths[:5]:  # Show first 5
-            console.print(f"  • {path}")
-        if len(paths) > 5:
-            console.print(f"  ... and {len(paths) - 5} more")
-    
-    # Subdomains
-    subdomains = http_data.get('subdomains', [])
-    if subdomains:
-        console.print(f"\n[magenta]Found {len(subdomains)} subdomains[/magenta]")
-        for subdomain in subdomains[:5]:  # Show first 5
-            console.print(f"  • {subdomain}")
-        if len(subdomains) > 5:
-            console.print(f"  ... and {len(subdomains) - 5} more")
+    console.display_http_summary(http_data)
 
 
 # Add report command subgroup
@@ -998,53 +573,9 @@ def clean_workspaces(
     if not result:
         raise typer.Exit(1)
 
-def preprocess_args():
-    """Preprocess command line arguments to handle direct target execution"""
-    import sys
-    import re
-    
-    # If no arguments, let typer handle it (will show help)
-    if len(sys.argv) == 1:
-        return
-        
-    # If first argument is a known command, let typer handle it normally
-    known_commands = ['scan', 'audit', 'report', '--help', '-h', '--version']
-    if len(sys.argv) > 1 and sys.argv[1] in known_commands:
-        return
-        
-    # If first argument starts with '-', it's a flag, let typer handle it
-    if len(sys.argv) > 1 and sys.argv[1].startswith('-'):
-        return
-        
-    # Otherwise, assume first argument is a target and prepend 'scan'
-    if len(sys.argv) > 1:
-        potential_target = sys.argv[1]
-        
-        # Basic validation - check if it looks like a target
-        target_patterns = [
-            r'^[\w\.-]+\.\w+$',          # domain.com
-            r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',  # IP address
-            r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}$',  # CIDR
-            r'^[\w\.-]+$'                # hostname
-        ]
-        
-        looks_like_target = any(re.match(pattern, potential_target) for pattern in target_patterns)
-        
-        if looks_like_target and potential_target not in known_commands:
-            # Insert 'scan' command before the target
-            sys.argv.insert(1, 'scan')
-        elif not looks_like_target:
-            # Provide helpful error message for invalid targets
-            console.error(f"Invalid target format: {potential_target}")
-            console.info("Valid target formats:")
-            console.info("  • Domain: hackerhub.me")
-            console.info("  • IP: 192.168.1.1") 
-            console.info("  • CIDR: 192.168.1.0/24")
-            console.info("  • Hostname: localhost")
-            console.info("\nFor help: ipcrawler --help")
-            sys.exit(1)
+# Moved to src.core.utils.cli_utils
 
 
 if __name__ == "__main__":
-    preprocess_args()
+    preprocess_args()  # This function is imported from cli_utils
     app()

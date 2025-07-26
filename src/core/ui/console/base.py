@@ -446,7 +446,7 @@ class IPCrawlerConsole:
         for host in hosts:
             for port in host.get('ports', []):
                 if port.get('state') == 'open':
-                    service = port.get('service', '').lower()
+                    service = (port.get('service') or '').lower()
                     if service in ['ssh', 'ftp', 'telnet', 'mysql', 'postgresql', 'mongodb', 'redis', 'elasticsearch']:
                         interesting_services.add(service)
         
@@ -468,6 +468,97 @@ class IPCrawlerConsole:
             for finding in findings:
                 self.console.print(f"  {finding}")
             self.console.print()
+    
+    def display_spider_summary(self, spider_data: dict):
+        """Display Mini Spider findings summary"""
+        discovered_urls = spider_data.get('discovered_urls', [])
+        interesting_findings = spider_data.get('interesting_findings', [])
+        
+        if not discovered_urls:
+            return
+        
+        # Show only critical and high priority findings
+        if interesting_findings:
+            critical_findings = [f for f in interesting_findings if f.get('severity') == 'critical']
+            high_findings = [f for f in interesting_findings if f.get('severity') == 'high']
+            
+            if critical_findings:
+                self.print(f"🚨 {len(critical_findings)} Critical findings")
+                for finding in critical_findings[:3]:
+                    self.print(f"  • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
+            
+            if high_findings:
+                self.print(f"⚠️  {len(high_findings)} High priority findings")
+                for finding in high_findings[:2]:
+                    self.print(f"  • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
+    
+    def display_http_summary(self, http_data: dict):
+        """Display summary of HTTP scan findings"""
+        if not http_data:
+            return
+        
+        # Vulnerabilities summary
+        vuln_summary = http_data.get('summary', {}).get('severity_counts', {})
+        total_vulns = sum(vuln_summary.values())
+        
+        if total_vulns > 0:
+            self.print(f"\n[yellow]⚠ Found {total_vulns} potential vulnerabilities:[/yellow]")
+            if vuln_summary.get('critical', 0) > 0:
+                self.print(f"  [red]● Critical: {vuln_summary['critical']}[/red]")
+            if vuln_summary.get('high', 0) > 0:
+                self.print(f"  [red]● High: {vuln_summary['high']}[/red]")
+            if vuln_summary.get('medium', 0) > 0:
+                self.print(f"  [yellow]● Medium: {vuln_summary['medium']}[/yellow]")
+            if vuln_summary.get('low', 0) > 0:
+                self.print(f"  [blue]● Low: {vuln_summary['low']}[/blue]")
+        
+        # Technologies detected
+        techs = http_data.get('summary', {}).get('technologies', [])
+        if techs:
+            self.print(f"\n[secondary]Technologies detected:[/secondary] {', '.join(techs)}")
+        
+        # Discovered paths
+        paths = http_data.get('summary', {}).get('discovered_paths', [])
+        if paths:
+            self.print(f"\n[success]Discovered {len(paths)} paths[/success]")
+            for path in paths[:5]:  # Show first 5
+                self.print(f"  • {path}")
+            if len(paths) > 5:
+                self.print(f"  ... and {len(paths) - 5} more")
+        
+        # Subdomains
+        subdomains = http_data.get('subdomains', [])
+        if subdomains:
+            self.print(f"\n[magenta]Found {len(subdomains)} subdomains[/magenta]")
+            for subdomain in subdomains[:5]:  # Show first 5
+                self.print(f"  • {subdomain}")
+            if len(subdomains) > 5:
+                self.print(f"  ... and {len(subdomains) - 5} more")
+    
+    def display_minimal_summary(self, data: dict, workspace: 'Path'):
+        """Display clean analysis summary"""
+        from pathlib import Path
+        
+        # Display key findings first
+        self.display_key_findings(data)
+        
+        # Display SmartList recommendations (main focus)
+        smartlist_data = data.get('smartlist', {})
+        if smartlist_data:
+            self.display_smartlist_recommendations(smartlist_data)
+        
+        # Display scan summary
+        self.display_scan_summary(data)
+        
+        # Add workspace info with new structure
+        self.print(f"\n[dim]📁 Results saved to: [secondary]{workspace}[/secondary][/dim]")
+        self.print("[dim]   ├── nmap_fast_01_results.json    (Port discovery data)[/dim]")
+        self.print("[dim]   ├── nmap_02_results.json         (Service fingerprinting data)[/dim]")
+        self.print("[dim]   ├── http_03_results.json         (HTTP analysis data)[/dim]")
+        self.print("[dim]   ├── mini_spider_04_results.json  (URL discovery data)[/dim]")
+        self.print("[dim]   ├── smartlist_05_results.json    (Wordlist recommendations data)[/dim]")
+        self.print("[dim]   ├── master_report.txt            (📊 Comprehensive TXT report)[/dim]")
+        self.print("[dim]   └── wordlists_for_{target}/      (📋 Recommended wordlists)[/dim]")
     
     def __getattr__(self, name):
         """Delegate any missing attributes to the underlying Rich Console"""

@@ -85,6 +85,11 @@ class Config:
         return self.get('parallel.ports_per_batch', 6553)
     
     @property
+    def fast_detailed_scan(self) -> bool:
+        """Check if fast detailed scanning is enabled (no scripts)"""
+        return self.get('scan.fast_detailed_scan', False)
+    
+    @property
     def max_detailed_ports(self) -> int:
         """Get maximum ports for detailed scanning"""
         return self.get('scan.max_detailed_ports', 1000)

@@ -52,10 +52,26 @@ def build_nmap_command(
             "-v"                    # Verbose
         ])
     elif scan_type == "detailed":
+        from src.core.config import config
+        
         cmd.extend([
             "-sV",                  # Version detection
-            "-sC",                  # Default scripts
+            "--version-intensity", "5",  # Reduced intensity (default is 7)
+        ])
+        
+        # Only add scripts if fast_detailed_scan is not enabled
+        if not config.fast_detailed_scan:
+            cmd.extend([
+                "-sC",                  # Default scripts
+                "--script-timeout", "10s",   # Limit script execution time
+            ])
+        
+        cmd.extend([
             "-T4",                  # Aggressive timing
+            "--max-retries", "2",   # Limit retries
+            "--host-timeout", "10m", # Overall host timeout
+            "-Pn",                  # Skip ping for faster scanning
+            "-n",                   # No DNS resolution
         ])
     else:  # default
         cmd.extend([

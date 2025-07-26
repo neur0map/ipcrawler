@@ -98,7 +98,9 @@ def score_wordlists(context: ScoringContext) -> SmartListResult:
             with open(catalog_path, 'r') as f:
                 catalog_data = json.load(f)
             
-            wordlists = catalog_data.get('wordlists', {})
+            wordlists_array = catalog_data.get('wordlists', [])
+            # Convert array to dict with name as key for compatibility
+            wordlists = {wl.get('name', f'wordlist_{i}'): wl for i, wl in enumerate(wordlists_array)}
             
             # Smart wordlist selection based on context
             selected_wordlists = []
@@ -224,7 +226,9 @@ def score_wordlists_with_catalog(context: ScoringContext) -> SmartListResult:
             with open(catalog_path, 'r') as f:
                 catalog_data = json.load(f)
             
-            wordlists = catalog_data.get('wordlists', {})
+            wordlists_array = catalog_data.get('wordlists', [])
+            # Convert array to dict with name as key for compatibility
+            wordlists = {wl.get('name', f'wordlist_{i}'): wl for i, wl in enumerate(wordlists_array)}
             
             # Smart wordlist selection based on context
             selected_wordlists = []
@@ -355,16 +359,18 @@ def get_wordlist_paths(wordlist_names: List[str], tech: str = None, port: int = 
         # Get database availability
         db_stats = get_database_availability()
         if not db_stats.get('catalog_available', False):
-            logger.debug("Wordlist catalog not available, using default paths")
-            # Fallback to default SecLists paths
-            return [f"/usr/share/seclists/Discovery/Web-Content/{name}" for name in wordlist_names]
+            logger.debug("Wordlist catalog not available - SmartList engine requires catalog")
+            # No hardcoded fallbacks - SmartList engine requires catalog
+            return [None] * len(wordlist_names)
         
         # Load wordlist catalog
         catalog_path = Path(db_stats['catalog_path'])
         with open(catalog_path, 'r') as f:
             catalog_data = json.load(f)
         
-        wordlists = catalog_data.get('wordlists', {})
+        wordlists_array = catalog_data.get('wordlists', [])
+        # Convert array to dict with name as key for compatibility
+        wordlists = {wl.get('name', f'wordlist_{i}'): wl for i, wl in enumerate(wordlists_array)}
         
         for name in wordlist_names:
             path = None
@@ -523,7 +529,11 @@ def get_database_availability() -> Dict[str, Any]:
                     # Verify it has expected structure
                     if isinstance(catalog_data, dict) and 'wordlists' in catalog_data:
                         wordlists = catalog_data['wordlists']
-                        if isinstance(wordlists, dict) and len(wordlists) > 0:
+                        # Handle both array and dict formats
+                        if isinstance(wordlists, list) and len(wordlists) > 0:
+                            catalog_available = True
+                            logger.debug(f"Wordlist catalog loaded: {len(wordlists)} wordlists")
+                        elif isinstance(wordlists, dict) and len(wordlists) > 0:
                             catalog_available = True
                             logger.debug(f"Wordlist catalog loaded: {len(wordlists)} wordlists")
                         else:
@@ -541,6 +551,7 @@ def get_database_availability() -> Dict[str, Any]:
             "catalog_available": catalog_available,
             "database_path": str(database_path),
             "port_db_path": str(port_db_path),
+            "port_database_path": str(port_db_path),  # For compatibility with SmartList scanner
             "catalog_path": str(catalog_path)
         }
         

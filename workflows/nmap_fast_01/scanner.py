@@ -223,13 +223,13 @@ class NmapFastScanner(BaseWorkflow):
                     console.print(f"  [dim]Nmap hostname scan completed ({len(nmap_output)} chars output)[/dim]")
                     
                     # Optional: Save nmap output for debugging (uncomment if needed)
-                    # self._save_debug_output(nmap_output, target, port_list)
+                    # self._save_debug_output(nmap_output, target, http_ports)
                     
                     hostnames = self._extract_hostnames_from_nmap_output(nmap_output, target)
                     
                     # Show results with better context
                     if not hostnames and len(nmap_output.strip()) > 50:
-                        console.print(f"  [yellow]No hostnames discovered for {target} on ports {port_list}[/yellow]")
+                        console.print(f"  [yellow]No hostnames discovered for {target} on ports {http_ports}[/yellow]")
                         # Debug: Show first few lines of output to help diagnose
                         output_preview = '\n'.join(nmap_output.split('\n')[:3])
                         console.print(f"  [dim]Scan output preview: {output_preview[:100]}...[/dim]")
@@ -258,7 +258,7 @@ class NmapFastScanner(BaseWorkflow):
                             console.print(f"  [dim]Output: {stdout_str[:100]}[/dim]")
                             
         except Exception as e:
-            console.print(f"  [dim]Hostname discovery error: {str(e)[:50]}[/dim]")
+            console.print(f"  [dim]Hostname discovery error: {str(e)}[/dim]")
             
         return mappings
     

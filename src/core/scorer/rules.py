@@ -1,7 +1,19 @@
+#!/usr/bin/env python3
 """
+SmartList Scoring Rules
+
+Mapping rules that determine which wordlists to recommend based on discovered services.
 """
 
-)
+import logging
+import re
+from typing import Dict, List, Set, Any
+from pathlib import Path
+import sys
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 logger = logging.getLogger(__name__)
 
