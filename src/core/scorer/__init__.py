@@ -7,10 +7,14 @@ from .scorer_engine import (
     get_port_context,
     explain_scoring,
     get_scoring_stats,
+    get_database_availability,
     ScoringContext,
     ScoringResult,
     WordlistScore,
-    ScoreBreakdown
+    ScoreBreakdown,
+    Confidence,
+    ScoreExplanation,
+    SmartListResult
 )
 from .cache import cache_selection, cache
 
@@ -23,10 +27,14 @@ __all__ = [
     "get_port_context",
     "explain_scoring", 
     "get_scoring_stats",
+    "get_database_availability",
     "ScoringContext", 
     "ScoringResult",
     "WordlistScore",
     "ScoreBreakdown",
+    "Confidence",
+    "ScoreExplanation", 
+    "SmartListResult",
     "cache_selection",
     "cache"
 ]

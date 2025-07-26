@@ -58,10 +58,32 @@ class SmartListScanner(BaseWorkflow):
             # Create result object
             result = SmartListResult(target=target)
             
-            # Check component availability
-            stats = get_scoring_stats() if SMARTLIST_AVAILABLE else {}
-            result.port_database_available = stats.get('port_database_available', False)
-            result.catalog_available = stats.get('catalog_available', False)
+            # Check database availability
+            if SMARTLIST_AVAILABLE:
+                stats = get_scoring_stats()  # Now works without parameters
+                result.port_database_available = stats.get('port_database_available', False)
+                result.catalog_available = stats.get('catalog_available', False)
+                
+                # Debug database status
+                if result.port_database_available:
+                    debug_print("✓ Port database loaded and available", level="INFO")
+                else:
+                    error_msg = stats.get('port_db_error', 'Unknown error')
+                    debug_print(f"✗ Port database not available: {error_msg}", level="WARNING")
+                
+                if result.catalog_available:
+                    debug_print("✓ Wordlist catalog loaded and available", level="INFO")
+                else:
+                    error_msg = stats.get('catalog_error', 'Unknown error')
+                    debug_print(f"✗ Wordlist catalog not available: {error_msg}", level="WARNING")
+                
+                # Log database paths for debugging
+                if 'database_path' in stats:
+                    debug_print(f"Database path: {stats['database_path']}", level="DEBUG")
+            else:
+                result.port_database_available = False
+                result.catalog_available = False
+                debug_print("SmartList components not available - database checks skipped", level="WARNING")
             
             # Aggregate scan results from previous workflows
             aggregated_data = self._aggregate_scan_results(previous_results)
