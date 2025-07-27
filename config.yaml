@@ -1,7 +1,7 @@
 # IPCrawler SmartList Engine Configuration
 
 # Application Version
-version: "0.1.0-alpha.3"
+version: "0.1.0-alpha.4"
 
 # SmartList Analysis Settings
 scan:
