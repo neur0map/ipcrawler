@@ -1,0 +1,97 @@
+name: Version Update Notification
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'config.yaml'
+
+jobs:
+  notify-discord:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    
+    - name: Get version changes
+      id: version
+      run: |
+        # Get the new version
+        NEW_VERSION=$(grep "^version:" config.yaml | sed 's/version: *"*\([^"]*\)"*/\1/')
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        
+        # Get the old version from previous commit
+        git checkout HEAD~1 config.yaml 2>/dev/null || true
+        OLD_VERSION=$(grep "^version:" config.yaml | sed 's/version: *"*\([^"]*\)"*/\1/' || echo "Unknown")
+        git checkout HEAD config.yaml
+        echo "old_version=$OLD_VERSION" >> $GITHUB_OUTPUT
+        
+        # Check if version actually changed
+        if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+          echo "version_changed=false" >> $GITHUB_OUTPUT
+        else
+          echo "version_changed=true" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Send Discord notification
+      if: steps.version.outputs.version_changed == 'true'
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        # Prepare commit information
+        COMMIT_MESSAGE=$(git log -1 --pretty=%B | head -n 1)
+        COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+        COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
+        COMMIT_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+        
+        # Create Discord embed
+        DISCORD_EMBED=$(cat <<EOF
+        {
+          "embeds": [{
+            "title": "🚀 IPCrawler Version Updated",
+            "description": "A new version of IPCrawler has been released!",
+            "color": 3066993,
+            "fields": [
+              {
+                "name": "📊 Version Change",
+                "value": "\`${{ steps.version.outputs.old_version }}\` → \`${{ steps.version.outputs.new_version }}\`",
+                "inline": true
+              },
+              {
+                "name": "👤 Author",
+                "value": "$COMMIT_AUTHOR",
+                "inline": true
+              },
+              {
+                "name": "🔗 Commit",
+                "value": "[\`$COMMIT_SHA_SHORT\`]($COMMIT_URL)",
+                "inline": true
+              },
+              {
+                "name": "💬 Commit Message",
+                "value": "\`\`\`$COMMIT_MESSAGE\`\`\`",
+                "inline": false
+              }
+            ],
+            "thumbnail": {
+              "url": "https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/media/logo.png"
+            },
+            "footer": {
+              "text": "IPCrawler SmartList Engine",
+              "icon_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/media/logo.png"
+            },
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+          }]
+        }
+        EOF
+        )
+        
+        # Send to Discord
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d "$DISCORD_EMBED" \
+             $DISCORD_WEBHOOK
