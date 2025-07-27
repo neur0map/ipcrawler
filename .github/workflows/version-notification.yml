@@ -53,7 +53,7 @@ jobs:
         {
           "embeds": [{
             "title": "🚀 IPCrawler Version Updated",
-            "description": "A new version of IPCrawler has been released!",
+            "description": "A new version of IPCrawler has been released!\n\n[Read more at ipcrawler.io](https://ipcrawler.io)",
             "color": 3066993,
             "fields": [
               {

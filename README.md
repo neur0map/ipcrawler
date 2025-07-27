@@ -26,9 +26,6 @@
   <img src="https://img.shields.io/badge/security-offensive-red.svg" alt="Security">
 </p>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/neur0map/ipcrawler/main/assets/demo.gif" alt="IPCrawler Demo" width="600">
-</p>
 
 </div>
 
