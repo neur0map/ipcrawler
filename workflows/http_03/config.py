@@ -9,7 +9,7 @@ import json
 import yaml
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 
 def check_dependencies() -> bool:

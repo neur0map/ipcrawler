@@ -84,9 +84,39 @@ class SmartListResult:
 
 
 def score_wordlists(context: ScoringContext) -> SmartListResult:
-    """Score wordlists based on context - dynamic catalog-only version (no hardcoded lists)"""
+    """Score wordlists based on context - database-driven version (no hardcoded mappings)"""
     
-    # Try to get wordlists from catalog first
+    # Use database-driven scoring
+    try:
+        from src.core.scorer.database_scorer import score_wordlists_database
+        
+        # Get wordlists from database
+        recommended_wordlists = score_wordlists_database(
+            tech=context.tech,
+            port=context.port,
+            service=context.service
+        )
+        
+        # If we got recommendations, create result
+        if recommended_wordlists:
+            return SmartListResult(
+                wordlists=recommended_wordlists,
+                score=1.0,
+                confidence="high",
+                matched_rules=[f"database:{context.tech}:{context.port}"],
+                explanation={
+                    "exact_match": 1.0 if context.tech else 0.0,
+                    "port_context": 0.8 if context.port else 0.0,
+                    "database_driven": 1.0,
+                    "generic_fallback": 0.0
+                },
+                fallback_used=False
+            )
+    
+    except Exception as e:
+        logger.warning(f"Database scoring failed: {e}")
+    
+    # Fallback to catalog if database fails
     catalog_wordlists = []
     try:
         # Check if database is available

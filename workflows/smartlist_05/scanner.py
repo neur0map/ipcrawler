@@ -33,7 +33,13 @@ class SmartListScanner(BaseWorkflow):
     
     def __init__(self):
         super().__init__(name="smartlist_05")
-        self.web_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000, 4200, 3001]
+        # Get HTTP ports from database with fallback
+        try:
+            from workflows.core.db_integration import get_common_http_ports
+            self.web_ports = get_common_http_ports()
+        except ImportError:
+            # Fallback if database helper not available
+            self.web_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000, 4200, 3001]
         
     def validate_input(self, **kwargs) -> bool:
         """Validate input parameters"""

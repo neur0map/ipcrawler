@@ -275,7 +275,13 @@ class FallbackScanner:
     
     async def scan_common_ports(self, target: str) -> List[HTTPService]:
         """Scan common HTTP/HTTPS ports using fallback methods"""
-        common_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
+        # Get HTTP ports from database with fallback
+        try:
+            from workflows.core.db_integration import get_common_http_ports
+            common_ports = get_common_http_ports()
+        except ImportError:
+            # Fallback if database helper not available
+            common_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
         services = []
         
         # Check connectivity first

@@ -110,53 +110,15 @@ class AnonymizedScoringContext:
     
     @staticmethod
     def _get_port_category(port: int) -> str:
-        """Categorize port for privacy-safe grouping."""
-        categories = {
-            "web": [80, 8080, 8000, 8888, 3000, 5000, 9000, 4200, 3001],
-            "web_secure": [443, 8443, 9443, 4443],
-            "database": [3306, 5432, 1433, 27017, 6379, 5984, 9200, 7474, 8529],
-            "admin": [8080, 9090, 10000, 8834, 7001, 4848, 8161, 9990],
-            "mail": [25, 465, 587, 110, 995, 143, 993, 2525],
-            "file_transfer": [21, 22, 873, 445, 139, 2049, 111],
-            "remote_access": [22, 23, 3389, 5900, 5901, 1194, 4444],
-            "proxy": [3128, 8118, 8123, 1080, 9050],
-            "development": [3000, 4200, 5000, 8000, 9000, 3001, 5001, 8001]
-        }
-        
-        for category, ports in categories.items():
-            if port in ports:
-                return category
-        
-        if port < 1024:
-            return "system"
-        else:
-            return "user"
+        """Categorize port using database lookup."""
+        from src.core.scorer.db_helper import db_helper
+        return db_helper.get_port_category(port)
     
     @staticmethod
     def _get_tech_family(tech: Optional[str]) -> str:
-        """Categorize technology into families."""
-        if not tech:
-            return "unknown"
-        
-        tech_lower = tech.lower()
-        
-        families = {
-            "web_server": ["apache", "nginx", "iis", "lighttpd", "caddy", "tomcat", "jetty"],
-            "cms": ["wordpress", "drupal", "joomla", "typo3", "magento", "shopify"],
-            "database": ["mysql", "postgresql", "mongodb", "redis", "cassandra", "oracle"],
-            "framework": ["django", "flask", "rails", "laravel", "symfony", "express"],
-            "admin_panel": ["phpmyadmin", "adminer", "webmin", "cpanel", "plesk"],
-            "mail_server": ["postfix", "exim", "sendmail", "exchange", "zimbra"],
-            "monitoring": ["nagios", "zabbix", "prometheus", "grafana", "kibana"],
-            "ci_cd": ["jenkins", "gitlab", "github", "bitbucket", "bamboo"],
-            "container": ["docker", "kubernetes", "openshift", "rancher"]
-        }
-        
-        for family, techs in families.items():
-            if any(t in tech_lower for t in techs):
-                return family
-        
-        return "other"
+        """Categorize technology using database lookup."""
+        from src.core.scorer.db_helper import db_helper
+        return db_helper.get_tech_family(tech)
     
     @staticmethod
     def _get_os_family(os: str) -> str:
@@ -323,21 +285,9 @@ class CacheIndex:
         self.last_updated = datetime.utcnow()
     
     def _get_port_category(self, port: int) -> str:
-        """Determine port category."""
-        web_ports = [80, 443, 8080, 8443, 8000, 8888]
-        db_ports = [3306, 5432, 1433, 27017, 6379]
-        admin_ports = [8080, 9090, 10000, 8834, 8443]
-        
-        if port in web_ports:
-            return "web"
-        elif port in db_ports:
-            return "database"
-        elif port in admin_ports:
-            return "admin"
-        elif port < 1024:
-            return "system"
-        else:
-            return "user"
+        """Determine port category using database lookup."""
+        from src.core.scorer.db_helper import db_helper
+        return db_helper.get_port_category(port)
 
 
 @dataclass

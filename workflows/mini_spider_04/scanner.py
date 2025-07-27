@@ -179,7 +179,13 @@ class MiniSpiderScanner(BaseWorkflow):
         
         # Common protocols and ports
         schemes = ['http', 'https']
-        ports = [80, 443, 8080, 8443, 8000, 3000, 5000]
+        # Get HTTP ports from database with fallback
+        try:
+            from workflows.core.db_integration import get_common_http_ports
+            ports = get_common_http_ports()[:7]  # Limit to first 7 for performance
+        except ImportError:
+            # Fallback if database helper not available
+            ports = [80, 443, 8080, 8443, 8000, 3000, 5000]
         
         for scheme in schemes:
             for port in ports:

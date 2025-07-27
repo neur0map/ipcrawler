@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
 from .models import HTTPService
 from .config import get_scanner_config
-from utils.debug import debug_print
+from src.core.utils.debugging import debug_print
 
 
 class TechnologyDetector:
@@ -91,98 +91,34 @@ class TechnologyDetector:
                     technologies.append(tech)
                     debug_print(f"Technology detected from header {header}: {tech}")
         
-        # From response body patterns (simplified fallback)
-        if service.response_body:
+        # Get patterns from database with fallback
+        try:
+            from workflows.core.db_integration import get_technology_patterns, workflow_db
+            tech_patterns = get_technology_patterns()
+            body_patterns = {}
+            
+            # Convert database patterns to regex patterns
+            for tech_name, tech_data in tech_patterns.items():
+                response_patterns = tech_data.get('response_patterns', [])
+                if response_patterns:
+                    # Combine patterns with OR operator
+                    pattern = '|'.join([re.escape(p) for p in response_patterns])
+                    body_patterns[tech_data['name']] = pattern
+                    
+        except ImportError:
+            # Minimal fallback patterns if database unavailable
             body_patterns = {
                 'WordPress': r'wp-content|wp-includes',
                 'Django': r'csrfmiddlewaretoken',
-                'Grafana': r'grafana|Grafana|grafana\\.js|grafana-app',
-                'Prometheus': r'prometheus|Prometheus|/metrics',
-                'Monitoring Dashboard': r'dashboard|Dashboard|monitoring|Monitoring',
+                'Grafana': r'grafana|Grafana',
                 'Apache': r'Apache|apache',
                 'Nginx': r'nginx|Nginx',
-                'IIS': r'IIS|Microsoft-IIS',
-                'Tomcat': r'tomcat|Tomcat',
-                'JBoss': r'jboss|JBoss',
-                'WebLogic': r'weblogic|WebLogic',
-                'Spring': r'spring|Spring',
-                'Struts': r'struts|Struts',
-                'React': r'react|React',
-                'Angular': r'angular|Angular|ng-',
-                'Vue.js': r'vue|Vue|v-',
-                'jQuery': r'jquery|jQuery',
-                'Bootstrap': r'bootstrap|Bootstrap',
-                'Node.js': r'node|Node\\.js',
-                'Express': r'express|Express',
-                'PHP': r'php|PHP',
-                'ASP.NET': r'asp\\.net|ASP\\.NET|__doPostBack',
-                'JSF': r'jsf|JSF|javax\\.faces',
-                'Wicket': r'wicket|Wicket',
-                'Rails': r'rails|Rails|ruby',
-                'Laravel': r'laravel|Laravel',
-                'Symfony': r'symfony|Symfony',
-                'CodeIgniter': r'codeigniter|CodeIgniter',
-                'CakePHP': r'cakephp|CakePHP',
-                'Drupal': r'drupal|Drupal',
-                'Joomla': r'joomla|Joomla',
-                'Magento': r'magento|Magento',
-                'PrestaShop': r'prestashop|PrestaShop',
-                'Shopify': r'shopify|Shopify',
-                'WooCommerce': r'woocommerce|WooCommerce',
-                'MediaWiki': r'mediawiki|MediaWiki',
-                'phpMyAdmin': r'phpmyadmin|phpMyAdmin',
-                'Adminer': r'adminer|Adminer',
                 'Jenkins': r'jenkins|Jenkins',
-                'GitLab': r'gitlab|GitLab',
-                'GitHub': r'github|GitHub',
-                'Bitbucket': r'bitbucket|Bitbucket',
-                'Confluence': r'confluence|Confluence',
-                'JIRA': r'jira|JIRA',
-                'Bamboo': r'bamboo|Bamboo',
-                'TeamCity': r'teamcity|TeamCity',
-                'SonarQube': r'sonarqube|SonarQube',
-                'Nexus': r'nexus|Nexus',
-                'Artifactory': r'artifactory|Artifactory',
-                'Docker': r'docker|Docker',
-                'Kubernetes': r'kubernetes|Kubernetes|k8s',
-                'OpenShift': r'openshift|OpenShift',
-                'Rancher': r'rancher|Rancher',
-                'Portainer': r'portainer|Portainer',
-                'Traefik': r'traefik|Traefik',
-                'HAProxy': r'haproxy|HAProxy',
-                'Caddy': r'caddy|Caddy',
-                'Lighttpd': r'lighttpd|Lighttpd',
-                'Cherokee': r'cherokee|Cherokee',
-                'Varnish': r'varnish|Varnish',
-                'Squid': r'squid|Squid',
-                'Redis': r'redis|Redis',
-                'Memcached': r'memcached|Memcached',
-                'MongoDB': r'mongodb|MongoDB',
-                'PostgreSQL': r'postgresql|PostgreSQL',
-                'MySQL': r'mysql|MySQL',
-                'MariaDB': r'mariadb|MariaDB',
-                'Oracle': r'oracle|Oracle',
-                'SQL Server': r'sql\\s*server|SQL\\s*Server',
-                'SQLite': r'sqlite|SQLite',
-                'Elasticsearch': r'elasticsearch|Elasticsearch',
-                'Solr': r'solr|Solr',
-                'Lucene': r'lucene|Lucene',
-                'Kibana': r'kibana|Kibana',
-                'Logstash': r'logstash|Logstash',
-                'Beats': r'beats|Beats',
-                'Fluentd': r'fluentd|Fluentd',
-                'Graylog': r'graylog|Graylog',
-                'Splunk': r'splunk|Splunk',
-                'Nagios': r'nagios|Nagios',
-                'Zabbix': r'zabbix|Zabbix',
-                'Icinga': r'icinga|Icinga',
-                'Sensu': r'sensu|Sensu',
-                'Datadog': r'datadog|Datadog',
-                'New Relic': r'newrelic|New\\s*Relic',
-                'Dynatrace': r'dynatrace|Dynatrace',
-                'AppDynamics': r'appdynamics|AppDynamics',
-                'Pingdom': r'pingdom|Pingdom'
+                'MySQL': r'mysql|MySQL'
             }
+        
+        # Apply pattern matching to response body
+        if service.response_body:
             
             for tech, pattern in body_patterns.items():
                 if re.search(pattern, service.response_body, re.IGNORECASE):
@@ -276,26 +212,31 @@ class TechnologyDetector:
         Returns:
             Prioritized list of paths
         """
-        # Priority patterns for technology detection
-        tech_priority_patterns = [
-            'admin', 'grafana', 'dashboard', 'api', 'login', 'console',
-            'management', 'monitoring', 'prometheus', 'kibana', 'jenkins',
-            'wordpress', 'wp-admin', 'wp-content', 'drupal', 'joomla',
-            'phpmyadmin', 'mysql', 'postgresql', 'redis', 'elasticsearch',
-            'solr', 'mongo', 'django', 'flask', 'rails', 'laravel',
-            'symfony', 'codeigniter', 'cakephp', 'zend', 'yii',
-            'spring', 'struts', 'hibernate', 'tomcat', 'wildfly',
-            'websphere', 'weblogic', 'nginx', 'apache', 'iis',
-            'lighttpd', 'caddy', 'haproxy', 'traefik', 'envoy',
-            'docker', 'kubernetes', 'rancher', 'portainer', 'swarm',
-            'minio', 's3', 'vault', 'consul', 'etcd', 'zookeeper',
-            'kafka', 'rabbitmq', 'activemq', 'celery', 'sidekiq',
-            'swagger', 'openapi', 'graphql', 'rest', 'soap',
-            'oauth', 'saml', 'ldap', 'kerberos', 'jwt',
-            'splunk', 'elastic', 'logstash', 'fluentd', 'graylog',
-            'nagios', 'zabbix', 'icinga', 'sensu', 'datadog',
-            'newrelic', 'dynatrace', 'appdynamics', 'pingdom'
-        ]
+        # Get priority patterns from database with fallback
+        try:
+            from workflows.core.db_integration import get_technology_patterns
+            tech_patterns = get_technology_patterns()
+            tech_priority_patterns = []
+            
+            # Extract keywords from database technology names and paths
+            for tech_name, tech_data in tech_patterns.items():
+                tech_priority_patterns.append(tech_name.lower())
+                # Add discovery paths as priority indicators
+                for path in tech_data.get('discovery_paths', []):
+                    # Extract meaningful path components (remove slashes and common words)
+                    path_parts = [p for p in path.lower().strip('/').split('/') 
+                                if p and len(p) > 2 and p not in ['api', 'v1', 'v2']]
+                    tech_priority_patterns.extend(path_parts)
+                    
+            # Add common admin/api patterns
+            tech_priority_patterns.extend(['admin', 'dashboard', 'api', 'login', 'console', 'management', 'monitoring'])
+            
+        except ImportError:
+            # Fallback patterns if database unavailable
+            tech_priority_patterns = [
+                'admin', 'grafana', 'dashboard', 'api', 'login', 'console',
+                'wordpress', 'jenkins', 'prometheus', 'kibana', 'mysql'
+            ]
         
         # Sort paths by likely tech content
         prioritized_paths = []
@@ -324,19 +265,22 @@ class TechnologyDetector:
         tech_paths = []
         
         # Get paths from database if available
-        if self.config.scanner_config_manager and service.server:
-            try:
+        try:
+            from workflows.core.db_integration import get_tech_discovery_paths
+            if service.server:
                 server_lower = service.server.lower()
+                # Try to get discovery paths for the detected server
                 for server_type in ['apache', 'nginx', 'tomcat', 'iis', 'jetty']:
                     if server_type in server_lower:
-                        server_paths = self.config.scanner_config_manager.get_server_specific_paths(server_type)
-                        tech_paths.extend(server_paths)
-                        debug_print(f"Added {len(server_paths)} {server_type}-specific paths")
-                        break
-            except Exception as e:
-                debug_print(f"Error getting server-specific paths: {e}", level="WARNING")
+                        server_paths = get_tech_discovery_paths(server_type)
+                        if server_paths:
+                            tech_paths.extend(server_paths)
+                            debug_print(f"Added {len(server_paths)} {server_type}-specific paths from database")
+                            break
+        except ImportError:
+            pass
         
-        # Fallback server-specific paths if database unavailable
+        # Fallback server-specific paths if database unavailable or no paths found
         if not tech_paths and service.server:
             server_lower = service.server.lower()
             if 'apache' in server_lower:

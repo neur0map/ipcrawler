@@ -20,7 +20,13 @@ class NmapFastScanner(BaseWorkflow):
     
     def __init__(self):
         super().__init__("nmap_fast")
-        self.common_http_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
+        # Get HTTP ports from database with fallback
+        try:
+            from workflows.core.db_integration import get_common_http_ports
+            self.common_http_ports = get_common_http_ports()
+        except ImportError:
+            # Fallback if database helper not available
+            self.common_http_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
     
     def validate_input(self, target: str, **kwargs) -> bool:
         """Validate input parameters"""

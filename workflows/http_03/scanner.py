@@ -33,7 +33,13 @@ class HTTPAdvancedScanner(BaseWorkflow):
     
     def __init__(self):
         super().__init__(name="http_03")
-        self.common_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
+        # Get HTTP ports from database with fallback
+        try:
+            from workflows.core.db_integration import get_common_http_ports
+            self.common_ports = get_common_http_ports()
+        except ImportError:
+            # Fallback if database helper not available
+            self.common_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
         self.timeout = 10
         self.user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
