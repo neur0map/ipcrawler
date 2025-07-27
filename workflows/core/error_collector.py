@@ -276,7 +276,11 @@ class ErrorCollector:
     def get_stats(self) -> ErrorStats:
         """Get error statistics"""
         with self._lock:
-            return ErrorStats(list(self._errors_cache.values()))
+            return self._get_stats_unlocked()
+    
+    def _get_stats_unlocked(self) -> ErrorStats:
+        """Get error statistics without acquiring lock (internal use)"""
+        return ErrorStats(list(self._errors_cache.values()))
     
     def clear_errors(self, before_date: Optional[datetime.datetime] = None):
         """Clear errors, optionally before a specific date"""
@@ -325,7 +329,7 @@ class ErrorCollector:
     def _generate_summary(self):
         """Generate error summary for quick analysis"""
         try:
-            stats = self.get_stats()
+            stats = self._get_stats_unlocked()
             
             summary = {
                 "generated_at": datetime.datetime.now().isoformat(),

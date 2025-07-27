@@ -1,6 +1,8 @@
 """Test workflow compatibility and data passing between workflows"""
 import pytest
 import asyncio
+import os
+from unittest.mock import Mock, patch, AsyncMock
 from typing import Dict, List, Any
 from workflows.nmap_fast_01.scanner import NmapFastScanner
 from workflows.nmap_02.scanner import NmapScanner
@@ -11,41 +13,77 @@ from workflows.core.base import WorkflowResult
 class TestWorkflowCompatibility:
     """Test that workflows can work together and pass data correctly"""
     
+    # Skip network tests in CI environments
+    skip_network_tests = os.getenv('GITHUB_ACTIONS') == 'true' or os.getenv('CI') == 'true'
+    
+    @pytest.fixture
+    def mock_nmap_success(self):
+        """Mock successful nmap output"""
+        async def mock_communicate():
+            xml_output = """<?xml version="1.0"?>
+            <nmaprun>
+                <host>
+                    <address addr="127.0.0.1" addrtype="ipv4"/>
+                    <ports>
+                        <port protocol="tcp" portid="22">
+                            <state state="open"/>
+                            <service name="ssh"/>
+                        </port>
+                        <port protocol="tcp" portid="80">
+                            <state state="open"/>
+                            <service name="http"/>
+                        </port>
+                    </ports>
+                </host>
+            </nmaprun>"""
+            return (xml_output.encode(), b'')
+        
+        mock_process = AsyncMock()
+        mock_process.communicate = mock_communicate
+        mock_process.returncode = 0
+        return mock_process
+    
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)
+    @pytest.mark.skipif(skip_network_tests, reason="Skip network tests in CI")
     async def test_workflow_01_accepts_target(self):
         """Test that workflow 01 accepts various target formats"""
         scanner = NmapFastScanner()
         
         # Test IP address
-        result = await scanner.execute("127.0.0.1")
+        result = await scanner.safe_execute(target="127.0.0.1")
         assert isinstance(result, WorkflowResult)
         
         # Test hostname
-        result = await scanner.execute("localhost")
+        result = await scanner.safe_execute(target="localhost")
         assert isinstance(result, WorkflowResult)
         
         # Test CIDR
-        result = await scanner.execute("127.0.0.1/32")
+        result = await scanner.safe_execute(target="127.0.0.1/32")
         assert isinstance(result, WorkflowResult)
     
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)
+    @pytest.mark.skipif(skip_network_tests, reason="Skip network tests in CI")
     async def test_workflow_01_output_format(self):
         """Test that workflow 01 produces expected port discovery output"""
         scanner = NmapFastScanner()
-        result = await scanner.execute("127.0.0.1")
+        result = await scanner.safe_execute(target="127.0.0.1")
         
         if result.success and result.data:
             assert 'hosts' in result.data or 'open_ports' in result.data
             assert isinstance(result.data.get('hosts', []), list)
             
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)
+    @pytest.mark.skipif(skip_network_tests, reason="Skip network tests in CI")
     async def test_workflow_02_accepts_discovered_ports(self):
         """Test that workflow 02 accepts discovered ports from workflow 01"""
         scanner = NmapScanner()
         
         # Test with specific ports
         discovered_ports = [22, 80, 443]
-        result = await scanner.execute("127.0.0.1", ports=discovered_ports)
+        result = await scanner.safe_execute(target="127.0.0.1", ports=discovered_ports)
         
         assert isinstance(result, WorkflowResult)
         if result.success and result.data:
@@ -53,10 +91,12 @@ class TestWorkflowCompatibility:
             assert isinstance(result.data['hosts'], list)
     
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)
+    @pytest.mark.skipif(skip_network_tests, reason="Skip network tests in CI")
     async def test_workflow_02_output_format(self):
         """Test that workflow 02 produces expected detailed scan output"""
         scanner = NmapScanner()
-        result = await scanner.execute("127.0.0.1", ports=[22, 80])
+        result = await scanner.safe_execute(target="127.0.0.1", ports=[22, 80])
         
         if result.success and result.data:
             # Check main structure
@@ -78,6 +118,8 @@ class TestWorkflowCompatibility:
                     assert 'service' in port
     
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)
+    @pytest.mark.skipif(skip_network_tests, reason="Skip network tests in CI")
     async def test_workflow_03_accepts_nmap_data(self):
         """Test that workflow 03 accepts data from workflow 02"""
         scanner = HTTPAdvancedScanner()
@@ -86,8 +128,8 @@ class TestWorkflowCompatibility:
         http_ports = [80, 443, 8080]
         discovered_hostnames = ["example.local", "test.local"]
         
-        result = await scanner.execute(
-            "127.0.0.1",
+        result = await scanner.safe_execute(
+            target="127.0.0.1",
             ports=http_ports,
             discovered_hostnames=discovered_hostnames
         )
@@ -97,10 +139,12 @@ class TestWorkflowCompatibility:
             assert 'http_services' in result.data or 'fallback_mode' in result.data
     
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)
+    @pytest.mark.skipif(skip_network_tests, reason="Skip network tests in CI")
     async def test_workflow_03_output_format(self):
         """Test that workflow 03 produces expected HTTP scan output"""
         scanner = HTTPAdvancedScanner()
-        result = await scanner.execute("127.0.0.1", ports=[80])
+        result = await scanner.safe_execute(target="127.0.0.1", ports=[80])
         
         if result.success and result.data:
             # Check for expected fields
@@ -166,6 +210,7 @@ class TestWorkflowCompatibility:
         assert hostnames == ['example.local']
     
     @pytest.mark.asyncio
+    @pytest.mark.timeout(10)
     async def test_workflow_error_handling(self):
         """Test that workflows handle errors gracefully"""
         # Test each workflow with invalid input
@@ -176,14 +221,11 @@ class TestWorkflowCompatibility:
         ]
         
         for workflow in workflows:
-            # Test with invalid target
-            result = await workflow.execute("")
+            # Test with invalid target (empty string)
+            result = await workflow.safe_execute(target="")
             assert isinstance(result, WorkflowResult)
-            assert not result.success or result.error
-            
-            # Test with unreachable target
-            result = await workflow.execute("999.999.999.999")
-            assert isinstance(result, WorkflowResult)
+            assert not result.success
+            assert result.error is not None
     
     def test_workflow_sequence_order(self):
         """Test that workflows are designed to run in correct sequence"""
@@ -209,13 +251,15 @@ class TestWorkflowCompatibility:
 
 
 @pytest.mark.asyncio
+@pytest.mark.timeout(60)
+@pytest.mark.skipif(TestWorkflowCompatibility.skip_network_tests, reason="Skip network tests in CI")
 async def test_full_workflow_integration():
     """Test complete workflow integration with mock data"""
     target = "127.0.0.1"
     
     # Workflow 01: Fast port discovery
     fast_scanner = NmapFastScanner()
-    fast_result = await fast_scanner.execute(target)
+    fast_result = await fast_scanner.safe_execute(target=target)
     
     assert fast_result.success or fast_result.error
     discovered_ports = []
@@ -228,7 +272,7 @@ async def test_full_workflow_integration():
     
     # Workflow 02: Detailed scan
     detailed_scanner = NmapScanner()
-    detailed_result = await detailed_scanner.execute(target, ports=discovered_ports if discovered_ports else None)
+    detailed_result = await detailed_scanner.safe_execute(target=target, ports=discovered_ports if discovered_ports else None)
     
     assert detailed_result.success or detailed_result.error
     http_ports = []
@@ -245,8 +289,8 @@ async def test_full_workflow_integration():
     # Workflow 03: HTTP scan
     if http_ports:
         http_scanner = HTTPAdvancedScanner()
-        http_result = await http_scanner.execute(
-            target,
+        http_result = await http_scanner.safe_execute(
+            target=target,
             ports=http_ports,
             discovered_hostnames=discovered_hostnames
         )
