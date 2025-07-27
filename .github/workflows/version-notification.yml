@@ -44,7 +44,7 @@ jobs:
       run: |
         # Prepare commit information
         COMMIT_MESSAGE=$(git log -1 --pretty=%B | head -n 1)
-        COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+        COMMIT_AUTHOR="${{ github.actor }}"
         COMMIT_SHA_SHORT=$(git rev-parse --short HEAD)
         COMMIT_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
         
