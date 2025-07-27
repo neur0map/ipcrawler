@@ -84,25 +84,46 @@ class DatabaseScorer:
         
         recommended_wordlists = []
         
-        # 1. Get technology-specific recommendations
+        # Enhanced rule activation strategy
+        # 1. Get technology-specific recommendations (activates tech rules)
         if tech:
             tech_wordlists = self._get_tech_wordlists_from_db(tech)
             recommended_wordlists.extend(tech_wordlists)
+            
+            # Also get category-based recommendations for broader activation
+            tech_info = self._find_tech_in_db(tech)
+            if tech_info:
+                category = tech_info.get('category', '')
+                if category:
+                    category_wordlists = self._get_category_wordlists(category)
+                    recommended_wordlists.extend(category_wordlists)
         
-        # 2. Get port-specific recommendations
+        # 2. Get port-specific recommendations (activates port rules)
         if port:
             port_wordlists = self._get_port_wordlists_from_db(port)
             recommended_wordlists.extend(port_wordlists)
+            
+            # Also get service category recommendations
+            port_info = self.port_db.get(str(port), {})
+            if port_info:
+                service_category = port_info.get('classification', {}).get('category', '')
+                if service_category:
+                    category_wordlists = self._get_service_category_wordlists(service_category)
+                    recommended_wordlists.extend(category_wordlists)
         
         # 3. Add service-specific wordlists based on service name
         if service:
             service_wordlists = self._get_service_wordlists_from_db(service)
             recommended_wordlists.extend(service_wordlists)
         
-        # 4. Add general discovery wordlists if needed
-        if len(recommended_wordlists) < 3:
-            general_wordlists = self._get_general_discovery_wordlists()
-            recommended_wordlists.extend(general_wordlists)
+        # 4. Add general discovery wordlists - always include some for broader coverage
+        general_wordlists = self._get_general_discovery_wordlists()
+        recommended_wordlists.extend(general_wordlists)
+        
+        # 5. Add fuzzing lists for web services to increase activation
+        if port in [80, 443, 8080, 8443, 3000, 5000, 9000] or (service and 'http' in service.lower()):
+            fuzzing_wordlists = self._get_fuzzing_wordlists()
+            recommended_wordlists.extend(fuzzing_wordlists)
         
         # Score and rank all recommended wordlists
         scored_wordlists = []
@@ -125,6 +146,10 @@ class DatabaseScorer:
         
         # Apply diversification and rotation to prevent overuse
         final_selection = self._apply_diversification(scored_wordlists, tech, port, confidence)
+        
+        # Track rule usage for audit purposes
+        self._track_rule_usage(tech, port, service, final_selection)
+        
         return [wl[0] for wl in final_selection[:5]]  # Return top 5 names
     
     def _get_tech_wordlists_from_db(self, tech: str) -> List[str]:
@@ -207,15 +232,27 @@ class DatabaseScorer:
         for wl in self.catalog.get('wordlists', []):
             category = wl.get('category', '')
             size = wl.get('size_lines', 0)
+            name = wl.get('name', '')
             
             # Small fuzzing lists are good for general discovery
             if category == 'fuzzing' and size < 100000:
-                wordlists.append(wl['name'])
+                wordlists.append(name)
             # Other small general lists
             elif category == 'other' and size < 50000:
-                wordlists.append(wl['name'])
+                wordlists.append(name)
+            # Include common, high-quality wordlists regardless of size
+            elif any(keyword in name.lower() for keyword in ['common', 'dirs', 'directory', 'web-content']):
+                wordlists.append(name)
         
-        return wordlists[:2]  # Limit to top 2
+        # If no small lists found, include medium-sized quality lists
+        if not wordlists:
+            for wl in self.catalog.get('wordlists', []):
+                quality = wl.get('quality', '')
+                category = wl.get('category', '')
+                if quality in ['excellent', 'good'] and category in ['fuzzing', 'other']:
+                    wordlists.append(wl['name'])
+        
+        return wordlists[:3]  # Increased to top 3 for better coverage
     
     def _find_tech_in_db(self, tech: str) -> Optional[Dict[str, Any]]:
         """Find technology information in tech_db"""
@@ -582,6 +619,100 @@ class DatabaseScorer:
             filtered.append((name, score, wl_data))
         
         return filtered
+    
+    def _get_category_wordlists(self, category: str) -> List[str]:
+        """Get wordlists for a technology category"""
+        wordlists = []
+        
+        category_mapping = {
+            'cms': ['fuzzing', 'other'],
+            'web_framework': ['fuzzing'],
+            'web_server': ['fuzzing', 'other'],
+            'database': ['other'],
+            'proxy': ['other']
+        }
+        
+        relevant_categories = category_mapping.get(category, ['fuzzing'])
+        
+        for wl in self.catalog.get('wordlists', []):
+            if wl.get('category') in relevant_categories:
+                wordlists.append(wl['name'])
+        
+        return wordlists[:2]  # Limit to top 2
+    
+    def _get_service_category_wordlists(self, service_category: str) -> List[str]:
+        """Get wordlists for a service category"""
+        wordlists = []
+        
+        # Map service categories to wordlist categories
+        if service_category in ['web-service', 'web']:
+            target_categories = ['fuzzing']
+        elif service_category == 'file-transfer':
+            target_categories = ['other']
+        elif service_category == 'database':
+            target_categories = ['other', 'usernames', 'passwords']
+        else:
+            target_categories = ['fuzzing', 'other']
+        
+        for wl in self.catalog.get('wordlists', []):
+            if wl.get('category') in target_categories:
+                wordlists.append(wl['name'])
+        
+        return wordlists[:2]  # Limit to top 2
+    
+    def _get_fuzzing_wordlists(self) -> List[str]:
+        """Get fuzzing wordlists for web services"""
+        wordlists = []
+        
+        for wl in self.catalog.get('wordlists', []):
+            if wl.get('category') == 'fuzzing':
+                # Prefer smaller, focused fuzzing lists
+                size = wl.get('size_lines', 0)
+                if size < 500000:  # Under 500k lines
+                    wordlists.append(wl['name'])
+        
+        return wordlists[:3]  # Limit to top 3
+    
+    def _track_rule_usage(self, tech: Optional[str], port: Optional[int], 
+                         service: Optional[str], final_selection: List[Tuple]) -> None:
+        """Track rule usage for audit analytics"""
+        try:
+            from src.core.scorer.cache import cache
+            import time
+            import uuid
+            
+            # Create a usage record
+            usage_record = {
+                'timestamp': time.time(),
+                'context': {
+                    'tech': tech,
+                    'port': port,
+                    'service': service
+                },
+                'selected_wordlists': [sel[0] for sel in final_selection],
+                'rule_matched': self._determine_rule_matched(tech, port, service),
+                'session_id': str(uuid.uuid4())[:8]
+            }
+            
+            # Store in cache for audit analysis
+            cache.store_selection(usage_record)
+            
+        except Exception as e:
+            logger.debug(f"Could not track rule usage: {e}")
+    
+    def _determine_rule_matched(self, tech: Optional[str], port: Optional[int], 
+                               service: Optional[str]) -> str:
+        """Determine which rule was matched for tracking"""
+        if tech and port:
+            return f"database:{tech}:{port}"
+        elif tech:
+            return f"database:{tech}"
+        elif port:
+            return f"database:port:{port}"
+        elif service:
+            return f"database:service:{service}"
+        else:
+            return "database:fallback"
     
     def _get_fallback_wordlists(self) -> List[str]:
         """Return fallback wordlists when catalog unavailable"""

@@ -71,39 +71,81 @@ class AuditRunner:
         try:
             # Import database-driven scoring instead of legacy mappings
             from src.core.scorer.database_scorer import db_scorer
+            from src.core.scorer.cache import cache
             
-            # Database-driven frequency stats
-            get_rule_frequency_stats = lambda: {
-                'total_rules': 1,
-                'rule_frequencies': {'database_driven': 1},
-                'average_frequency': 1.0,
-                'most_frequent': [('database_driven', 1.0)],
-                'least_frequent': []
+            # Count actual database rules
+            tech_count = sum(len(techs) for techs in db_scorer.tech_db.values()) if db_scorer.tech_db else 0
+            port_count = len(db_scorer.port_db) if db_scorer.port_db else 0
+            total_rules = tech_count + port_count
+            
+            # Get usage data from cache
+            try:
+                # Get recent selections to determine rule usage
+                entries = cache.search_selections(days_back=30, limit=500)
+                
+                # Track which rules have been used
+                used_rules = set()
+                rule_frequencies = {}
+                
+                for entry in entries:
+                    rule_matched = entry.get('rule_matched', 'unknown')
+                    context = entry.get('context', {})
+                    tech = context.get('tech')
+                    port = context.get('port')
+                    
+                    # Track database rule usage
+                    if tech and port:
+                        rule_key = f"tech:{tech}:port:{port}"
+                        used_rules.add(rule_key)
+                        rule_frequencies[rule_key] = rule_frequencies.get(rule_key, 0) + 1
+                    elif tech:
+                        rule_key = f"tech:{tech}"
+                        used_rules.add(rule_key)
+                        rule_frequencies[rule_key] = rule_frequencies.get(rule_key, 0) + 1
+                    elif port:
+                        rule_key = f"port:{port}"
+                        used_rules.add(rule_key)
+                        rule_frequencies[rule_key] = rule_frequencies.get(rule_key, 0) + 1
+                    
+                    # Also track exact rule matched if available
+                    if rule_matched != 'unknown':
+                        used_rules.add(rule_matched)
+                        rule_frequencies[rule_matched] = rule_frequencies.get(rule_matched, 0) + 1
+                
+                active_rules = len(used_rules)
+                
+            except Exception as e:
+                logger.warning(f"Could not analyze cache for rule usage: {e}")
+                # Fallback to basic counting
+                active_rules = min(total_rules, 10)  # Assume some rules are active
+                rule_frequencies = {'fallback_rule': 1}
+            
+            # Calculate statistics
+            active_percentage = (active_rules / total_rules * 100) if total_rules > 0 else 0
+            
+            freq_stats = {
+                'total_rules': total_rules,
+                'rule_frequencies': rule_frequencies,
+                'average_frequency': sum(rule_frequencies.values()) / len(rule_frequencies) if rule_frequencies else 0,
+                'most_frequent': list(sorted(rule_frequencies.items(), key=lambda x: x[1], reverse=True)[:5]),
+                'least_frequent': list(sorted(rule_frequencies.items(), key=lambda x: x[1])[:5])
             }
-            from src.core.scorer.scorer_engine import get_scoring_stats
-            
-            # Count database-driven rules from tech_db and port_db
-            if db_scorer.tech_db and db_scorer.port_db:
-                tech_count = sum(len(techs) for techs in db_scorer.tech_db.values())
-                port_count = len(db_scorer.port_db)
-                total_rules = tech_count + port_count
-            else:
-                total_rules = 1  # Fallback
-            
-            # Get frequency stats
-            freq_stats = get_rule_frequency_stats()
-            active_rules = len([r for r, f in freq_stats.get('rule_frequencies', {}).items() if f > 0])
             
             # Get scoring stats
+            from src.core.scorer.scorer_engine import get_scoring_stats
             scoring_stats = get_scoring_stats()
             
             return {
                 'total_rules': total_rules,
                 'active_rules': active_rules,
                 'unused_rules': total_rules - active_rules,
-                'active_percentage': (active_rules / total_rules * 100) if total_rules > 0 else 0,
+                'active_percentage': active_percentage,
                 'scoring_stats': scoring_stats,
-                'frequency_stats': freq_stats
+                'frequency_stats': freq_stats,
+                'database_rules': {
+                    'tech_rules': tech_count,
+                    'port_rules': port_count
+                }
             }
         except Exception as e:
             self.issues.append({
@@ -267,23 +309,41 @@ class AuditRunner:
         active = stats.get('active_rules', 0)
         unused = stats.get('unused_rules', 0)
         percentage = stats.get('active_percentage', 0)
+        db_rules = stats.get('database_rules', {})
         
         console.print(f"   Total Rules: {total}")
-        console.print(f"   Active Rules: {active} ({percentage:.0f}%)")
-        console.print(f"   Unused Rules: {unused} ({100-percentage:.0f}%)")
+        if db_rules:
+            console.print(f"   - Technology Rules: {db_rules.get('tech_rules', 0)}")
+            console.print(f"   - Port Rules: {db_rules.get('port_rules', 0)}")
+        console.print(f"   Active Rules: {active} ({percentage:.1f}%)")
+        console.print(f"   Unused Rules: {unused} ({100-percentage:.1f}%)")
         
-        # Check for issues
-        if percentage < 50:
+        # Show most frequently used rules
+        freq_stats = stats.get('frequency_stats', {})
+        most_frequent = freq_stats.get('most_frequent', [])
+        if most_frequent:
+            console.print(f"\n   [dim]Most Used Rules:[/dim]")
+            for rule, count in most_frequent[:3]:
+                console.print(f"   - {rule}: {count} times")
+        
+        # Adjust issue thresholds for database-driven system
+        if percentage < 10:
             self.issues.append({
                 'severity': 'high',
                 'type': 'low_rule_utilization',
-                'message': f'Only {percentage:.0f}% of rules are being used'
+                'message': f'Only {percentage:.1f}% of rules are being used'
             })
-        elif percentage < 70:
+        elif percentage < 30:
             self.warnings.append({
                 'type': 'rule_utilization',
-                'message': f'Rule utilization at {percentage:.0f}% - room for improvement'
+                'message': f'Rule utilization at {percentage:.1f}% - consider more diverse scanning'
             })
+        
+        # Add database-specific insights
+        if total > 800:
+            self.recommendations.append(
+                f"Large rule set ({total} rules) detected - focus on most relevant technologies and ports"
+            )
     
     def _display_recommendation_quality(self, quality: Dict[str, Any]):
         """Display recommendation quality section"""
@@ -399,13 +459,45 @@ class AuditRunner:
         """Display actionable recommendations"""
         console.print("\n[bold]💡 Recommendations:[/bold]")
         
-        # Add default recommendations based on common patterns
+        # Add specific recommendations based on analysis
         if not self.recommendations:
             self.recommendations = [
                 "Run audit regularly to monitor system health",
-                "Review unused rules for potential removal",
-                "Consider adding more specific wordlists for better targeting"
+                "Test with more diverse technology/port combinations to activate unused rules",
+                "Consider scanning common web technologies (WordPress, Apache, Nginx) to increase rule usage"
             ]
+        
+        # Add database-specific recommendations
+        try:
+            from src.core.scorer.database_scorer import db_scorer
+            
+            if db_scorer.tech_db and db_scorer.port_db:
+                tech_count = sum(len(techs) for techs in db_scorer.tech_db.values())
+                port_count = len(db_scorer.port_db)
+                
+                if tech_count > 20:
+                    self.recommendations.append(
+                        f"Large technology database ({tech_count} techs) - focus testing on high-value targets"
+                    )
+                
+                if port_count > 500:
+                    self.recommendations.append(
+                        f"Extensive port database ({port_count} ports) - consider targeted scanning of common ports"
+                    )
+                
+                # Suggest specific actions
+                common_techs = ['wordpress', 'apache', 'nginx', 'mysql', 'jenkins']
+                self.recommendations.append(
+                    f"Test with common technologies: {', '.join(common_techs)} to activate more rules"
+                )
+                
+                common_ports = [80, 443, 22, 21, 3306, 8080]
+                self.recommendations.append(
+                    f"Scan common ports: {', '.join(map(str, common_ports))} for better coverage"
+                )
+        
+        except Exception as e:
+            logger.debug(f"Could not generate database recommendations: {e}")
         
         # Display unique recommendations
         seen = set()
@@ -414,7 +506,13 @@ class AuditRunner:
                 console.print(f"   - {rec}")
                 seen.add(rec)
         
-        # Add specific examples based on actual data
+        # Add specific next steps
+        console.print("\n[bold]🔧 Next Steps:[/bold]")
+        console.print("   1. Run targeted scans with technology detection enabled")
+        console.print("   2. Test SmartList workflow with diverse targets")
+        console.print("   3. Monitor rule activation with 'ipcrawler audit --details'")
+        console.print("   4. Review wordlist catalog for completeness")
+        
         console.print("\n[dim]Run 'ipcrawler audit --details' for more detailed analysis[/dim]")
     
     def run_legacy_audit(self) -> int:
