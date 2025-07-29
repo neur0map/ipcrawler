@@ -9,7 +9,6 @@ from workflows.core.base import BaseWorkflow, WorkflowResult
 from .models import HTTPScanResult
 from src.core.utils.debugging import debug_print
 
-# Import modular components
 from .dns_discovery import DNSDiscovery
 from .http_service import HTTPServiceScanner
 from .path_discovery import PathDiscoveryEngine
@@ -33,12 +32,10 @@ class HTTPAdvancedScanner(BaseWorkflow):
     
     def __init__(self):
         super().__init__(name="http_03")
-        # Get HTTP ports from database with fallback
         try:
             from workflows.core.db_integration import get_common_http_ports
             self.common_ports = get_common_http_ports()
         except ImportError:
-            # Fallback if database helper not available
             self.common_ports = [80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9000]
         self.timeout = 10
         self.user_agents = [
@@ -48,7 +45,6 @@ class HTTPAdvancedScanner(BaseWorkflow):
         ]
         self.config = self._load_config()
         
-        # Initialize modular components
         self.dns_discovery = DNSDiscovery()
         self.http_service_scanner = HTTPServiceScanner(self.user_agents)
         self.path_discovery = PathDiscoveryEngine(self.user_agents, self.config)
@@ -72,7 +68,6 @@ class HTTPAdvancedScanner(BaseWorkflow):
         start_time = datetime.now()
         discovered_hostnames = kwargs.get('discovered_hostnames', [])
         
-        # Validate input
         is_valid, validation_errors = self.validate_input(target, **kwargs)
         if not is_valid:
             return WorkflowResult(
@@ -81,16 +76,13 @@ class HTTPAdvancedScanner(BaseWorkflow):
                 execution_time=(datetime.now() - start_time).total_seconds()
             )
         
-        # Store the original IP target for connection purposes
         self.original_ip = target
-        # Set original IP in all components
         self.dns_discovery.original_ip = target
         self.http_service_scanner.original_ip = target
         self.path_discovery.original_ip = target
         self.security_analyzer.original_ip = target
         self.fallback_scanner.original_ip = target
         
-        # Check dependencies at runtime for more accurate detection
         runtime_deps_available = check_dependencies()
         
         if not runtime_deps_available:

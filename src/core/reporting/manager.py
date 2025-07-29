@@ -47,7 +47,6 @@ class ReportManager:
             for reporter in self.reporters.values():
                 reporter.output_dir = workflow_dir
         
-        # Add common kwargs
         kwargs.update({
             'target': target or 'unknown',
             'workflow': workflow,

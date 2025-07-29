@@ -10,7 +10,6 @@ from workflows.core.base import BaseWorkflow, WorkflowResult
 from .models import SmartListResult, ServiceRecommendation, WordlistRecommendation
 from src.core.utils.debugging import debug_print
 
-# Import SmartList components
 try:
     from src.core.scorer import (
         score_wordlists_with_catalog,

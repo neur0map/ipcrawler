@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
     """Engine for applying scoring rules with fallback hierarchy."""
     
         self.rules: List[ScoringRule] = []
-        self._rule_frequency_cache = {}  # Cache for rule frequency data
+        self._rule_frequency_cache = {}
         self._last_frequency_update = None
     
         """Pre-compile regex patterns for efficiency."""
@@ -36,11 +36,9 @@ logger = logging.getLogger(__name__)
         wordlists = get_exact_match(context.tech, context.port)
             rule_name = f"exact:{context.tech}:{context.port}"
             
-            # Apply frequency-based scoring adjustment
             base_score = 1.0
             adjusted_score = self._apply_frequency_adjustment(rule_name, base_score)
             
-            # Add synergy bonus for tech+path combinations
             synergy_bonus = self._calculate_synergy_bonus(context, wordlists)
             final_score = min(1.0, adjusted_score + synergy_bonus)
             
@@ -55,21 +53,17 @@ logger = logging.getLogger(__name__)
         matched_rules = []
         score = 0.0
         
-        # First try exact tech match
                     rule_name = f"tech_category:{category}"
                     
-                    # Apply frequency-based scoring
                     base_score = config["weight"]
                     adjusted_score = self._apply_frequency_adjustment(rule_name, base_score)
                     synergy_bonus = self._calculate_synergy_bonus(context, wordlists)
                     score = min(1.0, adjusted_score + synergy_bonus)
                     
         
-        # Fallback to pattern matching on service description
                 config = TECH_CATEGORY_RULES[category]
                 rule_name = f"tech_pattern:{category}"
                 
-                # Lower base score for pattern match vs exact match
                 base_score = config["weight"] * 0.75
                 adjusted_score = self._apply_frequency_adjustment(rule_name, base_score)
                 synergy_bonus = self._calculate_synergy_bonus(context, wordlists)
@@ -84,21 +78,17 @@ logger = logging.getLogger(__name__)
         matched_rules = []
         score = 0.0
         
-        # Find all matching categories and sort by priority
         matching_categories = []
-                priority = config.get("priority", 999)  # Default to low priority
+                priority = config.get("priority", 999)
         
-            # Sort by priority (lower number = higher priority)
             matching_categories.sort(key=lambda x: x[0])
             
-            # Use the highest priority category
             priority, category, config = matching_categories[0]
             
             rule_name = f"port:{category}"
             
-            # Apply frequency-based scoring with priority bonus
             base_score = config["weight"]
-            if priority == 1:  # Highest priority gets bonus
+            if priority == 1:
                 base_score += 0.1
             
             adjusted_score = self._apply_frequency_adjustment(rule_name, base_score)
@@ -117,7 +107,6 @@ logger = logging.getLogger(__name__)
         
                 rule_name = f"keyword:{keyword}"
                 
-                # Apply frequency-based scoring
                 base_score = 0.5  # Keyword matches get moderate base score
                 adjusted_score = self._apply_frequency_adjustment(rule_name, base_score)
                 score = max(score, adjusted_score)

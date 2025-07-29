@@ -158,12 +158,10 @@ class IPCrawlerConsole:
             expand=False
         )
         
-        # Add columns
         table.add_column("Feature", style="secondary", no_wrap=True)
         table.add_column("With Sudo", style="success", justify="center")
         table.add_column("Without Sudo", style="warning", justify="center")
         
-        # Add feature comparison rows
         table.add_row(
             "Scanning Method",
             "SYN stealth (fast, accurate)",
@@ -377,12 +375,10 @@ class IPCrawlerConsole:
         self.console.print(header)
         self.console.print()
         
-        # Collect key metrics
         hosts = data.get('hosts', [])
         total_hosts = len(hosts)
         up_hosts = len([h for h in hosts if h.get('status') == 'up'])
         
-        # Count services and ports
         total_ports = 0
         open_ports = 0
         services = set()

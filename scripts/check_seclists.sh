@@ -1,17 +1,15 @@
 #!/bin/bash
-# SecLists Installation Checker and Installer for IPCrawler
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # SecLists info
 SECLISTS_REPO="https://github.com/danielmiessler/SecLists.git"

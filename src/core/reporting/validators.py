@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 class WorkflowOutputValidator:
     """Validates workflow output data structures"""
     
-    # Define expected structures for each workflow
     WORKFLOW_SCHEMAS = {
         'nmap_fast_01': {
             'required': ['tool', 'target', 'open_ports'],

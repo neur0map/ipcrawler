@@ -21,8 +21,8 @@ class NmapScanner(BaseWorkflow):
     
     def __init__(self, batch_size: int = 10, ports_per_batch: int = 6553):
         super().__init__("nmap")
-        self.batch_size = batch_size  # Number of concurrent nmap processes
-        self.ports_per_batch = ports_per_batch  # Ports per batch (~10% of 65535)
+        self.batch_size = batch_size
+        self.ports_per_batch = ports_per_batch
     
     def validate_input(self, target: str, **kwargs) -> bool:
         """Validate input parameters"""
@@ -41,7 +41,6 @@ class NmapScanner(BaseWorkflow):
     
     
     def _create_port_ranges(self, total_ports: int = 65535) -> List[Tuple[int, int]]:
-        """Create port ranges for parallel scanning"""
         ranges = []
         for start in range(1, total_ports + 1, self.ports_per_batch):
             end = min(start + self.ports_per_batch - 1, total_ports)
@@ -56,19 +55,15 @@ class NmapScanner(BaseWorkflow):
         try:
             root_privileged = is_root()
             
-            # If specific ports are provided, choose scan method based on real-time setting
             if ports:
-                # Use batched scanning for real-time results, single scan otherwise
                 if len(ports) > 5:
                     return await self._batched_port_scan(target, ports, root_privileged, flags, progress_queue, start_time)
                 else:
                     return await self._single_scan(target, ports, root_privileged, flags, start_time, progress_queue)
             else:
-                # Parallel batch scanning for all ports
                 return await self._parallel_scan(target, root_privileged, flags, progress_queue, start_time)
             
         except Exception as exc:
-            # Use structured error handling
             execution_time = time.time() - start_time
             return self.handle_exception(
                 exc=exc,
@@ -86,11 +81,9 @@ class NmapScanner(BaseWorkflow):
         try:
             port_spec = ','.join(map(str, ports))
             
-            # Build nmap command
             cmd = build_nmap_command(port_spec, is_root, flags, "detailed")
             cmd.append(target)
             
-            # Execute nmap
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -123,7 +116,6 @@ class NmapScanner(BaseWorkflow):
                     execution_time=time.time() - start_time
                 )
             
-            # Parse XML output
             xml_output = stdout.decode()
             scan_result = self._parse_xml_output(xml_output, " ".join(cmd))
             
@@ -131,7 +123,6 @@ class NmapScanner(BaseWorkflow):
             scan_result_dict['scan_mode'] = '[bold green]privileged[/bold green]' if is_root else '[bold orange1]unprivileged[/bold orange1]'
             scan_result_dict['scan_type'] = 'targeted'
             
-            # Send progress notification
             if progress_queue:
                 await progress_queue.put("batch_complete")
             
@@ -185,7 +176,6 @@ class NmapScanner(BaseWorkflow):
                     execution_time=time.time() - start_time
                 )
             
-            # Merge all scan results
             merged_result = self._merge_scan_results(successful_scans, target, is_root)
             
             merged_result_dict = merged_result.model_dump()
@@ -248,7 +238,6 @@ class NmapScanner(BaseWorkflow):
                     execution_time=time.time() - start_time
                 )
             
-            # Merge all scan results
             merged_result = self._merge_scan_results(successful_scans, target, is_root)
             
             merged_result_dict = merged_result.model_dump()
@@ -307,7 +296,6 @@ class NmapScanner(BaseWorkflow):
             cmd = build_nmap_command(port_spec, is_root, flags, "detailed")
             cmd.append(target)
             
-            # Execute nmap
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -335,7 +323,6 @@ class NmapScanner(BaseWorkflow):
                     ]
                 )
             
-            # Parse XML output
             xml_output = stdout.decode()
             return self._parse_xml_output(xml_output, " ".join(cmd))
             
@@ -354,7 +341,6 @@ class NmapScanner(BaseWorkflow):
             cmd = build_nmap_command(port_spec, is_root, flags, "detailed")
             cmd.append(target)
             
-            # Execute nmap
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -383,7 +369,6 @@ class NmapScanner(BaseWorkflow):
                     ]
                 )
             
-            # Parse XML output
             xml_output = stdout.decode()
             return self._parse_xml_output(xml_output, " ".join(cmd))
             

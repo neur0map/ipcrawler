@@ -76,7 +76,6 @@ class EntropyAnalyzer:
         Returns:
             EntropyMetrics with analysis results
         """
-        # Get recent cache entries
         entries = self._get_recent_entries(days_back, context)
         
         if len(entries) < 3:

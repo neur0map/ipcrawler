@@ -22,11 +22,11 @@ class CommandRecommendation:
     tool: str              # e.g., "feroxbuster", "nuclei"
     command: str           # Full command to execute
     description: str       # Human-readable description
-    priority: int          # 1=highest, 5=lowest
-    confidence: str        # HIGH, MEDIUM, LOW
-    reasoning: str         # Why this command is recommended
-    prerequisites: List[str] = None  # Required tools/files
-    estimated_time: str = "Unknown"  # Estimated execution time
+    priority: int
+    confidence: str
+    reasoning: str
+    prerequisites: List[str] = None
+    estimated_time: str = "Unknown"
     
     def __post_init__(self):
         if self.prerequisites is None:
@@ -52,19 +52,16 @@ class NextStepsGenerator:
     def load_scan_results(self) -> bool:
         """Load all available scan results from workspace"""
         try:
-            # Load main scan results
             results_file = self.workspace_path / "scan_results.json"
             if results_file.exists():
                 with open(results_file, 'r') as f:
                     self.scan_results = json.load(f)
                     self._extract_basic_info()
             
-            # Load SmartList results from scan_results.json
             if 'smartlist_04' in self.scan_results:
                 self.smartlist_results = self.scan_results['smartlist_04']
                 self._extract_smartlist_info()
             
-            # Load HTTP results
             if 'http_03' in self.scan_results:
                 self.http_results = self.scan_results['http_03']
                 self._extract_http_info()
@@ -89,7 +86,6 @@ class NextStepsGenerator:
                 service_str = service_rec.get('service', '')
                 if ':' in service_str:
                     try:
-                        # Parse format like "10.129.237.241:22" or "planning.htb:80"
                         host, port_str = service_str.split(':', 1)
                         port = int(port_str)
                         
@@ -99,7 +95,7 @@ class NextStepsGenerator:
                         
                         port_data = {
                             'port': port,
-                            'protocol': 'tcp',  # Default assumption
+                            'protocol': 'tcp',
                             'service': service_rec.get('service_name', 'unknown'),
                             'version': '',
                             'product': ''
@@ -164,15 +160,13 @@ class NextStepsGenerator:
                     
     def _extract_hostname_info(self):
         """Extract discovered hostnames from HTTP scan results"""
-        # Get tested hostnames from HTTP scan
         tested_hostnames = self.http_results.get('tested_hostnames', [])
         
-        # Filter to get actual hostnames (not IPs)
         for hostname in tested_hostnames:
             if (hostname and 
-                not hostname.replace('.', '').isdigit() and  # Not an IP
-                '.' in hostname and  # Has domain structure
-                hostname != self.target):  # Different from target IP
+                not hostname.replace('.', '').isdigit() and
+                '.' in hostname and
+                hostname != self.target):
                 self.discovered_hostnames.append(hostname)
         
         # Remove duplicates while preserving order
@@ -182,7 +176,7 @@ class NextStepsGenerator:
             if hostname not in seen:
                 seen.add(hostname)
                 unique_hostnames.append(hostname)
-        self.discovered_hostnames = unique_hostnames[:5]  # Limit to top 5
+        self.discovered_hostnames = unique_hostnames[:5]
     
     def _is_high_value_service(self, port_data: Dict) -> bool:
         """Determine if a service is high-value for penetration testing"""
@@ -250,16 +244,14 @@ class NextStepsGenerator:
         if not web_ports:
             return
             
-        # Get SmartList wordlist recommendations
         wordlists = self._get_smartlist_wordlists()
         
         for port_data in web_ports:
             port = port_data['port']
             scheme = 'https' if port in [443, 8443] else 'http'
             
-            # Use discovered hostname if available, otherwise use target IP
             if self.discovered_hostnames:
-                target_host = self.discovered_hostnames[0]  # Use primary hostname
+                target_host = self.discovered_hostnames[0]
             else:
                 target_host = self.target
             

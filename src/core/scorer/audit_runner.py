@@ -184,7 +184,7 @@ class AuditRunner:
                 if len(sources) > 3:
                     conflicting_rules.append({
                         'wordlist': wordlist,
-                        'sources': sources[:5],  # Limit to first 5
+                        'sources': sources[:5],
                         'count': len(sources)
                     })
                     

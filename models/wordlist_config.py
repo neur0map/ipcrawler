@@ -307,7 +307,6 @@ class WordlistValidationConfig(BaseModel):
             paths = load_seclists_paths()
             detected_seclists_path = paths[0] if paths else "/usr/share/seclists"
         
-        # Update each service config with new paths
         for service_type in self.service_configs:
             new_paths = get_wordlist_paths(service_type, detected_seclists_path)
             self.service_configs[service_type].fallback_wordlists = new_paths
