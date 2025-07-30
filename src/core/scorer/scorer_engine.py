@@ -6,6 +6,13 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 
+try:
+    from rapidfuzz import fuzz, process
+    RAPIDFUZZ_AVAILABLE = True
+except ImportError:
+    RAPIDFUZZ_AVAILABLE = False
+    logger.warning("rapidfuzz not available, using basic fuzzy matching")
+
 logger = logging.getLogger(__name__)
 
 
@@ -381,6 +388,114 @@ def score_wordlists_with_catalog(context: ScoringContext) -> SmartListResult:
     return score_wordlists(context)
 
 
+def _normalize_wordlist_name(name: str) -> str:
+    """Normalize wordlist name for better matching"""
+    # Remove common file extensions
+    extensions = ['.txt', '.list', '.lst', '.wordlist', '.dict']
+    normalized = name.lower()
+    for ext in extensions:
+        if normalized.endswith(ext):
+            normalized = normalized[:-len(ext)]
+            break
+    
+    # Replace common separators with spaces for better matching
+    normalized = normalized.replace('-', ' ').replace('_', ' ').replace('.', ' ')
+    return normalized.strip()
+
+
+def _fuzzy_match_wordlist(target_name: str, wordlists: Dict[str, Any], tech: str = None) -> Optional[str]:
+    """Advanced fuzzy matching for wordlist names using rapidfuzz or fallback logic"""
+    if not wordlists:
+        return None
+    
+    target_normalized = _normalize_wordlist_name(target_name)
+    
+    if RAPIDFUZZ_AVAILABLE:
+        # Use rapidfuzz for sophisticated matching
+        candidates = []
+        
+        for catalog_name, info in wordlists.items():
+            # Create multiple search targets for better matching
+            search_targets = [
+                _normalize_wordlist_name(catalog_name),
+                _normalize_wordlist_name(info.get('display_name', '')),
+                catalog_name.lower(),
+                info.get('display_name', '').lower()
+            ]
+            
+            # Add technology compatibility context if available
+            if tech and info.get('tech_compatibility'):
+                tech_lower = tech.lower()
+                for tech_compat in info.get('tech_compatibility', []):
+                    if tech_lower in tech_compat.lower():
+                        # Boost score for tech-compatible wordlists
+                        search_targets.append(f"{tech_lower} {_normalize_wordlist_name(catalog_name)}")
+                        break
+            
+            # Calculate best match score for this wordlist
+            best_score = 0
+            for target in search_targets:
+                if target:  # Skip empty targets
+                    score = fuzz.WRatio(target_normalized, target)
+                    best_score = max(best_score, score)
+            
+            if best_score > 0:
+                candidates.append((catalog_name, best_score, info))
+        
+        if candidates:
+            # Sort by score and apply intelligent filtering
+            candidates.sort(key=lambda x: x[1], reverse=True)
+            
+            # Filter for reasonable matches (threshold depends on name length)
+            min_threshold = 70 if len(target_normalized) > 10 else 60
+            best_candidates = [c for c in candidates if c[1] >= min_threshold]
+            
+            if best_candidates:
+                best_match = best_candidates[0]
+                logger.debug(f"Rapidfuzz matched '{target_name}' to '{best_match[0]}' (score: {best_match[1]})")
+                return best_match[0]
+            
+            # If no high-confidence matches, try partial matching for shorter names
+            if len(target_normalized) <= 6:  # Short names like "nagios", "xi"
+                for candidate_name, score, info in candidates[:5]:  # Check top 5
+                    if score >= 50:  # Lower threshold for short names
+                        # Additional validation: check if target is contained in tech compatibility
+                        if tech and info.get('tech_compatibility'):
+                            tech_lower = tech.lower()
+                            for tech_compat in info.get('tech_compatibility', []):
+                                if (tech_lower in tech_compat.lower() or 
+                                    target_normalized in tech_compat.lower()):
+                                    logger.debug(f"Rapidfuzz short-name matched '{target_name}' to '{candidate_name}' via tech compatibility")
+                                    return candidate_name
+    
+    else:
+        # Fallback to improved basic matching if rapidfuzz not available
+        logger.debug("Using fallback fuzzy matching (rapidfuzz not available)")
+        
+        for catalog_name, info in wordlists.items():
+            catalog_normalized = _normalize_wordlist_name(catalog_name)
+            display_normalized = _normalize_wordlist_name(info.get('display_name', ''))
+            
+            # Check various matching patterns
+            if (target_normalized in catalog_normalized or 
+                catalog_normalized in target_normalized or
+                target_normalized in display_normalized or
+                display_normalized in target_normalized):
+                
+                # Additional validation for tech compatibility if available
+                if tech and info.get('tech_compatibility'):
+                    tech_lower = tech.lower()
+                    for tech_compat in info.get('tech_compatibility', []):
+                        if tech_lower in tech_compat.lower():
+                            logger.debug(f"Fallback matched '{target_name}' to '{catalog_name}' with tech validation")
+                            return catalog_name
+                
+                logger.debug(f"Fallback matched '{target_name}' to '{catalog_name}'")
+                return catalog_name
+    
+    return None
+
+
 def get_wordlist_paths(wordlist_names: List[str], tech: str = None, port: int = None) -> List[Optional[str]]:
     """Get full paths for wordlist names using catalog if available"""
     paths = []
@@ -408,33 +523,28 @@ def get_wordlist_paths(wordlist_names: List[str], tech: str = None, port: int = 
             # Try exact match first
             if name in wordlists:
                 path = wordlists[name].get('full_path')
+                logger.debug(f"Exact match for '{name}'")
             else:
-                # Try fuzzy matching (remove extensions, case insensitive)
-                name_base = name.lower().replace('.txt', '').replace('.list', '')
-                for catalog_name, info in wordlists.items():
-                    catalog_base = catalog_name.lower().replace('.txt', '').replace('.list', '')
-                    if name_base in catalog_base or catalog_base in name_base:
-                        path = info.get('full_path')
-                        logger.debug(f"Fuzzy matched '{name}' to '{catalog_name}'")
-                        break
+                # Try advanced fuzzy matching
+                matched_name = _fuzzy_match_wordlist(name, wordlists, tech)
+                if matched_name and matched_name in wordlists:
+                    path = wordlists[matched_name].get('full_path')
+                    logger.debug(f"Fuzzy matched '{name}' to '{matched_name}'")
+                else:
+                    logger.debug(f"No match found for '{name}'")
             
             if path and Path(path).exists():
                 paths.append(path)
                 logger.debug(f"Resolved '{name}' to: {path}")
             else:
-                # Fallback to default path
-                fallback_path = f"/usr/share/seclists/Discovery/Web-Content/{name}"
-                if Path(fallback_path).exists():
-                    paths.append(fallback_path)
-                    logger.debug(f"Using fallback path for '{name}': {fallback_path}")
-                else:
-                    paths.append(None)
-                    logger.warning(f"Could not resolve path for wordlist: {name}")
+                # NO HARDCODED FALLBACKS - SmartList requires catalog data
+                paths.append(None)
+                logger.warning(f"Could not resolve path for wordlist '{name}' - not found in catalog")
         
     except Exception as e:
         logger.warning(f"Error resolving wordlist paths: {e}")
-        # Return fallback paths
-        return [f"/usr/share/seclists/Discovery/Web-Content/{name}" for name in wordlist_names]
+        # NO HARDCODED FALLBACKS - return None for all
+        return [None] * len(wordlist_names)
     
     return paths
 

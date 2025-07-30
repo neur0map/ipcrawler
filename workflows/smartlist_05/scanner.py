@@ -543,7 +543,7 @@ class SmartListScanner(BaseWorkflow):
                 wordlist=wordlist,
                 path=wordlist_path,
                 score=result.score,
-                confidence=result.confidence.value.upper(),  # Convert enum to string
+                confidence=result.confidence.upper() if isinstance(result.confidence, str) else result.confidence.value.upper(),
                 reason=reason,
                 category=category,
                 matched_rule=result.matched_rules[0] if result.matched_rules else "none"
@@ -585,13 +585,13 @@ class SmartListScanner(BaseWorkflow):
             recommendations=recommendations,
             context_summary=context_summary,
             total_score=result.score,
-            confidence_level=result.confidence.value.upper(),
+            confidence_level=result.confidence.upper() if isinstance(result.confidence, str) else result.confidence.value.upper(),
             score_breakdown={
-                'exact_match': result.explanation.exact_match,
-                'tech_category': result.explanation.tech_category,
-                'port_context': result.explanation.port_context,
-                'service_keywords': result.explanation.service_keywords,
-                'generic_fallback': result.explanation.generic_fallback
+                'exact_match': result.explanation.get('exact_match', 0.0) if isinstance(result.explanation, dict) else result.explanation.exact_match,
+                'tech_category': result.explanation.get('tech_category', 0.0) if isinstance(result.explanation, dict) else result.explanation.tech_category,
+                'port_context': result.explanation.get('port_context', 0.0) if isinstance(result.explanation, dict) else result.explanation.port_context,
+                'service_keywords': result.explanation.get('service_keywords', 0.0) if isinstance(result.explanation, dict) else result.explanation.service_keywords,
+                'generic_fallback': result.explanation.get('generic_fallback', 0.0) if isinstance(result.explanation, dict) else result.explanation.generic_fallback
             }
         )
         

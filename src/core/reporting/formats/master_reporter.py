@@ -1,4 +1,7 @@
-"""Master report generator for IPCrawler"""
+"""LEGACY Master report generator for IPCrawler - DEPRECATED
+USE: src.core.reporting.reporting_engine.ReportingEngine instead
+This file is kept for compatibility but should not be used in new code.
+"""
 
 import re
 from pathlib import Path
@@ -8,7 +11,7 @@ from ..base_reporter import BaseReporter
 
 
 class MasterReporter(BaseReporter):
-    """Generates comprehensive master TXT report combining all workflows"""
+    """DEPRECATED - Use ReportingEngine instead"""
     
     def __init__(self, output_dir: Optional[Path] = None, theme: str = 'default'):
         """Initialize master text reporter"""
