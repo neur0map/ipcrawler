@@ -1,5 +1,5 @@
 {
-  "total_selections": 59,
+  "total_selections": 65,
   "by_tech": {
     "web": 4,
     "other": 3,
@@ -7,7 +7,8 @@
     "unknown": 4,
     "apache": 8,
     "nginx": 11,
-    "wordpress": 7,
+    "wordpress": 11,
+    "django": 2,
     "jenkins": 4,
     "mysql": 3,
     "caddy": 3,
@@ -19,15 +20,15 @@
     "proxy": 1
   },
   "by_port": {
-    "web": 29,
+    "web": 34,
     "database": 5,
     "other": 2,
-    "web_secure": 22,
+    "web_secure": 23,
     "file_transfer": 1
   },
   "fallback_usage": {
     "count": 2,
-    "percentage": 3.39
+    "percentage": 3.08
   },
-  "last_updated": "2025-07-30T22:23:12.411805"
+  "last_updated": "2025-07-31T00:24:34.609334"
 }

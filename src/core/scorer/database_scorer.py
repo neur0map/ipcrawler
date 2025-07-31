@@ -28,6 +28,11 @@ class DatabaseScorer:
         self.tech_db = None
         self.port_db = None
         self.catalog = None
+        # Smart caching
+        self._tech_cache = {}
+        self._port_cache = {}
+        self._wordlist_cache = {}
+        self._cache_stats = {'hits': 0, 'misses': 0}
         self._load_databases()
     
     def _load_databases(self):
@@ -65,16 +70,23 @@ class DatabaseScorer:
     
     def score(self, tech: Optional[str], port: Optional[int], 
               service: Optional[str] = None, version: Optional[str] = None,
-              confidence: Optional[float] = None, context: Optional[Dict[str, Any]] = None) -> List[str]:
+              confidence: Optional[float] = None, context: Optional[Dict[str, Any]] = None,
+              workflow_results: Optional[Dict[str, Any]] = None) -> List[str]:
         """
-        Score and recommend wordlists based on detected technology and port
-        Uses discovery_paths from tech_db.json and catalog filtering
+        Simplified scoring with 5 key factors:
+        1. Technology match (tech_db)
+        2. Port classification (port_db) 
+        3. Service compatibility
+        4. Quality & size balance
+        5. Usage frequency adjustment
         
         Args:
             tech: Detected technology (e.g., 'wordpress', 'nginx')
             port: Port number
             service: Service name (optional)
             version: Version info (optional)
+            confidence: Detection confidence (optional)
+            context: Additional context (optional)
             
         Returns:
             List of recommended wordlist names
@@ -82,78 +94,68 @@ class DatabaseScorer:
         if not self.catalog or not self.catalog.get('wordlists'):
             return self._get_fallback_wordlists()
         
-        recommended_wordlists = []
+        # Use new rules engine for cleaner logic
+        from .rules import rule_engine
         
-        # Enhanced rule activation strategy
-        # 1. Get technology-specific recommendations (activates tech rules)
-        if tech:
-            tech_wordlists = self._get_tech_wordlists_from_db(tech)
-            recommended_wordlists.extend(tech_wordlists)
+        # Enhance context with workflow feedback
+        enhanced_context = context or {}
+        if workflow_results:
+            from .workflow_feedback import enhance_scoring_context
+            enhanced_context = enhance_scoring_context(enhanced_context, workflow_results)
             
-            # Also get category-based recommendations for broader activation
-            tech_info = self._find_tech_in_db(tech)
-            if tech_info:
-                category = tech_info.get('category', '')
-                if category:
-                    category_wordlists = self._get_category_wordlists(category)
-                    recommended_wordlists.extend(category_wordlists)
-        
-        # 2. Get port-specific recommendations (activates port rules)
-        if port:
-            port_wordlists = self._get_port_wordlists_from_db(port)
-            recommended_wordlists.extend(port_wordlists)
+            # Override tech/version with workflow discoveries if more confident
+            if 'primary_technology' in enhanced_context:
+                workflow_tech = enhanced_context['primary_technology']
+                workflow_confidence = enhanced_context.get('tech_confidence', 0.0)
+                
+                if not tech or (confidence and workflow_confidence > confidence):
+                    tech = workflow_tech
+                    confidence = workflow_confidence
+                    logger.debug(f"Using workflow-discovered tech: {tech} (confidence: {confidence})")
             
-            # Also get service category recommendations
-            port_info = self.port_db.get(str(port), {})
-            if port_info:
-                service_category = port_info.get('classification', {}).get('category', '')
-                if service_category:
-                    category_wordlists = self._get_service_category_wordlists(service_category)
-                    recommended_wordlists.extend(category_wordlists)
+            if 'version' in enhanced_context and not version:
+                version = enhanced_context['version']
+                logger.debug(f"Using workflow-discovered version: {version}")
         
-        # 3. Add service-specific wordlists based on service name
-        if service:
-            service_wordlists = self._get_service_wordlists_from_db(service)
-            recommended_wordlists.extend(service_wordlists)
+        # Build context for rules engine
+        rule_context = enhanced_context
+        if 'response_content' not in rule_context:
+            rule_context['response_content'] = rule_context.get('headers', {}).get('server', '')
         
-        # 4. Add general discovery wordlists - always include some for broader coverage
-        general_wordlists = self._get_general_discovery_wordlists()
-        recommended_wordlists.extend(general_wordlists)
+        # Get rule matches
+        rule_matches = rule_engine.match_rules(tech, port, service, rule_context)
         
-        # 5. Add fuzzing lists for web services to increase activation
-        if port in [80, 443, 8080, 8443, 3000, 5000, 9000] or (service and 'http' in service.lower()):
-            fuzzing_wordlists = self._get_fuzzing_wordlists()
-            recommended_wordlists.extend(fuzzing_wordlists)
+        if rule_matches:
+            # Get wordlists from rule matches
+            recommended_wordlists = rule_engine.get_wordlists_for_rules(rule_matches)
+        else:
+            # Fallback to basic logic if no rules match
+            recommended_wordlists = self._get_basic_recommendations(tech, port, service)
         
-        # Score and rank all recommended wordlists
+        # Score and filter wordlists with simplified scoring
         scored_wordlists = []
         seen = set()
         
         for wl_name in recommended_wordlists:
             if wl_name not in seen:
                 # Find wordlist data in catalog
-                wl_data = None
-                for wl in self.catalog.get('wordlists', []):
-                    if wl['name'] == wl_name:
-                        wl_data = wl
-                        break
+                wl_data = self._find_wordlist_in_catalog(wl_name)
                 
                 if wl_data:
-                    score = self._score_wordlist_enhanced(wl_data, tech, port, service, 
-                                                        confidence, version, context)
+                    score = self._score_wordlist_simplified(wl_data, tech, port, service, confidence, enhanced_context)
                     scored_wordlists.append((wl_name, score, wl_data))
                     seen.add(wl_name)
         
-        # Apply diversification and rotation to prevent overuse
-        final_selection = self._apply_diversification(scored_wordlists, tech, port, confidence)
+        # Apply frequency adjustments and simple diversification
+        final_selection = self._apply_simplified_selection(scored_wordlists, tech, port)
         
-        # Track rule usage for audit purposes
-        self._track_rule_usage(tech, port, service, final_selection)
+        # Track usage for analytics including workflow feedback
+        self._track_rule_usage(tech, port, service, final_selection, enhanced_context)
         
         return [wl[0] for wl in final_selection[:5]]  # Return top 5 names
     
     def _get_tech_wordlists_from_db(self, tech: str) -> List[str]:
-        """Get wordlists for a technology using tech_db discovery paths"""
+        """Get wordlists using tech_db discovery_paths and confidence_weights"""
         wordlists = []
         
         # Find technology in tech_db
@@ -161,30 +163,58 @@ class DatabaseScorer:
         if not tech_info:
             return wordlists
         
-        # Get discovery paths from tech_db
+        # Use discovery_paths for path-aware wordlist selection
         discovery_paths = tech_info.get('discovery_paths', [])
-        if not discovery_paths:
-            return wordlists
-        
-        # Find wordlists that match the technology category
+        confidence_weights = tech_info.get('confidence_weights', {})
         tech_category = tech_info.get('category', '')
         
-        # Filter catalog wordlists by tech compatibility or category relevance
+        # Score wordlists based on tech_db information
+        scored_wordlists = []
+        
         for wl in self.catalog.get('wordlists', []):
-            wl_category = wl.get('category', '')
+            score = 0.0
+            wl_name = wl.get('name', '')
             tech_compatibility = wl.get('tech_compatibility', [])
             
-            # Direct tech match
-            if tech.lower() in tech_compatibility:
-                wordlists.append(wl['name'])
-            # Category relevance for web technologies
-            elif tech_category in ['cms', 'web_framework'] and wl_category == 'fuzzing':
-                wordlists.append(wl['name'])
+            # Direct tech match gets highest score
+            if tech.lower() in [t.lower() for t in tech_compatibility]:
+                score += 1.0
+            
+            # Category-based scoring using tech_db category
+            if tech_category == 'cms' and wl.get('category') == 'fuzzing':
+                score += 0.8
+            elif tech_category == 'web_framework' and wl.get('category') == 'fuzzing':
+                score += 0.7
+            elif tech_category == 'database' and wl.get('category') in ['other', 'usernames']:
+                score += 0.6
+            
+            # Use confidence weights from tech_db if available
+            if confidence_weights:
+                # Boost score based on pattern confidence weights
+                response_weight = confidence_weights.get('response_patterns', 0.5)
+                path_weight = confidence_weights.get('path_patterns', 0.5)
+                
+                # Apply weights to score
+                if response_weight > 0.8:
+                    score += 0.3  # High confidence in response patterns
+                if path_weight > 0.7:
+                    score += 0.2  # High confidence in path patterns
+            
+            # Discovery paths influence - prefer wordlists that might find these paths
+            if discovery_paths and len(discovery_paths) > 0:
+                # More discovery paths = higher potential value
+                path_bonus = min(0.2, len(discovery_paths) * 0.05)
+                score += path_bonus
+            
+            if score > 0:
+                scored_wordlists.append((wl_name, score))
         
-        return wordlists[:3]  # Limit to top 3
+        # Sort by score and return top names
+        scored_wordlists.sort(key=lambda x: x[1], reverse=True)
+        return [wl[0] for wl in scored_wordlists[:3]]
     
     def _get_port_wordlists_from_db(self, port: int) -> List[str]:
-        """Get wordlists for a port using port_db"""
+        """Get wordlists using port_db classification and risk assessment"""
         wordlists = []
         
         # Find port info in port_db
@@ -192,21 +222,55 @@ class DatabaseScorer:
         if not port_info:
             return wordlists
         
-        # Get service category
-        service_category = port_info.get('classification', {}).get('category', '')
+        # Extract rich port information
+        classification = port_info.get('classification', {})
+        service_category = classification.get('category', '')
+        risk_level = classification.get('risk_level', 'unknown')
+        tech_indicators = port_info.get('indicators', {}).get('tech_indicators', [])
         
-        # Filter wordlists by port compatibility or service relevance
+        # Score wordlists based on port database information
+        scored_wordlists = []
+        
         for wl in self.catalog.get('wordlists', []):
+            score = 0.0
+            wl_name = wl.get('name', '')
+            wl_category = wl.get('category', '')
             port_compatibility = wl.get('port_compatibility', [])
             
-            # Direct port match
+            # Direct port compatibility
             if port in port_compatibility:
-                wordlists.append(wl['name'])
-            # Service category relevance
-            elif service_category == 'file-transfer' and wl.get('category') == 'other':
-                wordlists.append(wl['name'])
+                score += 1.0
+            
+            # Service category mapping from port_db
+            if service_category == 'web-service' and wl_category == 'fuzzing':
+                score += 0.8
+            elif service_category == 'file-transfer' and wl_category == 'other':
+                score += 0.7
+            elif service_category == 'database' and wl_category in ['other', 'usernames', 'passwords']:
+                score += 0.6
+            elif service_category == 'remote-access' and wl_category == 'other':
+                score += 0.5
+            
+            # Risk level influence
+            if risk_level == 'high':
+                score += 0.2  # High-risk ports deserve more attention
+            elif risk_level == 'medium':
+                score += 0.1
+            
+            # Technology indicators from port_db
+            if tech_indicators:
+                tech_compatibility = wl.get('tech_compatibility', [])
+                for tech_indicator in tech_indicators:
+                    if any(tech_indicator.lower() in compat.lower() for compat in tech_compatibility):
+                        score += 0.3
+                        break
+            
+            if score > 0:
+                scored_wordlists.append((wl_name, score))
         
-        return wordlists[:2]  # Limit to top 2
+        # Sort by score and return top names
+        scored_wordlists.sort(key=lambda x: x[1], reverse=True)
+        return [wl[0] for wl in scored_wordlists[:2]]
     
     def _get_service_wordlists_from_db(self, service: str) -> List[str]:
         """Get wordlists for a service using compatibility mappings"""
@@ -255,15 +319,27 @@ class DatabaseScorer:
         return wordlists[:3]  # Increased to top 3 for better coverage
     
     def _find_tech_in_db(self, tech: str) -> Optional[Dict[str, Any]]:
-        """Find technology information in tech_db"""
+        """Find technology information in tech_db with caching"""
         tech_lower = tech.lower()
         
+        # Check cache first
+        if tech_lower in self._tech_cache:
+            self._cache_stats['hits'] += 1
+            return self._tech_cache[tech_lower]
+        
+        self._cache_stats['misses'] += 1
+        
         # Search through all categories in tech_db
+        result = None
         for category, technologies in self.tech_db.items():
             if tech_lower in technologies:
-                return technologies[tech_lower]
+                result = technologies[tech_lower]
+                break
         
-        return None
+        # Cache the result (including None)
+        self._tech_cache[tech_lower] = result
+        
+        return result
     
     def _score_wordlist(self, wordlist: Dict[str, Any], tech: Optional[str], 
                        port: Optional[int], service: Optional[str]) -> float:
@@ -308,297 +384,285 @@ class DatabaseScorer:
         
         return max(0.0, score)
     
-    def _score_wordlist_enhanced(self, wordlist: Dict[str, Any], tech: Optional[str], 
-                                port: Optional[int], service: Optional[str],
-                                confidence: Optional[float] = None, version: Optional[str] = None,
-                                context: Optional[Dict[str, Any]] = None) -> float:
-        """Enhanced scoring with context awareness and anti-clustering (Phase 3.1)"""
+    def _score_wordlist_simplified(self, wordlist: Dict[str, Any], tech: Optional[str], 
+                                  port: Optional[int], service: Optional[str],
+                                  confidence: Optional[float] = None, 
+                                  context: Optional[Dict[str, Any]] = None) -> float:
+        """Simplified scoring with 5 key factors"""
         score = 0.0
         
-        # Base score from wordlist quality
-        base_score = wordlist.get('scorer_weight', 0.5)
-        
-        # Technology compatibility bonus (Phase 1 improvement)
+        # Factor 1: Technology match (0.0-1.0)
         tech_compatibility = wordlist.get('tech_compatibility', [])
         if tech and tech.lower() in [t.lower() for t in tech_compatibility]:
-            score += 1.0  # Strong bonus for tech-specific wordlists
-        elif tech_compatibility:  # Has some tech compatibility but not exact match
-            score += 0.3
+            score += 1.0  # Perfect tech match
+        elif tech_compatibility:
+            score += 0.3  # Has tech compatibility but not exact
         
-        # Port compatibility bonus
+        # Factor 2: Port classification (0.0-0.5) 
         port_compatibility = wordlist.get('port_compatibility', [])
         if port and port in port_compatibility:
             score += 0.5
         
-        # Category-based scoring
-        category = wordlist.get('category', '')
-        size = wordlist.get('size_lines', 0)
-        
-        # Size-based penalties for generic overuse (Phase 2.1)
-        if size > 5000000:  # Very large wordlists
-            score -= 0.8  # Heavy penalty
-        elif size > 1000000:  # Large wordlists  
-            score -= 0.5  # Medium penalty
-        elif size < 100000:  # Small, focused wordlists
-            score += 0.4  # Bonus for targeted lists
-        
-        # Category-based adjustments
-        if category in ['usernames', 'passwords'] and tech:
-            # Reduce preference for auth lists unless specifically needed
-            if tech.lower() not in ['mysql', 'phpmyadmin', 'jenkins', 'grafana']:
-                score -= 0.3
-        
-        if category == 'subdomain':
-            # Subdomain lists are very specific use case
-            score -= 0.6  # Heavy penalty unless specifically needed
-        
-        if category == 'fuzzing' and tech:
-            # Fuzzing lists are good for web technologies
-            score += 0.2
-        
-        # Enhanced quality scoring using detailed metrics (Phase 4.3)
-        quality = wordlist.get('quality', 'unknown')
-        quality_metrics = wordlist.get('quality_metrics', {})
-        
-        if quality == 'excellent':
-            score += 0.1
-        
-        # Use detailed quality metrics if available
-        if quality_metrics:
-            accuracy = quality_metrics.get('accuracy', 0.5)
-            specificity = quality_metrics.get('specificity', 0.5)
-            effectiveness = quality_metrics.get('effectiveness_score', 0.5)
-            false_positive_rate = quality_metrics.get('false_positive_rate', 0.5)
-            
-            # Accuracy bonus
-            if accuracy >= 0.8:
-                score += 0.2
-            elif accuracy >= 0.7:
-                score += 0.1
-            
-            # Specificity bonus
-            if specificity >= 0.9:
-                score += 0.15
-            elif specificity >= 0.8:
-                score += 0.1
-            
-            # Penalty for high false positive rate
-            if false_positive_rate > 0.3:
-                score -= 0.2
-            elif false_positive_rate > 0.2:
-                score -= 0.1
-            
-            # Priority score consideration
-            priority_score = wordlist.get('priority_score', 0.5)
-            if priority_score >= 0.8:
-                score += 0.15
-            
-            # Target specificity bonus
-            target_specificity = wordlist.get('target_specificity', 'general')
-            if target_specificity in ['high', 'very_high', 'tech_specific']:
-                score += 0.1
-            elif target_specificity in ['dns_specific', 'browser_specific']:
-                # These are valuable for specific use cases
-                if tech or service:
-                    score += 0.05
-        
-        # Use-case specific scoring (Phase 4.4)
-        use_cases = wordlist.get('use_cases', [])
-        if use_cases:
-            # Match use cases to current scanning context
-            if tech and service:
-                # For technology-specific scanning
-                if 'authentication_testing' in use_cases and tech.lower() in ['mysql', 'phpmyadmin', 'jenkins', 'grafana']:
-                    score += 0.4
-                elif 'fuzzing' in use_cases and tech.lower() in ['wordpress', 'django', 'apache', 'nginx']:
-                    score += 0.3
-                elif 'browser_enumeration' in use_cases and 'http' in service.lower():
-                    score += 0.2
-            
-            # Context-specific use case matching
-            if context:
-                scan_type = context.get('scan_type', 'general')
-                if scan_type == 'authentication' and 'authentication_testing' in use_cases:
-                    score += 0.5
-                elif scan_type == 'fuzzing' and 'fuzzing' in use_cases:
-                    score += 0.4
-                elif scan_type == 'enumeration' and any(uc in use_cases for uc in ['enumeration', 'discovery']):
-                    score += 0.3
-        
-        # Service-specific bonus
-        if service and tech:
+        # Factor 3: Service compatibility (0.0-0.3)
+        if service:
             service_lower = service.lower()
             if any(service_lower in t.lower() or t.lower() in service_lower 
                    for t in tech_compatibility):
                 score += 0.3
         
-        # Phase 3.1: Context-aware scoring with confidence
-        if confidence is not None:
-            if confidence >= 0.8:
-                # High confidence - stick to specific wordlists
-                if tech and tech.lower() in [t.lower() for t in tech_compatibility]:
-                    score += 0.5  # Extra bonus for high-confidence exact matches
-            elif confidence < 0.5:
-                # Low confidence - prefer more generic/exploratory wordlists
-                if category == 'fuzzing' or size < 100000:
-                    score += 0.3  # Bonus for exploratory lists
-                if not tech_compatibility:  # Generic lists better for uncertain contexts
-                    score += 0.2
+        # Factor 4: Quality & size balance (0.0-0.4)
+        quality = wordlist.get('quality', 'unknown')
+        size = wordlist.get('size_lines', 0)
         
-        # Version-specific adjustments
-        if version and tech:
-            # Prefer smaller, targeted lists for specific versions
-            if size < 50000:
-                score += 0.3
-        
-        # Entropy-based scoring (Phase 4.4)
-        entropy_level = wordlist.get('entropy_level', 'medium')
-        if entropy_level == 'very_high':
-            if confidence and confidence >= 0.7:
-                score += 0.2  # High-entropy lists good for confident detections
-            else:
-                score -= 0.1  # Too noisy for uncertain contexts
-        elif entropy_level == 'high':
+        if quality == 'excellent':
+            score += 0.2
+        elif quality == 'good':
             score += 0.1
-        elif entropy_level == 'low':
-            if confidence and confidence < 0.5:
-                score += 0.15  # Low-entropy good for exploration
         
-        # Context diversity bonus (anti-clustering)
+        # Size scoring: prefer focused lists
+        if size < 50000:  # Small, focused
+            score += 0.2
+        elif size > 5000000:  # Very large
+            score -= 0.3
+        
+        # Factor 5: Category appropriateness using port_db and workflow feedback (0.0-0.4)
+        category = wordlist.get('category', '')
+        
+        # Use port database to determine service category
+        is_web_service = False
+        if port and self.port_db:
+            port_info = self.port_db.get(str(port), {})
+            service_category = port_info.get('classification', {}).get('category', '')
+            is_web_service = service_category in ['web-service', 'web']
+        
+        # Apply category scoring based on database classification
+        if category == 'fuzzing' and (is_web_service or (service and 'http' in service.lower())):
+            score += 0.2
+        elif category in ['usernames', 'passwords'] and not tech:
+            score -= 0.2  # Penalize auth lists without tech context
+        
+        # Workflow feedback bonus (Factor 6: Workflow integration)
         if context:
-            # Add variation based on context hash to prevent clustering
-            import hashlib
-            context_str = f"{tech}:{port}:{service}:{version}"
-            context_hash = int(hashlib.md5(context_str.encode()).hexdigest()[:8], 16)
+            # Path discovery feedback
+            discovered_paths = context.get('discovered_paths', [])
+            if discovered_paths and category == 'fuzzing':
+                # Bonus for fuzzing lists when paths were successfully discovered
+                path_success_bonus = min(0.2, len(discovered_paths) * 0.02)
+                score += path_success_bonus
             
-            # Use context hash to add slight variations
-            variation = (context_hash % 10) / 20.0  # 0 to 0.5 variation
-            score += variation
+            # Spider insights
+            spider_data = context.get('spider_data', {})
+            if spider_data:
+                # Bonus for wordlists that align with spider discoveries
+                if spider_data.get('has_admin_interface') and 'admin' in wordlist.get('name', '').lower():
+                    score += 0.1
+                if spider_data.get('has_api_endpoints') and 'api' in wordlist.get('name', '').lower():
+                    score += 0.1
             
-            # Time-based anti-clustering with entropy consideration
-            import time
-            time_factor = int(time.time() / 300) % 5  # Changes every 5 minutes
-            if time_factor == 0 and category == 'fuzzing' and entropy_level in ['high', 'very_high']:
-                score += 0.2
-            elif time_factor == 1 and category in ['usernames', 'passwords'] and entropy_level == 'medium':
-                score += 0.2
-            elif time_factor == 2 and size < 100000 and entropy_level in ['low', 'medium']:
-                score += 0.3
+            # Response pattern alignment
+            response_patterns = context.get('response_patterns', [])
+            if response_patterns:
+                wordlist_name_lower = wordlist.get('name', '').lower()
+                for pattern in response_patterns:
+                    if any(keyword in wordlist_name_lower for keyword in pattern.split(':')[-1].split()):
+                        score += 0.05  # Small bonus for pattern alignment
+                        break
+        
+        # Advanced context-aware adjustments
+        if context and tech:
+            score += self._apply_context_aware_scoring(wordlist, tech, context, confidence)
         
         return max(0.0, score)
     
-    def _apply_diversification(self, scored_wordlists: List[Tuple[str, float, Dict]], 
-                              tech: Optional[str], port: Optional[int],
-                              confidence: Optional[float] = None) -> List[Tuple[str, float, Dict]]:
-        """Apply diversification with anti-clustering and frequency-based adjustments"""
-        import time
+    def _apply_context_aware_scoring(self, wordlist: Dict[str, Any], tech: str, 
+                                   context: Dict[str, Any], confidence: Optional[float]) -> float:
+        """Apply advanced context-aware scoring adjustments"""
+        bonus = 0.0
         
-        # Sort by score first
-        scored_wordlists.sort(key=lambda x: x[1], reverse=True)
+        # Version-specific scoring
+        version = context.get('version')
+        if version:
+            wordlist_name = wordlist.get('name', '').lower()
+            
+            # Direct version match in wordlist name
+            if version in wordlist_name:
+                bonus += 0.3  # Strong bonus for version-specific wordlists
+            
+            # Version-aware tech scoring
+            tech_lower = tech.lower()
+            if tech_lower == 'wordpress' and version:
+                # WordPress version-specific paths
+                if 'wp' in wordlist_name and any(v in wordlist_name for v in ['4.', '5.', '6.']):
+                    bonus += 0.2
+            elif tech_lower == 'drupal' and version:
+                # Drupal version-specific paths
+                if 'drupal' in wordlist_name and version.split('.')[0] in wordlist_name:
+                    bonus += 0.2
         
-        # Apply frequency-based scoring adjustments
+        # Technology confidence-based adjustments
+        tech_confidence = context.get('tech_confidence', 0.5)
+        if tech_confidence > 0.8:
+            # High confidence: prefer specific wordlists
+            tech_compatibility = wordlist.get('tech_compatibility', [])
+            if tech.lower() in [t.lower() for t in tech_compatibility]:
+                bonus += 0.2  # Extra bonus for high-confidence exact matches
+        elif tech_confidence < 0.4:
+            # Low confidence: prefer exploratory wordlists
+            category = wordlist.get('category', '')
+            size = wordlist.get('size_lines', 0)
+            if category == 'fuzzing' and size < 100000:
+                bonus += 0.15  # Bonus for small exploratory lists
+        
+        # Response pattern alignment scoring
+        response_patterns = context.get('response_patterns', [])
+        if response_patterns:
+            wordlist_name_lower = wordlist.get('name', '').lower()
+            pattern_matches = 0
+            
+            for pattern in response_patterns:
+                # Extract technology and pattern from format "tech:pattern"
+                if ':' in pattern:
+                    pattern_tech, pattern_text = pattern.split(':', 1)
+                    
+                    # Check if pattern aligns with wordlist
+                    if pattern_tech.lower() == tech.lower():
+                        # Check if wordlist name contains pattern keywords
+                        pattern_keywords = pattern_text.lower().split()
+                        for keyword in pattern_keywords:
+                            if len(keyword) > 3 and keyword in wordlist_name_lower:
+                                pattern_matches += 1
+                                break
+            
+            if pattern_matches > 0:
+                # Bonus proportional to pattern matches
+                bonus += min(0.2, pattern_matches * 0.1)
+        
+        # Discovered paths influence
+        discovered_paths = context.get('discovered_paths', [])
+        if discovered_paths:
+            # Analyze path patterns to infer appropriate wordlists
+            path_analysis = self._analyze_discovered_paths(discovered_paths)
+            
+            # Admin interface detection
+            if path_analysis.get('has_admin_paths') and 'admin' in wordlist.get('name', '').lower():
+                bonus += 0.15
+            
+            # API endpoint detection
+            if path_analysis.get('has_api_paths') and 'api' in wordlist.get('name', '').lower():
+                bonus += 0.15
+            
+            # Deep directory structure detected
+            if path_analysis.get('deep_structure') and wordlist.get('category') == 'fuzzing':
+                bonus += 0.1
+        
+        return bonus
+    
+    def _analyze_discovered_paths(self, paths: List[str]) -> Dict[str, bool]:
+        """Analyze discovered paths to infer characteristics"""
+        analysis = {
+            'has_admin_paths': False,
+            'has_api_paths': False,
+            'deep_structure': False,
+            'has_uploads': False,
+            'has_config': False
+        }
+        
+        admin_indicators = ['admin', 'manage', 'control', 'dashboard', 'cp']
+        api_indicators = ['api', 'rest', 'graphql', 'json', 'xml']
+        upload_indicators = ['upload', 'file', 'media', 'assets']
+        config_indicators = ['config', 'settings', 'conf', '.env']
+        
+        for path in paths:
+            path_lower = path.lower()
+            
+            # Check for admin paths
+            if any(indicator in path_lower for indicator in admin_indicators):
+                analysis['has_admin_paths'] = True
+            
+            # Check for API paths
+            if any(indicator in path_lower for indicator in api_indicators):
+                analysis['has_api_paths'] = True
+            
+            # Check for upload paths
+            if any(indicator in path_lower for indicator in upload_indicators):
+                analysis['has_uploads'] = True
+            
+            # Check for config paths
+            if any(indicator in path_lower for indicator in config_indicators):
+                analysis['has_config'] = True
+            
+            # Check for deep directory structure
+            if path.count('/') > 3:
+                analysis['deep_structure'] = True
+        
+        return analysis
+    
+    def _apply_simplified_selection(self, scored_wordlists: List[Tuple[str, float, Dict]], 
+                                   tech: Optional[str], port: Optional[int]) -> List[Tuple[str, float, Dict]]:
+        """Simplified selection with session-based variety and basic diversification"""
+        # Apply frequency adjustments
         scored_wordlists = self._apply_frequency_adjustments(scored_wordlists, tech, port)
         
-        diversified = []
+        # Sort by adjusted score
+        scored_wordlists.sort(key=lambda x: x[1], reverse=True)
+        
+        # Apply session-based variety
+        scored_wordlists = self._apply_session_variety(scored_wordlists, tech, port)
+        
+        selected = []
         category_counts = {}
-        
-        # Phase 3.3: Enhanced anti-clustering
-        import random
-        
-        # 1. Time-based rotation
-        rotation_seed = int(time.time() / 3600) % 3  # Changes every hour
-        
-        # 2. Dynamic selection based on confidence (Phase 3.2)  
-        if confidence is not None:
-            if confidence < 0.3:
-                # Low confidence - add randomization to top candidates
-                top_candidates = scored_wordlists[:5]
-                if len(top_candidates) > 2:
-                    # Shuffle positions 2-5 to add variety
-                    random.shuffle(top_candidates[2:])
-                    scored_wordlists = top_candidates[:2] + top_candidates[2:] + scored_wordlists[5:]
-        
-        # 3. Port-based variation to prevent clustering
-        port_variation = (port or 80) % 5
-        
-        # 4. Tech-based shuffling for diversity (Phase 3.4)
-        if tech:
-            # Use tech name to create consistent but varied ordering
-            tech_hash = sum(ord(c) for c in tech.lower())
-            if tech_hash % 3 == 0:
-                # Every 3rd tech gets different ordering
-                scored_wordlists = scored_wordlists[:1] + sorted(
-                    scored_wordlists[1:4], 
-                    key=lambda x: x[2].get('size_lines', 0)
-                ) + scored_wordlists[4:]
         
         for wl_name, score, wl_data in scored_wordlists:
             category = wl_data.get('category', 'unknown')
-            size = wl_data.get('size_lines', 0)
             
-            # Diversification rules
-            # 1. Limit categories to prevent over-concentration
-            category_limit = 2 if category in ['usernames', 'passwords'] else 3
-            if category_counts.get(category, 0) >= category_limit:
+            # Simple diversification: limit 2 per category
+            if category_counts.get(category, 0) >= 2:
                 continue
             
-            # 2. Size-based rotation to mix large and small wordlists
-            if len(diversified) > 0:
-                prev_size = diversified[-1][2].get('size_lines', 0)
-                # Alternate between large and small wordlists
-                if size > 1000000 and prev_size > 1000000:
-                    # Skip if both are large
-                    continue
-            
-            # 3. Technology-specific rotation
-            if tech:
-                tech_compat = wl_data.get('tech_compatibility', [])
-                if rotation_seed == 0:
-                    # Hour 0: Prefer exact tech matches
-                    if tech.lower() not in [t.lower() for t in tech_compat] and tech_compat:
-                        if len(diversified) >= 2:  # Skip non-exact after 2 selections
-                            continue
-                elif rotation_seed == 1:
-                    # Hour 1: Mix tech-specific with general
-                    pass  # No special filtering
-                else:
-                    # Hour 2: Prefer smaller wordlists
-                    if size > 5000000 and len(diversified) >= 1:
-                        continue
-            
-            # 4. Use-case based selection (Phase 4.4)
-            use_cases = wl_data.get('use_cases', [])
-            target_specificity = wl_data.get('target_specificity', 'general')
-            
-            # Prioritize relevant use cases
-            if tech and confidence and confidence >= 0.8:
-                # High confidence - prefer specific use cases
-                tech_lower = tech.lower()
-                relevant_use_cases = []
-                if tech_lower in ['mysql', 'phpmyadmin', 'postgres']:
-                    relevant_use_cases = ['authentication_testing', 'database_testing']
-                elif tech_lower in ['wordpress', 'django', 'laravel']:
-                    relevant_use_cases = ['fuzzing', 'web_application_testing']
-                elif tech_lower in ['grafana', 'prometheus', 'kibana']:
-                    relevant_use_cases = ['monitoring_testing', 'api_testing']
-                
-                if relevant_use_cases and not any(uc in use_cases for uc in relevant_use_cases):
-                    if len(diversified) >= 2:  # Skip irrelevant after 2 selections
-                        continue
-            
-            # 5. Quality-based selection - prefer excellent quality
+            # Prefer high-quality wordlists in first 3 positions
             quality = wl_data.get('quality', 'unknown')
-            if len(diversified) < 3 and quality != 'excellent':
-                continue  # First 3 must be excellent quality
+            if len(selected) < 3 and quality not in ['excellent', 'good']:
+                continue
             
-            diversified.append((wl_name, score, wl_data))
+            selected.append((wl_name, score, wl_data))
             category_counts[category] = category_counts.get(category, 0) + 1
             
-            # Stop when we have enough diverse wordlists
-            if len(diversified) >= 5:
+            if len(selected) >= 5:
                 break
         
-        return diversified
+        return selected
+    
+    def _apply_session_variety(self, scored_wordlists: List[Tuple[str, float, Dict]], 
+                              tech: Optional[str], port: Optional[int]) -> List[Tuple[str, float, Dict]]:
+        """Apply simple session-based variety to prevent same selections every time"""
+        if len(scored_wordlists) <= 5:
+            return scored_wordlists  # Not enough options to vary
+        
+        import hashlib
+        import random
+        
+        # Create session seed based on tech and port
+        session_key = f"{tech or 'none'}:{port or 0}"
+        session_hash = int(hashlib.md5(session_key.encode()).hexdigest()[:8], 16)
+        
+        # Use session hash as random seed for consistent but varied selection
+        random.seed(session_hash)
+        
+        # Keep top 2 wordlists (highest scores) always
+        top_wordlists = scored_wordlists[:2]
+        remaining_wordlists = scored_wordlists[2:]
+        
+        # Add some randomization to the remaining wordlists
+        if len(remaining_wordlists) > 5:
+            # Randomly select from top 50% of remaining wordlists
+            selection_pool = remaining_wordlists[:len(remaining_wordlists)//2]
+            random.shuffle(selection_pool)
+            remaining_wordlists = selection_pool + remaining_wordlists[len(remaining_wordlists)//2:]
+        
+        # Restore random seed to avoid affecting other code
+        random.seed()
+        
+        return top_wordlists + remaining_wordlists
     
     def _apply_frequency_adjustments(self, scored_wordlists: List[Tuple[str, float, Dict]], 
                                    tech: Optional[str], port: Optional[int]) -> List[Tuple[str, float, Dict]]:
@@ -762,14 +826,15 @@ class DatabaseScorer:
         return wordlists[:3]  # Limit to top 3
     
     def _track_rule_usage(self, tech: Optional[str], port: Optional[int], 
-                         service: Optional[str], final_selection: List[Tuple]) -> None:
-        """Track rule usage for audit analytics"""
+                         service: Optional[str], final_selection: List[Tuple],
+                         context: Optional[Dict[str, Any]] = None) -> None:
+        """Track rule usage for audit analytics including workflow feedback"""
         try:
             from src.core.scorer.cache import cache
             import time
             import uuid
             
-            # Create a usage record
+            # Create enhanced usage record with workflow feedback
             usage_record = {
                 'timestamp': time.time(),
                 'context': {
@@ -781,6 +846,17 @@ class DatabaseScorer:
                 'rule_matched': self._determine_rule_matched(tech, port, service),
                 'session_id': str(uuid.uuid4())[:8]
             }
+            
+            # Add workflow feedback data
+            if context:
+                workflow_data = {
+                    'discovered_paths_count': len(context.get('discovered_paths', [])),
+                    'has_spider_data': bool(context.get('spider_data')),
+                    'response_patterns_count': len(context.get('response_patterns', [])),
+                    'workflow_tech_confidence': context.get('tech_confidence', 0.0),
+                    'version_detected': bool(context.get('version'))
+                }
+                usage_record['workflow_feedback'] = workflow_data
             
             # Store in cache for audit analysis
             cache.store_selection(usage_record)
@@ -805,15 +881,107 @@ class DatabaseScorer:
     def _get_fallback_wordlists(self) -> List[str]:
         """Return fallback wordlists when catalog unavailable"""
         return ['common.txt', 'directory-list-small.txt']
+    
+    def _find_wordlist_in_catalog(self, wl_name: str) -> Optional[Dict[str, Any]]:
+        """Find wordlist data in catalog with caching"""
+        if not self.catalog:
+            return None
+        
+        # Check cache first
+        if wl_name in self._wordlist_cache:
+            self._cache_stats['hits'] += 1
+            return self._wordlist_cache[wl_name]
+        
+        self._cache_stats['misses'] += 1
+        
+        # Search in catalog
+        result = None
+        for wl in self.catalog.get('wordlists', []):
+            if wl.get('name') == wl_name:
+                result = wl
+                break
+        
+        # Cache the result
+        self._wordlist_cache[wl_name] = result
+        
+        return result
+    
+    def _get_basic_recommendations(self, tech: Optional[str], port: Optional[int], 
+                                  service: Optional[str]) -> List[str]:
+        """Basic wordlist recommendations when rules engine fails"""
+        recommendations = []
+        
+        # Technology-based recommendations
+        if tech:
+            tech_lower = tech.lower()
+            for wl in self.catalog.get('wordlists', []):
+                tech_compatibility = wl.get('tech_compatibility', [])
+                if any(tech_lower in t.lower() for t in tech_compatibility):
+                    recommendations.append(wl['name'])
+        
+        # Port-based recommendations using port_db classification
+        if port and self.port_db:
+            port_info = self.port_db.get(str(port), {})
+            service_category = port_info.get('classification', {}).get('category', '')
+            
+            if service_category in ['web-service', 'web']:
+                for wl in self.catalog.get('wordlists', []):
+                    if wl.get('category') == 'fuzzing':
+                        recommendations.append(wl['name'])
+                        if len(recommendations) >= 3:
+                            break
+        
+        # Add general high-quality wordlists if needed
+        if len(recommendations) < 3:
+            for wl in self.catalog.get('wordlists', []):
+                if wl.get('quality') == 'excellent' and wl.get('size_lines', 0) < 100000:
+                    recommendations.append(wl['name'])
+                    if len(recommendations) >= 5:
+                        break
+        
+        return recommendations[:5]
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get caching statistics"""
+        total_requests = self._cache_stats['hits'] + self._cache_stats['misses']
+        hit_rate = self._cache_stats['hits'] / total_requests if total_requests > 0 else 0.0
+        
+        return {
+            'cache_hits': self._cache_stats['hits'],
+            'cache_misses': self._cache_stats['misses'],
+            'hit_rate': round(hit_rate * 100, 2),
+            'cached_techs': len(self._tech_cache),
+            'cached_ports': len(self._port_cache),
+            'cached_wordlists': len(self._wordlist_cache)
+        }
+    
+    def clear_cache(self):
+        """Clear all caches"""
+        self._tech_cache.clear()
+        self._port_cache.clear()
+        self._wordlist_cache.clear()
+        self._cache_stats = {'hits': 0, 'misses': 0}
 
 # Global instance
 db_scorer = DatabaseScorer()
 
 def score_wordlists_database(tech: Optional[str], port: Optional[int], 
-                           service: Optional[str] = None) -> List[str]:
+                           service: Optional[str] = None, version: Optional[str] = None,
+                           confidence: Optional[float] = None, context: Optional[Dict[str, Any]] = None,
+                           workflow_results: Optional[Dict[str, Any]] = None) -> List[str]:
     """
-    Main entry point for database-driven wordlist scoring
+    Main entry point for enhanced database-driven wordlist scoring
     
-    This replaces all hardcoded mappings with database lookups
+    Integrates all database resources and workflow feedback for intelligent recommendations
     """
-    return db_scorer.score(tech, port, service)
+    return db_scorer.score(tech, port, service, version, confidence, context, workflow_results)
+
+
+def get_scorer_cache_stats() -> Dict[str, Any]:
+    """Get caching statistics from the database scorer"""
+    return db_scorer.get_cache_stats()
+
+
+def clear_scorer_cache():
+    """Clear the database scorer cache"""
+    db_scorer.clear_cache()
