@@ -427,13 +427,34 @@ async def run_workflow(target: str, debug: bool = False):
             reporting_orchestrator.generate_workflow_reports(workspace, 'smartlist_05', smartlist_data_with_target)
         
         try:
+            # Format workflow data properly for the new ReportingEngine
             all_workflow_data = {
                 'target': resolved_target,
-                'nmap_fast_01': discovery_result.data if 'discovery_result' in locals() else None,
-                'nmap_02': result.data,
-                'http_03': http_scan_data,
-                'mini_spider_04': spider_data, 
-                'smartlist_05': smartlist_data
+                'nmap_fast_01': {
+                    'success': discovery_result is not None and discovery_result.success if 'discovery_result' in locals() else False,
+                    'data': discovery_result.data if 'discovery_result' in locals() and discovery_result else {},
+                    'execution_time': discovery_result.execution_time if 'discovery_result' in locals() and discovery_result else 0
+                },
+                'nmap_02': {
+                    'success': result is not None and result.success,
+                    'data': result.data if result else {},
+                    'execution_time': result.execution_time if result else 0
+                },
+                'http_03': {
+                    'success': http_scan_data is not None,
+                    'data': http_scan_data if http_scan_data else {},
+                    'execution_time': getattr(locals().get('http_result'), 'execution_time', 0) if 'http_result' in locals() else 0
+                },
+                'mini_spider_04': {
+                    'success': spider_data is not None,
+                    'data': spider_data if spider_data else {},
+                    'execution_time': getattr(locals().get('spider_result'), 'execution_time', 0) if 'spider_result' in locals() else 0
+                },
+                'smartlist_05': {
+                    'success': smartlist_data is not None,
+                    'data': smartlist_data if smartlist_data else {},
+                    'execution_time': getattr(locals().get('smartlist_result'), 'execution_time', 0) if 'smartlist_result' in locals() else 0
+                }
             }
             
             report_paths = reporting_orchestrator.generate_all_reports(workspace, all_workflow_data)

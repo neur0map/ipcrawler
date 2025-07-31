@@ -10,6 +10,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 from ..ui.console import console
+from .utils import json_serializer
 
 
 @dataclass
@@ -103,7 +104,7 @@ class ReportingEngine:
                     file_path = structure.raw_data / filename
                     try:
                         with open(file_path, 'w', encoding='utf-8') as f:
-                            json.dump(data, f, indent=2, default=self._json_serializer)
+                            json.dump(data, f, indent=2, default=json_serializer)
                     except Exception as e:
                         console.warning(f"Failed to save {filename}: {e}")
     
@@ -695,20 +696,13 @@ class ReportingEngine:
                     }
             
             with open(structure.manifest, 'w', encoding='utf-8') as f:
-                json.dump(manifest, f, indent=2, default=self._json_serializer)
+                json.dump(manifest, f, indent=2, default=json_serializer)
             
             return structure.manifest
         except Exception as e:
             console.error(f"Failed to generate manifest: {e}")
             return None
     
-    def _json_serializer(self, obj) -> str:
-        """Custom JSON serializer for datetime and other objects"""
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        elif hasattr(obj, '__dict__'):
-            return obj.__dict__
-        return str(obj)
 
 
 # Global instance

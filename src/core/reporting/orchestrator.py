@@ -11,6 +11,7 @@ from datetime import datetime
 from .workspace_manager import workspace_manager
 from .reporting_engine import reporting_engine
 from ..ui.console import console
+from .utils import json_serializer
 
 
 class ReportingOrchestrator:
@@ -48,7 +49,7 @@ class ReportingOrchestrator:
         result_file = workspace_path / f"{workflow_name}_results.json"
         try:
             with open(result_file, 'w', encoding='utf-8') as f:
-                json.dump(workflow_data, f, indent=2, default=self._json_serializer)
+                json.dump(workflow_data, f, indent=2, default=json_serializer)
             generated_files.append(result_file)
         except Exception:
             pass
@@ -121,8 +122,8 @@ class ReportingOrchestrator:
         return workflow_data
     
     def _cleanup_legacy_structures(self, workspace_path: Path) -> None:
-        """Remove legacy report directories and files"""
-        legacy_dirs = ['reports', 'nmap_fast_01', 'nmap_02', 'http_03', 'mini_spider_04', 'smartlist_05', 'comprehensive']
+        """Remove legacy report directories and files (but keep new reports/ folder created by ReportingEngine)"""
+        legacy_dirs = ['nmap_fast_01', 'nmap_02', 'http_03', 'mini_spider_04', 'smartlist_05', 'comprehensive']
         
         for dir_name in legacy_dirs:
             legacy_dir = workspace_path / dir_name
@@ -134,13 +135,6 @@ class ReportingOrchestrator:
                 except Exception:
                     pass
     
-    def _json_serializer(self, obj) -> str:
-        """Custom JSON serializer for datetime and other objects"""
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        elif hasattr(obj, '__dict__'):
-            return obj.__dict__
-        return str(obj)
 
 
 # Global reporting orchestrator instance
