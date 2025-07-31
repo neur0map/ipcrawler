@@ -490,11 +490,14 @@ class DatabaseScorer:
     def _apply_diversification(self, scored_wordlists: List[Tuple[str, float, Dict]], 
                               tech: Optional[str], port: Optional[int],
                               confidence: Optional[float] = None) -> List[Tuple[str, float, Dict]]:
-        """Apply diversification with anti-clustering (Phase 2.2-2.3 + Phase 3.3)"""
+        """Apply diversification with anti-clustering and frequency-based adjustments"""
         import time
         
         # Sort by score first
         scored_wordlists.sort(key=lambda x: x[1], reverse=True)
+        
+        # Apply frequency-based scoring adjustments
+        scored_wordlists = self._apply_frequency_adjustments(scored_wordlists, tech, port)
         
         diversified = []
         category_counts = {}
@@ -596,6 +599,91 @@ class DatabaseScorer:
                 break
         
         return diversified
+    
+    def _apply_frequency_adjustments(self, scored_wordlists: List[Tuple[str, float, Dict]], 
+                                   tech: Optional[str], port: Optional[int]) -> List[Tuple[str, float, Dict]]:
+        """Apply frequency-based scoring adjustments using contribution data"""
+        try:
+            from src.core.scorer.cache import cache
+            
+            # Get recent selections for frequency analysis
+            recent_entries = cache.search_selections(days_back=7, limit=100)
+            
+            if not recent_entries:
+                return scored_wordlists  # No adjustment if no data
+            
+            # Count wordlist usage frequency
+            wordlist_usage = {}
+            total_selections = 0
+            
+            for entry in recent_entries:
+                wordlists = entry.get('selected_wordlists', [])
+                total_selections += len(wordlists)
+                
+                for wl in wordlists:
+                    wordlist_usage[wl] = wordlist_usage.get(wl, 0) + 1
+            
+            if total_selections == 0:
+                return scored_wordlists
+            
+            # Apply frequency-based adjustments
+            adjusted_wordlists = []
+            
+            for wl_name, score, wl_data in scored_wordlists:
+                usage_count = wordlist_usage.get(wl_name, 0)
+                usage_rate = usage_count / total_selections if total_selections > 0 else 0
+                
+                # Calculate frequency penalty/bonus
+                frequency_adjustment = 0.0
+                
+                if usage_rate > 0.3:  # Overused (>30% of selections)
+                    frequency_adjustment = -0.4  # Heavy penalty
+                elif usage_rate > 0.2:  # Frequently used (>20%)
+                    frequency_adjustment = -0.2  # Medium penalty
+                elif usage_rate > 0.1:  # Moderately used (>10%)
+                    frequency_adjustment = -0.1  # Light penalty
+                elif usage_rate == 0:  # Never used
+                    frequency_adjustment = 0.2   # Bonus for unused wordlists
+                else:  # Lightly used (<10%)
+                    frequency_adjustment = 0.1   # Small bonus
+                
+                # Context-specific adjustments
+                if tech and port:
+                    # Check usage in similar contexts
+                    similar_context_usage = 0
+                    similar_contexts = 0
+                    
+                    for entry in recent_entries:
+                        entry_context = entry.get('context', {})
+                        if (entry_context.get('tech') == tech or 
+                            entry_context.get('port') == port):
+                            similar_contexts += 1
+                            if wl_name in entry.get('selected_wordlists', []):
+                                similar_context_usage += 1
+                    
+                    if similar_contexts > 0:
+                        context_usage_rate = similar_context_usage / similar_contexts
+                        if context_usage_rate > 0.5:  # Overused in this context
+                            frequency_adjustment -= 0.3
+                        elif context_usage_rate == 0:  # Never used in this context
+                            frequency_adjustment += 0.3
+                
+                # Apply adjustment
+                adjusted_score = max(0.0, score + frequency_adjustment)
+                adjusted_wordlists.append((wl_name, adjusted_score, wl_data))
+                
+                # Log significant adjustments
+                if abs(frequency_adjustment) > 0.1:
+                    logger.debug(f"Frequency adjustment for {wl_name}: {frequency_adjustment:.2f} "
+                               f"(usage: {usage_rate:.1%}, new score: {adjusted_score:.2f})")
+            
+            # Re-sort by adjusted scores
+            adjusted_wordlists.sort(key=lambda x: x[1], reverse=True)
+            return adjusted_wordlists
+            
+        except Exception as e:
+            logger.debug(f"Could not apply frequency adjustments: {e}")
+            return scored_wordlists  # Return original on error
     
     def _filter_wordlists(self, scored_wordlists: List[Tuple[str, float, Dict]], 
                          tech: Optional[str], port: Optional[int]) -> List[Tuple[str, float, Dict]]:

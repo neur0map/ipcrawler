@@ -1,30 +1,33 @@
 {
-  "total_selections": 70,
+  "total_selections": 59,
   "by_tech": {
-    "wordpress": 11,
+    "web": 4,
+    "other": 3,
+    "cms": 1,
     "unknown": 4,
-    "mysql": 4,
-    "jenkins": 6,
+    "apache": 8,
+    "nginx": 11,
+    "wordpress": 7,
+    "jenkins": 4,
+    "mysql": 3,
     "caddy": 3,
-    "nginx": 18,
-    "server": 2,
-    "apache": 9,
-    "http/1.1": 3,
-    "express": 3,
     "php": 3,
+    "server": 1,
     "ssh": 1,
-    "proxy": 1,
-    "unknowncms": 1,
-    "tomcat": 1
+    "http": 2,
+    "express": 3,
+    "proxy": 1
   },
   "by_port": {
-    "web": 60,
-    "database": 6,
-    "other": 4
+    "web": 29,
+    "database": 5,
+    "other": 2,
+    "web_secure": 22,
+    "file_transfer": 1
   },
   "fallback_usage": {
     "count": 2,
-    "percentage": 2.86
+    "percentage": 3.39
   },
-  "last_updated": "2025-07-22 05:54:29.461287"
+  "last_updated": "2025-07-30T22:23:12.411805"
 }
