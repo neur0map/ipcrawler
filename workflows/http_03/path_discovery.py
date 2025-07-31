@@ -12,6 +12,25 @@ import re
 
 from .models import HTTPService, PathDiscoveryMetadata
 
+# Database imports
+try:
+    import json
+    from pathlib import Path
+    database_path = Path(__file__).parent.parent.parent / "database"
+    scanner_config_path = database_path / "technologies" / "scanner_config.json"
+    
+    def load_scanner_config():
+        if scanner_config_path.exists():
+            with open(scanner_config_path, 'r') as f:
+                return json.load(f)
+        return {}
+    
+    SCANNER_CONFIG_AVAILABLE = True
+except Exception:
+    SCANNER_CONFIG_AVAILABLE = False
+    def load_scanner_config():
+        return {}
+
 # SmartList imports
 try:
     from src.core.tools.smartlist.core import score_wordlists, score_wordlists_with_catalog, ScoringContext
@@ -40,9 +59,15 @@ class PathDiscoveryEngine:
         self.user_agents = user_agents
         self.config = config
         self.original_ip = None  # Set by parent scanner
+        self.scanner_config = load_scanner_config()
+        self.redirect_analysis = {
+            'destinations': {},
+            'patterns': [],
+            'baseline_responses': []
+        }
     
     async def discover_paths(self, service: HTTPService) -> List[str]:
-        """Enhanced path discovery using SmartList algorithm and traditional methods"""
+        """Enhanced path discovery with false positive detection"""
         start_time = time.time()
         discovered = []
         total_paths_tested = 0
@@ -56,6 +81,15 @@ class PathDiscoveryEngine:
         
         smartlist_enabled = enhanced_discovery and SMARTLIST_AVAILABLE
         discovery_enabled = True  # Always enabled, but mode depends on 'enhanced' setting
+        
+        # Phase 0: Baseline Response Detection (NEW)
+        baseline_detected = await self._detect_baseline_responses(service)
+        if baseline_detected['is_generic_redirect']:
+            debug_print(f"Generic redirect detected: {baseline_detected['redirect_destination']}")
+            # Extract hostname and continue with that instead
+            if baseline_detected.get('discovered_hostname'):
+                debug_print(f"Discovered hostname: {baseline_detected['discovered_hostname']}")
+                service.discovered_hostnames = [baseline_detected['discovered_hostname']]
         
         # 1. SmartList intelligent discovery (if enabled and available)
         if smartlist_enabled:
@@ -80,6 +114,12 @@ class PathDiscoveryEngine:
             if discovery_method == "basic":  # Only override if SmartList didn't work
                 discovery_method = traditional_paths.get('method', 'traditional')
             total_paths_tested += traditional_paths.get('paths_tested', 0)
+        
+        # 2.5. Technology-aware path discovery (NEW)
+        if service.technologies:
+            tech_paths = await self._discover_paths_tech_aware(service)
+            discovered.extend(tech_paths['paths'])
+            total_paths_tested += tech_paths.get('paths_tested', 0)
         
         # 3. Parse HTML for links (always enabled)
         if service.response_body:
@@ -349,8 +389,13 @@ class PathDiscoveryEngine:
                 stats['filtered_out'] += 1
                 return path, False
             
-            # Additional validation for meaningful content
-            is_meaningful = await self._validate_path_content(response, url, client)
+            # Enhanced validation using baseline analysis
+            validation_result = await self._validate_path_with_baseline(response, url, client)
+            is_meaningful = validation_result['is_valid']
+            
+            # Log detailed validation info for debugging
+            if validation_result['reasons']:
+                debug_print(f"Path {path} validation: {', '.join(validation_result['reasons'])} (confidence: {validation_result['confidence']})")
             
             if is_meaningful:
                 stats['valid_paths'] += 1
@@ -441,3 +486,229 @@ class PathDiscoveryEngine:
                 return False
         
         return False
+    
+    async def _detect_baseline_responses(self, service: HTTPService) -> Dict[str, Any]:
+        """Detect baseline responses to identify generic redirects and false positives"""
+        if not HTTP_AVAILABLE:
+            return {
+                'is_generic_redirect': False,
+                'redirect_destination': None,
+                'discovered_hostname': None,
+                'baseline_patterns': []
+            }
+        
+        # Test paths that should not exist
+        test_paths = [
+            '/4d3f2a1b9c8e7f1a2b3c.html',  # Random non-existent file
+            '/nonexistent-path-test-12345',   # Random path
+            '/baseline-test-404-check'        # Another test path
+        ]
+        
+        redirect_destinations = {}
+        response_patterns = {}
+        
+        try:
+            timeout = 5
+            async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
+                for test_path in test_paths:
+                    try:
+                        url = urljoin(service.url, test_path)
+                        response = await client.get(
+                            url, 
+                            headers={"User-Agent": self.user_agents[0]},
+                            follow_redirects=False  # Don't follow to analyze redirects
+                        )
+                        
+                        # Track redirect destinations
+                        if response.status_code in [301, 302, 307, 308]:
+                            location = response.headers.get('location', '')
+                            if location:
+                                redirect_destinations[location] = redirect_destinations.get(location, 0) + 1
+                        
+                        # Track response patterns
+                        pattern_key = f"{response.status_code}_{len(response.content)}"
+                        response_patterns[pattern_key] = response_patterns.get(pattern_key, 0) + 1
+                        
+                    except Exception as e:
+                        debug_print(f"Error testing baseline path {test_path}: {e}")
+                        continue
+        
+        except Exception as e:
+            debug_print(f"Baseline response detection error: {e}")
+            return {'is_generic_redirect': False, 'redirect_destination': None, 'discovered_hostname': None}
+        
+        # Analyze results
+        analysis = {
+            'is_generic_redirect': False,
+            'redirect_destination': None,
+            'discovered_hostname': None,
+            'baseline_patterns': list(response_patterns.keys())
+        }
+        
+        # Check if all/most test paths redirect to the same location
+        if redirect_destinations:
+            most_common_redirect = max(redirect_destinations.items(), key=lambda x: x[1])
+            redirect_location, redirect_count = most_common_redirect
+            
+            # If >50% of test paths redirect to same location, it's likely generic
+            if redirect_count >= len(test_paths) * 0.5:
+                analysis['is_generic_redirect'] = True
+                analysis['redirect_destination'] = redirect_location
+                
+                # Try to extract hostname from redirect
+                parsed_redirect = urlparse(redirect_location)
+                if parsed_redirect.hostname and parsed_redirect.hostname != self.original_ip:
+                    analysis['discovered_hostname'] = parsed_redirect.hostname
+                    debug_print(f"Discovered hostname from redirect: {parsed_redirect.hostname}")
+        
+        # Store baseline patterns for later comparison
+        self.redirect_analysis['baseline_responses'] = response_patterns
+        
+        return analysis
+    
+    async def _validate_path_with_baseline(self, response: 'httpx.Response', url: str, client: 'httpx.AsyncClient') -> Dict[str, Any]:
+        """Enhanced path validation using baseline response analysis"""
+        path = urlparse(url).path
+        status_code = response.status_code
+        content_length = len(response.content) if hasattr(response, 'content') else 0
+        
+        # Check against baseline patterns
+        current_pattern = f"{status_code}_{content_length}"
+        is_baseline = current_pattern in self.redirect_analysis.get('baseline_responses', {})
+        
+        # Enhanced redirect analysis
+        redirect_info = {'is_redirect': False, 'destination': None, 'is_generic': False}
+        if status_code in [301, 302, 307, 308]:
+            redirect_info['is_redirect'] = True
+            location = response.headers.get('location', '')
+            redirect_info['destination'] = location
+            
+            # Check if this matches our baseline generic redirect
+            if location in self.redirect_analysis.get('destinations', {}):
+                redirect_info['is_generic'] = True
+        
+        # Use scanner config for validation if available
+        validation_result = {
+            'is_valid': False,
+            'confidence': 'low',
+            'reasons': [],
+            'redirect_info': redirect_info,
+            'is_baseline_match': is_baseline
+        }
+        
+        # Apply database-driven validation
+        if SCANNER_CONFIG_AVAILABLE and self.scanner_config:
+            content_validation = self.scanner_config.get('security_analysis', {}).get('content_validation', {})
+            valid_status_codes = content_validation.get('valid_status_codes', [200, 301, 302, 401, 403])
+            error_indicators = content_validation.get('error_indicators', [])
+            
+            # Check status code validity
+            if status_code in valid_status_codes:
+                validation_result['reasons'].append(f'valid_status_{status_code}')
+                
+                # Skip baseline pattern matches for actual content
+                if not is_baseline or status_code not in [301, 302, 307, 308]:
+                    validation_result['is_valid'] = True
+                    validation_result['confidence'] = 'medium'
+                    
+                    # Enhanced content validation for successful responses
+                    if status_code == 200:
+                        try:
+                            content = response.text[:1000].lower()
+                            
+                            # Check for error indicators
+                            has_error_indicators = any(indicator in content for indicator in error_indicators)
+                            if has_error_indicators:
+                                validation_result['is_valid'] = False
+                                validation_result['reasons'].append('error_content_detected')
+                            else:
+                                validation_result['confidence'] = 'high'
+                                validation_result['reasons'].append('clean_content')
+                                
+                        except Exception:
+                            pass
+        
+        # Handle redirects specially
+        if redirect_info['is_redirect']:
+            if redirect_info['is_generic']:
+                validation_result['is_valid'] = False
+                validation_result['reasons'].append('generic_redirect')
+            elif not is_baseline:
+                validation_result['is_valid'] = True
+                validation_result['confidence'] = 'medium'
+                validation_result['reasons'].append('specific_redirect')
+        
+        return validation_result
+    
+    async def _discover_paths_tech_aware(self, service: HTTPService) -> Dict[str, Any]:
+        """Technology-aware path discovery using tech_db.json"""
+        discovered = []
+        paths_tested = 0
+        
+        if not SCANNER_CONFIG_AVAILABLE:
+            return {'paths': [], 'paths_tested': 0}
+        
+        try:
+            # Load tech database
+            tech_db_path = database_path / "technologies" / "tech_db.json"
+            if not tech_db_path.exists():
+                return {'paths': [], 'paths_tested': 0}
+            
+            with open(tech_db_path, 'r') as f:
+                tech_db = json.load(f)
+            
+            # Get server-specific paths from scanner config
+            server_paths = self.scanner_config.get('path_discovery', {}).get('server_specific_paths', {})
+            
+            tech_specific_paths = []
+            
+            # Match detected technologies with database entries
+            for technology in service.technologies:
+                tech_lower = technology.lower()
+                
+                # Search through all tech categories
+                for category, technologies in tech_db.items():
+                    if tech_lower in technologies:
+                        tech_info = technologies[tech_lower]
+                        
+                        # Get discovery paths from tech database
+                        discovery_paths = tech_info.get('discovery_paths', [])
+                        tech_specific_paths.extend(discovery_paths)
+                        
+                        # Get path patterns from indicators
+                        indicators = tech_info.get('indicators', {})
+                        path_patterns = indicators.get('path_patterns', [])
+                        tech_specific_paths.extend(path_patterns)
+                        
+                        debug_print(f"Found {len(discovery_paths)} tech-specific paths for {technology}")
+                        break
+                
+                # Also check server-specific paths
+                if tech_lower in server_paths:
+                    tech_specific_paths.extend(server_paths[tech_lower])
+            
+            # Remove duplicates
+            unique_tech_paths = list(set(tech_specific_paths))
+            
+            if unique_tech_paths:
+                debug_print(f"Testing {len(unique_tech_paths)} technology-specific paths")
+                
+                # Test the technology-specific paths
+                valid_paths = await self._test_paths_batch(service, unique_tech_paths)
+                discovered.extend(valid_paths)
+                paths_tested = len(unique_tech_paths)
+                
+                # Log the technology-specific discovery
+                base_url = service.url.rstrip('/')
+                get_command_logger().log_command("http_03", f"# Technology-aware paths for {', '.join(service.technologies)}")
+                for path in unique_tech_paths[:5]:  # Show first 5 as examples
+                    get_command_logger().log_command("http_03", f"curl -s -o /dev/null -w '%{{http_code}}' {base_url}{path}")
+        
+        except Exception as e:
+            debug_print(f"Technology-aware path discovery error: {e}")
+        
+        return {
+            'paths': discovered,
+            'paths_tested': paths_tested,
+            'method': 'technology_aware'
+        }

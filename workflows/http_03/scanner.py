@@ -125,19 +125,34 @@ class HTTPAdvancedScanner(BaseWorkflow):
                             results.services.append(service)
                             debug_print(f"Found service: {service.url} (hostname: {hostname})")
                             
-                            # Extract additional hostnames
+                            # Extract additional hostnames from response
                             new_hostnames = self.http_service_scanner.extract_hostnames_from_response(service)
                             if new_hostnames:
-                                debug_print(f"Discovered hostnames: {new_hostnames}")
+                                debug_print(f"Discovered hostnames from response: {new_hostnames}")
+                                service.discovered_hostnames = new_hostnames
+                                
+                                # Test each discovered hostname for different content
                                 for new_hostname in new_hostnames:
                                     if new_hostname not in all_hostnames:
                                         all_hostnames.append(new_hostname)
-                                        new_service = await self.http_service_scanner.scan_http_service(
-                                            new_hostname, port, use_ip=self.original_ip
+                                        
+                                        # Test hostname with proper virtual host headers
+                                        vhost_service = await self.http_service_scanner.test_discovered_hostname(
+                                            new_hostname, port, service
                                         )
-                                        if new_service and self.http_service_scanner.is_unique_service(new_service, results.services):
-                                            new_service.actual_target = new_hostname
-                                            results.services.append(new_service)
+                                        
+                                        if vhost_service and self.http_service_scanner.is_unique_service(vhost_service, results.services):
+                                            vhost_service.actual_target = new_hostname
+                                            results.services.append(vhost_service)
+                                            debug_print(f"Added virtual host service: {vhost_service.url}")
+                                            
+                                            # Extract more hostnames from this virtual host
+                                            more_hostnames = self.http_service_scanner.extract_hostnames_from_response(vhost_service)
+                                            if more_hostnames:
+                                                debug_print(f"Found additional hostnames from {new_hostname}: {more_hostnames}")
+                                                for additional_hostname in more_hostnames:
+                                                    if additional_hostname not in all_hostnames:
+                                                        all_hostnames.append(additional_hostname)
 
             # Advanced analysis for all services
             for service in results.services:

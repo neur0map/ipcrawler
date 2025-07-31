@@ -195,6 +195,134 @@ class HTTPServiceScanner:
         
         return filtered[:10]  # Limit to prevent excessive discoveries
     
+    async def test_discovered_hostname(self, hostname: str, port: int, original_service: HTTPService) -> Optional[HTTPService]:
+        """Test a discovered hostname to see if it serves different content
+        
+        Args:
+            hostname: Hostname to test
+            port: Port to test
+            original_service: Original service for comparison
+            
+        Returns:
+            HTTPService if hostname serves different content, None otherwise
+        """
+        if not HTTP_AVAILABLE:
+            return None
+        
+        # Determine scheme based on original service
+        scheme = original_service.scheme
+        
+        try:
+            # Use more specific timeouts
+            timeout = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
+            async with httpx.AsyncClient(
+                verify=False, 
+                timeout=timeout,
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+            ) as client:
+                # Build URL for hostname
+                if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
+                    url = f"{scheme}://{self.original_ip}"
+                else:
+                    url = f"{scheme}://{self.original_ip}:{port}"
+                
+                # Set proper Host header with the discovered hostname
+                headers = {
+                    "User-Agent": self.user_agents[0],
+                    "Host": hostname  # Use discovered hostname for Host header
+                }
+                
+                response = await client.get(
+                    url,
+                    headers=headers,
+                    follow_redirects=True
+                )
+                
+                # Create service object
+                new_service = HTTPService(
+                    port=port,
+                    scheme=scheme,
+                    url=f"{scheme}://{hostname}" + (f":{port}" if port not in [80, 443] else ""),
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    server=response.headers.get('server', 'Unknown'),
+                    is_https=(scheme == 'https')
+                )
+                
+                # Get response body for analysis
+                try:
+                    new_service.response_body = response.text[:10000]
+                except:
+                    new_service.response_body = ""
+                
+                # Check if this hostname serves different content than original
+                if self._is_different_content(new_service, original_service):
+                    new_service.virtual_host = hostname
+                    return new_service
+                    
+        except Exception as e:
+            debug_print(f"Error testing hostname {hostname}: {e}")
+            
+        return None
+    
+    def _is_different_content(self, service1: HTTPService, service2: HTTPService) -> bool:
+        """Check if two services serve significantly different content
+        
+        Args:
+            service1: First service
+            service2: Second service
+            
+        Returns:
+            True if content is significantly different
+        """
+        # Different status codes indicate different behavior
+        if service1.status_code != service2.status_code:
+            return True
+        
+        # Different servers suggest different configurations
+        if service1.server != service2.server:
+            return True
+        
+        # Compare titles
+        title1 = self._extract_title(service1.response_body)
+        title2 = self._extract_title(service2.response_body)
+        if title1 != title2 and title1 and title2:
+            return True
+        
+        # Compare content lengths (significant difference)
+        len1 = len(service1.response_body or '')
+        len2 = len(service2.response_body or '')
+        if abs(len1 - len2) > min(len1, len2) * 0.3:  # >30% difference
+            return True
+        
+        # Compare key headers that indicate different applications
+        key_headers = ['x-powered-by', 'x-generator', 'x-drupal-cache', 'x-varnish']
+        for header in key_headers:
+            val1 = service1.headers.get(header, '')
+            val2 = service2.headers.get(header, '')
+            if val1 != val2 and (val1 or val2):
+                return True
+        
+        # Check for different application indicators in content
+        if service1.response_body and service2.response_body:
+            content1 = service1.response_body.lower()
+            content2 = service2.response_body.lower()
+            
+            # Look for application-specific keywords
+            app_keywords = [
+                'wordpress', 'drupal', 'joomla', 'django', 'laravel',
+                'roundcube', 'webmail', 'phpmyadmin', 'grafana',
+                'jenkins', 'kibana', 'prometheus'
+            ]
+            
+            for keyword in app_keywords:
+                in_content1 = keyword in content1
+                in_content2 = keyword in content2
+                if in_content1 != in_content2:  # Present in one but not the other
+                    return True
+        
+        return False
+    
     def _extract_title(self, response_body: Optional[str]) -> str:
         """Extract title from HTML response
         

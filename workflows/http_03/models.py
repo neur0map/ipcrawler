@@ -52,6 +52,8 @@ class HTTPService:
     discovered_paths: List[str] = field(default_factory=list)
     response_body: Optional[str] = None
     actual_target: Optional[str] = None  # The target that actually worked
+    virtual_host: Optional[str] = None  # Virtual host name if different from IP
+    discovered_hostnames: List[str] = field(default_factory=list)  # Hostnames found during discovery
     # SmartList discovery metadata
     smartlist_recommendations: List[Dict[str, Any]] = field(default_factory=list)
     discovery_metadata: Optional[PathDiscoveryMetadata] = None
