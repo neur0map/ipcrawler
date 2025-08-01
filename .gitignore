@@ -76,3 +76,6 @@ seclists_catalog.json
 coverage.xml
 local-docs/
 development/
+.swarm/
+.claude-flow/metrics/
+.hive-mind/

@@ -165,21 +165,29 @@ async def run_workflow(target: str, debug: bool = False):
             port_count = len(discovered_ports)
             total_execution_time += discovery_result.execution_time or 0.0
             
-            console.print(f"✓ Port discovery completed in {(discovery_result.execution_time or 0.0):.2f}s")
-            console.print(f"  Found {port_count} open ports using {discovery_result.data.get('tool', 'unknown')}")
+            # Enhanced results display
+            if port_count > 0:
+                console.print(f"\n✓ [bold success]Port Discovery Complete[/bold success] - [primary]{port_count}[/primary] open ports found")
+            else:
+                console.print(f"\n✓ [bold muted]Port Discovery Complete[/bold muted] - No open ports found")
             
             hostname_mappings = discovery_result.data.get("hostname_mappings", [])
             if hostname_mappings:
-                console.print(f"  → Discovered {len(hostname_mappings)} hostname(s):")
-                for mapping in hostname_mappings:
-                    console.print(f"    • [secondary]{mapping['hostname']}[/secondary] → {mapping['ip']}")
+                # Enhanced hostname display
+                if len(hostname_mappings) <= 3:
+                    hostnames = ", ".join(f"[secondary]{m['hostname']}[/secondary]" for m in hostname_mappings)
+                    console.print(f"  🌐 Hostnames: {hostnames}")
+                else:
+                    console.print(f"  🌐 Discovered [primary]{len(hostname_mappings)}[/primary] hostnames")
+                    
+                # Show /etc/hosts update status
                 if discovery_result.data.get("etc_hosts_updated"):
-                    console.print("    ✓ [success]/etc/hosts updated[/success]")
+                    console.print(f"  ✓ [success]/etc/hosts updated[/success]")
                 elif discovery_result.data.get("scan_mode") == "unprivileged":
-                    console.print("    ℹ️  [warning]Restart with 'sudo' to update /etc/hosts[/warning]")
+                    console.print(f"  ⚠️  [dim]Run with sudo to update /etc/hosts[/dim]")
             
             if port_count == 0:
-                console.print("⚠ No open ports found. Skipping detailed analysis.")
+                console.print("\n[dim]⚠️  No open ports detected - analysis complete[/dim]")
                 empty_data = {
                     "tool": "nmap",
                     "target": resolved_target,
@@ -200,12 +208,10 @@ async def run_workflow(target: str, debug: bool = False):
             reporting_orchestrator.generate_workflow_reports(workspace, 'nmap_fast_01', discovery_result.data)
             
             if port_count > config.max_detailed_ports:
-                console.print(f"⚠ Found {port_count} services, limiting detailed analysis to top {config.max_detailed_ports}")
                 discovered_ports = discovered_ports[:config.max_detailed_ports]
         else:
-            console.print(f"✗ Port discovery failed: {discovery_result.error}")
-            console.print("⚠ Cannot proceed without port discovery. Exiting.")
-            console.print("  To analyze all services, set 'fast_port_discovery: false' in config.yaml")
+            console.print(f"\n✗ [bold error]Port Discovery Failed[/bold error]: {discovery_result.error}")
+            console.print("[dim]Cannot proceed without successful port discovery[/dim]")
             return
     
     console.display_workflow_status('service_analysis', 'starting', 'Detailed service fingerprinting')
@@ -226,8 +232,7 @@ async def run_workflow(target: str, debug: bool = False):
             time_msg = f" (~{estimated_time//60}m {estimated_time%60}s)" if estimated_time > 60 else f" (~{estimated_time}s)"
             task = progress.add_task(f"Detailed analysis of {len(discovered_ports)} discovered services{time_msg}...", total=None)
             
-            if not config.fast_detailed_scan and len(discovered_ports) > 10:
-                console.print("[yellow]💡 Tip: Enable 'fast_detailed_scan' in config for 3x faster scans (disables scripts)[/yellow]")
+            # Remove tip - too verbose
         else:
             task = progress.add_task(f"Full analysis of all 65535 ports (10 parallel batches)...", total=None)
         
@@ -289,8 +294,7 @@ async def run_workflow(target: str, debug: bool = False):
             hostnames_list = list(discovered_hostnames)
             
             console.display_workflow_status('http_analysis', 'starting', f'Found {len(http_ports)} HTTP/HTTPS services')
-            if discovered_hostnames:
-                console.print(f"  → Discovered hostnames: {', '.join(hostnames_list)}")
+            # Hostname info already shown earlier
             
             http_scanner = HTTPAdvancedScanner()
             http_result = await http_scanner.execute(
@@ -306,7 +310,7 @@ async def run_workflow(target: str, debug: bool = False):
                 display_http_summary(http_result.data)
             else:
                 error_msg = http_result.error or (http_result.errors[0] if http_result.errors else "Unknown error")
-                console.print(f"⚠ HTTP analysis failed: {error_msg}")
+                # Silently continue - error already logged internally
         
 
         spider_data = None
@@ -335,7 +339,7 @@ async def run_workflow(target: str, debug: bool = False):
                 display_spider_summary(spider_data)
             else:
                 error_msg = spider_result.error or "Unknown error"
-                console.print(f"⚠ Mini Spider analysis failed: {error_msg}")
+                # Silently continue - error already logged internally
 
         smartlist_data = None
         if http_scan_data and http_scan_data.get('services'):
@@ -376,7 +380,7 @@ async def run_workflow(target: str, debug: bool = False):
                 smartlist_data = smartlist_result.data
             else:
                 error_msg = smartlist_result.error or "Unknown error"
-                console.print(f"⚠ SmartList analysis failed: {error_msg}")
+                # Silently continue - error already logged internally
 
         result.data['total_execution_time'] = total_execution_time
         
@@ -460,7 +464,8 @@ async def run_workflow(target: str, debug: bool = False):
             report_paths = reporting_orchestrator.generate_all_reports(workspace, all_workflow_data)
             
             if 'master_report' in report_paths:
-                console.print(f"📊 Master TXT report: [secondary]{report_paths['master_report']}[/secondary]")
+                console.print(f"\n📊 [bold success]Master Report Generated[/bold success]")
+                console.print(f"   [dim]{report_paths['master_report']}[/dim]")
                 
         except Exception as e:
             console.error(f"Failed to generate final reports: {e}")

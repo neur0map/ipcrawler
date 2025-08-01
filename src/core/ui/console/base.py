@@ -143,286 +143,207 @@ class IPCrawlerConsole:
         pass
         
     def display_privilege_escalation_prompt(self):
-        """Display privilege escalation options in a clean table format"""
+        """Display detailed privilege escalation comparison"""
+        self.console.print("\n🔐 [bold warning]Sudo Required for Enhanced Scanning[/bold warning]")
+        self.console.print("[dim]" + "─" * 55 + "[/dim]")
         
-        # Header
-        header = format_header("🔐 Enhanced Analysis Requires Elevated Privileges", style="header")
-        self.console.print(header)
-        self.console.print()
-        
+        # Create comparison table
         table = Table(
             show_header=True,
-            header_style="success",  # Use theme style instead of direct color
-            box=ROUNDED,
+            header_style="primary",
+            box=MINIMAL_HEAVY_HEAD,
             padding=(0, 1),
             expand=False
         )
         
-        table.add_column("Feature", style="secondary", no_wrap=True)
-        table.add_column("With Sudo", style="success", justify="center")
-        table.add_column("Without Sudo", style="warning", justify="center")
+        table.add_column("Feature", style="secondary", width=20)
+        table.add_column("Without Sudo", style="error", justify="center", width=15)
+        table.add_column("With Sudo", style="success", justify="center", width=15)
         
         table.add_row(
-            "Scanning Method",
-            "SYN stealth (fast, accurate)",
-            "TCP connect (slower)"
+            "Scan Method",
+            "TCP Connect",
+            "SYN Stealth"
+        )
+        table.add_row(
+            "Speed",
+            "~2-5 min",
+            "~15-30 sec"
+        )
+        table.add_row(
+            "Detection Risk",
+            "Higher",
+            "Lower"
         )
         table.add_row(
             "OS Detection",
-            "✓ Full fingerprinting",
-            "✗ Not available"
+            "❌ Disabled",
+            "✅ Full Info"
         )
         table.add_row(
-            "Timing Control",
-            "✓ Advanced optimization",
-            "Limited"
+            "Service Accuracy",
+            "Basic",
+            "Enhanced"
         )
         table.add_row(
-            "Raw Sockets",
-            "✓ Direct access",
-            "✗ No access"
+            "/etc/hosts Update",
+            "❌ Manual",
+            "✅ Automatic"
         )
         table.add_row(
-            "Service Detection",
-            "✓ Enhanced accuracy",
-            "Basic"
-        )
-        table.add_row(
-            "Hostname Resolution",
-            "✓ Auto /etc/hosts update",
-            "Manual only"
-        )
-        table.add_row(
-            "Port Scan Speed",
-            "~10x faster",
-            "Standard"
+            "Raw Socket Access",
+            "❌ None",
+            "✅ Full"
         )
         
         self.console.print(table)
-        self.console.print()
+        
+        # Impact summary
+        self.console.print("\n[bold error]⚠️  Without Sudo You'll Miss:[/bold error]")
+        self.console.print("  • [error]90% slower scanning[/error] (TCP connect vs SYN stealth)")
+        self.console.print("  • [error]No OS fingerprinting[/error] (can't identify target OS)")
+        self.console.print("  • [error]Higher detection chance[/error] (more intrusive scanning)")
+        self.console.print("  • [error]Manual hostname setup[/error] (no automatic /etc/hosts)")
+        self.console.print("  • [error]Limited service detection[/error] (basic vs enhanced)")
+        
+        self.console.print("\n[dim]💡 Run with 'sudo ipcrawler scan <target>' for optimal results[/dim]\n")
     
     def display_target_resolution(self, target: str, target_type: str = None, resolved_ip: str = None, resolving: bool = False):
-        """Display target resolution in a clean format with visual feedback"""
+        """Display target resolution with enhanced visual presentation"""
         
         if resolving:
-            # Simple resolving message for all terminals
-            self.info(f"Resolving target: {target}")
-            return
+            return  # Don't show resolving message - too verbose
         
-        if target_type == 'ip':
-            # Direct IP address
-            content = f"[bold secondary]{target}[/bold secondary]\n[dim]Direct IP address[/dim]"
-            panel = Panel(
-                content,
-                title=f"{ICONS['target']} Target",
-                border_style="secondary",
-                padding=(0, 2)
-            )
-            self.console.print(panel)
-            
-        elif target_type == 'cidr':
-            # CIDR range
-            content = f"[bold secondary]{target}[/bold secondary]\n[dim]CIDR network range[/dim]"
-            panel = Panel(
-                content,
-                title=f"{ICONS['target']} Target",
-                border_style="secondary",
-                padding=(0, 2)
-            )
-            self.console.print(panel)
-            
-        elif resolved_ip:
-            # Successfully resolved hostname
-            content = f"[bold secondary]{target}[/bold secondary]\n[dim]↓[/dim]\n[bold primary]{resolved_ip}[/bold primary]"
-            centered_content = Align.center(content)
-            panel = Panel(
-                centered_content,
-                title=f"{ICONS['target']} Target Resolved",
-                border_style="primary",
-                padding=(0, 2)
-            )
-            self.console.print(panel)
+        self.console.print("\n" + "─" * 50)
+        
+        if resolved_ip and target != resolved_ip:
+            # Hostname resolved to IP
+            self.console.print(f"🎯 [bold primary]Target:[/bold primary] [secondary]{target}[/secondary] → [primary]{resolved_ip}[/primary]")
         else:
-            self.info(f"Target: {target}")
+            # Direct IP or hostname
+            target_icon = "🌐" if target_type == 'ip' else "🎯"
+            self.console.print(f"{target_icon} [bold primary]Target:[/bold primary] [primary]{target}[/primary]")
+        
+        self.console.print("─" * 50)
     
     def display_workflow_status(self, workflow: str, status: str, message: str = ""):
-        """Display workflow progress with consistent formatting"""
+        """Display workflow progress with enhanced visual formatting"""
         
-        status_icons = {
-            'starting': ICONS['rocket'],
-            'running': ICONS['running'],
-            'completed': ICONS['success'],
-            'failed': ICONS['error'],
-            'skipped': '⏭️'
+        # Only show starting status for major workflows
+        if status != 'starting':
+            return
+            
+        workflow_config = {
+            'port_discovery': {'name': 'Port Discovery', 'icon': '🔍', 'style': 'bold primary'},
+            'service_analysis': {'name': 'Service Analysis', 'icon': '🔧', 'style': 'bold secondary'},
+            'http_analysis': {'name': 'HTTP Analysis', 'icon': '🌐', 'style': 'bold info'},
+            'mini_spider': {'name': 'URL Discovery', 'icon': '🕷️', 'style': 'bold warning'},
+            'smartlist_analysis': {'name': 'SmartList Analysis', 'icon': '📋', 'style': 'bold success'}
         }
         
-        status_styles = {
-            'starting': 'bold_info',
-            'running': 'bold_warning', 
-            'completed': 'bold_success',
-            'failed': 'bold_error',
-            'skipped': 'bold_muted'
-        }
+        config = workflow_config.get(workflow, {
+            'name': workflow.replace('_', ' ').title(),
+            'icon': '⚙️',
+            'style': 'bold'
+        })
         
-        icon = status_icons.get(status, ICONS['bullet'])
-        style = status_styles.get(status, 'default')
-        
-        table = Table(show_header=False, box=None, padding=(0, 1), expand=False)
-        table.add_column("Icon", width=2)
-        table.add_column("Workflow", style=style)
-        table.add_column("Details", style="muted")
-        
-        workflow_display = workflow.replace('_', ' ').title()
-        
-        table.add_row(icon, workflow_display, message)
-        self.console.print(table)
+        # Enhanced visual presentation
+        self.console.print(f"\n{config['icon']} [{config['style']}]{config['name']}[/{config['style']}]")
+        if message:
+            self.console.print(f"   [dim]{message}[/dim]")
     
     def display_smartlist_recommendations(self, smartlist_data: dict, detailed: bool = False):
-        """Display SmartList wordlist recommendations in a clean, readable format"""
+        """Display SmartList wordlist recommendations with enhanced presentation"""
         recommendations = smartlist_data.get('wordlist_recommendations', [])
         
         if not recommendations:
-            self.warning("No wordlist recommendations available")
             return
         
-        # Calculate summary stats
-        total_services = len(recommendations)
-        total_wordlists = sum(len(rec.get('top_wordlists', [])) for rec in recommendations)
-        high_confidence = sum(1 for rec in recommendations if rec.get('confidence', '').upper() == 'HIGH')
+        # Only show high-confidence recommendations by default
+        high_conf_recs = [rec for rec in recommendations if rec.get('confidence', '').upper() == 'HIGH']
         
-        # Display header with stats
-        header = format_header(f"📋 SmartList Wordlist Recommendations", style="header")
-        self.console.print(header)
+        if not high_conf_recs and not detailed:
+            # If no high-confidence, show top 3 medium confidence
+            medium_conf_recs = [rec for rec in recommendations if rec.get('confidence', '').upper() == 'MEDIUM'][:3]
+            if medium_conf_recs:
+                recommendations = medium_conf_recs
+            else:
+                return
+        else:
+            recommendations = high_conf_recs if not detailed else recommendations[:5]
         
-        stats = f"[muted]{total_services} services analyzed • {total_wordlists} wordlists recommended • {high_confidence} high confidence[/muted]"
-        self.console.print(stats)
-        self.console.print()
+        # Enhanced header with visual elements
+        self.console.print(f"\n📋 [bold success]Recommended Wordlists[/bold success]")
+        self.console.print("[dim]" + "─" * 30 + "[/dim]")
         
         # Display recommendations by service
-        for i, service_rec in enumerate(recommendations, 1):
-            self._display_service_recommendation(service_rec, i, detailed)
-        
-        # Display usage tip
-        self.console.print()
-        self.console.print("[muted]💡 Tip: Wordlists are saved to workspaces/{target}/wordlists_for_{target}/[/muted]")
+        for service_rec in recommendations:
+            self._display_service_recommendation_minimal(service_rec)
     
-    def _display_service_recommendation(self, service_rec: Dict[str, Any], index: int, detailed: bool = False):
-        """Display a single service recommendation"""
-        service_name = service_rec.get('service', 'Unknown')
-        service_display = service_rec.get('service_name', service_name)
+    def _display_service_recommendation_minimal(self, service_rec: Dict[str, Any]):
+        """Display a single service recommendation with enhanced formatting"""
+        service_display = service_rec.get('service_name', service_rec.get('service', 'Unknown'))
         technology = service_rec.get('detected_technology', '')
         confidence = service_rec.get('confidence', 'LOW').upper()
-        total_score = service_rec.get('total_score', 0)
-        top_wordlists = service_rec.get('top_wordlists', [])
+        top_wordlists = service_rec.get('top_wordlists', [])[:3]  # Show max 3
         
+        if not top_wordlists:
+            return
         
-        # Confidence style mapping using theme styles
+        # Confidence indicators with colors
         confidence_styles = {
-            'HIGH': 'success',
-            'MEDIUM': 'warning', 
-            'LOW': 'error'
+            'HIGH': ('🟢', 'success'),
+            'MEDIUM': ('🟡', 'warning'),
+            'LOW': ('🔴', 'error')
         }
-        confidence_style = confidence_styles.get(confidence, 'default')
         
-        # Service header
-        tech_display = f" ({technology})" if technology else ""
-        confidence_badge = f"[{confidence_style}]{confidence}[/{confidence_style}]"
+        conf_icon, conf_style = confidence_styles.get(confidence, ('⚪', 'muted'))
         
-        self.console.print(f"[bold secondary]{index}. {service_display}{tech_display}[/bold secondary] {confidence_badge}")
+        # Service header with enhanced styling
+        tech_display = f" [dim]({technology})[/dim]" if technology else ""
+        self.console.print(f"\n  {conf_icon} [bold secondary]{service_display}[/bold secondary]{tech_display} [{conf_style}]{confidence}[/{conf_style}]")
         
-        # Display wordlists (limit to 3 in normal mode, all in detailed mode)
-        display_limit = len(top_wordlists) if detailed else min(3, len(top_wordlists))
-        
-        for wl in top_wordlists[:display_limit]:
-            wl_name = wl.get('wordlist', 'Unknown')
-            wl_confidence = wl.get('confidence', 'LOW')
-            wl_reason = wl.get('reason', 'No reason provided')
-            wl_score = wl.get('score', 0)
-            
-            wl_conf_style = confidence_styles.get(wl_confidence.upper(), 'default')
-            confidence_indicator = f"[{wl_conf_style}]●[/{wl_conf_style}]"
-            
-            # Clean up wordlist name (remove path prefix if present)
-            clean_name = wl_name.split('/')[-1] if '/' in wl_name else wl_name
-            
-            if detailed:
-                # Truncate reason for brevity
-                short_reason = wl_reason[:60] + "..." if len(wl_reason) > 60 else wl_reason
-                self.console.print(f"   {confidence_indicator} [bold]{clean_name}[/bold] [muted]({short_reason})[/muted]")
-            else:
-                self.console.print(f"   {confidence_indicator} [bold]{clean_name}[/bold]")
-        
-        if len(top_wordlists) > display_limit:
-            remaining = len(top_wordlists) - display_limit
-            self.console.print(f"   [muted]... and {remaining} more wordlists[/muted]")
-        
-        self.console.print()
+        # Show wordlist names with bullet points
+        for wl in top_wordlists:
+            wl_name = wl.get('wordlist', 'Unknown').split('/')[-1]  # Just filename
+            self.console.print(f"    [primary]▸[/primary] [bold]{wl_name}[/bold]")
     
     def display_key_findings(self, data: dict):
         """Display key findings from scan"""
-        hosts = data.get('hosts', [])
-        if hosts:
-            total_ports = sum(len(host.get('ports', [])) for host in hosts)
-            open_ports = sum(len([p for p in host.get('ports', []) if p.get('state') == 'open']) for host in hosts)
-            self.info(f"🔍 Found {len(hosts)} hosts, {open_ports} open ports")
+        # This method is now redundant - functionality moved to other methods
+        pass
     
     def display_scan_summary(self, data: dict):
-        """Display a clean scan summary focused on key findings"""
+        """Display an enhanced scan summary with visual elements"""
         target = data.get('target', 'Unknown')
         
-        # Header
-        header = format_header(f"📊 Scan Summary - {target}", style="header")
-        self.console.print(header)
-        self.console.print()
-        
+        # Gather essential metrics
         hosts = data.get('hosts', [])
-        total_hosts = len(hosts)
-        up_hosts = len([h for h in hosts if h.get('status') == 'up'])
+        open_ports = sum(len([p for p in h.get('ports', []) if p.get('state') == 'open']) for h in hosts)
         
-        total_ports = 0
-        open_ports = 0
-        services = set()
-        
-        for host in hosts:
-            ports = host.get('ports', [])
-            total_ports += len(ports)
-            for port in ports:
-                if port.get('state') == 'open':
-                    open_ports += 1
-                    service = port.get('service', 'unknown')
-                    if service != 'unknown':
-                        services.add(service)
-        
-        # HTTP findings
         http_scan = data.get('http_scan', {})
         vulnerabilities = len(http_scan.get('vulnerabilities', []))
-        http_services = len(http_scan.get('services', []))
         
-        # SmartList findings
-        smartlist = data.get('smartlist', {})
-        wordlist_recs = len(smartlist.get('wordlist_recommendations', []))
-        
-        # Mini Spider findings
         mini_spider = data.get('mini_spider', {})
         discovered_urls = mini_spider.get('total_discovered_urls', 0)
         
-        summary_table = Table(show_header=False, box=None, padding=(0, 2))
-        summary_table.add_column("Metric", style="secondary")
-        summary_table.add_column("Value", style="success")
+        # Only show summary if there are significant findings
+        if open_ports == 0 and vulnerabilities == 0 and discovered_urls == 0:
+            return
         
-        summary_table.add_row("Hosts Discovered", f"{up_hosts}/{total_hosts}")
-        summary_table.add_row("Open Ports", f"{open_ports}")
-        summary_table.add_row("Services Identified", f"{len(services)}")
-        summary_table.add_row("HTTP Services", f"{http_services}")
-        summary_table.add_row("Security Findings", f"{vulnerabilities}")
-        summary_table.add_row("URLs Discovered", f"{discovered_urls}")
-        summary_table.add_row("Wordlist Recommendations", f"{wordlist_recs}")
+        # Enhanced summary header
+        self.console.print(f"\n📊 [bold primary]Scan Results Summary[/bold primary]")
+        self.console.print(f"[dim]Target: {target}[/dim]")
+        self.console.print("[dim]" + "─" * 35 + "[/dim]")
         
-        self.console.print(summary_table)
-        self.console.print()
-        
-        # Display key findings
-        self._display_key_findings_brief(data)
+        # Enhanced findings with icons and colors
+        if open_ports > 0:
+            self.console.print(f"🔍 [bold success]{open_ports}[/bold success] open ports discovered")
+        if vulnerabilities > 0:
+            color = "error" if vulnerabilities > 5 else "warning"
+            self.console.print(f"🚨 [bold {color}]{vulnerabilities}[/bold {color}] security findings")
+        if discovered_urls > 0:
+            self.console.print(f"🕷️  [bold info]{discovered_urls}[/bold info] URLs discovered")
     
     def _display_key_findings_brief(self, data: dict):
         """Display only the most important findings to avoid clutter"""
@@ -467,76 +388,34 @@ class IPCrawlerConsole:
     
     def display_spider_summary(self, spider_data: dict):
         """Display Mini Spider findings summary"""
-        discovered_urls = spider_data.get('discovered_urls', [])
         interesting_findings = spider_data.get('interesting_findings', [])
         
-        if not discovered_urls:
-            return
-        
-        # Show only critical and high priority findings
-        if interesting_findings:
-            critical_findings = [f for f in interesting_findings if f.get('severity') == 'critical']
-            high_findings = [f for f in interesting_findings if f.get('severity') == 'high']
-            
-            if critical_findings:
-                self.print(f"🚨 {len(critical_findings)} Critical findings")
-                for finding in critical_findings[:3]:
-                    self.print(f"  • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
-            
-            if high_findings:
-                self.print(f"⚠️  {len(high_findings)} High priority findings")
-                for finding in high_findings[:2]:
-                    self.print(f"  • {finding.get('finding_type', 'Unknown')}: {finding.get('url', '')}")
+        # Only show critical findings
+        critical_findings = [f for f in interesting_findings if f.get('severity') == 'critical']
+        if critical_findings:
+            self.print(f"[bold red]Critical findings:[/bold red] {len(critical_findings)} discovered")
     
     def display_http_summary(self, http_data: dict):
         """Display summary of HTTP scan findings"""
         if not http_data:
             return
         
-        # Vulnerabilities summary
+        # Only show critical findings
         vuln_summary = http_data.get('summary', {}).get('severity_counts', {})
-        total_vulns = sum(vuln_summary.values())
+        critical_high = vuln_summary.get('critical', 0) + vuln_summary.get('high', 0)
         
-        if total_vulns > 0:
-            self.print(f"\n[yellow]⚠ Found {total_vulns} potential vulnerabilities:[/yellow]")
-            if vuln_summary.get('critical', 0) > 0:
-                self.print(f"  [red]● Critical: {vuln_summary['critical']}[/red]")
-            if vuln_summary.get('high', 0) > 0:
-                self.print(f"  [red]● High: {vuln_summary['high']}[/red]")
-            if vuln_summary.get('medium', 0) > 0:
-                self.print(f"  [yellow]● Medium: {vuln_summary['medium']}[/yellow]")
-            if vuln_summary.get('low', 0) > 0:
-                self.print(f"  [blue]● Low: {vuln_summary['low']}[/blue]")
+        if critical_high > 0:
+            self.print(f"[bold red]Security Alert:[/bold red] {critical_high} critical/high findings")
         
-        # Technologies detected
+        # Technologies - only if interesting
         techs = http_data.get('summary', {}).get('technologies', [])
-        if techs:
-            self.print(f"\n[secondary]Technologies detected:[/secondary] {', '.join(techs)}")
-        
-        # Discovered paths
-        paths = http_data.get('summary', {}).get('discovered_paths', [])
-        if paths:
-            self.print(f"\n[success]Discovered {len(paths)} paths[/success]")
-            for path in paths[:5]:  # Show first 5
-                self.print(f"  • {path}")
-            if len(paths) > 5:
-                self.print(f"  ... and {len(paths) - 5} more")
-        
-        # Subdomains
-        subdomains = http_data.get('subdomains', [])
-        if subdomains:
-            self.print(f"\n[magenta]Found {len(subdomains)} subdomains[/magenta]")
-            for subdomain in subdomains[:5]:  # Show first 5
-                self.print(f"  • {subdomain}")
-            if len(subdomains) > 5:
-                self.print(f"  ... and {len(subdomains) - 5} more")
+        interesting_techs = [t for t in techs if t.lower() in ['wordpress', 'drupal', 'joomla', 'jenkins', 'gitlab', 'apache', 'nginx', 'iis']]
+        if interesting_techs:
+            self.print(f"[dim]Technologies: {', '.join(interesting_techs[:3])}[/dim]")
     
     def display_minimal_summary(self, data: dict, workspace: 'Path'):
-        """Display clean analysis summary"""
+        """Display enhanced analysis summary with visual elements"""
         from pathlib import Path
-        
-        # Display key findings first
-        self.display_key_findings(data)
         
         # Display SmartList recommendations (main focus)
         smartlist_data = data.get('smartlist', {})
@@ -546,15 +425,11 @@ class IPCrawlerConsole:
         # Display scan summary
         self.display_scan_summary(data)
         
-        # Add workspace info with new structure
-        self.print(f"\n[dim]📁 Results saved to: [secondary]{workspace}[/secondary][/dim]")
-        self.print("[dim]   ├── nmap_fast_01_results.json    (Port discovery data)[/dim]")
-        self.print("[dim]   ├── nmap_02_results.json         (Service fingerprinting data)[/dim]")
-        self.print("[dim]   ├── http_03_results.json         (HTTP analysis data)[/dim]")
-        self.print("[dim]   ├── mini_spider_04_results.json  (URL discovery data)[/dim]")
-        self.print("[dim]   ├── smartlist_05_results.json    (Wordlist recommendations data)[/dim]")
-        self.print("[dim]   ├── master_report.txt            (📊 Comprehensive TXT report)[/dim]")
-        self.print("[dim]   └── wordlists_for_{target}/      (📋 Recommended wordlists)[/dim]")
+        # Enhanced workspace info with visual elements
+        self.console.print(f"\n💾 [bold muted]Results Location[/bold muted]")
+        self.console.print(f"   [secondary]📁 Workspace:[/secondary] [dim]{workspace}[/dim]")
+        self.console.print(f"   [secondary]📋 Wordlists:[/secondary] [dim]{workspace}/wordlists_for_*[/dim]")
+        self.console.print("\n" + "─" * 50)
     
     def __getattr__(self, name):
         """Delegate any missing attributes to the underlying Rich Console"""
