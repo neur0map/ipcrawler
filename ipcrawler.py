@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""
+IPCrawler SmartList Engine
+
+Intelligent wordlist recommendations powered by target analysis
+GitHub: https://github.com/ipcrawler/ipcrawler
+Support: https://patreon.com/ipcrawler
+
+Licensed under MIT License
+"""
 
 import os
 import sys
@@ -53,7 +62,8 @@ def version_callback(value: bool):
             """, style="cyan")
         
         console.print(f"\n[bold]IPCrawler SmartList Engine[/bold] version [success]{config.version}[/success]")
-        console.print("Intelligent wordlist recommendations powered by target analysis\n")
+        console.print("Intelligent wordlist recommendations powered by target analysis")
+        console.print("\n[dim]💖 Support development: patreon.com/ipcrawler[/dim]\n")
         raise typer.Exit()
 
 
@@ -69,7 +79,8 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
     context_settings={"help_option_names": ["-h", "--help"]},
-    callback=main_callback
+    callback=main_callback,
+    epilog="Support IPCrawler development: patreon.com/ipcrawler | GitHub: github.com/ipcrawler/ipcrawler"
 )
 
 

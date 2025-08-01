@@ -1,5 +1,9 @@
 # IPCrawler Makefile - Simple Direct Execution Installation
 # Universal for macOS and Linux
+#
+# IPCrawler SmartList Engine - Intelligent wordlist recommendations
+# GitHub: https://github.com/ipcrawler/ipcrawler
+# Support: https://patreon.com/ipcrawler
 
 # Detect OS and set paths dynamically
 UNAME_S := $(shell uname -s)
@@ -56,6 +60,10 @@ help:
 	@echo "Usage after install:"
 	@echo "  ipcrawler <target>       - Run as user"
 	@echo "  sudo ipcrawler <target>  - Run with privileges"
+	@echo ""
+	@echo "Support:"
+	@echo "  GitHub: https://github.com/ipcrawler/ipcrawler"
+	@echo "  Patreon: https://patreon.com/ipcrawler"
 
 install:
 	@echo "Installing IPCrawler..."
@@ -170,6 +178,11 @@ install:
 		fi
 	@echo ""
 	@echo "✓ Installation complete!"
+	@echo ""
+	@echo "💖 Support IPCrawler Development"
+	@echo "  GitHub: https://github.com/ipcrawler/ipcrawler"
+	@echo "  Patreon: https://patreon.com/ipcrawler"
+	@echo ""
 
 uninstall:
 	@echo "Uninstalling IPCrawler..."

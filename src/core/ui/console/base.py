@@ -1,4 +1,10 @@
-"""Base console interface for IPCrawler"""
+"""
+Base console interface for IPCrawler
+
+IPCrawler SmartList Engine - Intelligent wordlist recommendations
+GitHub: https://github.com/ipcrawler/ipcrawler
+Support: https://patreon.com/ipcrawler
+"""
 
 import os
 from contextlib import contextmanager
@@ -429,6 +435,9 @@ class IPCrawlerConsole:
         self.console.print(f"\n💾 [bold muted]Results Location[/bold muted]")
         self.console.print(f"   [secondary]📁 Workspace:[/secondary] [dim]{workspace}[/dim]")
         self.console.print(f"   [secondary]📋 Wordlists:[/secondary] [dim]{workspace}/wordlists_for_*[/dim]")
+        
+        # Support message - non-intrusive
+        self.console.print("\n[dim]💖 Support IPCrawler development: patreon.com/ipcrawler[/dim]")
         self.console.print("\n" + "─" * 50)
     
     def __getattr__(self, name):

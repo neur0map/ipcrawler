@@ -1,6 +1,10 @@
 """
 Simplified IPCrawler Reporting Engine
 Generates organized, accurate reports in clean TXT format only
+
+IPCrawler SmartList Engine - Intelligent wordlist recommendations
+GitHub: https://github.com/ipcrawler/ipcrawler
+Support: https://patreon.com/ipcrawler
 """
 
 import json
@@ -47,6 +51,21 @@ class ReportingEngine:
             'mini_spider_04': 'spider_crawl.json',
             'smartlist_05': 'smartlist.json'
         }
+    
+    def _add_support_footer(self, lines: List[str]) -> None:
+        """Add support information footer to reports"""
+        lines.extend([
+            "",
+            "─" * 78,
+            "",
+            "💖 Support IPCrawler Development",
+            "─" * 35,
+            "GitHub: https://github.com/ipcrawler/ipcrawler",
+            "Patreon: https://patreon.com/ipcrawler",
+            "",
+            "Thank you for using IPCrawler!",
+            ""
+        ])
     
     def generate_complete_reports(self, workspace_path: Path, workflow_data: Dict[str, Any], 
                                  target: str) -> Dict[str, Path]:
@@ -146,6 +165,9 @@ class ReportingEngine:
             lines.append("• raw_data/ - Original JSON output from each workflow")
             lines.append("• manifest.json - Complete file inventory and metadata")
             lines.append("")
+            
+            # Add support footer
+            self._add_support_footer(lines)
             
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines))
@@ -368,6 +390,9 @@ class ReportingEngine:
                     lines.append(f"   Detected by: {', '.join(scan_types)} scan")
                     lines.append("")
             
+            # Add support footer
+            self._add_support_footer(lines)
+            
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines))
             
@@ -435,6 +460,9 @@ class ReportingEngine:
                                 lines.append(f"      • {finding}: {details}")
                         
                         lines.append("")
+            
+            # Add support footer
+            self._add_support_footer(lines)
             
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines))
@@ -517,6 +545,9 @@ class ReportingEngine:
                             else:
                                 lines.append(f"• {finding}")
                         lines.append("")
+            
+            # Add support footer
+            self._add_support_footer(lines)
             
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines))
@@ -621,6 +652,9 @@ class ReportingEngine:
                                 lines.append("")
                         
                         lines.append("")
+            
+            # Add support footer
+            self._add_support_footer(lines)
             
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines))

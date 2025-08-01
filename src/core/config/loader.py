@@ -1,4 +1,10 @@
-"""Configuration loader for IPCrawler"""
+"""
+Configuration loader for IPCrawler
+
+IPCrawler SmartList Engine - Intelligent wordlist recommendations
+GitHub: https://github.com/ipcrawler/ipcrawler
+Support: https://patreon.com/ipcrawler
+"""
 
 import yaml
 from pathlib import Path
@@ -50,6 +56,9 @@ class Config:
                 "verbose": False,
                 "raw_output": False,
                 "real_time_save": True
+            },
+            "discovery": {
+                "enhanced": True
             },
             "tools": {
                 "nmap_path": "",

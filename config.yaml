@@ -1,7 +1,7 @@
 # IPCrawler SmartList Engine Configuration
 
 # Application Version
-version: "0.1.1-alpha.4"
+version: "0.1.2-alpha.4"
 
 # SmartList Analysis Settings
 scan:
@@ -33,14 +33,6 @@ privileges:
   # When false: Follow prompt_for_sudo setting
   auto_escalate: false
 
-# Parallel Processing
-parallel:
-  # Number of concurrent analysis processes
-  batch_size: 10
-  
-  # Services per batch when analyzing targets
-  ports_per_batch: 6553
-
 # Output Settings
 output:
   # Save raw analysis data from tools
@@ -53,18 +45,6 @@ output:
   # When false (default): Cleans and formats recommendations
   # When true: Keeps all raw analysis data
   raw_output: false
-  
-  # Save recommendations in real-time during analysis
-  # When true (default): Creates live recommendations that update progressively
-  # When false: Only save final recommendations after analysis
-  real_time_save: true
-
-# SmartList Intelligence Settings
-discovery:
-  # Enable SmartList intelligent wordlist selection algorithm
-  # When true: Uses AI-powered context analysis for optimal wordlist recommendations
-  # When false: Uses basic wordlist mapping only
-  enhanced: true
 
 # Tool Paths (leave empty to use system PATH)
 tools:
