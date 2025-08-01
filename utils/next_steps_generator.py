@@ -196,12 +196,19 @@ class NextStepsGenerator:
             445: 'smb',
             993: 'imaps',
             995: 'pop3s',
+            88: 'kerberos',
+            135: 'msrpc',
+            389: 'ldap',
+            636: 'ldaps',
             1433: 'mssql',
             1521: 'oracle',
+            3268: 'globalcatalog',
+            3269: 'globalcatalog-ssl',
             3306: 'mysql',
             3389: 'rdp',
             5432: 'postgresql',
             5985: 'winrm',
+            5986: 'winrm-ssl',
             6379: 'redis',
             8080: 'http-alt',
             8443: 'https-alt',
@@ -216,7 +223,12 @@ class NextStepsGenerator:
                 'sql' in service or
                 'ssh' in service or
                 'ftp' in service or
-                'smb' in service)
+                'smb' in service or
+                'ldap' in service or
+                'kerberos' in service or
+                'ntlm' in service or
+                'winrm' in service or
+                'globalcatalog' in service)
     
     def generate_commands(self) -> List[CommandRecommendation]:
         """Generate all next-step commands"""
@@ -224,6 +236,7 @@ class NextStepsGenerator:
         
         # Generate commands based on available data
         self._generate_web_commands()
+        self._generate_windows_domain_commands()
         self._generate_service_enumeration_commands()
         self._generate_vulnerability_commands()
         self._generate_exploitation_commands()
@@ -353,6 +366,155 @@ class NextStepsGenerator:
                 reasoning="JavaScript framework detected - look for API endpoints and JS files",
                 prerequisites=["feroxbuster", "seclists"],
                 estimated_time="2-5 minutes"
+            ))
+    
+    def _generate_windows_domain_commands(self):
+        """Generate Windows domain enumeration commands"""
+        
+        # Identify Windows domain services
+        domain_ports = []
+        has_kerberos = False
+        has_ldap = False
+        has_smb = False
+        has_gc = False
+        
+        for port_data in self.open_ports:
+            port = port_data['port']
+            service = port_data['service'].lower()
+            
+            if port == 88 or 'kerberos' in service:
+                domain_ports.append(port_data)
+                has_kerberos = True
+            elif port in [389, 636] or 'ldap' in service:
+                domain_ports.append(port_data)
+                has_ldap = True
+            elif port in [139, 445] or 'smb' in service or 'netbios' in service:
+                domain_ports.append(port_data)
+                has_smb = True
+            elif port in [3268, 3269] or 'globalcatalog' in service:
+                domain_ports.append(port_data)
+                has_gc = True
+        
+        # Only generate Windows domain commands if we have relevant services
+        if not domain_ports:
+            return
+        
+        # Kerberos enumeration commands
+        if has_kerberos:
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="kerbrute",
+                command=f"kerbrute userenum --dc {self.target} /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt",
+                description=f"Kerberos user enumeration on {self.target}",
+                priority=1,
+                confidence="HIGH",
+                reasoning="Kerberos service detected - enumerate valid domain users",
+                prerequisites=["kerbrute", "seclists"],
+                estimated_time="5-15 minutes"
+            ))
+            
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="GetNPUsers.py",
+                command=f"python3 /opt/impacket/examples/GetNPUsers.py {self.target}/ -usersfile users.txt -format hashcat -outputfile asrep_hashes.txt -dc-ip {self.target}",
+                description=f"ASREPRoast attack against {self.target}",
+                priority=2,
+                confidence="MEDIUM",
+                reasoning="Kerberos detected - attempt ASREPRoast for users without Kerberos pre-authentication",
+                prerequisites=["impacket", "users.txt"],
+                estimated_time="2-10 minutes"
+            ))
+        
+        # LDAP enumeration commands
+        if has_ldap:
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="ldapsearch",
+                command=f"ldapsearch -x -h {self.target} -s base namingcontexts",
+                description=f"LDAP anonymous bind test on {self.target}",
+                priority=1,
+                confidence="HIGH",
+                reasoning="LDAP service detected - test for anonymous bind and enumerate naming contexts",
+                prerequisites=["ldap-utils"],
+                estimated_time="1-2 minutes"
+            ))
+            
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="ldapdomaindump",
+                command=f"ldapdomaindump -u 'guest' -p '' {self.target}",
+                description=f"LDAP domain dump from {self.target}",
+                priority=2,
+                confidence="MEDIUM",
+                reasoning="LDAP detected - attempt to dump domain information using guest account",
+                prerequisites=["ldapdomaindump"],
+                estimated_time="3-10 minutes"
+            ))
+        
+        # Global Catalog enumeration
+        if has_gc:
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="ldapsearch",
+                command=f"ldapsearch -x -h {self.target} -p 3268 -s base '(objectClass=*)' namingcontexts",
+                description=f"Global Catalog enumeration on {self.target}:3268",
+                priority=2,
+                confidence="HIGH",
+                reasoning="Global Catalog service detected - enumerate forest-wide directory information",
+                prerequisites=["ldap-utils"],
+                estimated_time="2-5 minutes"
+            ))
+        
+        # SMB/NetBIOS enumeration for domain context
+        if has_smb and (has_kerberos or has_ldap):
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="crackmapexec",
+                command=f"crackmapexec smb {self.target} --shares",
+                description=f"SMB share enumeration on domain controller {self.target}",
+                priority=1,
+                confidence="HIGH",
+                reasoning="SMB and domain services detected - enumerate domain controller shares",
+                prerequisites=["crackmapexec"],
+                estimated_time="1-3 minutes"
+            ))
+            
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="smbclient",
+                command=f"smbclient -L {self.target} -N",
+                description=f"List SMB shares on domain controller {self.target}",
+                priority=1,
+                confidence="HIGH",
+                reasoning="Domain controller detected - check for SYSVOL, NETLOGON and other domain shares",
+                prerequisites=["smbclient"],
+                estimated_time="1-2 minutes"
+            ))
+        
+        # Comprehensive domain enumeration if multiple services detected
+        if sum([has_kerberos, has_ldap, has_smb, has_gc]) >= 2:
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="enum4linux",
+                command=f"enum4linux -a {self.target}",
+                description=f"Comprehensive domain enumeration on {self.target}",
+                priority=1,
+                confidence="HIGH",
+                reasoning="Multiple domain services detected - perform comprehensive Active Directory enumeration",
+                prerequisites=["enum4linux"],
+                estimated_time="5-15 minutes"
+            ))
+            
+            self.commands.append(CommandRecommendation(
+                category="Windows Domain Enumeration",
+                tool="bloodhound",
+                command=f"python3 /opt/BloodHound.py/bloodhound.py -d domain.local -u guest -p '' -gc {self.target} -c all",
+                description=f"BloodHound data collection from {self.target}",
+                priority=2,
+                confidence="MEDIUM",
+                reasoning="Domain controller detected - collect BloodHound data for privilege escalation paths",
+                prerequisites=["bloodhound.py"],
+                estimated_time="10-30 minutes"
             ))
     
     def _generate_service_enumeration_commands(self):

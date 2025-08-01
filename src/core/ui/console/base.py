@@ -149,11 +149,11 @@ class IPCrawlerConsole:
         pass
         
     def display_privilege_escalation_prompt(self):
-        """Display detailed privilege escalation comparison"""
+        """Display streamlined privilege escalation comparison"""
         self.console.print("\n🔐 [bold warning]Sudo Required for Enhanced Scanning[/bold warning]")
-        self.console.print("[dim]" + "─" * 55 + "[/dim]")
+        self.console.print("[dim]" + "─" * 45 + "[/dim]")
         
-        # Create comparison table
+        # Streamlined comparison table
         table = Table(
             show_header=True,
             header_style="primary",
@@ -162,57 +162,40 @@ class IPCrawlerConsole:
             expand=False
         )
         
-        table.add_column("Feature", style="secondary", width=20)
-        table.add_column("Without Sudo", style="error", justify="center", width=15)
-        table.add_column("With Sudo", style="success", justify="center", width=15)
+        table.add_column("Feature", style="secondary", width=18)
+        table.add_column("Without Sudo", style="error", justify="center", width=14)
+        table.add_column("With Sudo", style="success", justify="center", width=14)
         
+        table.add_row(
+            "Scan Speed",
+            "~2-5 min",
+            "~15-30 sec"
+        )
         table.add_row(
             "Scan Method",
             "TCP Connect",
             "SYN Stealth"
         )
         table.add_row(
-            "Speed",
-            "~2-5 min",
-            "~15-30 sec"
-        )
-        table.add_row(
-            "Detection Risk",
-            "Higher",
-            "Lower"
-        )
-        table.add_row(
             "OS Detection",
-            "❌ Disabled",
-            "✅ Full Info"
-        )
-        table.add_row(
-            "Service Accuracy",
-            "Basic",
-            "Enhanced"
-        )
-        table.add_row(
-            "/etc/hosts Update",
-            "❌ Manual",
-            "✅ Automatic"
-        )
-        table.add_row(
-            "Raw Socket Access",
             "❌ None",
             "✅ Full"
+        )
+        table.add_row(
+            "Hostname Setup",
+            "❌ Manual",
+            "✅ Auto"
         )
         
         self.console.print(table)
         
-        # Impact summary
-        self.console.print("\n[bold error]⚠️  Without Sudo You'll Miss:[/bold error]")
-        self.console.print("  • [error]90% slower scanning[/error] (TCP connect vs SYN stealth)")
-        self.console.print("  • [error]No OS fingerprinting[/error] (can't identify target OS)")
-        self.console.print("  • [error]Higher detection chance[/error] (more intrusive scanning)")
-        self.console.print("  • [error]Manual hostname setup[/error] (no automatic /etc/hosts)")
-        self.console.print("  • [error]Limited service detection[/error] (basic vs enhanced)")
+        # Key benefits summary
+        self.console.print("\n[bold primary]🚀 Sudo Benefits:[/bold primary]")
+        self.console.print("  • [success]10x faster scanning[/success] with SYN stealth")
+        self.console.print("  • [success]Complete OS fingerprinting[/success] and service detection")
+        self.console.print("  • [success]Automatic hostname resolution[/success] to /etc/hosts")
         
-        self.console.print("\n[dim]💡 Run with 'sudo ipcrawler scan <target>' for optimal results[/dim]\n")
+        self.console.print("\n[dim]💡 Run: sudo ipcrawler scan <target>[/dim]\n")
     
     def display_target_resolution(self, target: str, target_type: str = None, resolved_ip: str = None, resolving: bool = False):
         """Display target resolution with enhanced visual presentation"""

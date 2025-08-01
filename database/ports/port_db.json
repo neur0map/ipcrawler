@@ -215,6 +215,77 @@
     },
     "last_updated": "2025-07-16"
   },
+  "88": {
+    "name": "Kerberos - Network Authentication Protocol",
+    "protocol": "tcp/udp",
+    "default_service": "kerberos",
+    "alternative_services": [
+      "krb5",
+      "kdc",
+      "kerberos-sec"
+    ],
+    "description": "Kerberos authentication service, core component of Active Directory environments. Critical for domain privilege escalation and Kerberoasting attacks in Windows domain CTF scenarios.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "Windows Active Directory/MIT Kerberos",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        88
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "krb5",
+        "kerberos",
+        "KDC",
+        "AS-REQ",
+        "TGS-REQ"
+      ]
+    },
+    "classification": {
+      "category": "authentication-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "tech_stack_extended": {
+      "domain_controller": true,
+      "active_directory": true,
+      "windows_environment": true,
+      "authentication_protocol": "kerberos_v5"
+    },
+    "attack_vectors": {
+      "kerberoasting": "Extract service account password hashes",
+      "asreproasting": "Target users without pre-authentication",
+      "golden_ticket": "Domain persistence via krbtgt hash",
+      "silver_ticket": "Service-specific ticket forgery"
+    },
+    "enumeration_targets": [
+      "service_principal_names",
+      "domain_users",
+      "service_accounts",
+      "delegation_configurations"
+    ],
+    "wordlist_mappings": {
+      "primary_categories": ["usernames", "passwords"],
+      "recommended_wordlists": [
+        "xato-net-10-million-usernames.txt",
+        "Pwdb_top-10000000.txt",
+        "rockyou.txt",
+        "fasttrack.txt",
+        "cirt-default-usernames.txt"
+      ],
+      "attack_scenarios": {
+        "kerberoasting": ["usernames", "passwords"],
+        "asreproasting": ["usernames"],
+        "password_spraying": ["passwords"],
+        "user_enumeration": ["usernames"]
+      }
+    },
+    "last_updated": "2025-01-31"
+  },
   "110": {
     "name": "POP3 - Post Office Protocol v3",
     "protocol": "tcp",
@@ -524,6 +595,231 @@
       "misuse_potential": "critical"
     },
     "last_updated": "2025-07-16"
+  },
+  "636": {
+    "name": "LDAPS - LDAP over SSL/TLS",
+    "protocol": "tcp",
+    "default_service": "ldaps",
+    "alternative_services": [
+      "ldap-ssl",
+      "secure-ldap",
+      "sldap"
+    ],
+    "description": "Secure LDAP protocol over SSL/TLS, primary directory service for Windows Active Directory environments. Critical for domain enumeration and authentication bypass attacks.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "Active Directory/OpenLDAP SSL",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        636
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "ActiveDirectory",
+        "LDAP",
+        "SSL",
+        "TLS",
+        "DC="
+      ]
+    },
+    "classification": {
+      "category": "directory-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "tech_stack_extended": {
+      "domain_controller": true,
+      "active_directory": true,
+      "windows_environment": true,
+      "ssl_encrypted": true,
+      "directory_protocol": "ldap_v3"
+    },
+    "attack_vectors": {
+      "anonymous_bind": "Enumerate users and groups without authentication",
+      "ldap_injection": "Exploit poorly sanitized LDAP queries",
+      "credential_stuffing": "Test captured credentials against directory",
+      "privilege_enumeration": "Map domain privileges and group memberships"
+    },
+    "enumeration_targets": [
+      "domain_users",
+      "domain_groups",
+      "computer_accounts",
+      "organizational_units",
+      "group_policy_objects",
+      "trust_relationships"
+    ],
+    "wordlist_mappings": {
+      "primary_categories": ["usernames", "directories", "passwords"],
+      "recommended_wordlists": [
+        "xato-net-10-million-usernames.txt",
+        "directory-list-2.3-medium.txt",
+        "Pwdb_top-10000000.txt",
+        "raft-large-directories.txt",
+        "common.txt"
+      ],
+      "attack_scenarios": {
+        "ldap_enumeration": ["usernames", "directories"],
+        "anonymous_bind": ["directories"],
+        "credential_stuffing": ["passwords"],
+        "privilege_enumeration": ["usernames", "directories"]
+      }
+    },
+    "last_updated": "2025-01-31"
+  },
+  "3268": {
+    "name": "Global Catalog - Active Directory Global Catalog",
+    "protocol": "tcp",
+    "default_service": "globalcatalog-ldap",
+    "alternative_services": [
+      "gc-ldap",
+      "global-catalog",
+      "ad-gc"
+    ],
+    "description": "Active Directory Global Catalog service providing cross-domain queries and universal group membership information. Critical for Windows domain forest enumeration and multi-domain attacks.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "Active Directory Global Catalog",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        3268
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "ActiveDirectory",
+        "GlobalCatalog",
+        "GC",
+        "DC=",
+        "CN=Configuration"
+      ]
+    },
+    "classification": {
+      "category": "directory-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "tech_stack_extended": {
+      "domain_controller": true,
+      "global_catalog_server": true,
+      "active_directory": true,
+      "windows_environment": true,
+      "forest_level_service": true,
+      "directory_protocol": "ldap_v3"
+    },
+    "attack_vectors": {
+      "cross_domain_enumeration": "Enumerate users and groups across forest domains",
+      "universal_group_membership": "Map universal group memberships for privilege escalation",
+      "forest_trust_enumeration": "Discover trust relationships between domains",
+      "schema_enumeration": "Extract Active Directory schema for attack planning"
+    },
+    "enumeration_targets": [
+      "universal_groups",
+      "cross_domain_users",
+      "forest_trusts",
+      "domain_controllers",
+      "schema_objects",
+      "partition_information"
+    ],
+    "wordlist_mappings": {
+      "primary_categories": ["usernames", "directories", "subdomain"],
+      "recommended_wordlists": [
+        "xato-net-10-million-usernames.txt",
+        "directory-list-2.3-medium.txt",
+        "raft-large-directories.txt",
+        "common.txt",
+        "big.txt"
+      ],
+      "attack_scenarios": {
+        "ldap_enumeration": ["usernames", "passwords"],
+        "directory_traversal": ["directories"],
+        "service_discovery": ["subdomain", "fuzzing"]
+      }
+    },
+    "last_updated": "2025-01-31"
+  },
+  "3269": {
+    "name": "Global Catalog SSL - Active Directory Global Catalog over SSL/TLS",
+    "protocol": "tcp",
+    "default_service": "globalcatalog-ldaps",
+    "alternative_services": [
+      "gc-ldaps",
+      "global-catalog-ssl",
+      "ad-gc-ssl"
+    ],
+    "description": "Secure Active Directory Global Catalog service over SSL/TLS providing encrypted cross-domain queries and universal group membership information. Critical for secure Windows domain forest enumeration.",
+    "tech_stack": {
+      "language": "C++",
+      "framework": "Active Directory Global Catalog SSL",
+      "http_stack": null
+    },
+    "indicators": {
+      "ports": [
+        3269
+      ],
+      "headers": [],
+      "paths": [],
+      "banners": [
+        "ActiveDirectory",
+        "GlobalCatalog",
+        "GC",
+        "SSL",
+        "TLS",
+        "DC=",
+        "CN=Configuration"
+      ]
+    },
+    "classification": {
+      "category": "directory-service",
+      "exposure": "internal",
+      "auth_required": false,
+      "misuse_potential": "critical"
+    },
+    "tech_stack_extended": {
+      "domain_controller": true,
+      "global_catalog_server": true,
+      "active_directory": true,
+      "windows_environment": true,
+      "forest_level_service": true,
+      "ssl_encrypted": true,
+      "directory_protocol": "ldap_v3"
+    },
+    "attack_vectors": {
+      "encrypted_cross_domain_enumeration": "Securely enumerate users and groups across forest domains",
+      "universal_group_membership": "Map universal group memberships for privilege escalation",
+      "forest_trust_enumeration": "Discover trust relationships between domains over encrypted channel",
+      "schema_enumeration": "Extract Active Directory schema for attack planning via SSL"
+    },
+    "enumeration_targets": [
+      "universal_groups",
+      "cross_domain_users",
+      "forest_trusts", 
+      "domain_controllers",
+      "schema_objects",
+      "partition_information"
+    ],
+    "wordlist_mappings": {
+      "primary_categories": ["usernames", "directories", "subdomain"],
+      "recommended_wordlists": [
+        "xato-net-10-million-usernames.txt",
+        "directory-list-2.3-medium.txt",
+        "raft-large-directories.txt",
+        "common.txt",
+        "big.txt"
+      ],
+      "attack_scenarios": {
+        "ldap_enumeration": ["usernames", "passwords"],
+        "directory_traversal": ["directories"],
+        "service_discovery": ["subdomain", "fuzzing"]
+      }
+    },
+    "last_updated": "2025-01-31"
   },
   "512": {
     "name": "rexec",

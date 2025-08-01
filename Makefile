@@ -149,13 +149,6 @@ install:
 	fi
 	@echo "✓ IPCrawler installed successfully"
 	@echo ""
-	@echo "Testing installation..."
-	@$(SYSTEM_BIN)/ipcrawler --version || echo "⚠ Failed to run $(SYSTEM_BIN)/ipcrawler --version"
-	@echo ""
-	@echo "You can now use:"
-	@echo "  ipcrawler <target>       - Run as user"
-	@echo "  sudo ipcrawler <target>  - Run with privileges"
-	@echo ""
 	@echo "Setting up SecLists and generating catalog..."
 	@# Ensure database/wordlists directory exists
 	@mkdir -p database/wordlists
@@ -183,6 +176,12 @@ install:
 	@echo "  GitHub: https://github.com/ipcrawler/ipcrawler"
 	@echo "  Patreon: https://patreon.com/ipcrawler"
 	@echo ""
+	@echo "Testing installation..."
+	@$(SYSTEM_BIN)/ipcrawler --version || echo "⚠ Failed to run $(SYSTEM_BIN)/ipcrawler --version"
+	@echo ""
+	@echo "You can now use:"
+	@echo "  ipcrawler <target>       - Run as user"
+	@echo "  sudo ipcrawler <target>  - Run with privileges"
 
 uninstall:
 	@echo "Uninstalling IPCrawler..."

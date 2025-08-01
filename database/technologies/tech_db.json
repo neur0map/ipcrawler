@@ -1043,6 +1043,437 @@
     }
   },
 
+  "windows_domain_services": {
+    "active_directory": {
+      "name": "Active Directory",
+      "category": "directory_service",
+      "description": "Microsoft's directory service for Windows domain networks",
+      "indicators": {
+        "response_patterns": [
+          "ActiveDirectory",
+          "Active Directory",
+          "DC=",
+          "CN=",
+          "OU=",
+          "domain controller",
+          "forest",
+          "tree"
+        ],
+        "header_patterns": [
+          "server.*active.*directory",
+          "www-authenticate.*ntlm",
+          "www-authenticate.*negotiate"
+        ],
+        "path_patterns": [
+          "/adfs/",
+          "/certsrv/",
+          "/certenroll/",
+          "/owa/",
+          "/ecp/",
+          "/powershell/"
+        ],
+        "file_extensions": [".ldif", ".ldf"],
+        "fuzzy_keywords": [
+          "active directory",
+          "domain controller",
+          "forest",
+          "organizational unit",
+          "group policy",
+          "kerberos"
+        ]
+      },
+      "discovery_paths": [
+        "/adfs/",
+        "/adfs/services/trust",
+        "/adfs/ls/",
+        "/certsrv/",
+        "/certenroll/",
+        "/owa/",
+        "/ecp/",
+        "/powershell/",
+        "/exchange/",
+        "/autodiscover/",
+        "/mapi/",
+        "/rpc/",
+        "/ews/"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.9,
+        "header_patterns": 0.85,
+        "path_patterns": 0.8,
+        "fuzzy_keywords": 0.75
+      }
+    },
+
+    "kerberos": {
+      "name": "Kerberos",
+      "category": "authentication_service",
+      "description": "Network authentication protocol for Windows domains",
+      "indicators": {
+        "response_patterns": [
+          "kerberos",
+          "Kerberos",
+          "krb5",
+          "KRB5",
+          "AS-REQ",
+          "TGS-REQ",
+          "krbtgt",
+          "service principal"
+        ],
+        "header_patterns": [
+          "www-authenticate.*negotiate",
+          "www-authenticate.*kerberos"
+        ],
+        "path_patterns": [
+          "/krb5/",
+          "/kerberos/",
+          "/auth/kerberos/"
+        ],
+        "fuzzy_keywords": [
+          "kerberos",
+          "ticket granting",
+          "principal",
+          "realm",
+          "kinit",
+          "kdestroy"
+        ]
+      },
+      "discovery_paths": [
+        "/krb5/",
+        "/kerberos/",
+        "/auth/kerberos/",
+        "/api/auth/kerberos",
+        "/login/kerberos",
+        "/sso/",
+        "/negotiate/"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.95,
+        "header_patterns": 0.9,
+        "path_patterns": 0.8,
+        "fuzzy_keywords": 0.7
+      }
+    },
+
+    "ldap": {
+      "name": "LDAP",
+      "category": "directory_service", 
+      "description": "Lightweight Directory Access Protocol for directory services",
+      "indicators": {
+        "response_patterns": [
+          "ldap",
+          "LDAP",
+          "ldaps",
+          "LDAPS",
+          "objectClass",
+          "namingContexts",
+          "rootDSE",
+          "distinguishedName"
+        ],
+        "header_patterns": [
+          "server.*ldap",
+          "www-authenticate.*ldap"
+        ],
+        "path_patterns": [
+          "/ldap/",
+          "/directory/",
+          "/ldapadmin/",
+          "/phpldapadmin/"
+        ],
+        "fuzzy_keywords": [
+          "ldap",
+          "directory",
+          "distinguished name",
+          "organizational unit",
+          "domain component",
+          "common name"
+        ]
+      },
+      "discovery_paths": [
+        "/ldap/",
+        "/directory/",
+        "/ldapadmin/",
+        "/phpldapadmin/",
+        "/ldapexplorer/",
+        "/admin/ldap/",
+        "/tools/ldap/",
+        "/api/ldap/",
+        "/auth/ldap/"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.9,
+        "header_patterns": 0.85,
+        "path_patterns": 0.8,
+        "fuzzy_keywords": 0.7
+      }
+    },
+
+    "global_catalog": {
+      "name": "Global Catalog",
+      "category": "directory_service",
+      "description": "Active Directory Global Catalog service for forest-wide queries",
+      "indicators": {
+        "response_patterns": [
+          "GlobalCatalog",
+          "Global Catalog",
+          "GC",
+          "CN=Configuration",
+          "CN=Schema",
+          "universal group",
+          "partial replica"
+        ],
+        "header_patterns": [
+          "server.*global.*catalog",
+          "server.*gc"
+        ],
+        "path_patterns": [
+          "/gc/",
+          "/globalcatalog/",
+          "/configuration/",
+          "/schema/"
+        ],
+        "fuzzy_keywords": [
+          "global catalog",
+          "universal group",
+          "forest",
+          "partial replica",
+          "cross domain",
+          "gc port"
+        ]
+      },
+      "discovery_paths": [
+        "/gc/",
+        "/globalcatalog/",
+        "/configuration/",
+        "/schema/",
+        "/forest/",
+        "/api/gc/",
+        "/admin/gc/"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.9,
+        "header_patterns": 0.85,
+        "path_patterns": 0.8,
+        "fuzzy_keywords": 0.75
+      }
+    },
+
+    "ntlm": {
+      "name": "NTLM",
+      "category": "authentication_service",
+      "description": "NT LAN Manager authentication protocol",
+      "indicators": {
+        "response_patterns": [
+          "ntlm",
+          "NTLM",
+          "NTLMv2",
+          "challenge response",
+          "type 1 message",
+          "type 2 message",
+          "type 3 message"
+        ],
+        "header_patterns": [
+          "www-authenticate.*ntlm",
+          "authorization.*ntlm"
+        ],
+        "path_patterns": [
+          "/ntlm/",
+          "/auth/ntlm/",
+          "/negotiate/"
+        ],
+        "fuzzy_keywords": [
+          "ntlm",
+          "challenge response",
+          "lan manager",
+          "windows authentication",
+          "negotiate"
+        ]
+      },
+      "discovery_paths": [
+        "/ntlm/",
+        "/auth/ntlm/",
+        "/negotiate/",
+        "/api/auth/ntlm",
+        "/login/ntlm",
+        "/sso/ntlm/"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.9,
+        "header_patterns": 0.95,
+        "path_patterns": 0.8,
+        "fuzzy_keywords": 0.7
+      }
+    },
+
+    "smb": {
+      "name": "SMB/CIFS",
+      "category": "file_sharing_service",
+      "description": "Server Message Block file sharing protocol",
+      "indicators": {
+        "response_patterns": [
+          "smb",
+          "SMB",
+          "cifs",
+          "CIFS",
+          "samba", 
+          "Samba",
+          "netbios",
+          "NetBIOS"
+        ],
+        "header_patterns": [
+          "server.*samba",
+          "server.*smb"
+        ],
+        "path_patterns": [
+          "/smb/",
+          "/samba/",
+          "/shares/",
+          "/netlogon/",
+          "/sysvol/"
+        ],
+        "fuzzy_keywords": [
+          "server message block",
+          "file sharing",
+          "network drive",
+          "shared folder",
+          "netlogon",
+          "sysvol"
+        ]
+      },
+      "discovery_paths": [
+        "/smb/",
+        "/samba/",
+        "/shares/",
+        "/netlogon/",
+        "/sysvol/",
+        "/admin/shares/",
+        "/api/smb/",
+        "/files/"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.85,
+        "header_patterns": 0.9,
+        "path_patterns": 0.8,
+        "fuzzy_keywords": 0.7
+      }
+    },
+
+    "exchange": {
+      "name": "Microsoft Exchange",
+      "category": "email_service",
+      "description": "Microsoft Exchange Server for email and collaboration",
+      "indicators": {
+        "response_patterns": [
+          "exchange",
+          "Exchange",
+          "Microsoft Exchange",
+          "outlook web access",
+          "OWA",
+          "autodiscover",
+          "EWS",
+          "MAPI"
+        ],
+        "header_patterns": [
+          "server.*exchange",
+          "x-owa-version",
+          "x-exchange-*"
+        ],
+        "path_patterns": [
+          "/owa/",
+          "/ecp/",
+          "/ews/",
+          "/mapi/",
+          "/autodiscover/",
+          "/powershell/",
+          "/rpc/"
+        ],
+        "fuzzy_keywords": [
+          "outlook web access",
+          "exchange control panel",
+          "exchange web services",
+          "autodiscover",
+          "mailbox",
+          "powershell"
+        ]
+      },
+      "discovery_paths": [
+        "/owa/",
+        "/owa/auth/logon.aspx",
+        "/ecp/",
+        "/ews/",
+        "/ews/exchange.asmx",
+        "/mapi/",
+        "/autodiscover/",
+        "/autodiscover/autodiscover.xml",
+        "/powershell/",
+        "/rpc/",
+        "/api/",
+        "/calendar/",
+        "/contacts/"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.9,
+        "header_patterns": 0.95,
+        "path_patterns": 0.85,
+        "fuzzy_keywords": 0.8
+      }
+    },
+
+    "adfs": {
+      "name": "Active Directory Federation Services",
+      "category": "federation_service",
+      "description": "Microsoft's identity federation service for single sign-on",
+      "indicators": {
+        "response_patterns": [
+          "adfs",
+          "ADFS", 
+          "federation",
+          "Federation Services",
+          "claims",
+          "SAML",
+          "WS-Federation",
+          "token"
+        ],
+        "header_patterns": [
+          "server.*adfs",
+          "x-ms-*"
+        ],
+        "path_patterns": [
+          "/adfs/",
+          "/federationmetadata/",
+          "/adfs/services/trust",
+          "/adfs/ls/",
+          "/adfs/oauth2/"
+        ],
+        "fuzzy_keywords": [
+          "federation services",
+          "single sign on",
+          "claims based",
+          "security token",
+          "ws-federation",
+          "oauth"
+        ]
+      },
+      "discovery_paths": [
+        "/adfs/",
+        "/adfs/ls/",
+        "/adfs/services/trust",
+        "/adfs/oauth2/",
+        "/federationmetadata/",
+        "/federationmetadata/2007-06/FederationMetadata.xml",
+        "/adfs/portal/",
+        "/adfs/diagnostics/",
+        "/adfs/probe/"
+      ],
+      "confidence_weights": {
+        "response_patterns": 0.9,
+        "header_patterns": 0.85,
+        "path_patterns": 0.9,
+        "fuzzy_keywords": 0.8
+      }
+    }
+  },
+
   "monitoring_tools_extended": {
     "splunk": {
       "name": "Splunk",
