@@ -43,7 +43,7 @@ While Rust has a steep learning curve and can be challenging for AI-assisted dev
 ### One-Line Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/neur0map/ipcrawler/master/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh | bash
 ```
 
 ### Manual Installation

@@ -6,7 +6,7 @@
 # Professional installation script for ipcrawler reconnaissance tool
 # Supports: macOS, Linux (Ubuntu/Debian, CentOS/RHEL/Fedora, Arch)
 # 
-# Usage: curl -sSL https://raw.githubusercontent.com/neur0map/ipcrawler/master/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh | bash
 #        or: ./install.sh
 #
 # Copyright (c) 2025 ipcrawler.io

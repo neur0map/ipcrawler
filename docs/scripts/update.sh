@@ -59,7 +59,7 @@ update_ipcrawler() {
     if ! command -v ipcrawler >/dev/null 2>&1; then
         error "ipcrawler is not installed"
         echo "Please run the installer first:"
-        echo "  curl -sSL https://raw.githubusercontent.com/neur0map/ipcrawler/master/install.sh | bash"
+        echo "  curl -sSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh | bash"
         exit 1
     fi
     
