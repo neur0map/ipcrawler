@@ -31,7 +31,7 @@ tools:
 
   # Phase 2: Virtual Host Discovery (Primary)
   - name: "ffuf_vhost"
-    command: "ffuf -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -u http://{target} -H 'Host: FUZZ.{target_domain}' -fc 404,403 -fs 0 -t 100 -timeout 10 -o {output}/raw/ffuf_vhosts.json -of json"
+    command: "ffuf -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -u http://{target} -H 'Host: FUZZ.{target_domain}' -fc 404,403 -fs 0 -t 100 -timeout 10 -o {output}/raw/ffuf_vhosts.json -of json -s"
     timeout: 300
     output_file: "ffuf_vhosts.json"
     enabled: true
@@ -43,7 +43,7 @@ tools:
 
   # Phase 2: Virtual Host Discovery (Backup)
   - name: "gobuster_vhost"
-    command: "gobuster vhost -u http://{target} --append-domain -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50 --timeout 10s -o {output}/raw/gobuster_vhosts.txt"
+    command: "gobuster vhost -u http://{target} --append-domain -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 50 --timeout 10s -o {output}/raw/gobuster_vhosts.txt -q"
     timeout: 300
     output_file: "gobuster_vhosts.txt"
     enabled: true
@@ -95,7 +95,7 @@ tools:
 
   # Phase 5: Directory Discovery
   - name: "ffuf_dirs"
-    command: "ffuf -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -u http://{target}/FUZZ -fc 404,403 -fs 0 -t 100 -timeout 10 -recursion -recursion-depth 2 -o {output}/raw/ffuf_dirs.json -of json"
+    command: "ffuf -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -u http://{target}/FUZZ -fc 404,403 -fs 0 -t 100 -timeout 10 -recursion -recursion-depth 2 -o {output}/raw/ffuf_dirs.json -of json -s"
     timeout: 900
     output_file: "ffuf_dirs.json"
     enabled: true
@@ -106,7 +106,7 @@ tools:
 
   # Phase 5: File Extension Discovery
   - name: "ffuf_files"
-    command: "ffuf -w /usr/share/seclists/Discovery/Web-Content/common.txt -u http://{target}/FUZZ -e .php,.html,.txt,.xml,.json,.bak,.old,.backup,.config,.conf,.log -fc 404,403 -fs 0 -t 100 -timeout 10 -o {output}/raw/ffuf_files.json -of json"
+    command: "ffuf -w /usr/share/seclists/Discovery/Web-Content/common.txt -u http://{target}/FUZZ -e .php,.html,.txt,.xml,.json,.bak,.old,.backup,.config,.conf,.log -fc 404,403 -fs 0 -t 100 -timeout 10 -o {output}/raw/ffuf_files.json -of json -s"
     timeout: 600
     output_file: "ffuf_files.json"
     enabled: true
@@ -117,7 +117,7 @@ tools:
 
   # Phase 5: Vulnerability Scanning
   - name: "nikto_scan"
-    command: "nikto -h {target} -Format xml -output {output}/raw/nikto.xml -timeout 10 -maxtime 600"
+    command: "nikto -h {target} -Format xml -output {output}/raw/nikto.xml -timeout 10 -maxtime 600 -Tuning x -Display V"
     timeout: 700
     output_file: "nikto.xml"
     enabled: true
@@ -128,7 +128,7 @@ tools:
 
   # Phase 6: Custom Wordlist Generation (Final Step)
   - name: "cewl_wordgen"
-    command: "cewl http://{target} -d 3 -m 4 -w {output}/processed/custom_wordlist.txt --lowercase --email_file {output}/processed/emails.txt -v"
+    command: "cewl http://{target} -d 3 -m 4 -w {output}/processed/custom_wordlist.txt --lowercase --email_file {output}/processed/emails.txt"
     timeout: 300
     output_file: "custom_wordlist.txt"
     enabled: true
