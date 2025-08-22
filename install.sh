@@ -229,10 +229,15 @@ optimize_for_low_space() {
         export CARGO_HOME="/tmp/cargo"
         export RUSTUP_HOME="/tmp/rustup"
         
+        # Ensure cargo bin is in PATH immediately
+        export PATH="/tmp/cargo/bin:$PATH"
+        
         # Cleanup after each major step
         export HTB_CLEANUP_AGGRESSIVE=true
         
         info "Space optimizations applied for HTB environment"
+        info "  - Rust will install to /tmp/cargo"
+        info "  - PATH updated to include /tmp/cargo/bin"
     fi
 }
 
@@ -395,18 +400,43 @@ install_rust() {
         
         # Install Rust with appropriate settings
         if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+            info "Installing Rust for HTB environment..."
+            # Set environment variables before installation
+            export CARGO_HOME="/tmp/cargo"
+            export RUSTUP_HOME="/tmp/rustup"
+            export PATH="/tmp/cargo/bin:$PATH"
+            
             # Minimal installation for HTB
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --no-modify-path
+            
+            # Immediately source the environment and update PATH
+            if [[ -f "/tmp/cargo/env" ]]; then
+                source "/tmp/cargo/env"
+                info "Sourced Rust environment from /tmp/cargo/env"
+            fi
+            
+            # Ensure PATH is properly set for the script
+            export PATH="/tmp/cargo/bin:$PATH"
+            info "Updated PATH for HTB: /tmp/cargo/bin added"
+            
         else
             # Standard installation
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            
+            # Source standard environment
+            if [[ -f "$HOME/.cargo/env" ]]; then
+                source "$HOME/.cargo/env"
+            fi
         fi
         
-        # Source the environment from appropriate location
-        if [[ "${HTB_ENVIRONMENT:-false}" == "true" && -f "/tmp/cargo/env" ]]; then
-            source "/tmp/cargo/env"
-        elif [[ -f "$HOME/.cargo/env" ]]; then
-            source "$HOME/.cargo/env"
+        # Force shell to refresh command cache
+        hash -r 2>/dev/null || true
+        
+        # Verify installation worked
+        info "Verifying Rust installation..."
+        if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+            info "Looking for cargo in: /tmp/cargo/bin/"
+            ls -la /tmp/cargo/bin/ 2>/dev/null || info "Directory not found"
         fi
         
         if command -v cargo >/dev/null 2>&1; then
