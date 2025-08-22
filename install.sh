@@ -26,7 +26,7 @@ readonly BOLD='\033[1m'
 
 # Global variables
 INSTALL_DIR="/usr/local/bin"
-CONFIG_DIR="/usr/local/share/ipcrawler"
+CONFIG_DIR="/usr/local/share/recon-tool"
 TEMP_DIR=""
 OS_TYPE=""
 DISTRO=""

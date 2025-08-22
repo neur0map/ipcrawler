@@ -22,7 +22,7 @@ readonly BOLD='\033[1m'
 
 # Configuration
 INSTALL_DIR="/usr/local/bin"
-CONFIG_DIR="/usr/local/share/ipcrawler"
+CONFIG_DIR="/usr/local/share/recon-tool"
 REPO_URL="https://github.com/neur0map/ipcrawler.git"
 
 # Logging functions
