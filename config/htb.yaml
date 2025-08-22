@@ -8,7 +8,7 @@ metadata:
 tools:
   # Phase 1: Port Discovery
   - name: "naabu_top5k"
-    command: "naabu -host {target} -top-ports 5000 -silent -timeout 5 -rate 5000 > {output}/raw/naabu_ports.txt"
+    command: "naabu -host {target} -top-ports 5000 -silent -timeout 30000 -rate 500 -o {output}/raw/naabu_ports.txt"
     timeout: 300
     output_file: "naabu_ports.txt"
     enabled: true
