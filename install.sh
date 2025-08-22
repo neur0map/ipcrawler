@@ -457,6 +457,66 @@ install_rust() {
     fi
 }
 
+update_go_for_htb() {
+    info "Updating Go for HTB environment..."
+    
+    # Check available space
+    local tmp_free=$(df /tmp 2>/dev/null | awk 'NR==2 {print $4}' || echo "0")
+    local tmp_free_mb=$((tmp_free / 1024))
+    
+    if [[ $tmp_free_mb -lt 150 ]]; then
+        warning "Insufficient space for Go update (need ~150MB, have ${tmp_free_mb}MB)"
+        return 1
+    fi
+    
+    local go_version="1.21.13"
+    local go_arch="amd64"
+    local go_url="https://go.dev/dl/go${go_version}.linux-${go_arch}.tar.gz"
+    
+    info "Downloading Go ${go_version} for HTB..."
+    
+    # Download to /tmp
+    cd /tmp
+    if ! wget -q "$go_url" -O go.tar.gz; then
+        warning "Failed to download Go"
+        return 1
+    fi
+    
+    # Remove old Go and install new one
+    info "Installing Go to /usr/local/go..."
+    $SUDO_CMD rm -rf /usr/local/go
+    $SUDO_CMD tar -C /usr/local -xzf go.tar.gz
+    rm -f go.tar.gz
+    
+    # Update PATH for current script session
+    export PATH="/usr/local/go/bin:$PATH"
+    
+    # Update system PATH
+    if ! grep -q "/usr/local/go/bin" /etc/environment 2>/dev/null; then
+        echo 'PATH="/usr/local/go/bin:$PATH"' | $SUDO_CMD tee -a /etc/environment >/dev/null
+    fi
+    
+    # Update profile for users
+    for profile in /etc/profile /etc/bash.bashrc; do
+        if [[ -f "$profile" ]] && ! grep -q "/usr/local/go/bin" "$profile"; then
+            echo 'export PATH="/usr/local/go/bin:$PATH"' | $SUDO_CMD tee -a "$profile" >/dev/null
+        fi
+    done
+    
+    # Force shell to refresh
+    hash -r 2>/dev/null || true
+    
+    # Verify installation
+    if command -v go >/dev/null 2>&1; then
+        local new_version=$(go version | grep -o 'go[0-9]\+\.[0-9]\+' | sed 's/go//')
+        success "Go updated to version $new_version"
+        return 0
+    else
+        warning "Go update verification failed"
+        return 1
+    fi
+}
+
 install_go() {
     local min_go_version="1.21"
     local current_version=""
@@ -467,9 +527,29 @@ install_go() {
         
         # Check if version is sufficient (simple version comparison)
         if [[ "$(printf '%s\n' "$min_go_version" "$current_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
-            warning "Go version $current_version is too old for some tools (minimum: $min_go_version)"
-            warning "Some Go-based tools may fail to install"
-            warning "Please update Go manually if needed: https://golang.org/dl/"
+            warning "Go version $current_version is too old for modern tools (minimum: $min_go_version)"
+            
+            # For HTB environments, automatically update Go
+            if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+                info "HTB environment detected: Automatically updating Go..."
+                update_go_for_htb
+                
+                # Re-check version after update
+                if command -v go >/dev/null 2>&1; then
+                    current_version=$(go version | grep -o 'go[0-9]\+\.[0-9]\+' | sed 's/go//')
+                    info "Updated Go version: $current_version"
+                    
+                    if [[ "$(printf '%s\n' "$min_go_version" "$current_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
+                        warning "Go update failed or still insufficient, will use legacy tool versions"
+                    else
+                        success "Go successfully updated to compatible version"
+                    fi
+                fi
+            else
+                warning "Some Go-based tools may fail to install"
+                warning "Consider updating Go manually: https://golang.org/dl/"
+            fi
+            
             return 0  # Continue anyway, let individual tools fail gracefully
         else
             success "Go version $current_version is sufficient"
