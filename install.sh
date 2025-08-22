@@ -170,6 +170,73 @@ check_sudo() {
 }
 
 ################################################################################
+# Disk Space Management
+################################################################################
+
+check_disk_space_htb() {
+    info "Checking disk space for HTB environment..."
+    
+    # Check /tmp space
+    local tmp_free=$(df /tmp | awk 'NR==2 {print $4}')
+    local tmp_free_mb=$((tmp_free / 1024))
+    
+    # Check root space
+    local root_free=$(df / | awk 'NR==2 {print $4}')
+    local root_free_mb=$((root_free / 1024))
+    
+    info "Available space: /tmp=${tmp_free_mb}MB, /=${root_free_mb}MB"
+    
+    if [[ $tmp_free_mb -lt 100 ]]; then
+        warning "Low space in /tmp (${tmp_free_mb}MB), cleaning up..."
+        
+        # Clean common temp directories
+        $SUDO_CMD find /tmp -type f -atime +1 -delete 2>/dev/null || true
+        $SUDO_CMD find /var/tmp -type f -atime +1 -delete 2>/dev/null || true
+        
+        # Clean apt cache if available
+        if command -v apt >/dev/null 2>&1; then
+            $SUDO_CMD apt clean 2>/dev/null || true
+        fi
+        
+        # Clean package manager caches
+        $SUDO_CMD find /var/cache -type f -name "*.deb" -delete 2>/dev/null || true
+        
+        local tmp_free_after=$(df /tmp | awk 'NR==2 {print $4}')
+        local tmp_free_after_mb=$((tmp_free_after / 1024))
+        
+        if [[ $tmp_free_after_mb -gt $tmp_free_mb ]]; then
+            success "Cleaned up $((tmp_free_after_mb - tmp_free_mb))MB in /tmp"
+        fi
+        
+        if [[ $tmp_free_after_mb -lt 50 ]]; then
+            warning "Still low on /tmp space (${tmp_free_after_mb}MB)"
+            warning "Some installations may fail. Consider manual cleanup."
+        fi
+    fi
+    
+    if [[ $root_free_mb -lt 500 ]]; then
+        warning "Low space on root filesystem (${root_free_mb}MB)"
+        warning "Installation may fail if more space is needed"
+    fi
+}
+
+optimize_for_low_space() {
+    if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+        info "Optimizing installation for low-space environment..."
+        
+        # Use minimal Rust installation
+        export RUSTUP_INIT_SKIP_PATH_CHECK="yes"
+        export CARGO_HOME="/tmp/cargo"
+        export RUSTUP_HOME="/tmp/rustup"
+        
+        # Cleanup after each major step
+        export HTB_CLEANUP_AGGRESSIVE=true
+        
+        info "Space optimizations applied for HTB environment"
+    fi
+}
+
+################################################################################
 # Special Environment Detection
 ################################################################################
 
@@ -197,9 +264,17 @@ detect_special_environment() {
         # Ensure PATH includes common locations
         export PATH="/usr/local/bin:$PATH"
         
+        # Check disk space and clean up if needed
+        check_disk_space_htb
+        
+        # Apply space optimizations
+        optimize_for_low_space
+        
         info "HTB optimizations applied:"
         info "  - Go tools will install to /usr/local/bin"
         info "  - PATH optimized for HTB environment"
+        info "  - Disk space checked and optimized"
+        info "  - Low-space optimizations enabled"
         
     # Check for other pentesting environments
     elif [[ -f /etc/kali-release ]] || [[ "$HOSTNAME" =~ kali ]]; then
@@ -298,11 +373,49 @@ install_homebrew() {
 install_rust() {
     if ! command -v cargo >/dev/null 2>&1; then
         info "Installing Rust toolchain..."
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source "$HOME/.cargo/env"
+        
+        # For HTB environments with space constraints
+        if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+            # Check if we have enough space for Rust
+            local tmp_free=$(df /tmp 2>/dev/null | awk 'NR==2 {print $4}' || echo "0")
+            local tmp_free_mb=$((tmp_free / 1024))
+            
+            if [[ $tmp_free_mb -lt 200 ]]; then
+                warning "Insufficient space for Rust installation (need ~200MB, have ${tmp_free_mb}MB)"
+                warning "Trying minimal installation..."
+                
+                # Try to use existing Rust or skip
+                if ! command -v rustc >/dev/null 2>&1; then
+                    warning "Skipping Rust installation due to space constraints"
+                    warning "ipcrawler installation may fail - manual Rust installation required"
+                    return 0
+                fi
+            fi
+        fi
+        
+        # Install Rust with appropriate settings
+        if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+            # Minimal installation for HTB
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+        else
+            # Standard installation
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        fi
+        
+        # Source the environment
+        if [[ -f "$HOME/.cargo/env" ]]; then
+            source "$HOME/.cargo/env"
+        fi
         
         if command -v cargo >/dev/null 2>&1; then
             success "Rust installed successfully"
+            
+            # Cleanup for HTB environments
+            if [[ "${HTB_CLEANUP_AGGRESSIVE:-false}" == "true" ]]; then
+                info "Cleaning up Rust installation artifacts..."
+                rm -rf ~/.rustup/tmp/* 2>/dev/null || true
+                rm -rf /tmp/rust* 2>/dev/null || true
+            fi
         else
             error "Failed to install Rust"
             return 1
