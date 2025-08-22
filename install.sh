@@ -86,6 +86,14 @@ declare -A GO_TOOLS=(
     ["nuclei"]="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.2.9"
 )
 
+# Fallback versions for older Go installations
+declare -A GO_TOOLS_LEGACY=(
+    ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.1.0"
+    ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@v1.3.7"
+    ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.5.5"
+    ["nuclei"]="github.com/projectdiscovery/nuclei/v2/cmd/nuclei@v2.9.15"
+)
+
 declare -A GITHUB_RELEASES=(
     ["gobuster"]="OJ/gobuster"
     ["ffuf"]="ffuf/ffuf"
@@ -467,10 +475,23 @@ install_system_packages() {
 }
 
 install_go_tools() {
-    # Check if Go is available
+    # Check if Go is available and verify version
     if ! command -v go >/dev/null 2>&1; then
         warning "Go not found, skipping Go-based tools"
         return 0
+    fi
+    
+    # Re-check Go version before installing tools
+    local current_version=$(go version | grep -o 'go[0-9]\+\.[0-9]\+' | sed 's/go//')
+    local min_go_version="1.21"
+    
+    info "Current Go version: $current_version"
+    
+    # Check if version is still insufficient
+    if [[ "$(printf '%s\n' "$min_go_version" "$current_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
+        warning "Go version $current_version is still too old for modern tools (minimum: $min_go_version)"
+        warning "Attempting to use compatible versions or skipping problematic tools"
+        # Continue anyway but with awareness of version limitations
     fi
     
     info "Installing Go-based tools..."
@@ -489,24 +510,53 @@ install_go_tools() {
     
     info "Go tools will be installed to: $GOBIN"
     
+    # Determine which tool set to use
+    local use_legacy=false
+    if [[ "$(printf '%s\n' "$min_go_version" "$current_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
+        use_legacy=true
+        info "Using legacy tool versions for Go $current_version compatibility"
+    fi
+    
     for tool in "${!GO_TOOLS[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
-            info "Installing $tool to $GOBIN..."
+            # Select appropriate tool version
+            local tool_package
+            if [[ "$use_legacy" == "true" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
+                tool_package="${GO_TOOLS_LEGACY[$tool]}"
+                info "Installing $tool (legacy version) to $GOBIN..."
+            else
+                tool_package="${GO_TOOLS[$tool]}"
+                info "Installing $tool to $GOBIN..."
+            fi
             
             # For HTB, use sudo if installing to system location
             if [[ "${HTB_ENVIRONMENT:-false}" == "true" && "$GOBIN" == "/usr/local/bin" ]]; then
-                if $SUDO_CMD env GOBIN="$GOBIN" go install "${GO_TOOLS[$tool]}" 2>/dev/null; then
+                if $SUDO_CMD env GOBIN="$GOBIN" go install "$tool_package" 2>/dev/null; then
                     success "$tool installed successfully to $GOBIN"
                 else
-                    warning "Failed to install $tool (likely due to Go version compatibility)"
-                    warning "You can try installing manually: sudo env GOBIN=$GOBIN go install ${GO_TOOLS[$tool]}"
+                    warning "Failed to install $tool"
+                    if [[ "$use_legacy" == "false" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
+                        info "Trying legacy version for $tool..."
+                        if $SUDO_CMD env GOBIN="$GOBIN" go install "${GO_TOOLS_LEGACY[$tool]}" 2>/dev/null; then
+                            success "$tool (legacy) installed successfully to $GOBIN"
+                        else
+                            warning "Both modern and legacy versions failed for $tool"
+                        fi
+                    fi
                 fi
             else
-                if go install "${GO_TOOLS[$tool]}" 2>/dev/null; then
+                if go install "$tool_package" 2>/dev/null; then
                     success "$tool installed successfully to $GOBIN"
                 else
-                    warning "Failed to install $tool (likely due to Go version compatibility)"
-                    warning "You can try installing manually: go install ${GO_TOOLS[$tool]}"
+                    warning "Failed to install $tool"
+                    if [[ "$use_legacy" == "false" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
+                        info "Trying legacy version for $tool..."
+                        if go install "${GO_TOOLS_LEGACY[$tool]}" 2>/dev/null; then
+                            success "$tool (legacy) installed successfully to $GOBIN"
+                        else
+                            warning "Both modern and legacy versions failed for $tool"
+                        fi
+                    fi
                 fi
             fi
         else
