@@ -712,11 +712,30 @@ install_go_tools() {
     
     info "Current Go version: $current_version"
     
-    # Check if version is still insufficient
+    # Check if version is still insufficient and force update for HTB
     if [[ "$(printf '%s\n' "$min_go_version" "$current_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
-        warning "Go version $current_version is still too old for modern tools (minimum: $min_go_version)"
-        warning "Attempting to use compatible versions or skipping problematic tools"
-        # Continue anyway but with awareness of version limitations
+        warning "Go version $current_version is too old for modern tools (minimum: $min_go_version)"
+        
+        # Force HTB Go update if not already done
+        info "Checking HTB_ENVIRONMENT: ${HTB_ENVIRONMENT:-false}"
+        info "Current hostname: $HOSTNAME"
+        info "Current user: $(whoami)"
+        
+        if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+            warning "HTB environment detected with old Go - forcing update..."
+            if update_go_for_htb; then
+                # Re-check version after forced update
+                current_version=$(go version | grep -o 'go[0-9]\+\.[0-9]\+' | sed 's/go//')
+                info "Go version after HTB update: $current_version"
+            else
+                warning "HTB Go update failed, will use legacy versions"
+            fi
+        fi
+        
+        # Final check - if still old, use legacy versions
+        if [[ "$(printf '%s\n' "$min_go_version" "$current_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
+            warning "Using legacy tool versions for compatibility"
+        fi
     fi
     
     info "Installing Go-based tools..."
