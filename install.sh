@@ -162,11 +162,58 @@ check_sudo() {
 }
 
 ################################################################################
+# Special Environment Detection
+################################################################################
+
+detect_special_environment() {
+    # Check for Hack The Box environment
+    if [[ -n "${HTB_MACHINE:-}" ]] || 
+       [[ "$HOSTNAME" =~ ^htb- ]] || 
+       [[ "$USER" =~ htb ]] ||
+       [[ "$PWD" =~ /htb/ ]] ||
+       [[ -f /root/user.txt ]] || 
+       [[ -f /home/*/user.txt ]] ||
+       [[ "$HOSTNAME" =~ -htb ]] ||
+       [[ "$(whoami)" =~ htb ]]; then
+        
+        warning "Hack The Box environment detected!"
+        info "Applying HTB-specific optimizations..."
+        
+        # Set environment flag
+        export HTB_ENVIRONMENT=true
+        
+        # Use system-wide Go bin path for HTB
+        export GOBIN="/usr/local/bin"
+        export GO_INSTALL_PREFIX="/usr/local/bin"
+        
+        # Ensure PATH includes common locations
+        export PATH="/usr/local/bin:$PATH"
+        
+        info "HTB optimizations applied:"
+        info "  - Go tools will install to /usr/local/bin"
+        info "  - PATH optimized for HTB environment"
+        
+    # Check for other pentesting environments
+    elif [[ -f /etc/kali-release ]] || [[ "$HOSTNAME" =~ kali ]]; then
+        info "Kali Linux detected - using standard configuration"
+        
+    elif [[ -f /etc/parrot-release ]] || [[ "$HOSTNAME" =~ parrot ]]; then
+        info "Parrot OS detected - using standard configuration"
+        
+    else
+        info "Standard environment detected"
+    fi
+}
+
+################################################################################
 # System Detection
 ################################################################################
 
 detect_os() {
     header "System Detection"
+    
+    # Detect special environments
+    detect_special_environment
     
     if [[ "$OSTYPE" == "darwin"* ]]; then
         OS_TYPE="macos"
@@ -428,14 +475,39 @@ install_go_tools() {
     
     info "Installing Go-based tools..."
     
+    # Set up Go installation environment
+    if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+        info "HTB environment: Installing Go tools to system-wide location"
+        export GOBIN="/usr/local/bin"
+    else
+        # Ensure GOBIN is set for standard environments
+        if [[ -z "$GOBIN" ]]; then
+            export GOBIN="$HOME/go/bin"
+            mkdir -p "$GOBIN"
+        fi
+    fi
+    
+    info "Go tools will be installed to: $GOBIN"
+    
     for tool in "${!GO_TOOLS[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
-            info "Installing $tool..."
-            if go install "${GO_TOOLS[$tool]}" 2>/dev/null; then
-                success "$tool installed successfully"
+            info "Installing $tool to $GOBIN..."
+            
+            # For HTB, use sudo if installing to system location
+            if [[ "${HTB_ENVIRONMENT:-false}" == "true" && "$GOBIN" == "/usr/local/bin" ]]; then
+                if $SUDO_CMD env GOBIN="$GOBIN" go install "${GO_TOOLS[$tool]}" 2>/dev/null; then
+                    success "$tool installed successfully to $GOBIN"
+                else
+                    warning "Failed to install $tool (likely due to Go version compatibility)"
+                    warning "You can try installing manually: sudo env GOBIN=$GOBIN go install ${GO_TOOLS[$tool]}"
+                fi
             else
-                warning "Failed to install $tool (likely due to Go version compatibility)"
-                warning "You can try installing manually: go install ${GO_TOOLS[$tool]}"
+                if go install "${GO_TOOLS[$tool]}" 2>/dev/null; then
+                    success "$tool installed successfully to $GOBIN"
+                else
+                    warning "Failed to install $tool (likely due to Go version compatibility)"
+                    warning "You can try installing manually: go install ${GO_TOOLS[$tool]}"
+                fi
             fi
         else
             success "$tool is already installed"
