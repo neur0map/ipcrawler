@@ -270,7 +270,7 @@ install_go() {
             "linux")
                 case "$PACKAGE_MANAGER" in
                     "apt")
-                        $SUDO_CMD apt update
+                        $SUDO_CMD apt update --allow-releaseinfo-change
                         $SUDO_CMD apt install -y golang-go
                         ;;
                     "yum"|"dnf")
@@ -307,7 +307,7 @@ install_ruby() {
             "linux")
                 case "$PACKAGE_MANAGER" in
                     "apt")
-                        $SUDO_CMD apt update
+                        $SUDO_CMD apt update --allow-releaseinfo-change
                         $SUDO_CMD apt install -y ruby-full ruby-dev
                         ;;
                     "yum"|"dnf")
@@ -358,7 +358,7 @@ install_system_packages() {
         "linux")
             case "$PACKAGE_MANAGER" in
                 "apt")
-                    $SUDO_CMD apt update
+                    $SUDO_CMD apt update --allow-releaseinfo-change
                     
                     for tool in "${!APT_PACKAGES[@]}"; do
                         if ! command -v "$tool" >/dev/null 2>&1; then
