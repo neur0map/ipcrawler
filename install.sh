@@ -80,10 +80,10 @@ declare -A HOMEBREW_PACKAGES=(
 )
 
 declare -A GO_TOOLS=(
-    ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.3.4"
-    ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@latest"
-    ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
-    ["nuclei"]="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+    ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.3.2"
+    ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@v1.6.8"
+    ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.6"
+    ["nuclei"]="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.2.9"
 )
 
 declare -A GITHUB_RELEASES=(
@@ -258,8 +258,25 @@ install_rust() {
 }
 
 install_go() {
-    if ! command -v go >/dev/null 2>&1; then
-        info "Installing Go..."
+    local min_go_version="1.21"
+    local current_version=""
+    
+    if command -v go >/dev/null 2>&1; then
+        current_version=$(go version | grep -o 'go[0-9]\+\.[0-9]\+' | sed 's/go//')
+        info "Current Go version: $current_version"
+        
+        # Check if version is sufficient (simple version comparison)
+        if [[ "$(printf '%s\n' "$min_go_version" "$current_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
+            warning "Go version $current_version is too old for some tools (minimum: $min_go_version)"
+            warning "Some Go-based tools may fail to install"
+            warning "Please update Go manually if needed: https://golang.org/dl/"
+            return 0  # Continue anyway, let individual tools fail gracefully
+        else
+            success "Go version $current_version is sufficient"
+            return 0
+        fi
+    else
+        info "Go not found, attempting basic installation..."
         
         case "$OS_TYPE" in
             "macos")
@@ -284,13 +301,18 @@ install_go() {
         esac
         
         if command -v go >/dev/null 2>&1; then
-            success "Go installed successfully"
+            local new_version=$(go version | grep -o 'go[0-9]\+\.[0-9]\+' | sed 's/go//')
+            success "Go installed successfully (version $new_version)"
+            
+            # Check if the installed version is still too old
+            if [[ "$(printf '%s\n' "$min_go_version" "$new_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
+                warning "Installed Go version $new_version is still too old for some tools"
+                warning "Consider updating Go manually: https://golang.org/dl/"
+            fi
         else
-            error "Failed to install Go"
-            return 1
+            warning "Failed to install Go"
+            warning "Some tools will not be available"
         fi
-    else
-        success "Go is already installed"
     fi
 }
 
@@ -398,12 +420,23 @@ install_system_packages() {
 }
 
 install_go_tools() {
+    # Check if Go is available
+    if ! command -v go >/dev/null 2>&1; then
+        warning "Go not found, skipping Go-based tools"
+        return 0
+    fi
+    
     info "Installing Go-based tools..."
     
     for tool in "${!GO_TOOLS[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             info "Installing $tool..."
-            go install "${GO_TOOLS[$tool]}"
+            if go install "${GO_TOOLS[$tool]}" 2>/dev/null; then
+                success "$tool installed successfully"
+            else
+                warning "Failed to install $tool (likely due to Go version compatibility)"
+                warning "You can try installing manually: go install ${GO_TOOLS[$tool]}"
+            fi
         else
             success "$tool is already installed"
         fi
