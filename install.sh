@@ -91,7 +91,15 @@ declare -A GO_TOOLS_LEGACY=(
     ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.1.0"
     ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@v1.3.7"
     ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.5.5"
-    ["nuclei"]="github.com/projectdiscovery/nuclei/v2/cmd/nuclei@v2.9.15"
+    ["nuclei"]="github.com/projectdiscovery/nuclei/v2/cmd/nuclei@v2.8.9"
+)
+
+# Ultra-legacy versions for very old Go (1.19.x)
+declare -A GO_TOOLS_ANCIENT=(
+    ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.0.7"
+    ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@v1.2.5"
+    ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.4.9"
+    ["nuclei"]="github.com/projectdiscovery/nuclei/v2/cmd/nuclei@v2.7.9"
 )
 
 declare -A GITHUB_RELEASES=(
@@ -754,30 +762,62 @@ install_go_tools() {
     
     info "Go tools will be installed to: $GOBIN"
     
-    # Determine which tool set to use
-    local use_legacy=false
+    # Determine which tool set to use based on Go version
+    local tool_set="modern"
+    local go_major=$(echo "$current_version" | cut -d. -f1)
+    local go_minor=$(echo "$current_version" | cut -d. -f2)
+    
     if [[ "$(printf '%s\n' "$min_go_version" "$current_version" | sort -V | head -n1)" != "$min_go_version" ]]; then
-        use_legacy=true
-        info "Using legacy tool versions for Go $current_version compatibility"
+        # Go version is too old for modern tools
+        if [[ "$go_major" -eq 1 && "$go_minor" -le 19 ]]; then
+            tool_set="ancient"
+            info "Using ultra-legacy tool versions for Go $current_version (1.19.x or older)"
+        else
+            tool_set="legacy"
+            info "Using legacy tool versions for Go $current_version compatibility"
+        fi
     fi
     
-    # For HTB environments, always prefer legacy versions to avoid compatibility issues
-    if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
-        use_legacy=true
+    # For HTB environments, force ancient versions for maximum compatibility
+    if [[ "${HTB_ENVIRONMENT:-false}" == "true" && "$go_major" -eq 1 && "$go_minor" -le 19 ]]; then
+        tool_set="ancient"
+        info "HTB environment with Go 1.19.x: Using ultra-legacy tool versions"
+    elif [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+        tool_set="legacy"
         info "HTB environment: Using legacy tool versions for maximum compatibility"
     fi
     
     for tool in "${!GO_TOOLS[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
-            # Select appropriate tool version
+            # Select appropriate tool version based on tool set
             local tool_package
-            if [[ "$use_legacy" == "true" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
-                tool_package="${GO_TOOLS_LEGACY[$tool]}"
-                info "Installing $tool (legacy version) to $GOBIN..."
-            else
-                tool_package="${GO_TOOLS[$tool]}"
-                info "Installing $tool to $GOBIN..."
-            fi
+            case "$tool_set" in
+                "ancient")
+                    if [[ -n "${GO_TOOLS_ANCIENT[$tool]:-}" ]]; then
+                        tool_package="${GO_TOOLS_ANCIENT[$tool]}"
+                        info "Installing $tool (ultra-legacy version for Go 1.19.x) to $GOBIN..."
+                    elif [[ -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
+                        tool_package="${GO_TOOLS_LEGACY[$tool]}"
+                        info "Installing $tool (legacy fallback version) to $GOBIN..."
+                    else
+                        tool_package="${GO_TOOLS[$tool]}"
+                        info "Installing $tool (modern version - may fail) to $GOBIN..."
+                    fi
+                    ;;
+                "legacy")
+                    if [[ -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
+                        tool_package="${GO_TOOLS_LEGACY[$tool]}"
+                        info "Installing $tool (legacy version) to $GOBIN..."
+                    else
+                        tool_package="${GO_TOOLS[$tool]}"
+                        info "Installing $tool (modern version) to $GOBIN..."
+                    fi
+                    ;;
+                *)
+                    tool_package="${GO_TOOLS[$tool]}"
+                    info "Installing $tool (modern version) to $GOBIN..."
+                    ;;
+            esac
             
             # For HTB, use sudo if installing to system location
             if [[ "${HTB_ENVIRONMENT:-false}" == "true" && "$GOBIN" == "/usr/local/bin" ]]; then
@@ -787,16 +827,28 @@ install_go_tools() {
                     success "$tool installed successfully to $GOBIN"
                 else
                     warning "Failed to install $tool: $install_output"
-                    if [[ "$use_legacy" == "false" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
+                    
+                    # Try fallback versions in order: ancient -> legacy -> skip
+                    local fallback_attempted=false
+                    if [[ "$tool_set" == "modern" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
                         info "Trying legacy version for $tool..."
                         if install_output=$($SUDO_CMD env GOBIN="$GOBIN" go install "${GO_TOOLS_LEGACY[$tool]}" 2>&1); then
-                            success "$tool (legacy) installed successfully to $GOBIN"
-                        else
-                            warning "Legacy version also failed for $tool: $install_output"
-                            warning "Skipping $tool - may need manual installation"
+                            success "$tool (legacy fallback) installed successfully to $GOBIN"
+                            fallback_attempted=true
                         fi
-                    else
-                        warning "No fallback available for $tool"
+                    fi
+                    
+                    if [[ "$fallback_attempted" == "false" && ("$tool_set" == "modern" || "$tool_set" == "legacy") && -n "${GO_TOOLS_ANCIENT[$tool]:-}" ]]; then
+                        info "Trying ultra-legacy version for $tool..."
+                        if install_output=$($SUDO_CMD env GOBIN="$GOBIN" go install "${GO_TOOLS_ANCIENT[$tool]}" 2>&1); then
+                            success "$tool (ultra-legacy fallback) installed successfully to $GOBIN"
+                            fallback_attempted=true
+                        fi
+                    fi
+                    
+                    if [[ "$fallback_attempted" == "false" ]]; then
+                        warning "All versions failed for $tool: $install_output"
+                        warning "Skipping $tool - may need manual installation"
                     fi
                 fi
             else
@@ -805,16 +857,28 @@ install_go_tools() {
                     success "$tool installed successfully to $GOBIN"
                 else
                     warning "Failed to install $tool: $install_output"
-                    if [[ "$use_legacy" == "false" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
+                    
+                    # Try fallback versions in order: ancient -> legacy -> skip
+                    local fallback_attempted=false
+                    if [[ "$tool_set" == "modern" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
                         info "Trying legacy version for $tool..."
                         if install_output=$(go install "${GO_TOOLS_LEGACY[$tool]}" 2>&1); then
-                            success "$tool (legacy) installed successfully to $GOBIN"
-                        else
-                            warning "Legacy version also failed for $tool: $install_output"
-                            warning "Skipping $tool - may need manual installation"
+                            success "$tool (legacy fallback) installed successfully to $GOBIN"
+                            fallback_attempted=true
                         fi
-                    else
-                        warning "No fallback available for $tool"
+                    fi
+                    
+                    if [[ "$fallback_attempted" == "false" && ("$tool_set" == "modern" || "$tool_set" == "legacy") && -n "${GO_TOOLS_ANCIENT[$tool]:-}" ]]; then
+                        info "Trying ultra-legacy version for $tool..."
+                        if install_output=$(go install "${GO_TOOLS_ANCIENT[$tool]}" 2>&1); then
+                            success "$tool (ultra-legacy fallback) installed successfully to $GOBIN"
+                            fallback_attempted=true
+                        fi
+                    fi
+                    
+                    if [[ "$fallback_attempted" == "false" ]]; then
+                        warning "All versions failed for $tool: $install_output"
+                        warning "Skipping $tool - may need manual installation"
                     fi
                 fi
             fi
