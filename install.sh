@@ -402,8 +402,10 @@ install_rust() {
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
         fi
         
-        # Source the environment
-        if [[ -f "$HOME/.cargo/env" ]]; then
+        # Source the environment from appropriate location
+        if [[ "${HTB_ENVIRONMENT:-false}" == "true" && -f "/tmp/cargo/env" ]]; then
+            source "/tmp/cargo/env"
+        elif [[ -f "$HOME/.cargo/env" ]]; then
             source "$HOME/.cargo/env"
         fi
         
