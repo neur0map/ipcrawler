@@ -1,0 +1,9 @@
+# Scan Report
+
+## Summary
+- **Target:** {{ metadata.target }}
+- **Duration:** {{ metadata.duration_seconds }}s  
+- **Tools:** {{ execution_stats.total_tools }} ({{ execution_stats.successful_tools }} successful)
+- **Discoveries:** {{ discoveries | length }}
+
+Generated: {{ template_generated_at }}

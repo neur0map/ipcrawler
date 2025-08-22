@@ -1,0 +1,24 @@
+metadata:
+  name: "Error Test Profile"
+  description: "Testing error handling"
+  version: "1.0"
+
+tools:
+  - name: "success_tool"
+    command: "echo 'This will succeed'"
+    timeout: 5
+    output_file: "success.out"
+    enabled: true
+    
+  - name: "fail_tool"
+    command: "false"
+    timeout: 5
+    output_file: "fail.out"
+    enabled: true
+
+chains: []
+
+globals:
+  max_concurrent: 2
+  retry_count: 1
+  log_level: "info"

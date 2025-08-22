@@ -1,0 +1,31 @@
+metadata:
+  name: "Default Scan Profile"
+  description: "Basic reconnaissance profile"
+  version: "1.0"
+
+tools:
+  - name: "naabu"
+    command: "naabu -host {target} -top-ports 1000 -silent > {output}/raw/naabu_ports.txt"
+    timeout: 300
+    output_file: "naabu_ports.txt"
+    enabled: true
+    
+  - name: "nmap_quick"
+    command: "nmap -sV -sC -T4 {target} -p {discovered_ports} -oX {output}/raw/nmap_quick.xml"
+    timeout: 300
+    output_file: "nmap_quick.xml"
+    enabled: true
+    metadata:
+      requires_ports: true
+      description: "Service detection on discovered ports only"
+
+chains:
+  - name: "port_to_service"
+    from: "naabu"
+    to: "nmap_quick"
+    condition: "has_output"
+    
+globals:
+  max_concurrent: 10
+  retry_count: 2
+  log_level: "info"

@@ -1,0 +1,30 @@
+metadata:
+  name: "Test Failure Profile"
+  description: "Test profile with intentional tool failure"
+  version: "1.0"
+
+tools:
+  - name: "working_tool"
+    command: "echo 'This works'"
+    timeout: 30
+    output_file: "working.txt"
+    enabled: true
+
+  - name: "failing_tool"
+    command: "bash -c 'exit 1'"
+    timeout: 30
+    output_file: "failing.txt"
+    enabled: true
+
+  - name: "should_not_run"
+    command: "echo 'This should not run if emergency stop works'"
+    timeout: 30
+    output_file: "should_not_run.txt"
+    enabled: true
+
+chains: []
+
+globals:
+  max_concurrent: 1
+  retry_count: 0
+  log_level: "info"

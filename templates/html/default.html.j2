@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scan Report - {{ metadata.target }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .summary { background: #f5f5f5; padding: 20px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Scan Report</h1>
+    <div class="summary">
+        <p><strong>Target:</strong> {{ metadata.target }}</p>
+        <p><strong>Duration:</strong> {{ metadata.duration_seconds }}s</p>
+        <p><strong>Tools:</strong> {{ execution_stats.total_tools }} ({{ execution_stats.successful_tools }} successful)</p>
+        <p><strong>Discoveries:</strong> {{ discoveries | length }}</p>
+        <p><small>Generated: {{ template_generated_at }}</small></p>
+    </div>
+</body>
+</html>

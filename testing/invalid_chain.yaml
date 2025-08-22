@@ -1,0 +1,22 @@
+metadata:
+  name: "Test Profile"
+  description: "Testing invalid chain"
+  version: "1.0"
+
+tools:
+  - name: "nmap"
+    command: "nmap {target}"
+    timeout: 60
+    output_file: "nmap.txt"
+    enabled: true
+
+chains:
+  - name: "broken_chain"
+    from: "nonexistent_tool"
+    to: "nmap"
+    condition: "has_output"
+
+globals:
+  max_concurrent: 3
+  retry_count: 2
+  log_level: "info"

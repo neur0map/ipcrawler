@@ -1,0 +1,34 @@
+[package]
+name = "ipcrawler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+chrono = { version = "0.4", features = ["serde"] }
+colored = "2.0"
+indicatif = "0.17"
+shell-words = "1.1"
+futures = "0.3"
+directories = "5.0"
+serde_json = "1.0"
+regex = "1.0"
+
+# Table formatting
+comfy-table = "7.1"
+
+# Tool detection
+which = "6.0"
+
+# Enhanced JSON and template processing
+minijinja = { version = "2.4", features = ["loader"] }
+serde_json_path = "0.7"
+pulldown-cmark = "0.13"
+comrak = { version = "0.28", features = ["syntect"] }
+
+# Error handling and notifications
+human-panic = "2.0"
+notify-rust = { version = "4.0", optional = true }

@@ -1,0 +1,12 @@
+SCAN REPORT
+===========
+
+Target: {{ metadata.target }}
+Duration: {{ metadata.duration_seconds }}s
+Tools Executed: {{ execution_stats.total_tools }}
+Successful: {{ execution_stats.successful_tools }}
+Failed: {{ execution_stats.failed_tools }}
+
+Discoveries: {{ discoveries | length }}
+
+Generated: {{ template_generated_at }}

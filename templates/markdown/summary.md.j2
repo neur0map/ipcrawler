@@ -1,0 +1,144 @@
+# 🎯 Reconnaissance Scan Report
+
+## 📋 Scan Information
+
+| Field | Value |
+|-------|-------|
+| **Target** | `{{ metadata.target }}` |
+| **Duration** | {{ metadata.duration_seconds | format_duration }} |
+| **Completed** | {{ metadata.end_time }} |
+| **Config Used** | {{ metadata.config_used }} |
+| **Output Directory** | `{{ metadata.output_directory }}` |
+
+## 📊 Execution Statistics
+
+| Metric | Value |
+|--------|-------|
+| **Total Tools** | {{ execution_stats.total_tools }} |
+| **Successful** | {{ execution_stats.successful_tools }} |
+| **Failed** | {{ execution_stats.failed_tools }} |
+| **Tools with Output** | {{ execution_stats.tools_with_output }} |
+| **Total Output Size** | {{ execution_stats.total_output_size | format_bytes }} |
+| **Success Rate** | {{ "%.1f" | format((execution_stats.successful_tools / execution_stats.total_tools * 100)) }}% |
+
+## 🔍 Discovery Summary
+
+- **Ports Discovered:** {{ ports_count }}
+- **Services Identified:** {{ services_count }}  
+- **Total Discoveries:** {{ discoveries | length }}
+
+{%- if discoveries_by_type.ports %}
+
+### 🚪 Discovered Ports
+
+| Port | Protocol | Detected By | Confidence |
+|------|----------|-------------|------------|
+{%- for discovery in discoveries_by_type.ports %}
+| {{ discovery.metadata.port | default("Unknown") }} | {{ discovery.metadata.protocol | default("tcp") }} | {{ discovery.detected_by }} | {{ "%.1f" | format(discovery.confidence * 100) }}% |
+{%- endfor %}
+{%- endif %}
+
+{%- if discoveries_by_type.services %}
+
+### 🛠️ Discovered Services
+
+| Port | Service | Version | Detected By | Confidence |
+|------|---------|---------|-------------|------------|
+{%- for discovery in discoveries_by_type.services %}
+| {{ discovery.metadata.port | default("Unknown") }} | {{ discovery.metadata.service | default("Unknown") }} | {{ discovery.metadata.version | default("Unknown") }} | {{ discovery.detected_by }} | {{ "%.1f" | format(discovery.confidence * 100) }}% |
+{%- endfor %}
+{%- endif %}
+
+{%- if discoveries_by_type.vulnerabilities %}
+
+### 🚨 Vulnerabilities
+
+| Severity | Description | CVE | Detected By |
+|----------|-------------|-----|-------------|
+{%- for discovery in discoveries_by_type.vulnerabilities %}
+| {{ discovery.metadata.severity | default("Unknown") }} | {{ discovery.value }} | {{ discovery.metadata.cve | default("N/A") }} | {{ discovery.detected_by }} |
+{%- endfor %}
+{%- endif %}
+
+{%- if discoveries_by_type.directories %}
+
+### 📁 Directories Found
+
+| Path | Status | Detected By |
+|------|--------|-------------|
+{%- for discovery in discoveries_by_type.directories %}
+| `{{ discovery.metadata.path | default(discovery.value) }}` | {{ discovery.metadata.status | default("Unknown") }} | {{ discovery.detected_by }} |
+{%- endfor %}
+{%- endif %}
+
+## 🔧 Tool Execution Details
+
+{%- for result in tool_results %}
+
+### {{ result.name }}
+
+- **Status:** {% if result.exit_code == 0 %}✅ SUCCESS{% else %}❌ FAILED (Exit Code: {{ result.exit_code }}){% endif %}
+- **Duration:** {{ result.duration_seconds | format_duration }}
+- **Output Size:** {{ result.output_size | format_bytes }}
+- **Has Output:** {% if result.has_output %}Yes{% else %}No{% endif %}
+{%- if result.error_message %}
+- **Error:** `{{ result.error_message }}`
+{%- endif %}
+
+{%- endfor %}
+
+{%- if failed_tools %}
+
+## ❌ Failed Tools
+
+{%- for failure in failed_tools %}
+
+### {{ failure.name }}
+
+- **Exit Code:** {{ failure.exit_code }}
+- **Error:** `{{ failure.error }}`
+{%- if failure.suggested_fix %}
+- **💡 Suggestion:** {{ failure.suggested_fix }}
+{%- endif %}
+
+{%- endfor %}
+{%- endif %}
+
+## 📈 Parsing Analytics
+
+| Metric | Value |
+|--------|-------|
+| **Parser Version** | {{ parsing_metadata.parser_version }} |
+| **Patterns Used** | {{ parsing_metadata.patterns_used | join(", ") }} |
+| **Lines Processed** | {{ "{:,}".format(parsing_metadata.total_lines_processed) }} |
+| **Successful Extractions** | {{ "{:,}".format(parsing_metadata.successful_extractions) }} |
+| **Failed Extractions** | {{ "{:,}".format(parsing_metadata.failed_extractions) }} |
+| **Parse Success Rate** | {{ "%.1f" | format((parsing_metadata.successful_extractions / (parsing_metadata.successful_extractions + parsing_metadata.failed_extractions) * 100)) }}% |
+
+## 📋 Raw Output Files
+
+{%- for tool_name, output in raw_outputs.items() %}
+
+### {{ tool_name }}
+
+- **Stdout Size:** {{ output.size_bytes | format_bytes }}
+- **Stderr Length:** {{ output.stderr | length }} characters
+- **Parse Success:** {% if output.parsed_success %}✅ Yes{% else %}❌ No{% endif %}
+- **File Paths:** 
+{%- for path in output.file_paths %}
+  - `{{ path }}`
+{%- endfor %}
+{%- if output.parsing_errors %}
+- **Parsing Errors:**
+{%- for error in output.parsing_errors %}
+  - `{{ error }}`
+{%- endfor %}
+{%- endif %}
+
+{%- endfor %}
+
+---
+
+*Generated: {{ template_generated_at }}*  
+*Report Format: Markdown*  
+*Tool: ipcrawler v{{ parsing_metadata.parser_version }}*
