@@ -662,6 +662,12 @@ install_go_tools() {
         info "Using legacy tool versions for Go $current_version compatibility"
     fi
     
+    # For HTB environments, always prefer legacy versions to avoid compatibility issues
+    if [[ "${HTB_ENVIRONMENT:-false}" == "true" ]]; then
+        use_legacy=true
+        info "HTB environment: Using legacy tool versions for maximum compatibility"
+    fi
+    
     for tool in "${!GO_TOOLS[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             # Select appropriate tool version
@@ -676,31 +682,40 @@ install_go_tools() {
             
             # For HTB, use sudo if installing to system location
             if [[ "${HTB_ENVIRONMENT:-false}" == "true" && "$GOBIN" == "/usr/local/bin" ]]; then
-                if $SUDO_CMD env GOBIN="$GOBIN" go install "$tool_package" 2>/dev/null; then
+                info "HTB: Installing $tool with sudo to $GOBIN"
+                local install_output
+                if install_output=$($SUDO_CMD env GOBIN="$GOBIN" go install "$tool_package" 2>&1); then
                     success "$tool installed successfully to $GOBIN"
                 else
-                    warning "Failed to install $tool"
+                    warning "Failed to install $tool: $install_output"
                     if [[ "$use_legacy" == "false" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
                         info "Trying legacy version for $tool..."
-                        if $SUDO_CMD env GOBIN="$GOBIN" go install "${GO_TOOLS_LEGACY[$tool]}" 2>/dev/null; then
+                        if install_output=$($SUDO_CMD env GOBIN="$GOBIN" go install "${GO_TOOLS_LEGACY[$tool]}" 2>&1); then
                             success "$tool (legacy) installed successfully to $GOBIN"
                         else
-                            warning "Both modern and legacy versions failed for $tool"
+                            warning "Legacy version also failed for $tool: $install_output"
+                            warning "Skipping $tool - may need manual installation"
                         fi
+                    else
+                        warning "No fallback available for $tool"
                     fi
                 fi
             else
-                if go install "$tool_package" 2>/dev/null; then
+                local install_output
+                if install_output=$(go install "$tool_package" 2>&1); then
                     success "$tool installed successfully to $GOBIN"
                 else
-                    warning "Failed to install $tool"
+                    warning "Failed to install $tool: $install_output"
                     if [[ "$use_legacy" == "false" && -n "${GO_TOOLS_LEGACY[$tool]:-}" ]]; then
                         info "Trying legacy version for $tool..."
-                        if go install "${GO_TOOLS_LEGACY[$tool]}" 2>/dev/null; then
+                        if install_output=$(go install "${GO_TOOLS_LEGACY[$tool]}" 2>&1); then
                             success "$tool (legacy) installed successfully to $GOBIN"
                         else
-                            warning "Both modern and legacy versions failed for $tool"
+                            warning "Legacy version also failed for $tool: $install_output"
+                            warning "Skipping $tool - may need manual installation"
                         fi
+                    else
+                        warning "No fallback available for $tool"
                     fi
                 fi
             fi
