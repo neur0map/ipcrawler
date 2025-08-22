@@ -80,7 +80,7 @@ declare -A HOMEBREW_PACKAGES=(
 )
 
 declare -A GO_TOOLS=(
-    ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+    ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.3.4"
     ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@latest"
     ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
     ["nuclei"]="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
