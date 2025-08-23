@@ -1,0 +1,201 @@
+# ipcrawler Global Configuration
+# Override default tool commands, concurrency limits, and timeouts
+
+[metadata]
+version = "0.1.0"
+description = "Global configuration for ipcrawler tool overrides"
+
+# ========================================
+# CONCURRENCY & PERFORMANCE SETTINGS
+# ========================================
+
+[concurrency]
+# Total concurrent operations allowed
+max_total_scans = 50
+
+# Port scanning pool size  
+max_port_scans = 10
+
+# Service scanning pool size (auto-calculated: max_total_scans - max_port_scans)
+max_service_scans = 40
+
+# File descriptor requirements
+min_file_descriptors = 1024
+recommended_file_descriptors = 2048
+
+# ========================================
+# NMAP CONFIGURATION
+# ========================================
+
+[tools.nmap]
+# Default command and arguments
+command = "nmap"
+base_args = ["-sT", "-sV", "-T4"]
+
+# Port specifications (choose one strategy)
+port_strategy = "default"  # Options: "default", "top", "range", "list"
+
+# Strategy-specific settings
+[tools.nmap.ports]
+# For port_strategy = "top" 
+top_ports = 1000
+
+# For port_strategy = "range"
+range_start = 1
+range_end = 65535
+
+# For port_strategy = "list"
+specific_ports = [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 993, 995, 1723, 3306, 3389, 5432, 5900, 8080, 8443]
+
+# Output and timing
+[tools.nmap.options]
+output_format = "xml"          # xml, grepable, normal
+timing_template = "T4"         # T0-T5 (T4 = aggressive)
+service_detection = true       # -sV flag
+os_detection = false          # -O flag
+script_scan = false           # -sC flag
+stealth_mode = false          # Use -sS instead of -sT (requires root)
+
+# Timeouts and limits
+[tools.nmap.limits]
+timeout_ms = 300000           # 5 minutes
+max_retries = 2
+host_timeout_ms = 90000       # 90 seconds per host
+scan_delay_ms = 0            # Delay between probes
+
+# ========================================
+# HTTP PROBE CONFIGURATION  
+# ========================================
+
+[tools.http_probe]
+# Default command and arguments
+command = "curl"
+base_args = ["-s", "-L", "-I"]
+
+# HTTP-specific options
+[tools.http_probe.options]
+follow_redirects = true       # -L flag
+silent_mode = true           # -s flag
+headers_only = true          # -I flag (HEAD request)
+max_redirects = 10           # -m flag
+include_headers = true       # Include response headers
+user_agent = "ipcrawler/0.1.0"
+connect_timeout_s = 10
+max_time_s = 15
+
+# SSL/TLS options
+[tools.http_probe.ssl]
+verify_cert = false          # -k flag (insecure)
+ssl_protocols = ["TLSv1.2", "TLSv1.3"]
+
+# Output and logging
+[tools.http_probe.output]
+verbose = false              # -v flag for debugging
+write_response = true        # Save response to file
+include_timing = true        # Include timing information
+
+# Timeouts and limits
+[tools.http_probe.limits]
+timeout_ms = 15000           # 15 seconds
+max_retries = 1
+connection_timeout_ms = 10000 # 10 seconds
+
+# ========================================
+# CUSTOM TOOL DEFINITIONS
+# ========================================
+
+# Example: Add custom DNS enumeration tool
+[tools.dns_enum]
+enabled = false
+command = "dig"
+base_args = ["+short"]
+timeout_ms = 30000
+
+# Example: Add custom directory brute force
+[tools.dir_scan]
+enabled = false
+command = "ffuf"
+base_args = ["-c", "-v"]
+timeout_ms = 120000
+
+# ========================================
+# GLOBAL OVERRIDES
+# ========================================
+
+[overrides]
+# Force specific tool versions or paths
+[overrides.paths]
+nmap = "/usr/local/bin/nmap"     # Override nmap path
+curl = "/usr/bin/curl"           # Override curl path
+
+# Environment variables to set
+[overrides.env]
+NMAP_PRIVILEGED = "0"            # Force non-privileged mode
+
+# Global timeout multipliers
+[overrides.timeouts]
+multiplier = 1.0                 # Multiply all timeouts by this factor
+max_total_runtime_s = 1800       # 30 minutes total scan limit
+
+# ========================================
+# OUTPUT CONFIGURATION
+# ========================================
+
+[output]
+# Template selection
+report_formats = ["txt", "md", "json"]
+default_template = "summary"
+
+# File naming patterns
+[output.naming]
+run_id_pattern = "run_{target}_{timestamp}"
+timestamp_format = "%Y%m%d_%H%M%S"
+
+# Artifact retention
+[output.retention]
+keep_raw_scans = true
+keep_plugin_results = true
+compress_old_runs = false
+max_run_history = 50
+
+# ========================================
+# LOGGING CONFIGURATION
+# ========================================
+
+[logging]
+level = "info"                   # trace, debug, info, warn, error
+target = "file"                 # console, file, both
+max_file_size_mb = 10
+rotate_files = true
+
+# ========================================
+# VALIDATION RULES
+# ========================================
+
+[validation]
+# Pre-flight checks
+require_tools = ["nmap", "curl"]
+check_file_descriptors = true
+check_disk_space_mb = 100
+
+# Input validation  
+[validation.targets]
+allow_private_ips = true
+allow_localhost = true
+max_target_length = 253
+validate_dns = false
+
+# ========================================
+# PLUGIN SYSTEM
+# ========================================
+
+[plugins]
+# Plugin discovery and loading
+auto_discover = true
+plugin_dirs = ["./plugins", "./custom_plugins"]
+
+# Plugin execution order
+[plugins.execution_order]
+port_scanners = ["nmap_portscan"]
+service_scanners = ["http_probe"]
+reporters = ["summary_reporter"]
