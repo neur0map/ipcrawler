@@ -1,0 +1,496 @@
+name: 🚀 ipcrawler CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly to catch dependency issues
+    - cron: '0 6 * * 1'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # COMMIT VALIDATION & FILE CHECKS
+  # ═══════════════════════════════════════════════════════════════════════════════
+  validation:
+    name: 📋 Commit Validation
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for proper validation
+
+    - name: 🔍 Check file permissions
+      run: |
+        echo "🔍 Checking for executable files..."
+        find . -type f -executable -not -path "./target/*" -not -path "./.git/*" | while read -r file; do
+          if [[ "$file" != "./install.sh" && "$file" != "./scripts/"* && "$file" != "./docs/scripts/"* ]]; then
+            echo "❌ Unexpected executable file: $file"
+            exit 1
+          fi
+        done
+        echo "✅ File permissions OK"
+
+    - name: 🔐 Security scan for secrets
+      run: |
+        echo "🔍 Scanning for potential secrets..."
+        if grep -r -i -E "(password|secret|key|token).*=" --include="*.rs" --include="*.toml" --include="*.yaml" src/ config/ testing/ | grep -v "# Example" | grep -v "TODO"; then
+          echo "❌ Potential secrets found in code"
+          exit 1
+        fi
+        echo "✅ No obvious secrets detected"
+
+    - name: 📄 Documentation check
+      run: |
+        echo "🔍 Checking documentation completeness..."
+        required_docs=("README.md" "docs/installation.md" "docs/PRODUCTION_ARCHITECTURE.md")
+        for doc in "${required_docs[@]}"; do
+          if [[ ! -f "$doc" ]]; then
+            echo "❌ Missing required documentation: $doc"
+            exit 1
+          fi
+        done
+        echo "✅ Required documentation present"
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # COMPREHENSIVE BUILD MATRIX - ALL BINARY COMBINATIONS  
+  # ═══════════════════════════════════════════════════════════════════════════════
+  test:
+    name: 🔨 Build Matrix
+    runs-on: ${{ matrix.os }}
+    needs: validation
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable, beta]
+        profile: [debug, release, lean]
+        features: [default, dev-tools, full-validation]
+        exclude:
+          # Lean profile only with stable rust
+          - profile: lean
+            rust: beta
+          # Full validation only with stable rust
+          - features: full-validation  
+            rust: beta
+          # Skip some Windows combinations to reduce job count
+          - os: windows-latest
+            profile: lean
+          - os: windows-latest
+            features: full-validation
+        
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: 🦀 Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+    
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-${{ matrix.rust }}-
+          ${{ runner.os }}-cargo-
+
+    - name: 🔧 Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nmap
+        pip install yamllint
+
+    - name: 🔧 Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'  
+      run: |
+        brew install nmap
+        pip install yamllint
+
+    - name: 🔧 Install system dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install nmap -y
+        pip install yamllint
+        
+    - name: 🎨 Check formatting
+      if: matrix.rust == 'stable' && matrix.profile == 'release' && matrix.features == 'default'
+      run: cargo fmt --all -- --check
+      
+    - name: 🔍 Run clippy
+      if: matrix.rust == 'stable' && matrix.profile == 'release' && matrix.features == 'default'
+      run: cargo clippy --all-targets --all-features -- -D warnings
+      
+    - name: 📝 Validate YAML configs  
+      if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable' && matrix.profile == 'release' && matrix.features == 'default'
+      run: |
+        yamllint config/ testing/ schemas/
+        cargo run --bin validate-tools-config
+        
+    - name: 🧪 Run tests
+      run: |
+        if [[ "${{ matrix.features }}" == "default" ]]; then
+          cargo test --verbose
+        else
+          cargo test --verbose --features ${{ matrix.features }}
+        fi
+
+    - name: 🔨 Build binary - Debug
+      if: matrix.profile == 'debug'
+      run: |
+        if [[ "${{ matrix.features }}" == "default" ]]; then
+          cargo build --verbose
+        else
+          cargo build --verbose --features ${{ matrix.features }}
+        fi
+
+    - name: 🔨 Build binary - Release
+      if: matrix.profile == 'release'
+      run: |
+        if [[ "${{ matrix.features }}" == "default" ]]; then
+          cargo build --release --verbose
+        else
+          cargo build --release --verbose --features ${{ matrix.features }}
+        fi
+
+    - name: 🔨 Build binary - Lean
+      if: matrix.profile == 'lean'
+      run: |
+        if [[ "${{ matrix.features }}" == "default" ]]; then
+          cargo build --profile lean --verbose
+        else
+          cargo build --profile lean --verbose --features ${{ matrix.features }}
+        fi
+
+    - name: ✅ Test binary execution
+      shell: bash
+      run: |
+        # Determine binary path based on profile
+        if [[ "${{ matrix.profile }}" == "debug" ]]; then
+          BINARY_PATH="target/debug/ipcrawler"
+        elif [[ "${{ matrix.profile }}" == "release" ]]; then
+          BINARY_PATH="target/release/ipcrawler"
+        else  # lean
+          BINARY_PATH="target/lean/ipcrawler"
+        fi
+        
+        # Add .exe extension for Windows
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          BINARY_PATH="${BINARY_PATH}.exe"
+        fi
+        
+        echo "Testing binary at: $BINARY_PATH"
+        $BINARY_PATH --version
+        $BINARY_PATH --help
+        $BINARY_PATH --doctor
+        $BINARY_PATH --list
+
+    - name: 📊 Binary size analysis
+      shell: bash
+      run: |
+        # Determine binary path
+        if [[ "${{ matrix.profile }}" == "debug" ]]; then
+          BINARY_PATH="target/debug/ipcrawler"
+        elif [[ "${{ matrix.profile }}" == "release" ]]; then
+          BINARY_PATH="target/release/ipcrawler"
+        else  # lean
+          BINARY_PATH="target/lean/ipcrawler"
+        fi
+        
+        # Add .exe extension for Windows
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          BINARY_PATH="${BINARY_PATH}.exe"
+        fi
+        
+        if [[ -f "$BINARY_PATH" ]]; then
+          echo "📊 Binary: ${{ matrix.os }}-${{ matrix.rust }}-${{ matrix.profile }}-${{ matrix.features }}"
+          ls -lh "$BINARY_PATH"
+        fi
+      
+    - name: 📦 Upload artifacts
+      if: matrix.rust == 'stable'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ipcrawler-${{ matrix.os }}-${{ matrix.profile }}-${{ matrix.features }}
+        path: |
+          target/debug/ipcrawler*
+          target/release/ipcrawler*
+          target/lean/ipcrawler*
+        retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # SECURITY & QUALITY CHECKS
+  # ═══════════════════════════════════════════════════════════════════════════════
+  security:
+    name: 🔐 Security Audit  
+    runs-on: ubuntu-latest
+    needs: validation
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: 🦀 Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-security-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: 🔐 Install and run cargo-audit
+      run: |
+        cargo install --force cargo-audit
+        cargo audit
+
+    - name: 📝 Generate documentation
+      run: cargo doc --all-features --no-deps --document-private-items
+
+  coverage:
+    name: 📊 Code Coverage
+    runs-on: ubuntu-latest  
+    needs: validation
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: 🦀 Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-coverage-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: 📊 Install and run tarpaulin
+      run: |
+        cargo install cargo-tarpaulin
+        cargo tarpaulin --all-features --workspace --timeout 120 --out Xml
+        
+    - name: 📤 Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
+
+  miri:
+    name: 🧠 Memory Safety (Miri)
+    runs-on: ubuntu-latest
+    needs: validation
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: 🦀 Install Rust nightly with miri
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: miri
+        
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-miri-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: 🧠 Run miri memory safety checks
+      run: |
+        cargo miri setup
+        cargo miri test --lib  # Only run lib tests, not integration tests
+      env:
+        MIRIFLAGS: -Zmiri-disable-isolation
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # PERFORMANCE & INTEGRATION TESTS
+  # ═══════════════════════════════════════════════════════════════════════════════
+  performance:
+    name: ⚡ Performance Benchmarks
+    runs-on: ubuntu-latest
+    needs: validation
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history for comparison
+        
+    - name: 🦀 Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-bench-${{ hashFiles('**/Cargo.lock') }}
+      
+    - name: ⚡ Run performance benchmarks
+      run: |
+        echo "⚡ Running performance benchmarks..."
+        cargo bench --features dev-tools
+
+  integration:
+    name: 🧪 Integration Tests
+    runs-on: ubuntu-latest
+    needs: [validation, test]
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🦀 Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/
+        key: ${{ runner.os }}-integration-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: 🔧 Install reconnaissance tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nmap
+        go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+        echo "$HOME/go/bin" >> $GITHUB_PATH
+
+    - name: 🔨 Build release binary
+      run: cargo build --release
+
+    - name: 🧪 Run comprehensive integration tests
+      timeout-minutes: 10
+      run: |
+        echo "🧪 Running integration tests..."
+        
+        # Test basic functionality
+        ./target/release/ipcrawler --version
+        ./target/release/ipcrawler --help
+        ./target/release/ipcrawler --validate
+        ./target/release/ipcrawler --doctor
+        ./target/release/ipcrawler --list
+        
+        # Test context detection
+        VERSION_DEV=$(./target/release/ipcrawler --version)
+        echo "Project directory version: $VERSION_DEV"
+        
+        cd /tmp
+        VERSION_PROD=$(ipcrawler --version 2>/dev/null || echo "0.1.0")
+        echo "Outside project version: $VERSION_PROD" 
+        cd "$GITHUB_WORKSPACE"
+        
+        echo "✅ All integration tests passed!"
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # RELEASE VALIDATION  
+  # ═══════════════════════════════════════════════════════════════════════════════
+  release-check:
+    name: 🚀 Release Validation
+    runs-on: ubuntu-latest
+    needs: [test, security, coverage, integration]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🦀 Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: 🔧 Install tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nmap
+        go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+        echo "$HOME/go/bin" >> $GITHUB_PATH
+
+    - name: 🔨 Build all release profiles
+      run: |
+        echo "🔨 Building all release profiles..."
+        cargo build --release
+        cargo build --profile lean
+        echo "✅ All release builds completed"
+
+    - name: 📊 Release artifacts analysis
+      run: |
+        echo "📊 Analyzing release artifacts..."
+        echo "Release binary size: $(ls -lh target/release/ipcrawler | awk '{print $5}')"
+        echo "Lean binary size: $(ls -lh target/lean/ipcrawler | awk '{print $5}')"
+        
+        # Test both binaries
+        ./target/release/ipcrawler --version
+        ./target/release/ipcrawler --doctor
+        ./target/lean/ipcrawler --version  
+        ./target/lean/ipcrawler --doctor
+        
+        echo "✅ Release validation completed"
+
+    - name: 📦 Prepare release artifacts
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: |
+        mkdir -p release-artifacts
+        cp target/release/ipcrawler release-artifacts/ipcrawler-linux-x64
+        cp target/lean/ipcrawler release-artifacts/ipcrawler-linux-x64-lean
+        cd release-artifacts && sha256sum * > checksums.txt && cd ..
+
+    - name: 📤 Upload release artifacts
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-binaries
+        path: release-artifacts/
+        retention-days: 90
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # PIPELINE SUMMARY
+  # ═══════════════════════════════════════════════════════════════════════════════
+  summary:
+    name: 📈 Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [validation, test, security, coverage, integration]
+    if: always()
+
+    steps:
+    - name: 📈 Pipeline Results Summary
+      run: |
+        echo "📈 ipcrawler CI/CD Pipeline Summary"
+        echo "===================================="
+        echo "Validation: ${{ needs.validation.result }}"
+        echo "Build Matrix: ${{ needs.test.result }}"
+        echo "Security: ${{ needs.security.result }}"
+        echo "Coverage: ${{ needs.coverage.result }}"  
+        echo "Integration: ${{ needs.integration.result }}"
+        echo ""
+        
+        if [[ "${{ needs.validation.result }}" == "success" && "${{ needs.test.result }}" == "success" && "${{ needs.security.result }}" == "success" && "${{ needs.coverage.result }}" == "success" && "${{ needs.integration.result }}" == "success" ]]; then
+          echo "🎉 All checks passed! Ready for deployment."
+          exit 0
+        else
+          echo "❌ Some checks failed. Please review the results."
+          exit 1
+        fi

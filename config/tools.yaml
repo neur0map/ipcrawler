@@ -1,0 +1,98 @@
+# Tool Registry Configuration
+# This file defines tool metadata and installation instructions
+# to avoid hardcoding tool-specific logic in the source code
+
+tools:
+  nmap:
+    name: "Network Mapper"
+    command: "nmap"
+    patterns:
+      - name: "nmap_service"
+        regex: '(\d+)/(tcp|udp)\s+(\w+)\s+(\w+)(?:\s+(.+))?'
+        type: "service"
+    install:
+      macos: "brew install nmap"
+      ubuntu: "sudo apt update && sudo apt install nmap"
+      fedora: "sudo yum install nmap"
+      windows: "Download from https://nmap.org/download.html"
+      
+  naabu:
+    name: "Port Scanner"
+    command: "naabu"
+    patterns:
+      - name: "host_port"
+        regex: '([^:\s]+):(\d+)'
+        type: "port"
+    install:
+      generic: "go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+      macos: "brew install naabu"
+      windows: "Download from https://github.com/projectdiscovery/naabu/releases"
+      
+  gobuster:
+    name: "Directory Scanner"
+    command: "gobuster"
+    patterns:
+      - name: "directory_path"
+        regex: '\s+(\d+)\s+(/.+?)(?:\s|$)'
+        type: "directory"
+    install:
+      generic: "go install github.com/OJ/gobuster/v3@latest"
+      ubuntu: "sudo apt update && sudo apt install gobuster"
+      windows: "Download from https://github.com/OJ/gobuster/releases"
+      
+  nuclei:
+    name: "Vulnerability Scanner"
+    command: "nuclei"
+    patterns:
+      - name: "vulnerability"
+        regex: '\[([A-Z]+)\]\s+(\S+)\s+\(([^)]+)\)'
+        type: "vulnerability"
+    install:
+      generic: "go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest"
+      macos: "brew install nuclei"
+      windows: "Download from https://github.com/projectdiscovery/nuclei/releases"
+      
+  ffuf:
+    name: "Web Fuzzer"
+    command: "ffuf"
+    patterns:
+      - name: "http_response"
+        regex: 'Status:\s+(\d+)'
+        type: "custom"
+    install:
+      generic: "go install github.com/ffuf/ffuf@latest"
+      windows: "Download from https://github.com/ffuf/ffuf/releases"
+      
+  nikto:
+    name: "Web Scanner"
+    command: "nikto"
+    patterns:
+      - name: "web_finding"
+        regex: '\+\s+(.+?)\s*:\s*(.+)'
+        type: "custom"
+    install:
+      generic: "git clone https://github.com/sullo/nikto"
+      macos: "brew install nikto"
+      ubuntu: "sudo apt install nikto"
+
+# Generic patterns that apply to multiple tools
+generic_patterns:
+  - name: "port_protocol"
+    regex: '(\d+)/(tcp|udp)'
+    type: "port"
+    confidence: 0.8
+    
+  - name: "http_status"
+    regex: 'HTTP/[\d.]+\s+(\d+)\s+([^\r\n]+)'
+    type: "custom"
+    confidence: 0.7
+    
+  - name: "ip_address"
+    regex: '(\d{1,3}\.){3}\d{1,3}'
+    type: "custom"
+    confidence: 0.9
+    
+  - name: "cve_id"
+    regex: 'CVE-\d{4}-\d{4,}'
+    type: "vulnerability"
+    confidence: 0.95

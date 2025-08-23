@@ -509,6 +509,11 @@ impl DependencyChecker {
         for status in statuses {
             println!("   {} {}:", "[TOOL]".bright_blue(), status.name.bright_white());
             
+            // Show error information if available
+            if let Some(ref error) = status.error {
+                println!("      {} {}", "[ERROR]".bright_red(), error.bright_black());
+            }
+            
             let current_os = std::env::consts::OS;
             let mut shown_methods = std::collections::HashSet::new();
             

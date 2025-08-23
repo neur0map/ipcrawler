@@ -2,6 +2,90 @@
 
 A streamlined reconnaissance automation tool built for CTF players and security enthusiasts. Born from the need to simplify repetitive scanning workflows during Hack The Box challenges.
 
+✨ **Features beautiful gradient-colored output for enhanced readability and visual appeal**
+
+## Build & Release Engineering
+
+ipcrawler uses a unified binary approach where both development and production versions have identical features and UI. The only difference is intelligent path detection for configuration and results storage.
+
+### Quick Commands
+
+| Command | Description |
+|---------|-------------|
+| `make build` | Build development binary (./target/release/ipcrawler) |
+| `make build-prod` | Build & install production binary to system PATH |
+| `make build-both` | Build and install unified binary with smart path detection |
+| `make where` | Show all ipcrawler binaries with diagnostics |
+| `make verify` | Verify binary status and detect duplicates |
+
+### Smart Path Detection
+
+Both binaries are **identical in features** - they automatically detect their execution context:
+
+- **Development Context** (when `Cargo.toml` present):
+  - Version: `0.1.0+dev`
+  - Results: `./recon-results/`
+  - Configs: Project directory first, then system locations
+
+- **Production Context** (system installation):
+  - Version: `0.1.0`  
+  - Results: User data directory (`~/.local/share/...`)
+  - Configs: System templates, then user config directory
+
+### Diagnostic Commands
+
+```bash
+# See which binaries exist and their status
+make where
+
+# Verify separation is working correctly
+make verify
+
+# Get help on available targets
+make help
+```
+
+### Important Notes
+
+- **Never use `make install`** - use `make build-prod` instead
+- Run `hash -r` after `make build-prod` to clear shell command cache
+- Remove duplicate binaries (e.g., `~/.cargo/bin/ipcrawler`) to prevent shadowing
+- Production binary requires `sudo` for system installation
+
+### Acceptance Tests
+
+All these should pass:
+
+```bash
+# Test 1: Development build creates local binary only
+make build
+command -v ipcrawler  # Should be unchanged
+
+# Test 2: Context-aware versioning
+./target/release/ipcrawler --version  # Shows: 0.1.0+dev (in project dir)
+cd /tmp && ipcrawler --version        # Shows: 0.1.0 (outside project)
+
+# Test 3: Identical help systems
+./target/release/ipcrawler -h  # Shows: "Security Scanner"
+ipcrawler -h                   # Shows: "Security Scanner" (identical)
+
+# Test 4: Gradient colors work
+ipcrawler --list | head -5  # Should show colored output
+
+# Test 5: Verification passes
+make verify  # Should show binary status and diagnostics
+```
+
+### Troubleshooting
+
+If `make verify` shows warnings:
+
+1. **Duplicate binaries**: Remove extras from `~/.cargo/bin/`, `/usr/bin/`, etc.
+2. **Wrong binary active**: Check `make where` output and remove shadowing binaries
+3. **Shell cache**: Run `hash -r` or restart terminal after installation
+4. **Permissions**: Use `sudo make build-prod` for system installation
+5. **Colors not showing**: Check `NO_COLOR` environment variable
+
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://www.linux.org/)
 [![macOS](https://img.shields.io/badge/mac%20os-000000?style=for-the-badge&logo=macos&logoColor=F0F0F0)](https://www.apple.com/macos/)
@@ -14,12 +98,15 @@ This project is developed with AI assistance as part of my learning journey. It'
 
 ## Why ipcrawler?
 
-- **CTF-Focused**: Built specifically for Hack The Box and CTF scenarios
-- **YAML Workflows**: Define reusable scan profiles for different machine types
-- **Parallel Execution**: Run multiple tools simultaneously with smart concurrency
-- **Tool Chaining**: Automatically pipe outputs between tools (e.g., naabu → nmap)
-- **Interactive Summary Viewing**: Beautiful markdown reports with terminal window integration
-- **Beginner Friendly**: Clear output, simple configuration, minimal learning curve
+- **🎨 Beautiful UI**: Gradient-colored output with randomized port, tool name, and path coloring
+- **🎯 CTF-Focused**: Built specifically for Hack The Box and CTF scenarios
+- **📝 YAML Workflows**: Define reusable scan profiles for different machine types
+- **⚡ Parallel Execution**: Run multiple tools simultaneously with smart concurrency
+- **🔗 Smart Tool Chaining**: Automatically pipe discovered ports between tools (naabu → nmap)
+- **📊 Rich Progress Tracking**: Real-time discovery counters with colored progress indicators
+- **📋 Interactive Summary Viewing**: Beautiful markdown reports with terminal integration
+- **🚀 Unified Binary**: Identical features everywhere with intelligent path detection
+- **👥 Beginner Friendly**: Clear output, simple configuration, minimal learning curve
 
 ## Why Rust?
 

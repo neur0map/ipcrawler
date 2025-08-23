@@ -1,7 +1,7 @@
 use crate::config::{Config, Tool, Chain};
 use crate::executor::{ToolResult, ExecutionContext, Executor};
 use crate::progress::ProgressManager;
-use indicatif::ProgressBar;
+use crate::gradient::{gradient_ports, gradient_tool};
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
@@ -186,7 +186,9 @@ impl Pipeline {
             if !ports.is_empty() {
                 let port_list = ports.join(",");
                 tool.command = tool.command.replace("{discovered_ports}", &port_list);
-                self.progress_manager.print_verbose_info(&format!("Passing {} discovered ports from {} → {}", ports.len(), source_result.tool_name, tool.name), self.context.verbose);
+                // Always show port passing (not just in verbose mode) - this is important info
+                let colored_ports = gradient_ports(&port_list);
+                self.progress_manager.print_info(&format!("Passing {} discovered ports from {} → {}: {}", ports.len(), gradient_tool(&source_result.tool_name), gradient_tool(&tool.name), colored_ports));
                 
                 // Log the actual command for debugging
                 if self.context.debug {
@@ -224,9 +226,14 @@ impl Pipeline {
             }
         }
         
-        // Remove duplicates and sort
-        ports.sort_by(|a, b| a.parse::<u16>().unwrap().cmp(&b.parse::<u16>().unwrap()));
-        ports.dedup();
+        // Remove duplicates and sort efficiently
+        let mut parsed_ports: Vec<u16> = ports
+            .into_iter()
+            .filter_map(|p| p.parse::<u16>().ok())
+            .collect();
+        parsed_ports.sort_unstable();
+        parsed_ports.dedup();
+        let ports: Vec<String> = parsed_ports.into_iter().map(|p| p.to_string()).collect();
         
         Ok(ports)
     }

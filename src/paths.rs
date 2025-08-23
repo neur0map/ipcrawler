@@ -2,7 +2,7 @@ use directories::ProjectDirs;
 use std::path::{Path, PathBuf};
 use std::fs;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReconPaths {
     pub system_templates: PathBuf,
     pub user_config: PathBuf,
@@ -92,15 +92,17 @@ impl ReconPaths {
     }
     
     pub fn default_output_dir(&self) -> PathBuf {
-        // In production (when binary is installed system-wide), use user data directory
-        // In development (when running from project), use project directory
-        if self.working_dir.join("Cargo.toml").exists() {
-            // Development mode - project directory
-            self.working_dir.join("recon-results")
+        // Choose output directory based on context (dev project vs system install)
+        if self.is_dev_context() {
+            self.development_output_dir()
         } else {
-            // Production mode - user data directory
-            self.user_data.join("results")
+            self.production_output_dir()
         }
+    }
+    
+    pub fn is_dev_context(&self) -> bool {
+        // Check if we're running in a development context (project directory)
+        self.working_dir.join("Cargo.toml").exists()
     }
     
     pub fn production_output_dir(&self) -> PathBuf {
@@ -110,6 +112,7 @@ impl ReconPaths {
     pub fn development_output_dir(&self) -> PathBuf {
         self.working_dir.join("recon-results")
     }
+    
     
     pub fn ensure_user_dirs(&self) -> Result<(), Box<dyn std::error::Error>> {
         fs::create_dir_all(&self.user_config)?;
@@ -149,17 +152,4 @@ impl ReconPaths {
         }
     }
     
-    pub fn get_config_info(&self) -> String {
-        format!(
-            "Configuration Locations:\n\
-             • Working Directory: {}\n\
-             • User Config: {}\n\
-             • User Data: {}\n\
-             • System Templates: {}",
-            self.working_dir.display(),
-            self.user_config.display(),
-            self.user_data.display(),
-            self.system_templates.display()
-        )
-    }
 }

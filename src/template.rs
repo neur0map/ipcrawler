@@ -3,7 +3,7 @@ use minijinja::{Environment, Error as TemplateError};
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct TemplateEngine {
     env: Environment<'static>,
@@ -88,7 +88,7 @@ impl TemplateEngine {
         template_name: Option<&str>,
     ) -> Result<String, TemplateError> {
         let template_name = template_name.unwrap_or("summary");
-        let template_id = format!("{}-{}", format.template_dir(), template_name);
+        let _template_id = format!("{}-{}", format.template_dir(), template_name);
 
         // Create template context
         let context = self.create_template_context(summary);

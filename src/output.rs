@@ -175,22 +175,6 @@ impl ReportGenerator {
         Ok(report_path)
     }
 
-    // Legacy methods for backwards compatibility
-    pub fn save_json_report(&mut self, summary: &ScanSummary) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        self.save_report(summary, crate::template::OutputFormat::Json)
-    }
-
-    pub fn save_html_report(&mut self, summary: &ScanSummary) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        self.save_report(summary, crate::template::OutputFormat::Html)
-    }
-
-    pub fn save_text_report(&mut self, summary: &ScanSummary) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        self.save_report(summary, crate::template::OutputFormat::Text)
-    }
-
-    pub fn save_markdown_report(&mut self, summary: &ScanSummary) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        self.save_report(summary, crate::template::OutputFormat::Markdown)
-    }
 
     fn calculate_execution_stats(&self, results: &[ToolResult]) -> Result<ExecutionStats, Box<dyn std::error::Error + Send + Sync>> {
         let total_tools = results.len();

@@ -1,6 +1,7 @@
 use crate::config::{Config, Tool};
 use crate::progress::ProgressManager;
 use crate::error_handler::{ErrorHandler, ErrorContext, EmergencyStopError};
+use crate::gradient::{gradient_ports, gradient_tool};
 use chrono::Local;
 use indicatif::ProgressBar;
 use std::collections::HashMap;
@@ -185,10 +186,78 @@ impl Executor {
                         }
                     }
                     
-                    // Tool completed (no progress bar needed)
+                    // Tool completed - parse output and update discoveries
+                    // Validate file size before reading to prevent memory exhaustion
+                    if let Err(_) = crate::validator::MemoryValidator::validate_file_size(&tool_result.stdout_file, 50 * 1024 * 1024) { // 50MB limit
+                        self.log_error(&format!("Tool {} output file too large, skipping parsing", tool_result.tool_name)).await?;
+                    } else if let Ok(content) = std::fs::read_to_string(&tool_result.stdout_file) {
+                        // Validate string safety (no null bytes that could cause parsing issues)
+                        if let Err(_) = crate::validator::MemoryValidator::validate_string(&content) {
+                            self.log_error(&format!("Tool {} output contains invalid characters, skipping parsing", tool_result.tool_name)).await?;
+                        } else {
+                            let parser = crate::parser::GenericParser::new();
+                            let parse_result = parser.parse_output(&content, &tool_result.tool_name);
+                        
+                        // Memory safety validation for large discovery collections
+                        if let Err(_) = crate::validator::MemoryValidator::validate_collection_size(&parse_result.discoveries, 10000) {
+                            self.log_error(&format!("Tool {} produced excessive discoveries, truncating results", tool_result.tool_name)).await?;
+                        }
+                        
+                        // Update discovery counters based on parsed results
+                        let mut port_count = 0;
+                        let mut service_count = 0;
+                        let mut vuln_count = 0;
+                        
+                        for discovery in &parse_result.discoveries {
+                            match &discovery.discovery_type {
+                                crate::output::DiscoveryType::Port { .. } => port_count += 1,
+                                crate::output::DiscoveryType::Service { .. } => service_count += 1,
+                                crate::output::DiscoveryType::Vulnerability { .. } => vuln_count += 1,
+                                _ => {}
+                            }
+                        }
+                        
+                        // Update progress manager with discoveries
+                        if port_count > 0 {
+                            // Extract unique port numbers
+                            let ports: Vec<u16> = parse_result.discoveries.iter()
+                                .filter_map(|d| match &d.discovery_type {
+                                    crate::output::DiscoveryType::Port { number, .. } => Some(*number),
+                                    _ => None
+                                })
+                                .collect();
+                            self.progress_manager.add_discovered_ports(ports);
+                        }
+                        
+                        if service_count > 0 {
+                            // Extract unique service descriptions
+                            let services: Vec<String> = parse_result.discoveries.iter()
+                                .filter_map(|d| match &d.discovery_type {
+                                    crate::output::DiscoveryType::Service { name, port, protocol, version } => {
+                                        let service_desc = if let Some(ver) = version {
+                                            format!("{} {}/{} ({})", name, port, protocol, ver)
+                                        } else {
+                                            format!("{} {}/{}", name, port, protocol)
+                                        };
+                                        Some(service_desc)
+                                    },
+                                    _ => None
+                                })
+                                .collect();
+                            self.progress_manager.add_discovered_services(services);
+                        }
+                        
+                        if vuln_count > 0 {
+                            self.progress_manager.add_discovered_vulns(vuln_count);
+                        }
+                        }
+                    }
                     
-                    // TODO: Update discovery counters based on tool results
-                    // self.progress_manager.update_discovery(ports_count, services_count, vulns_count);
+                    // Cache the result for potential resume functionality
+                    {
+                        let mut cache = self.results.lock().await;
+                        cache.insert(tool_result.tool_name.clone(), tool_result.clone());
+                    }
                     
                     completed_results.push(tool_result);
                 }
@@ -311,11 +380,27 @@ impl Executor {
                 String::new()
             };
             
-            pb.set_message(format!("{}: scanning{}", tool.name, attempt_msg));
+            // Extract port information from command if available (for nmap)
+            let port_info = if tool.command.contains(" -p ") {
+                if let Some(port_part) = tool.command.split(" -p ").nth(1) {
+                    if let Some(ports) = port_part.split_whitespace().next() {
+                        let colored_ports = gradient_ports(ports);
+                        format!(" [{}]", colored_ports)
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
+            
+            pb.set_message(format!("{}: scanning{}{}", gradient_tool(&tool.name), port_info, attempt_msg));
             
             match Self::execute_single_tool(tool.clone(), context.clone(), &pb, log_file.clone(), progress_manager.clone()).await {
                 Ok(result) => {
-                    pb.finish_with_message(format!("{}: completed", tool.name));
+                    pb.finish_with_message(format!("{}: completed", gradient_tool(&tool.name)));
                     return Ok(result);
                 }
                 Err(e) => {
@@ -460,77 +545,30 @@ impl Executor {
         pb: ProgressBar,
         tool_name: String,
         is_stderr: bool,
-        progress_manager: Arc<ProgressManager>,
-        output_file: PathBuf,
+        _progress_manager: Arc<ProgressManager>,
+        _output_file: PathBuf,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut lines = reader.lines();
         let mut line_count = 0;
-        let mut discovered_ports = Vec::new();
-        let mut discovered_services = Vec::new();
-        let mut discovered_items = Vec::new(); // Generic discovery tracking
+        // Discovery tracking removed - will be handled by parser after execution
         
         while let Some(line) = lines.next_line().await? {
             writer.write_all(line.as_bytes()).await?;
             writer.write_all(b"\n").await?;
             line_count += 1;
             
-            // Parse line for discoveries and provide live updates (dynamic parsing)
+            // Update progress display only (no parsing here)
             if !is_stderr {
-                let mut discovery_made = false;
-                
-                // Generic port discovery (works for any tool that outputs host:port)
-                if line.contains(':') {
-                    if let Some(port_str) = line.split(':').last() {
-                        if let Ok(port) = port_str.trim().parse::<u16>() {
-                            // Avoid duplicates
-                            if !discovered_ports.contains(&port) {
-                                discovered_ports.push(port);
-                                discovered_items.push(port.to_string());
-                                
-                                // Update discovery display immediately  
-                                progress_manager.add_discovered_ports(vec![port]);
-                                discovery_made = true;
-                            }
-                        }
-                    }
-                }
-                
-                // Generic service discovery (works for any tool with port/protocol patterns)
-                if (line.contains("/tcp") || line.contains("/udp")) && !line.trim().is_empty() {
-                    let service_info = line.trim().to_string();
-                    if !discovered_services.contains(&service_info) {
-                        discovered_services.push(service_info.clone());
-                        
-                        // Extract meaningful part for display
-                        if let Some(port_part) = service_info.split_whitespace().next() {
-                            if let Some(port_num) = port_part.split('/').next() {
-                                discovered_items.push(format!("svc:{}", port_num));
-                            }
-                        }
-                        
-                        // Update discovery display immediately
-                        progress_manager.add_discovered_services(vec![service_info]);
-                        discovery_made = true;
-                    }
-                }
-                
-                // Update spinner with all discoveries (dynamic, works for any tool)
-                if !discovered_items.is_empty() {
-                    // Always show discoveries if we have any
-                    let items_list = discovered_items.join(", ");
-                    pb.set_message(format!("{} discovered: {}", tool_name, items_list));
-                } else {
-                    // Only show live output if we haven't discovered anything yet
-                    if line_count % 3 == 0 {
-                        let preview = if line.len() > 50 { 
-                            format!("{}...", &line[..47])
-                        } else { 
-                            line.clone() 
-                        };
-                        pb.set_message(format!("{}: {}", tool_name, preview));
-                    } else if line_count == 1 {
-                        pb.set_message(format!("{}: scanning", tool_name));
-                    }
+                // Show progress with line preview
+                if line_count % 3 == 0 {
+                    let preview = if line.len() > 50 { 
+                        format!("{}...", &line[..47])
+                    } else { 
+                        line.clone() 
+                    };
+                    pb.set_message(format!("{}: {}", tool_name, preview));
+                } else if line_count == 1 {
+                    pb.set_message(format!("{}: scanning", tool_name));
                 }
             } else {
                 // For stderr, show error output occasionally
@@ -566,6 +604,7 @@ impl Executor {
         Self::write_log(&self.log_file, &format!("ERROR: {}", message)).await
     }
 
+
     pub fn print_summary(&self, results: &[ToolResult]) {
         let successful = results.iter().filter(|r| r.exit_code == 0).count();
         let failed = results.iter().filter(|r| r.exit_code != 0).count();
@@ -580,6 +619,14 @@ impl Executor {
             self.progress_manager.print_warning("Failed tools:");
             for result in results.iter().filter(|r| r.exit_code != 0) {
                 self.progress_manager.print_error(&format!("  {}", result.tool_name));
+            }
+        }
+        
+        // Add error summary if there are logged errors
+        if self.error_handler.has_errors() {
+            if let Ok(error_summary) = self.error_handler.create_error_summary() {
+                self.progress_manager.print_warning("Error details logged - see full summary below:");
+                println!("{}", error_summary);
             }
         }
     }

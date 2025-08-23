@@ -3,6 +3,8 @@ mod config;
 mod doctor;
 mod error_handler;
 mod executor;
+mod gradient;
+mod help;
 mod output;
 mod parser;
 mod pipeline;
@@ -10,12 +12,14 @@ mod paths;
 mod progress;
 mod table;
 mod template;
+mod validator;
 
 use clap::Parser;
 use colored::*;
 use chrono::Local;
 use std::fs;
 use std::path::PathBuf;
+use crate::gradient::gradient_path;
 use std::io::Write;
 use std::sync::Arc;
 use config::Config;
@@ -66,13 +70,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup human-panic for better error reporting
     human_panic::setup_panic!();
     
+    // Initialize path resolution system early for context detection
+    let paths = ReconPaths::new()?;
+    
+    // Check for help flags before parsing to detect long vs short help
+    let raw_args: Vec<String> = std::env::args().collect();
+    let is_long_help = raw_args.contains(&"--help".to_string());
+    
     let args = cli::Cli::parse();
+    
+    // Handle help and version flags
+    if args.help {
+        help::HelpDisplay::show_help(is_long_help);
+    }
+    
+    if args.version {
+        let version = env!("CARGO_PKG_VERSION");
+        // Version shows context based on where it's running, not build features
+        let context = if std::env::current_dir()
+            .map(|d| d.join("Cargo.toml").exists())
+            .unwrap_or(false) { "+dev" } else { "" };
+        
+        println!("ipcrawler {}{}", version, context);
+        std::process::exit(0);
+    }
     
     // Initialize modern progress management system early
     let progress = Arc::new(ProgressManager::new());
     
-    // Initialize path resolution system
-    let paths = ReconPaths::new()?;
     paths.ensure_user_dirs()?;
     
     // If --paths flag is set, show directory information and exit
@@ -110,12 +135,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match Config::from_file(config_path) {
             Ok(cfg) => {
                 if args.verbose || args.validate {
-                    progress.print_success(&format!("Configuration loaded from: {}", config_path.display()));
+                    progress.print_success(&format!("Configuration loaded from: {}", gradient_path(&config_path.display().to_string())));
                 }
                 configs.push(cfg);
             }
             Err(e) => {
-                progress.print_error(&format!("Failed to load configuration {}: {}", config_path.display(), e));
+                progress.print_error(&format!("Failed to load configuration {}: {}", gradient_path(&config_path.display().to_string()), e));
                 return Err(e);
             }
         }
@@ -212,11 +237,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.replace_variables(target, &output_dir.to_string_lossy());
     }
     
-    // Validate configurations (no progress bar needed - instant)
+    // Validate configurations with enhanced validation
     for config in configs.iter() {
         if let Err(e) = config.validate() {
             return Err(e);
         }
+        
+        // TODO: Additional runtime validation when ConfigValidator is fully implemented
+        // if let Err(e) = validator::ConfigValidator::validate_config(config) {
+        //     progress.print_error(&format!("Configuration validation failed: {}", e));
+        //     return Err(Box::new(e));
+        // }
     }
     
     // Verify output directory structure (instant)
@@ -245,7 +276,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // Create execution context
-    let context = ExecutionContext {
+    let _context = ExecutionContext {
         output_dir: output_dir.clone(),
         target: target.clone(),
         debug: args.debug,
@@ -384,22 +415,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             services.sort();
             vulns.sort();
             
-            // Print beautiful discovery table
-            println!("{}", table::TableBuilder::discovery_summary(&ports, &services, &vulns));
-            
-            // Tool execution summary
-            println!("\n📈 Tool Execution Report");
-            println!("{}", table::TableBuilder::tool_execution_summary(&results));
+            // Print beautiful discovery table (only in verbose mode)
+            if args.verbose {
+                println!("{}", table::TableBuilder::discovery_summary(&ports, &services, &vulns));
+                
+                // Tool execution summary
+                println!("\n📈 Tool Execution Report");
+                println!("{}", table::TableBuilder::tool_execution_summary(&results));
+            }
         }
     }
     
-    // Show where results are stored
-    let paths = ReconPaths::new()?;
-    let mode = if paths.working_dir.join("Cargo.toml").exists() {
-        "Development"
-    } else {
-        "Production"
-    };
+    // Show where results are stored - mode is determined by path context, not build features
+    let mode = if paths.is_dev_context() { "Development" } else { "Production" };
     
     progress.print_section("📁 Results Location");
     progress.print_info(&format!("Mode: {} Mode", mode));
@@ -620,7 +648,7 @@ fn print_path_info(paths: &ReconPaths, args: &cli::Cli) {
     println!("{}", "[CONFIG] Configuration Directories:".bright_yellow());
     
     // Working directory
-    println!("   {} {}", "Working Directory:".bright_white(), paths.working_dir.display().to_string().bright_black());
+    println!("   {} {}", "Working Directory:".bright_white(), gradient_path(&paths.working_dir.display().to_string()));
     println!("     Purpose: Project-specific configs and current output");
     if paths.working_dir.join("config").exists() {
         println!("     Status: {} (contains system templates)", "[ACTIVE]".green());
@@ -630,7 +658,7 @@ fn print_path_info(paths: &ReconPaths, args: &cli::Cli) {
     println!();
     
     // User config directory
-    println!("   {} {}", "User Config Directory:".bright_white(), paths.user_config.display().to_string().bright_black());
+    println!("   {} {}", "User Config Directory:".bright_white(), gradient_path(&paths.user_config.display().to_string()));
     println!("     Purpose: Personal profiles and user-specific configurations");
     let profiles_dir = paths.user_config.join("profiles");
     if profiles_dir.exists() {
@@ -646,7 +674,7 @@ fn print_path_info(paths: &ReconPaths, args: &cli::Cli) {
     println!();
     
     // User data directory
-    println!("   {} {}", "User Data Directory:".bright_white(), paths.user_data.display().to_string().bright_black());
+    println!("   {} {}", "User Data Directory:".bright_white(), gradient_path(&paths.user_data.display().to_string()));
     println!("     Purpose: Persistent results and cache data");
     if paths.user_data.exists() {
         println!("     Status: {} (ready for data storage)", "[ACTIVE]".green());
@@ -656,7 +684,7 @@ fn print_path_info(paths: &ReconPaths, args: &cli::Cli) {
     println!();
     
     // System templates
-    println!("   {} {}", "System Templates:".bright_white(), paths.system_templates.display().to_string().bright_black());
+    println!("   {} {}", "System Templates:".bright_white(), gradient_path(&paths.system_templates.display().to_string()));
     println!("     Purpose: System-wide default configurations");
     if paths.system_templates.exists() {
         if let Ok(entries) = std::fs::read_dir(&paths.system_templates) {
@@ -693,7 +721,7 @@ fn print_path_info(paths: &ReconPaths, args: &cli::Cli) {
         "Default Output Directory (Production Mode)"
     };
     
-    println!("   {} {}", output_type.bright_white(), output_base.display().to_string().bright_black());
+    println!("   {} {}", output_type.bright_white(), gradient_path(&output_base.display().to_string()));
     println!("     Purpose: Scan results and execution logs");
     if output_base.exists() {
         if let Ok(entries) = std::fs::read_dir(&output_base) {
@@ -709,11 +737,11 @@ fn print_path_info(paths: &ReconPaths, args: &cli::Cli) {
     
     // Show development vs production paths if not using custom output
     if !is_custom {
-        println!("   {} {}", "Development Output:".bright_white(), paths.development_output_dir().display().to_string().bright_black());
+        println!("   {} {}", "Development Output:".bright_white(), gradient_path(&paths.development_output_dir().display().to_string()));
         println!("     Purpose: Local project development and testing");
         println!();
         
-        println!("   {} {}", "Production Output:".bright_white(), paths.production_output_dir().display().to_string().bright_black());
+        println!("   {} {}", "Production Output:".bright_white(), gradient_path(&paths.production_output_dir().display().to_string()));
         println!("     Purpose: System-wide installation results");
         println!();
         
@@ -729,7 +757,7 @@ fn print_path_info(paths: &ReconPaths, args: &cli::Cli) {
         println!("   {} No configurations found", "[WARNING]".yellow());
     } else {
         for (name, path) in configs {
-            println!("   - {} -> {}", name.bright_white(), path.display().to_string().bright_black());
+            println!("   - {} -> {}", name.bright_white(), gradient_path(&path.display().to_string()));
         }
     }
     println!();
@@ -970,7 +998,7 @@ async fn handle_list_configs(paths: &ReconPaths) -> Result<(), Box<dyn std::erro
                 println!("{} {} {}", 
                     path_prefix.bright_black(),
                     "[FILE]".bright_black(),
-                    path.display().to_string().bright_black()
+                    gradient_path(&path.display().to_string())
                 );
                 
                 // Show tool count if config loaded successfully

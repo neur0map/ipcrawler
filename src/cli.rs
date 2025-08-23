@@ -3,98 +3,81 @@ use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "ipcrawler")]
-#[command(author = "Security Team")]
-#[command(version = "1.0")]
-#[command(about = "🎯 Modern IP reconnaissance automation tool")]
-#[command(long_about = r#"🎯 ipcrawler - Modern IP Reconnaissance Automation Tool
-
-OVERVIEW:
-  A powerful, flexible reconnaissance scanner that automates discovery of ports,
-  services, vulnerabilities, and other network intelligence using industry-standard tools.
-
-FEATURES:
-  ✓ Multi-format reports (JSON, HTML, Markdown, Text)
-  ✓ Interactive markdown summary viewing (with 'see' integration)
-  ✓ Generic parsing engine (works with any tool output)
-  ✓ Real-time discovery tracking with confidence scoring
-  ✓ Raw output preservation for manual analysis
-  ✓ Smart directory resolution (dev/production modes)
-  ✓ Template-driven output formatting
-
-OUTPUT LOCATIONS:
-  📁 Development Mode (when run from project):
-     → ./recon-results/{target}_{timestamp}/
-
-  📁 Production Mode (system-wide installation):
-     → ~/Library/Application Support/io.recon-tool.recon-tool/results/{target}_{timestamp}/
-
-  📄 Generated Reports:
-     • scan_summary.json  - Structured data with raw outputs
-     • scan_summary.html  - Interactive web report  
-     • scan_summary.md    - Documentation format
-     • scan_summary.txt   - Terminal-friendly summary
-
-EXAMPLES:
-  ipcrawler -t example.com                    # Basic scan with default config
-  ipcrawler -t 192.168.1.1 -c network        # Network-focused scan
-  ipcrawler -t example.com -o /tmp/scan/      # Custom output directory
-  ipcrawler --paths                           # Show all directory paths
-  ipcrawler --list                            # List available profiles
-  ipcrawler --doctor                          # Check tool dependencies
-
-ENHANCED FEATURES:
-  📖 Interactive Summary Viewing:
-     After each scan, optionally view the markdown summary with the 'see' tool
-     Opens in new terminal window (130x60) with syntax highlighting
-     Install with: cargo install see-cat
-
-For detailed path information: ipcrawler --paths"#)]
+#[command(author = "Security Professionals")]
+#[command(version = "1.0.0")]
+#[command(about = "Modern IP Reconnaissance & Security Scanner")]
+#[command(disable_help_flag = true)]
+#[command(disable_version_flag = true)]
 pub struct Cli {
-    #[arg(short = 't', long = "target", help = "IP address or hostname to scan", required_unless_present_any = ["validate", "paths", "list_tools", "resume", "doctor", "update", "list"])]
+    /// Target specification - IP address, hostname, or CIDR range
+    #[arg(short = 't', long = "target", help = "Target to scan (IP, hostname, or CIDR range)", required_unless_present_any = ["validate", "paths", "list_tools", "resume", "doctor", "update", "list", "help", "version"])]
     pub target: Option<String>,
 
-    #[arg(short = 'c', long = "config", default_value = "default", help = "Configuration profile names or file paths (comma-separated for multiple configs)", value_delimiter = ',')]
+    /// Scan configuration profiles
+    #[arg(short = 'c', long = "config", default_value = "default", help = "Configuration profile(s) - comma-separated for multiple", value_delimiter = ',')]
     pub config: Vec<String>,
 
-    #[arg(short = 'o', long = "output", help = "Output directory (default: ./recon-results/)")]
+    /// Output directory customization  
+    #[arg(short = 'o', long = "output", help = "Custom output directory (default: ./recon-results/)")]
     pub output: Option<PathBuf>,
 
-    #[arg(short = 'd', long = "debug", help = "Enable debug mode")]
+    /// Debug mode for troubleshooting
+    #[arg(short = 'd', long = "debug", help = "Enable detailed debug logging and error traces")]
     pub debug: bool,
 
-    #[arg(short = 'v', long = "verbose", help = "Verbose output")]
+    /// Verbose output mode
+    #[arg(short = 'v', long = "verbose", help = "Show detailed progress tables and tool output")]
     pub verbose: bool,
 
-    #[arg(long = "validate", help = "Validate configuration file and exit")]
+    /// Configuration validation
+    #[arg(long = "validate", help = "Validate configuration files and exit")]
     pub validate: bool,
 
-    #[arg(long = "paths", help = "Show directory paths for configs, data, and outputs")]
+    /// Show system paths
+    #[arg(long = "paths", help = "Display all config, data, and output directory paths")]
     pub paths: bool,
 
-    #[arg(long = "resume", help = "Resume interrupted scan from output directory")]
+    /// Resume interrupted scans
+    #[arg(long = "resume", help = "Resume interrupted scan from specified output directory")]
     pub resume: Option<PathBuf>,
 
-    #[arg(long = "dry-run", help = "Show what would be executed without running tools")]
+    /// Preview mode (no execution)
+    #[arg(long = "dry-run", help = "Preview commands without executing (simulation mode)")]
     pub dry_run: bool,
 
-    #[arg(long = "list-tools", help = "List available tools from configuration")]
+    /// List available tools
+    #[arg(long = "list-tools", help = "Show all configured security tools and status")]
     pub list_tools: bool,
 
-    #[arg(short = 'p', long = "profile", help = "Quick profile selection (alternative to --config)")]
+    /// Quick profile selection
+    #[arg(short = 'p', long = "profile", help = "Quick profile selection (basic, full, stealth, web, network)")]
     pub profile: Option<String>,
 
+    /// System health check
     #[arg(long = "doctor", help = "Check system dependencies and tool availability")]
     pub doctor: bool,
 
+    /// Update tool
     #[arg(long = "update", help = "Update ipcrawler to the latest version")]
     pub update: bool,
 
-    #[arg(short = 'l', long = "list", help = "List all available configuration profiles with descriptions")]
+    /// Browse available profiles
+    #[arg(short = 'l', long = "list", help = "List all available configuration profiles")]
     pub list: bool,
 
-    #[arg(long = "no-emergency-stop", help = "Disable emergency stop on tool failures (continue execution)")]
+    /// Disable failure handling
+    #[arg(long = "no-emergency-stop", help = "Continue execution even if tools fail or timeout")]
     pub no_emergency_stop: bool,
 
-    #[arg(long = "no-notifications", help = "Disable desktop notifications")]
+    /// Disable notifications
+    #[arg(long = "no-notifications", help = "Disable desktop notifications during scanning")]
     pub no_notifications: bool,
+
+    /// Show help message
+    #[arg(short = 'h', long = "help", help = "Print help")]
+    pub help: bool,
+
+    /// Show version
+    #[arg(short = 'V', long = "version", help = "Print version")]
+    pub version: bool,
 }

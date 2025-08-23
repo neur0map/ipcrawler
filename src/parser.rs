@@ -44,7 +44,7 @@ impl GenericParser {
             // Port discovery patterns (host:port format)
             ParsingPattern {
                 name: "port_host_colon".to_string(),
-                regex: Regex::new(r"([^:\s]+):(\d+)").unwrap(),
+                regex: Regex::new(r"([^:\s]+):(\d+)").expect("Invalid regex for host_port pattern"),
                 discovery_type: "port".to_string(),
                 confidence: 0.9,
                 metadata_extractors: vec![
@@ -56,7 +56,7 @@ impl GenericParser {
             // Nmap service detection (80/tcp open http nginx)
             ParsingPattern {
                 name: "nmap_service".to_string(),
-                regex: Regex::new(r"(\d+)/(tcp|udp)\s+(\w+)\s+(\w+)(?:\s+(.+))?").unwrap(),
+                regex: Regex::new(r"(\d+)/(tcp|udp)\s+(\w+)\s+(\w+)(?:\s+(.+))?").expect("Invalid regex for nmap_service pattern"),
                 discovery_type: "service".to_string(),
                 confidence: 0.95,
                 metadata_extractors: vec![
@@ -71,7 +71,7 @@ impl GenericParser {
             // Generic port/protocol pattern (80/tcp, 443/udp)
             ParsingPattern {
                 name: "port_protocol".to_string(),
-                regex: Regex::new(r"(\d+)/(tcp|udp)").unwrap(),
+                regex: Regex::new(r"(\d+)/(tcp|udp)").expect("Invalid regex for port_protocol pattern"),
                 discovery_type: "port".to_string(),
                 confidence: 0.8,
                 metadata_extractors: vec![
@@ -83,7 +83,7 @@ impl GenericParser {
             // HTTP status responses (200 OK, 404 Not Found)
             ParsingPattern {
                 name: "http_status".to_string(),
-                regex: Regex::new(r"HTTP/[\d.]+\s+(\d+)\s+([^\r\n]+)").unwrap(),
+                regex: Regex::new(r"HTTP/[\d.]+\s+(\d+)\s+([^\r\n]+)").expect("Invalid regex for http_status pattern"),
                 discovery_type: "custom".to_string(),
                 confidence: 0.7,
                 metadata_extractors: vec![
@@ -96,7 +96,7 @@ impl GenericParser {
             // Directory/file paths (/admin, /login, etc.)
             ParsingPattern {
                 name: "directory_path".to_string(),
-                regex: Regex::new(r"\s+(\d+)\s+(/.+?)(?:\s|$)").unwrap(),
+                regex: Regex::new(r"\s+(\d+)\s+(/.+?)(?:\s|$)").expect("Invalid regex for directory_path pattern"),
                 discovery_type: "directory".to_string(),
                 confidence: 0.6,
                 metadata_extractors: vec![
@@ -227,13 +227,6 @@ impl GenericParser {
         })
     }
 
-    pub fn add_pattern(&mut self, pattern: ParsingPattern) {
-        self.patterns.push(pattern);
-    }
-
-    pub fn get_patterns(&self) -> &[ParsingPattern] {
-        &self.patterns
-    }
 }
 
 impl Default for GenericParser {

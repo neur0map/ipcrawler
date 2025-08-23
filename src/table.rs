@@ -1,6 +1,7 @@
 use comfy_table::{Table, Cell, Attribute, Color, ContentArrangement};
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use crate::gradient::gradient_ports;
 
 pub struct TableBuilder {
     table: Table,
@@ -32,7 +33,7 @@ impl TableBuilder {
         builder.table.add_row(vec![
             Cell::new("Ports").fg(Color::Green),
             Cell::new(ports.len().to_string()),
-            Cell::new(ports.join(", ")),
+            Cell::new(gradient_ports(&ports.join(", "))),
         ]);
         
         builder.table.add_row(vec![

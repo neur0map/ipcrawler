@@ -28,24 +28,7 @@ impl ProgressManager {
         }
     }
     
-    /// Get a clone of the MultiProgress instance for sharing across threads
-    pub fn get_multi(&self) -> Arc<MultiProgress> {
-        self.multi.clone()
-    }
 
-    /// Create the main overall progress bar
-    pub fn create_overall_progress(&self, total_tools: u64) -> ProgressBar {
-        let pb = self.multi.add(ProgressBar::new(total_tools));
-        pb.set_style(
-            ProgressStyle::with_template(
-                "[{elapsed_precise}] {bar:40.green/black} {percent:>3}% • {pos}/{len} tools completed"
-            )
-            .unwrap()
-            .progress_chars("█▉▊▋▌▍▎▏  ")
-        );
-        *self.overall_bar.lock().unwrap() = Some(pb.clone());
-        pb
-    }
 
     /// Create the discovery summary bar
     pub fn create_discovery_bar(&self) -> ProgressBar {
@@ -54,25 +37,19 @@ impl ProgressManager {
             ProgressStyle::with_template(
                 "Discovery: {msg}"
             )
-            .unwrap()
+            .expect("Failed to create progress style")
         );
         pb.set_message("0 ports • 0 services • 0 vulnerabilities");
         *self.discovery_bar.lock().unwrap() = Some(pb.clone());
         pb
     }
     
-    /// Update discovery statistics
-    pub fn update_discovery(&self, ports: usize, services: usize, vulns: usize) {
-        if let Some(ref bar) = *self.discovery_bar.lock().unwrap() {
-            bar.set_message(format!("{} ports • {} services • {} vulnerabilities", 
-                ports, services, vulns));
-        }
-    }
     
     /// Add discovered ports and update display
     pub fn add_discovered_ports(&self, new_ports: Vec<u16>) {
         if new_ports.is_empty() { return; }
         
+        // Single atomic operation to avoid race conditions
         let mut ports = self.discovered_ports.lock().unwrap();
         let mut updated = false;
         
@@ -83,12 +60,18 @@ impl ProgressManager {
         }
         
         if updated {
+            let port_count = ports.len();
+            drop(ports); // Release lock before acquiring others
+            
             let services = self.discovered_services.lock().unwrap();
+            let service_count = services.len();
+            drop(services);
+            
             let vulns = *self.discovered_vulns.lock().unwrap();
             
             if let Some(ref bar) = *self.discovery_bar.lock().unwrap() {
                 bar.set_message(format!("{} ports • {} services • {} vulnerabilities", 
-                    ports.len(), services.len(), vulns));
+                    port_count, service_count, vulns));
             }
         }
     }
@@ -97,6 +80,7 @@ impl ProgressManager {
     pub fn add_discovered_services(&self, new_services: Vec<String>) {
         if new_services.is_empty() { return; }
         
+        // Single atomic operation to avoid race conditions
         let mut services = self.discovered_services.lock().unwrap();
         let mut updated = false;
         
@@ -107,37 +91,50 @@ impl ProgressManager {
         }
         
         if updated {
+            let service_count = services.len();
+            drop(services); // Release lock before acquiring others
+            
             let ports = self.discovered_ports.lock().unwrap();
+            let port_count = ports.len();
+            drop(ports);
+            
             let vulns = *self.discovered_vulns.lock().unwrap();
             
             if let Some(ref bar) = *self.discovery_bar.lock().unwrap() {
                 bar.set_message(format!("{} ports • {} services • {} vulnerabilities", 
-                    ports.len(), services.len(), vulns));
+                    port_count, service_count, vulns));
             }
         }
     }
-
-    /// Create the main initialization progress bar
-    pub fn create_main_progress(&self, total_steps: u64, message: &str) -> ProgressBar {
-        let pb = self.multi.add(ProgressBar::new(total_steps));
-        pb.set_style(
-            ProgressStyle::with_template(
-                "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}"
-            )
-            .unwrap()
-            .progress_chars("█▉▊▋▌▍▎▏  ")
-        );
-        pb.set_message(message.to_string());
-        *self.main_bar.lock().unwrap() = Some(pb.clone());
-        pb
+    
+    /// Add discovered vulnerabilities and update display
+    pub fn add_discovered_vulns(&self, vuln_count: usize) {
+        let mut vulns = self.discovered_vulns.lock().unwrap();
+        *vulns += vuln_count;
+        let total_vulns = *vulns;
+        drop(vulns);
+        
+        let ports = self.discovered_ports.lock().unwrap();
+        let port_count = ports.len();
+        drop(ports);
+        
+        let services = self.discovered_services.lock().unwrap();
+        let service_count = services.len();
+        drop(services);
+        
+        if let Some(ref bar) = *self.discovery_bar.lock().unwrap() {
+            bar.set_message(format!("{} ports • {} services • {} vulnerabilities", 
+                port_count, service_count, total_vulns));
+        }
     }
+
 
     /// Create a spinner for ongoing operations with modern style
     pub fn create_spinner(&self, message: &str) -> ProgressBar {
         let spinner = self.multi.add(ProgressBar::new_spinner());
         spinner.set_style(
             ProgressStyle::with_template("{spinner:.blue} [{elapsed_precise}] {msg}")
-                .unwrap()
+                .expect("Failed to create progress style")
                 .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
         );
         spinner.set_message(message.to_string());
@@ -145,33 +142,7 @@ impl ProgressManager {
         spinner
     }
 
-    /// Create a progress bar for tool execution with modern styling
-    pub fn create_tool_progress(&self, tool_name: &str, timeout_secs: u64) -> ProgressBar {
-        let pb = self.multi.add(ProgressBar::new(timeout_secs));
-        pb.set_style(
-            ProgressStyle::with_template(
-                "[{elapsed_precise}] {bar:40.cyan/blue} {percent:>3}% {msg}"
-            )
-            .unwrap()
-            .progress_chars("█▉▊▋▌▍▎▏  ")
-        );
-        pb.set_message(format!("{}: initializing", tool_name));
-        pb
-    }
     
-    /// Create a tool progress bar with custom length (for known operations)
-    pub fn create_tool_progress_with_len(&self, tool_name: &str, len: u64) -> ProgressBar {
-        let pb = self.multi.add(ProgressBar::new(len));
-        pb.set_style(
-            ProgressStyle::with_template(
-                "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}"
-            )
-            .unwrap()
-            .progress_chars("█▉▊▋▌▍▎▏  ")
-        );
-        pb.set_message(format!("{}: processing", tool_name));
-        pb
-    }
 
     /// Create a simple status line (replaces println! for status messages)
     pub fn print_status(&self, status: &str, message: &str, color: colored::Color) {
@@ -249,29 +220,7 @@ impl ProgressManager {
         *self.discovery_bar.lock().unwrap() = None;
     }
 
-    /// Get the underlying MultiProgress for advanced usage
-    pub fn multi_progress(&self) -> &MultiProgress {
-        &self.multi
-    }
 
-    /// Force clear all progress bars immediately (for emergency cleanup)
-    pub fn clear_all(&self) {
-        // Abandon any active bars instead of finishing them
-        if let Some(ref main_bar) = *self.main_bar.lock().unwrap() {
-            main_bar.abandon();
-        }
-        if let Some(ref overall_bar) = *self.overall_bar.lock().unwrap() {
-            overall_bar.abandon();
-        }
-        if let Some(ref discovery_bar) = *self.discovery_bar.lock().unwrap() {
-            discovery_bar.abandon();
-        }
-        
-        // Clear the internal references
-        *self.main_bar.lock().unwrap() = None;
-        *self.overall_bar.lock().unwrap() = None;
-        *self.discovery_bar.lock().unwrap() = None;
-    }
 
     /// Prompt user for Y/N input with default to 'n'
     pub fn prompt_user_yn(&self, question: &str, default_yes: bool) -> bool {
@@ -297,43 +246,3 @@ impl ProgressManager {
     }
 }
 
-/// Tool execution progress tracker
-pub struct ToolProgressTracker {
-    progress_bar: ProgressBar,
-    tool_name: String,
-    start_time: std::time::Instant,
-}
-
-impl ToolProgressTracker {
-    pub fn new(progress_manager: &ProgressManager, tool_name: &str, timeout_secs: u64) -> Self {
-        let progress_bar = progress_manager.create_tool_progress(tool_name, timeout_secs);
-        Self {
-            progress_bar,
-            tool_name: tool_name.to_string(),
-            start_time: std::time::Instant::now(),
-        }
-    }
-
-    pub fn update_progress(&self, elapsed_secs: u64) {
-        self.progress_bar.set_position(elapsed_secs);
-    }
-
-    pub fn finish_success(&self) {
-        let duration = self.start_time.elapsed();
-        self.progress_bar.finish_with_message(
-            format!("{} completed in {:.2}s", self.tool_name, duration.as_secs_f64())
-        );
-    }
-
-    pub fn finish_error(&self, error: &str) {
-        self.progress_bar.finish_with_message(
-            format!("{} failed: {}", self.tool_name, error)
-        );
-    }
-
-    pub fn abandon(&self, reason: &str) {
-        self.progress_bar.abandon_with_message(
-            format!("{} abandoned: {}", self.tool_name, reason)
-        );
-    }
-}

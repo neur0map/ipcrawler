@@ -4,19 +4,21 @@ This document explains how ipcrawler manages output directories in different env
 
 ## Automatic Output Directory Selection
 
-ipcrawler automatically selects appropriate output directories based on the execution context:
+ipcrawler automatically selects appropriate output directories based on smart context detection:
 
-### Development Mode
+### Development Context
 **When:** Running from project directory (where `Cargo.toml` exists)  
 **Output Directory:** `./recon-results/`  
-**Purpose:** Local development and testing
+**Purpose:** Local development, testing, and project-based scanning
 
-### Production Mode  
-**When:** Binary installed system-wide (via `cargo install`)  
+### System Installation Context
+**When:** Binary installed system-wide and run outside project directory  
 **Output Directory:** User data directory (XDG-compliant)
-- **macOS:** `~/Library/Application Support/ipcrawler/results/`
-- **Linux:** `~/.local/share/ipcrawler/results/` 
-- **Windows:** `%APPDATA%\ipcrawler\results\`
+- **macOS:** `~/Library/Application Support/io.recon-tool.recon-tool/results/`
+- **Linux:** `~/.local/share/io.recon-tool.recon-tool/results/` 
+- **Windows:** `%APPDATA%\io.recon-tool.recon-tool\results\`
+
+**Note:** Both contexts have identical features and UI - only the output path differs.
 
 ## Custom Output Paths
 
