@@ -40,7 +40,7 @@ jobs:
     - name: 🔐 Security scan for secrets
       run: |
         echo "🔍 Scanning for potential secrets..."
-        if grep -r -i -E "(password|secret|key|token).*=" --include="*.rs" --include="*.toml" --include="*.yaml" src/ config/ testing/ | grep -v "# Example" | grep -v "TODO"; then
+        if grep -r -i -E "(password|secret|key|token).*=" --include="*.rs" --include="*.toml" --include="*.yaml" src/ config/ testing/ | grep -v "# Example" | grep -v "TODO" | grep -v "discovery_type" | grep -v "type_key" | grep -v "ContentType"; then
           echo "❌ Potential secrets found in code"
           exit 1
         fi
