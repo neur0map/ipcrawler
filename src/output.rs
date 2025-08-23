@@ -61,12 +61,32 @@ pub struct Discovery {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum DiscoveryType {
-    Port { number: u16, protocol: String },
-    Service { port: u16, protocol: String, name: String, version: Option<String> },
-    Host { hostname: String, ip: Option<String> },
-    Vulnerability { severity: String, cve: Option<String> },
-    Directory { path: String, status: u16 },
-    Custom { category: String, subcategory: Option<String> },
+    Port {
+        number: u16,
+        protocol: String,
+    },
+    Service {
+        port: u16,
+        protocol: String,
+        name: String,
+        version: Option<String>,
+    },
+    Host {
+        hostname: String,
+        ip: Option<String>,
+    },
+    Vulnerability {
+        severity: String,
+        cve: Option<String>,
+    },
+    Directory {
+        path: String,
+        status: u16,
+    },
+    Custom {
+        category: String,
+        subcategory: Option<String>,
+    },
 }
 
 // Raw tool output storage
@@ -114,9 +134,9 @@ impl ReportGenerator {
         let templates_dir = std::env::current_dir()
             .unwrap_or_else(|_| PathBuf::from("."))
             .join("templates");
-        
+
         let template_engine = crate::template::TemplateEngine::new(templates_dir).ok();
-        
+
         Self {
             target,
             start_time: Utc::now(),
@@ -127,7 +147,10 @@ impl ReportGenerator {
         }
     }
 
-    pub fn generate_summary_report(&self, results: &[ToolResult]) -> Result<ScanSummary, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn generate_summary_report(
+        &self,
+        results: &[ToolResult],
+    ) -> Result<ScanSummary, Box<dyn std::error::Error + Send + Sync>> {
         let end_time = Utc::now();
         let duration = end_time.signed_duration_since(self.start_time);
 
@@ -142,10 +165,10 @@ impl ReportGenerator {
 
         let execution_stats = self.calculate_execution_stats(results)?;
         let tool_results = self.convert_tool_results(results)?;
-        
+
         // Use generic parser to extract discoveries from all tool outputs
         let (discoveries, raw_outputs, parsing_metadata) = self.parse_all_outputs(results)?;
-        
+
         let failed_tools = self.extract_failed_tools(results);
 
         Ok(ScanSummary {
@@ -160,28 +183,34 @@ impl ReportGenerator {
     }
 
     // New multi-format templated report generation
-    pub fn save_report(&mut self, summary: &ScanSummary, format: crate::template::OutputFormat) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn save_report(
+        &mut self,
+        summary: &ScanSummary,
+        format: crate::template::OutputFormat,
+    ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
         let filename = format!("scan_summary.{}", format.extension());
         let report_path = self.output_dir.join(filename);
-        
+
         let content = if let Some(ref mut engine) = self.template_engine {
             engine.render_summary(summary, format, None)?
         } else {
             // Fallback to basic JSON serialization if no template engine
             serde_json::to_string_pretty(summary)?
         };
-        
+
         fs::write(&report_path, content)?;
         Ok(report_path)
     }
 
-
-    fn calculate_execution_stats(&self, results: &[ToolResult]) -> Result<ExecutionStats, Box<dyn std::error::Error + Send + Sync>> {
+    fn calculate_execution_stats(
+        &self,
+        results: &[ToolResult],
+    ) -> Result<ExecutionStats, Box<dyn std::error::Error + Send + Sync>> {
         let total_tools = results.len();
         let successful_tools = results.iter().filter(|r| r.exit_code == 0).count();
         let failed_tools = total_tools - successful_tools;
         let tools_with_output = results.iter().filter(|r| r.has_output).count();
-        
+
         let mut total_output_size = 0u64;
         for result in results {
             if let Ok(metadata) = fs::metadata(&result.stdout_file) {
@@ -198,7 +227,10 @@ impl ReportGenerator {
         })
     }
 
-    fn convert_tool_results(&self, results: &[ToolResult]) -> Result<Vec<ToolResultSummary>, Box<dyn std::error::Error + Send + Sync>> {
+    fn convert_tool_results(
+        &self,
+        results: &[ToolResult],
+    ) -> Result<Vec<ToolResultSummary>, Box<dyn std::error::Error + Send + Sync>> {
         let mut summaries = Vec::new();
 
         for result in results {
@@ -220,7 +252,17 @@ impl ReportGenerator {
         Ok(summaries)
     }
 
-    fn parse_all_outputs(&self, results: &[ToolResult]) -> Result<(Vec<Discovery>, HashMap<String, RawToolOutput>, ParsingMetadata), Box<dyn std::error::Error + Send + Sync>> {
+    fn parse_all_outputs(
+        &self,
+        results: &[ToolResult],
+    ) -> Result<
+        (
+            Vec<Discovery>,
+            HashMap<String, RawToolOutput>,
+            ParsingMetadata,
+        ),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
         let mut all_discoveries = Vec::new();
         let mut raw_outputs = HashMap::new();
         let mut total_lines = 0u64;
@@ -232,13 +274,13 @@ impl ReportGenerator {
             // Read stdout content
             let stdout_content = fs::read_to_string(&result.stdout_file).unwrap_or_default();
             let stderr_content = fs::read_to_string(&result.stderr_file).unwrap_or_default();
-            
+
             // Parse discoveries using generic parser
             let parse_result = self.parser.parse_output(&stdout_content, &result.tool_name);
-            
+
             // Collect discoveries
             all_discoveries.extend(parse_result.discoveries);
-            
+
             // Update parsing statistics
             total_lines += parse_result.metadata.total_lines_processed;
             total_successful += parse_result.metadata.successful_extractions;
@@ -246,31 +288,41 @@ impl ReportGenerator {
             for pattern in &parse_result.metadata.patterns_used {
                 all_patterns.insert(pattern.clone());
             }
-            
+
             // Store raw output
             let file_paths = vec![
                 result.stdout_file.to_string_lossy().to_string(),
                 result.stderr_file.to_string_lossy().to_string(),
             ];
-            
+
             let parsing_errors = if parse_result.metadata.failed_extractions > 0 {
-                vec![format!("Failed to parse {} lines", parse_result.metadata.failed_extractions)]
+                vec![format!(
+                    "Failed to parse {} lines",
+                    parse_result.metadata.failed_extractions
+                )]
             } else {
                 vec![]
             };
-            
-            raw_outputs.insert(result.tool_name.clone(), RawToolOutput {
-                stdout: if stdout_content.len() > 10000 { 
-                    format!("{}... (truncated from {} chars)", &stdout_content[..10000], stdout_content.len())
-                } else {
-                    stdout_content.clone()
+
+            raw_outputs.insert(
+                result.tool_name.clone(),
+                RawToolOutput {
+                    stdout: if stdout_content.len() > 10000 {
+                        format!(
+                            "{}... (truncated from {} chars)",
+                            &stdout_content[..10000],
+                            stdout_content.len()
+                        )
+                    } else {
+                        stdout_content.clone()
+                    },
+                    stderr: stderr_content,
+                    file_paths,
+                    size_bytes: stdout_content.len() as u64,
+                    parsed_success: parse_result.metadata.failed_extractions == 0,
+                    parsing_errors,
                 },
-                stderr: stderr_content,
-                file_paths,
-                size_bytes: stdout_content.len() as u64,
-                parsed_success: parse_result.metadata.failed_extractions == 0,
-                parsing_errors,
-            });
+            );
         }
 
         let parsing_metadata = ParsingMetadata {
@@ -292,7 +344,10 @@ impl ReportGenerator {
             .map(|r| FailedTool {
                 name: r.tool_name.clone(),
                 command: "N/A".to_string(), // Command not stored in ToolResult
-                error: r.error.clone().unwrap_or_else(|| format!("Process exited with code {}", r.exit_code)),
+                error: r
+                    .error
+                    .clone()
+                    .unwrap_or_else(|| format!("Process exited with code {}", r.exit_code)),
                 exit_code: r.exit_code,
                 suggested_fix: self.suggest_fix_for_tool(&r.tool_name, r.exit_code),
             })

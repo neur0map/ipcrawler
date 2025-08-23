@@ -48,60 +48,116 @@ impl GenericParser {
                 discovery_type: "port".to_string(),
                 confidence: 0.9,
                 metadata_extractors: vec![
-                    MetadataExtractor { key: "host".to_string(), group_index: 1, transform: None },
-                    MetadataExtractor { key: "port".to_string(), group_index: 2, transform: None },
+                    MetadataExtractor {
+                        key: "host".to_string(),
+                        group_index: 1,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "port".to_string(),
+                        group_index: 2,
+                        transform: None,
+                    },
                 ],
             },
-            
             // Nmap service detection (80/tcp open http nginx)
             ParsingPattern {
                 name: "nmap_service".to_string(),
-                regex: Regex::new(r"(\d+)/(tcp|udp)\s+(\w+)\s+(\w+)(?:\s+(.+))?").expect("Invalid regex for nmap_service pattern"),
+                regex: Regex::new(r"(\d+)/(tcp|udp)\s+(\w+)\s+(\w+)(?:\s+(.+))?")
+                    .expect("Invalid regex for nmap_service pattern"),
                 discovery_type: "service".to_string(),
                 confidence: 0.95,
                 metadata_extractors: vec![
-                    MetadataExtractor { key: "port".to_string(), group_index: 1, transform: None },
-                    MetadataExtractor { key: "protocol".to_string(), group_index: 2, transform: None },
-                    MetadataExtractor { key: "state".to_string(), group_index: 3, transform: None },
-                    MetadataExtractor { key: "service".to_string(), group_index: 4, transform: None },
-                    MetadataExtractor { key: "version".to_string(), group_index: 5, transform: None },
+                    MetadataExtractor {
+                        key: "port".to_string(),
+                        group_index: 1,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "protocol".to_string(),
+                        group_index: 2,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "state".to_string(),
+                        group_index: 3,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "service".to_string(),
+                        group_index: 4,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "version".to_string(),
+                        group_index: 5,
+                        transform: None,
+                    },
                 ],
             },
-
             // Generic port/protocol pattern (80/tcp, 443/udp)
             ParsingPattern {
                 name: "port_protocol".to_string(),
-                regex: Regex::new(r"(\d+)/(tcp|udp)").expect("Invalid regex for port_protocol pattern"),
+                regex: Regex::new(r"(\d+)/(tcp|udp)")
+                    .expect("Invalid regex for port_protocol pattern"),
                 discovery_type: "port".to_string(),
                 confidence: 0.8,
                 metadata_extractors: vec![
-                    MetadataExtractor { key: "port".to_string(), group_index: 1, transform: None },
-                    MetadataExtractor { key: "protocol".to_string(), group_index: 2, transform: None },
+                    MetadataExtractor {
+                        key: "port".to_string(),
+                        group_index: 1,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "protocol".to_string(),
+                        group_index: 2,
+                        transform: None,
+                    },
                 ],
             },
-
             // HTTP status responses (200 OK, 404 Not Found)
             ParsingPattern {
                 name: "http_status".to_string(),
-                regex: Regex::new(r"HTTP/[\d.]+\s+(\d+)\s+([^\r\n]+)").expect("Invalid regex for http_status pattern"),
+                regex: Regex::new(r"HTTP/[\d.]+\s+(\d+)\s+([^\r\n]+)")
+                    .expect("Invalid regex for http_status pattern"),
                 discovery_type: "custom".to_string(),
                 confidence: 0.7,
                 metadata_extractors: vec![
-                    MetadataExtractor { key: "status_code".to_string(), group_index: 1, transform: None },
-                    MetadataExtractor { key: "status_text".to_string(), group_index: 2, transform: None },
-                    MetadataExtractor { key: "category".to_string(), group_index: 0, transform: Some("http_response".to_string()) },
+                    MetadataExtractor {
+                        key: "status_code".to_string(),
+                        group_index: 1,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "status_text".to_string(),
+                        group_index: 2,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "category".to_string(),
+                        group_index: 0,
+                        transform: Some("http_response".to_string()),
+                    },
                 ],
             },
-
             // Directory/file paths (/admin, /login, etc.)
             ParsingPattern {
                 name: "directory_path".to_string(),
-                regex: Regex::new(r"\s+(\d+)\s+(/.+?)(?:\s|$)").expect("Invalid regex for directory_path pattern"),
+                regex: Regex::new(r"\s+(\d+)\s+(/.+?)(?:\s|$)")
+                    .expect("Invalid regex for directory_path pattern"),
                 discovery_type: "directory".to_string(),
                 confidence: 0.6,
                 metadata_extractors: vec![
-                    MetadataExtractor { key: "status".to_string(), group_index: 1, transform: None },
-                    MetadataExtractor { key: "path".to_string(), group_index: 2, transform: None },
+                    MetadataExtractor {
+                        key: "status".to_string(),
+                        group_index: 1,
+                        transform: None,
+                    },
+                    MetadataExtractor {
+                        key: "path".to_string(),
+                        group_index: 2,
+                        transform: None,
+                    },
                 ],
             },
         ]
@@ -116,7 +172,7 @@ impl GenericParser {
 
         for line in content.lines() {
             total_lines += 1;
-            
+
             for pattern in &self.patterns {
                 if let Some(captures) = pattern.regex.captures(line) {
                     match self.create_discovery_from_pattern(pattern, &captures, tool_name, line) {
@@ -144,7 +200,10 @@ impl GenericParser {
             parsing_timestamp: Utc::now(),
         };
 
-        ParseResult { discoveries, metadata }
+        ParseResult {
+            discoveries,
+            metadata,
+        }
     }
 
     fn create_discovery_from_pattern(
@@ -155,7 +214,7 @@ impl GenericParser {
         original_line: &str,
     ) -> Result<Discovery, Box<dyn std::error::Error>> {
         let mut metadata = HashMap::new();
-        
+
         // Extract metadata using the defined extractors
         for extractor in &pattern.metadata_extractors {
             if let Some(matched) = captures.get(extractor.group_index) {
@@ -173,44 +232,87 @@ impl GenericParser {
             "port" => {
                 let port_str = metadata.get("port").and_then(|v| v.as_str()).unwrap_or("0");
                 let port: u16 = port_str.parse().unwrap_or(0);
-                let protocol = metadata.get("protocol").and_then(|v| v.as_str()).unwrap_or("tcp").to_string();
-                
-                DiscoveryType::Port { number: port, protocol }
+                let protocol = metadata
+                    .get("protocol")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("tcp")
+                    .to_string();
+
+                DiscoveryType::Port {
+                    number: port,
+                    protocol,
+                }
             }
             "service" => {
                 let port_str = metadata.get("port").and_then(|v| v.as_str()).unwrap_or("0");
                 let port: u16 = port_str.parse().unwrap_or(0);
-                let protocol = metadata.get("protocol").and_then(|v| v.as_str()).unwrap_or("tcp").to_string();
-                let name = metadata.get("service").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-                let version = metadata.get("version").and_then(|v| v.as_str()).map(|s| s.to_string());
-                
-                DiscoveryType::Service { port, protocol, name, version }
+                let protocol = metadata
+                    .get("protocol")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("tcp")
+                    .to_string();
+                let name = metadata
+                    .get("service")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let version = metadata
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                DiscoveryType::Service {
+                    port,
+                    protocol,
+                    name,
+                    version,
+                }
             }
             "directory" => {
-                let path = metadata.get("path").and_then(|v| v.as_str()).unwrap_or("/").to_string();
-                let status_str = metadata.get("status").and_then(|v| v.as_str()).unwrap_or("0");
+                let path = metadata
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("/")
+                    .to_string();
+                let status_str = metadata
+                    .get("status")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("0");
                 let status: u16 = status_str.parse().unwrap_or(0);
-                
+
                 DiscoveryType::Directory { path, status }
             }
             "custom" => {
-                let category = metadata.get("category").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-                let subcategory = metadata.get("subcategory").and_then(|v| v.as_str()).map(|s| s.to_string());
-                
-                DiscoveryType::Custom { category, subcategory }
-            }
-            _ => {
-                DiscoveryType::Custom { 
-                    category: pattern.discovery_type.clone(),
-                    subcategory: None 
+                let category = metadata
+                    .get("category")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let subcategory = metadata
+                    .get("subcategory")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                DiscoveryType::Custom {
+                    category,
+                    subcategory,
                 }
             }
+            _ => DiscoveryType::Custom {
+                category: pattern.discovery_type.clone(),
+                subcategory: None,
+            },
         };
 
         // Create value string representation
         let value = match &discovery_type {
             DiscoveryType::Port { number, protocol } => format!("{}:{}", protocol, number),
-            DiscoveryType::Service { port, protocol, name, .. } => format!("{}:{}/{}", name, port, protocol),
+            DiscoveryType::Service {
+                port,
+                protocol,
+                name,
+                ..
+            } => format!("{}:{}/{}", name, port, protocol),
             DiscoveryType::Directory { path, status } => format!("{} ({})", path, status),
             DiscoveryType::Custom { category, .. } => category.clone(),
             _ => original_line.to_string(),
@@ -226,7 +328,6 @@ impl GenericParser {
             timestamp: Utc::now(),
         })
     }
-
 }
 
 impl Default for GenericParser {

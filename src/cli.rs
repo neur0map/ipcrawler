@@ -14,19 +14,37 @@ pub struct Cli {
     pub target: Option<String>,
 
     /// Scan configuration profiles
-    #[arg(short = 'c', long = "config", default_value = "default", help = "Configuration profile(s) - comma-separated for multiple", value_delimiter = ',')]
+    #[arg(
+        short = 'c',
+        long = "config",
+        default_value = "default",
+        help = "Configuration profile(s) - comma-separated for multiple",
+        value_delimiter = ','
+    )]
     pub config: Vec<String>,
 
     /// Output directory customization  
-    #[arg(short = 'o', long = "output", help = "Custom output directory (default: ./recon-results/)")]
+    #[arg(
+        short = 'o',
+        long = "output",
+        help = "Custom output directory (default: ./recon-results/)"
+    )]
     pub output: Option<PathBuf>,
 
     /// Debug mode for troubleshooting
-    #[arg(short = 'd', long = "debug", help = "Enable detailed debug logging and error traces")]
+    #[arg(
+        short = 'd',
+        long = "debug",
+        help = "Enable detailed debug logging and error traces"
+    )]
     pub debug: bool,
 
     /// Verbose output mode
-    #[arg(short = 'v', long = "verbose", help = "Show detailed progress tables and tool output")]
+    #[arg(
+        short = 'v',
+        long = "verbose",
+        help = "Show detailed progress tables and tool output"
+    )]
     pub verbose: bool,
 
     /// Configuration validation
@@ -34,27 +52,46 @@ pub struct Cli {
     pub validate: bool,
 
     /// Show system paths
-    #[arg(long = "paths", help = "Display all config, data, and output directory paths")]
+    #[arg(
+        long = "paths",
+        help = "Display all config, data, and output directory paths"
+    )]
     pub paths: bool,
 
     /// Resume interrupted scans
-    #[arg(long = "resume", help = "Resume interrupted scan from specified output directory")]
+    #[arg(
+        long = "resume",
+        help = "Resume interrupted scan from specified output directory"
+    )]
     pub resume: Option<PathBuf>,
 
     /// Preview mode (no execution)
-    #[arg(long = "dry-run", help = "Preview commands without executing (simulation mode)")]
+    #[arg(
+        long = "dry-run",
+        help = "Preview commands without executing (simulation mode)"
+    )]
     pub dry_run: bool,
 
     /// List available tools
-    #[arg(long = "list-tools", help = "Show all configured security tools and status")]
+    #[arg(
+        long = "list-tools",
+        help = "Show all configured security tools and status"
+    )]
     pub list_tools: bool,
 
     /// Quick profile selection
-    #[arg(short = 'p', long = "profile", help = "Quick profile selection (basic, full, stealth, web, network)")]
+    #[arg(
+        short = 'p',
+        long = "profile",
+        help = "Quick profile selection (basic, full, stealth, web, network)"
+    )]
     pub profile: Option<String>,
 
     /// System health check
-    #[arg(long = "doctor", help = "Check system dependencies and tool availability")]
+    #[arg(
+        long = "doctor",
+        help = "Check system dependencies and tool availability"
+    )]
     pub doctor: bool,
 
     /// Update tool
@@ -62,15 +99,25 @@ pub struct Cli {
     pub update: bool,
 
     /// Browse available profiles
-    #[arg(short = 'l', long = "list", help = "List all available configuration profiles")]
+    #[arg(
+        short = 'l',
+        long = "list",
+        help = "List all available configuration profiles"
+    )]
     pub list: bool,
 
     /// Disable failure handling
-    #[arg(long = "no-emergency-stop", help = "Continue execution even if tools fail or timeout")]
+    #[arg(
+        long = "no-emergency-stop",
+        help = "Continue execution even if tools fail or timeout"
+    )]
     pub no_emergency_stop: bool,
 
     /// Disable notifications
-    #[arg(long = "no-notifications", help = "Disable desktop notifications during scanning")]
+    #[arg(
+        long = "no-notifications",
+        help = "Disable desktop notifications during scanning"
+    )]
     pub no_notifications: bool,
 
     /// Show help message

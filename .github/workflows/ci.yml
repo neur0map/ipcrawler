@@ -378,7 +378,7 @@ jobs:
         if ! command -v cargo-tarpaulin &> /dev/null; then
           cargo install cargo-tarpaulin
         fi
-        cargo tarpaulin --all-features --workspace --timeout 120 --out Xml
+        cargo tarpaulin --all-features --timeout 120 --out Xml --bin ipcrawler
         
     - name: 📤 Upload coverage to Codecov
       uses: codecov/codecov-action@v4
@@ -411,7 +411,7 @@ jobs:
     - name: 🧠 Run miri memory safety checks
       run: |
         cargo miri setup
-        cargo miri test --lib  # Only run lib tests, not integration tests
+        cargo miri test --bins  # Only run binary tests
       env:
         MIRIFLAGS: -Zmiri-disable-isolation
 

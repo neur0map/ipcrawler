@@ -5,7 +5,7 @@ use std::path::Path;
 mod dev_validation {
     use super::*;
     use jsonschema::{Draft, JSONSchema};
-    use schemars::{schema_for, JsonSchema};
+    use schemars::{JsonSchema, schema_for};
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use std::collections::HashMap;
@@ -17,16 +17,16 @@ mod dev_validation {
     pub enum ValidationError {
         #[error("Schema validation failed: {0}")]
         SchemaError(String),
-        
+
         #[error("YAML parsing error: {0}")]
         YamlError(#[from] serde_yaml::Error),
-        
+
         #[error("JSON schema error: {0}")]
         JsonSchemaError(String),
-        
+
         #[error("File I/O error: {0}")]
         IoError(#[from] std::io::Error),
-        
+
         #[error("Validation failed: {0}")]
         ValidationFailed(String),
     }
@@ -43,28 +43,28 @@ mod dev_validation {
                 .with_draft(Draft::Draft7)
                 .compile(schema_json)
                 .map_err(|e| ValidationError::JsonSchemaError(e.to_string()))?;
-            
+
             Ok(Self { schema: compiled })
         }
-        
+
         /// Validate a YAML string against the schema
         pub fn validate_yaml(&self, yaml_str: &str) -> Result<(), ValidationError> {
             let yaml_value: Value = serde_yaml::from_str(yaml_str)?;
             self.validate_json(&yaml_value)
         }
-        
+
         /// Validate a JSON value against the schema
         pub fn validate_json(&self, json_value: &Value) -> Result<(), ValidationError> {
             let result = self.schema.validate(json_value);
-            
+
             if let Err(errors) = result {
                 let error_messages: Vec<String> = errors
                     .map(|error| format!("{}: {}", error.instance_path, error))
                     .collect();
-                
+
                 return Err(ValidationError::SchemaError(error_messages.join(", ")));
             }
-            
+
             Ok(())
         }
     }
@@ -74,7 +74,7 @@ mod dev_validation {
     pub struct ToolsConfig {
         #[validate(length(min = 1))]
         pub tools: HashMap<String, ToolDefinition>,
-        
+
         pub generic_patterns: Option<Vec<PatternDefinition>>,
     }
 
@@ -82,12 +82,12 @@ mod dev_validation {
     pub struct ToolDefinition {
         #[validate(length(min = 1, max = 100))]
         pub name: String,
-        
+
         #[validate(length(min = 1, max = 100))]
         pub command: String,
-        
+
         pub patterns: Option<Vec<PatternDefinition>>,
-        
+
         pub install: Option<InstallInstructions>,
     }
 
@@ -95,13 +95,13 @@ mod dev_validation {
     pub struct PatternDefinition {
         #[validate(length(min = 1, max = 100))]
         pub name: String,
-        
+
         #[validate(length(min = 1))]
         pub regex: String,
-        
+
         #[serde(rename = "type")]
         pub pattern_type: String,
-        
+
         #[validate(range(min = 0.0, max = 1.0))]
         pub confidence: Option<f64>,
     }
@@ -119,7 +119,6 @@ mod dev_validation {
 #[cfg(feature = "dev-tools")]
 pub use dev_validation::*;
 
-
 /// Memory safety validator - always available for production safety
 pub struct MemoryValidator;
 
@@ -135,7 +134,7 @@ impl MemoryValidator {
         }
         Ok(())
     }
-    
+
     /// Validate string doesn't contain null bytes
     pub fn validate_string(s: &str) -> Result<()> {
         if s.contains('\0') {
@@ -143,7 +142,7 @@ impl MemoryValidator {
         }
         Ok(())
     }
-    
+
     /// Check for reasonable file sizes before reading
     pub fn validate_file_size(path: &Path, max_size: u64) -> Result<()> {
         let metadata = std::fs::metadata(path)?;
@@ -161,19 +160,19 @@ impl MemoryValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_memory_validator() {
         // Test string validation
         assert!(MemoryValidator::validate_string("normal string").is_ok());
         assert!(MemoryValidator::validate_string("string\0with\0nulls").is_err());
-        
+
         // Test collection size validation
         let small_vec = vec![1, 2, 3];
         assert!(MemoryValidator::validate_collection_size(&small_vec, 10).is_ok());
         assert!(MemoryValidator::validate_collection_size(&small_vec, 2).is_err());
     }
-    
+
     #[cfg(feature = "dev-tools")]
     #[test]
     fn test_yaml_validator() {
@@ -183,11 +182,11 @@ mod tests {
                 "name": {"type": "string"}
             }
         });
-        
+
         if let Ok(validator) = YamlValidator::new(&schema) {
             let valid_yaml = "name: test";
             assert!(validator.validate_yaml(valid_yaml).is_ok());
-            
+
             let invalid_yaml = "name: 123"; // number instead of string
             assert!(validator.validate_yaml(invalid_yaml).is_err());
         }

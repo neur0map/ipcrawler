@@ -3,7 +3,6 @@ use std::process;
 pub struct HelpDisplay;
 
 impl HelpDisplay {
-
     pub fn show_help(long_help: bool) {
         if long_help {
             show_long_help();
@@ -15,7 +14,8 @@ impl HelpDisplay {
 }
 
 fn show_short_help() {
-    println!(r#"
+    println!(
+        r#"
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                    ipcrawler - Security Scanner                            │
 └────────────────────────────────────────────────────────────────────────────┘
@@ -39,7 +39,8 @@ fn show_short_help() {
 │ --list                  │ List available profiles                         │
 │ -h, --help              │ Show this help (use --help for full details)   │
 │ -V, --version           │ Show version                                     │
-└────────────────────────────────────────────────────────────────────────────┘"#);
+└────────────────────────────────────────────────────────────────────────────┘"#
+    );
 }
 
 fn show_long_help() {
@@ -49,7 +50,8 @@ fn show_long_help() {
 // Removed separate dev/prod help functions - now unified
 
 fn show_unified_long_help() {
-        println!(r#"
+    println!(
+        r#"
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                    ipcrawler - Security Scanner                            │
 └────────────────────────────────────────────────────────────────────────────┘
@@ -104,5 +106,6 @@ ADVANCED FEATURES
   Real-time progress with gradient-colored output
   Configurable timeout and retry logic
   Emergency stop handling (Ctrl+C)
-  Comprehensive error logging and recovery"#);
+  Comprehensive error logging and recovery"#
+    );
 }

@@ -1,7 +1,7 @@
+use colored::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use colored::*;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
@@ -79,14 +79,12 @@ impl Config {
             if tool.timeout == 0 {
                 return Err(format!("Tool '{}' timeout must be greater than 0", tool.name).into());
             }
-            
+
             // Check tool availability if enabled
             if tool.enabled {
                 // Extract base command from tool.command
-                let base_cmd = tool.command.split_whitespace()
-                    .next()
-                    .unwrap_or("");
-                
+                let base_cmd = tool.command.split_whitespace().next().unwrap_or("");
+
                 if checker.find_tool_path(base_cmd).is_none() {
                     if let Some(alternative) = checker.find_alternative_tool(tool) {
                         warnings.push(format!(
@@ -102,7 +100,7 @@ impl Config {
                 }
             }
         }
-        
+
         // Print warnings but don't fail validation
         for warning in warnings {
             eprintln!("{}", warning.yellow());
@@ -112,20 +110,32 @@ impl Config {
             if chain.name.is_empty() {
                 return Err("Chain name cannot be empty".into());
             }
-            
+
             let from_exists = self.tools.iter().any(|t| t.name == chain.from);
             let to_exists = self.tools.iter().any(|t| t.name == chain.to);
-            
+
             if !from_exists {
-                return Err(format!("Chain '{}' references non-existent tool '{}'", chain.name, chain.from).into());
+                return Err(format!(
+                    "Chain '{}' references non-existent tool '{}'",
+                    chain.name, chain.from
+                )
+                .into());
             }
             if !to_exists {
-                return Err(format!("Chain '{}' references non-existent tool '{}'", chain.name, chain.to).into());
+                return Err(format!(
+                    "Chain '{}' references non-existent tool '{}'",
+                    chain.name, chain.to
+                )
+                .into());
             }
-            
+
             let valid_conditions = vec!["has_output", "exit_success", "contains", "file_size"];
             if !valid_conditions.contains(&chain.condition.as_str()) {
-                return Err(format!("Chain '{}' has invalid condition '{}'", chain.name, chain.condition).into());
+                return Err(format!(
+                    "Chain '{}' has invalid condition '{}'",
+                    chain.name, chain.condition
+                )
+                .into());
             }
         }
 
@@ -154,21 +164,29 @@ impl Config {
         println!("\n{}", "Configuration Summary:".bright_cyan().bold());
         println!("  {} {}", "Profile:".bright_blue(), self.metadata.name);
         println!("  {} {}", "Version:".bright_blue(), self.metadata.version);
-        println!("  {} {}", "Description:".bright_blue(), self.metadata.description);
-        
+        println!(
+            "  {} {}",
+            "Description:".bright_blue(),
+            self.metadata.description
+        );
+
         println!("\n  {}:", "Tools".bright_green());
         for tool in &self.tools {
-            let status = if tool.enabled { "[ENABLED]".green() } else { "[DISABLED]".red() };
+            let status = if tool.enabled {
+                "[ENABLED]".green()
+            } else {
+                "[DISABLED]".red()
+            };
             println!("    {} {} (timeout: {}s)", status, tool.name, tool.timeout);
         }
-        
+
         if !self.chains.is_empty() {
             println!("\n  {}:", "Chains".bright_yellow());
             for chain in &self.chains {
                 println!("    - {} → {} ({})", chain.from, chain.to, chain.condition);
             }
         }
-        
+
         println!("\n  {}:", "Globals".bright_magenta());
         println!("    Max concurrent: {}", self.globals.max_concurrent);
         println!("    Retry count: {}", self.globals.retry_count);
