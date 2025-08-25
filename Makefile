@@ -5,65 +5,69 @@ RUN_DIR      := artifacts/runs
 PROFILE      ?= release
 RUN_ARGS     ?=
 
-.PHONY: help build build-prod run clean fmt clippy check tools verify
+.PHONY: help build clean test
 
 help:
-	@echo "Targets:"
-	@echo "  make build                        - Build $(BIN) (release) + create system symlink + install config"
-	@echo "  make build-prod                   - Build $(BIN) (production)"
-	@echo "  make run RUN_ARGS=\"-v -t host\"     - Run with args"
-	@echo "  make clean                        - Clean build + remove system symlink"
-	@echo "  make tools                        - Install/verify external tools locally"
-	@echo "  make verify                       - Verify env and folder writability"
-	@echo "  make fmt | make clippy | check    - Format, lint, tests"
+	@echo "IPCrawler Build System"
+	@echo ""
+	@echo "Main Commands:"
+	@echo "  make build    - Complete setup: compile, install tools, create symlinks, install config"
+	@echo "  make clean    - Remove all artifacts, symlinks, and user config"
+	@echo "  make test     - Run full validation: environment checks, formatting, linting, tests"
+	@echo "  make help     - Show this help message"
+	@echo ""
+	@echo "After 'make build', run: ipcrawler -t google.com"
 
 build:
+	@echo "🔧 Setting up IPCrawler..."
 	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR)
+	
+	@echo "📦 Installing/verifying required tools..."
+	@bash scripts/install_tools.sh
+	
+	@echo "🔨 Building IPCrawler..."
 	@cargo build --release
 	@cp -f target/release/ipcrawler $(BIN)
-	@echo "Built $(BIN) (release)"
-	@echo "Creating local symlink: ~/.local/bin/ipcrawler -> $(PWD)/$(BIN)"
+	
+	@echo "🔗 Creating system integration..."
 	@mkdir -p ~/.local/bin
 	@rm -f ~/.local/bin/ipcrawler
 	@ln -sf $(PWD)/$(BIN) ~/.local/bin/ipcrawler
-	@echo "Installing global config: ~/.config/ipcrawler/global.toml"
+	
+	@echo "⚙️  Installing configuration..."
 	@mkdir -p ~/.config/ipcrawler
 	@cp -f global.toml ~/.config/ipcrawler/global.toml
-	@echo "✅ ipcrawler command now available (add ~/.local/bin to PATH if needed)"
+	
+	@echo "✅ IPCrawler is ready! Try: ipcrawler -t google.com"
+	@echo "💡 Add ~/.local/bin to PATH if needed: export PATH=~/.local/bin:$$PATH"
 
-build-prod:
-	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR)
-	@cargo build --release
-	@cp -f target/release/ipcrawler $(BIN)
-	@echo "Built $(BIN) (production)"
-
-run: build
-	@./scripts/run.sh $(RUN_ARGS)
-
-tools:
-	@bash scripts/install_tools.sh
-
-verify:
+test:
+	@echo "🧪 Running full test suite..."
+	
+	@echo "🔍 Verifying environment and tools..."
 	@bash scripts/check_tools.sh
 	@mkdir -p $(RUN_DIR) $(LOG_DIR) && touch $(LOG_DIR)/.write && rm $(LOG_DIR)/.write
-	@echo "Environment verified."
-
-fmt:
-	cargo fmt --all
-
-clippy:
-	cargo clippy -- -D warnings
-
-check:
-	cargo test
+	
+	@echo "🎨 Checking code formatting..."
+	@cargo fmt --all --check || (echo "❌ Code formatting issues found. Run 'cargo fmt --all' to fix." && exit 1)
+	
+	@echo "🔎 Running linter..."
+	@cargo clippy -- -D warnings
+	
+	@echo "🧪 Running unit tests..."
+	@cargo test
+	
+	@echo "✅ All tests passed!"
 
 clean:
-	cargo clean
-	rm -rf artifacts/
-	@echo "Removing local symlink: ~/.local/bin/ipcrawler"
+	@echo "🧹 Cleaning up IPCrawler..."
+	@cargo clean
+	@rm -rf artifacts/
+	@echo "🔗 Removing system integration..."
 	@rm -f ~/.local/bin/ipcrawler
-	@echo "Removing user config: ~/.config/ipcrawler/"
+	@echo "⚙️  Removing user configuration..."
 	@rm -rf ~/.config/ipcrawler
+	@echo "✅ Cleanup complete"
 
 # Swallow incidental phony goals if user passes flags directly
 %:

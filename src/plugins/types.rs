@@ -1,7 +1,7 @@
-use async_trait::async_trait;
-use anyhow::Result;
-use crate::core::{models::Service, state::RunState};
 use crate::config::GlobalConfig;
+use crate::core::{models::Service, state::RunState};
+use anyhow::Result;
+use async_trait::async_trait;
 
 // Main trait for port scanning plugins
 #[async_trait]

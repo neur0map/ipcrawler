@@ -38,6 +38,9 @@ libc = "0.2"
 minijinja = { version = "2", features = ["loader"] }
 chrono = { version = "0.4", features = ["serde"] }
 
+[dev-dependencies]
+tempfile = "3.0"
+
 # Optimize for release builds
 [profile.release]
 opt-level = 3

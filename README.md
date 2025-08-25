@@ -1,6 +1,6 @@
 # 🕷️ IPCrawler
 
-> *A modern DNS reconnaissance tool built by a cybersecurity engineer who's learning Rust, powered entirely by AI pair programming*
+> *A reconnaissance automation tool built for CTF and penetration testing by a cybersecurity engineer learning Rust, powered entirely by AI pair programming*
 
 <div align="center">
 
@@ -8,7 +8,7 @@
 ![Language](https://img.shields.io/badge/language-Rust-orange.svg)
 ![Status](https://img.shields.io/badge/status-Active%20Development-green.svg)
 
-**🚀 Real-time TUI • 🔍 Multi-tool DNS enumeration • ⚡ Concurrent scanning**
+**🚀 Real-time TUI • 🔍 Reconnaissance automation • ⚡ Concurrent scanning**
 
 [Discord Server](https://discord.gg/ipcrawler) • [Reddit Community](https://reddit.com/r/ipcrawler) • [Report Issues](https://github.com/ipcrawler/ipcrawler/issues)
 
@@ -28,13 +28,13 @@ Since the security industry seems to be moving from C to Rust, I decided this wo
 
 ## ✨ What IPCrawler Does
 
-IPCrawler is a **concurrent DNS reconnaissance tool** that uses both `nslookup` and `dig` simultaneously to perform comprehensive DNS enumeration. It features a real-time terminal interface that shows live results as they come in.
+IPCrawler is a **reconnaissance automation tool** that currently focuses on DNS enumeration using both `nslookup` and `dig` simultaneously. It features a real-time terminal interface that shows live results as they come in, with a plugin architecture designed for expanding into additional reconnaissance capabilities.
 
 ### 🎯 Built For
 - **Hack The Box** challenges and labs
 - **CTF competitions** and practice
 - **Network reconnaissance** during security assessments  
-- **DNS enumeration** with immediate visual feedback
+- **Reconnaissance tasks** with immediate visual feedback
 
 ### 🛠️ Key Features
 - **Real-time TUI**: Live updates with colored results and progress tracking

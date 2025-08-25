@@ -1,11 +1,11 @@
+use crate::core::errors::{ExecError, IpcrawlerError};
+use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
-use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
 use tokio::time::timeout;
-use anyhow::{Result, Context};
-use crate::core::errors::{ExecError, IpcrawlerError};
 
 #[allow(dead_code)]
 pub struct CommandResult {
@@ -24,28 +24,29 @@ pub async fn execute(
 ) -> Result<CommandResult> {
     let start = Instant::now();
     let timeout_duration = timeout_ms.map(Duration::from_millis);
-    
+
     tracing::debug!("Executing: {} {:?} in {:?}", tool, args, cwd);
-    
+
     let mut cmd = Command::new(tool);
     cmd.args(args)
         .current_dir(cwd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    
-    let mut child = cmd.spawn()
+
+    let mut child = cmd
+        .spawn()
         .with_context(|| format!("Failed to spawn {}", tool))?;
-    
+
     let pid = child.id();
-    
+
     let stdout_handle = child.stdout.take().expect("stdout");
     let stderr_handle = child.stderr.take().expect("stderr");
-    
+
     // Read outputs incrementally to avoid buffer stalls
     let stdout_reader = BufReader::new(stdout_handle);
     let stderr_reader = BufReader::new(stderr_handle);
-    
+
     let (stdout_result, stderr_result, wait_result) = tokio::join!(
         read_lines(stdout_reader),
         read_lines(stderr_reader),
@@ -57,9 +58,9 @@ pub async fn execute(
             }
         }
     );
-    
+
     let duration_ms = start.elapsed().as_millis();
-    
+
     let status = match wait_result {
         Ok(Ok(status)) => status,
         Ok(Err(e)) => {
@@ -70,7 +71,8 @@ pub async fn execute(
                 exit_code: None,
                 stderr_tail: format!("Process error: {}", e),
                 duration_ms,
-            }).into());
+            })
+            .into());
         }
         Err(_) => {
             // Timeout occurred
@@ -82,14 +84,15 @@ pub async fn execute(
                 exit_code: None,
                 stderr_tail: format!("Command timed out after {}ms", timeout_ms.unwrap()),
                 duration_ms,
-            }).into());
+            })
+            .into());
         }
     };
-    
+
     let exit_code = status.code().unwrap_or(-1);
     let stdout = stdout_result?;
     let stderr = stderr_result?;
-    
+
     if !status.success() {
         let stderr_lines: Vec<_> = stderr.lines().collect();
         let stderr_tail = stderr_lines
@@ -100,7 +103,7 @@ pub async fn execute(
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        
+
         return Err(IpcrawlerError::Exec(ExecError {
             tool: tool.to_string(),
             args: args.iter().map(|s| s.to_string()).collect(),
@@ -108,9 +111,10 @@ pub async fn execute(
             exit_code: Some(exit_code),
             stderr_tail,
             duration_ms,
-        }).into());
+        })
+        .into());
     }
-    
+
     Ok(CommandResult {
         stdout,
         stderr,
@@ -126,11 +130,11 @@ where
 {
     let mut lines = Vec::new();
     let mut reader = reader.lines();
-    
+
     while let Some(line) = reader.next_line().await? {
         lines.push(line);
     }
-    
+
     Ok(lines.join("\n"))
 }
 

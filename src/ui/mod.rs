@@ -1,2 +1,2 @@
-pub mod printer;
 pub mod events;
+pub mod printer;

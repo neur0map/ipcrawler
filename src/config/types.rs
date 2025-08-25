@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct GlobalConfig {
     pub metadata: Option<MetadataConfig>,
     pub concurrency: ConcurrencyConfig,
@@ -11,21 +11,6 @@ pub struct GlobalConfig {
     pub logging: Option<LoggingConfig>,
     pub validation: Option<ValidationConfig>,
     pub plugins: Option<PluginsConfig>,
-}
-
-impl Default for GlobalConfig {
-    fn default() -> Self {
-        Self {
-            metadata: None,
-            concurrency: ConcurrencyConfig::default(),
-            tools: None,
-            overrides: None,
-            output: None,
-            logging: None,
-            validation: None,
-            plugins: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -55,22 +40,12 @@ impl Default for ConcurrencyConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ToolsConfig {
     pub nslookup: NslookupConfig,
     pub dig: DigConfig,
     #[serde(flatten)]
     pub custom_tools: HashMap<String, CustomToolConfig>,
-}
-
-impl Default for ToolsConfig {
-    fn default() -> Self {
-        Self {
-            nslookup: NslookupConfig::default(),
-            dig: DigConfig::default(),
-            custom_tools: HashMap::new(),
-        }
-    }
 }
 
 // ========================================
@@ -108,8 +83,12 @@ impl Default for NslookupOptions {
     fn default() -> Self {
         Self {
             record_types: vec![
-                "A".to_string(), "AAAA".to_string(), "MX".to_string(), 
-                "NS".to_string(), "TXT".to_string(), "PTR".to_string()
+                "A".to_string(),
+                "AAAA".to_string(),
+                "MX".to_string(),
+                "NS".to_string(),
+                "TXT".to_string(),
+                "PTR".to_string(),
             ],
             reverse_dns: true,
             recursive: true,
@@ -151,7 +130,11 @@ impl Default for DigConfig {
     fn default() -> Self {
         Self {
             command: "dig".to_string(),
-            base_args: vec!["+short".to_string(), "+time=3".to_string(), "+tries=2".to_string()],
+            base_args: vec![
+                "+short".to_string(),
+                "+time=3".to_string(),
+                "+tries=2".to_string(),
+            ],
             options: DigOptions::default(),
             limits: DigLimits::default(),
         }
@@ -171,9 +154,14 @@ impl Default for DigOptions {
     fn default() -> Self {
         Self {
             record_types: vec![
-                "A".to_string(), "AAAA".to_string(), "MX".to_string(), 
-                "NS".to_string(), "TXT".to_string(), "CNAME".to_string(), 
-                "SOA".to_string(), "PTR".to_string()
+                "A".to_string(),
+                "AAAA".to_string(),
+                "MX".to_string(),
+                "NS".to_string(),
+                "TXT".to_string(),
+                "CNAME".to_string(),
+                "SOA".to_string(),
+                "PTR".to_string(),
             ],
             reverse_dns: true,
             recursive: true,

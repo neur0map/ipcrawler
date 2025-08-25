@@ -34,7 +34,12 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     pub fn inner(&self, margin: u16) -> Self {
@@ -73,7 +78,12 @@ pub fn compute_layout(spec: &LayoutSpec, cols: u16, rows: u16) -> Layout {
     );
     panels.insert(
         "active_tasks".to_string(),
-        Rect::new(status_width, current_y, cols - status_width, spec.status_row_height),
+        Rect::new(
+            status_width,
+            current_y,
+            cols - status_width,
+            spec.status_row_height,
+        ),
     );
     current_y += spec.status_row_height;
 
@@ -88,20 +98,18 @@ pub fn compute_layout(spec: &LayoutSpec, cols: u16, rows: u16) -> Layout {
     let bottom_height = rows.saturating_sub(current_y);
     let logs_width = cols / 2;
     let results_width = cols - logs_width; // Ensure no overlap
-    
+
     // Left panel: Live Logs
     panels.insert(
         "logs_view".to_string(),
         Rect::new(0, current_y, logs_width, bottom_height),
     );
-    
-    // Right panel: Results  
+
+    // Right panel: Results
     panels.insert(
         "results_view".to_string(),
         Rect::new(logs_width, current_y, results_width, bottom_height),
     );
 
-    Layout {
-        panels,
-    }
+    Layout { panels }
 }

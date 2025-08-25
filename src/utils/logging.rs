@@ -18,13 +18,15 @@ pub fn init(level: tracing::Level) -> Result<()> {
 
     tracing_subscriber::registry()
         .with(filter)
-        .with(tracing_subscriber::fmt::layer()
-            .compact()
-            .with_target(false)
-            .with_thread_ids(false)
-            .with_thread_names(false))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .compact()
+                .with_target(false)
+                .with_thread_ids(false)
+                .with_thread_names(false),
+        )
         .try_init()
         .map_err(|e| anyhow::anyhow!("Failed to initialize logging: {}", e))?;
-    
+
     Ok(())
 }

@@ -1,6 +1,6 @@
-use anyhow::{Result, bail};
-use crate::core::models::RunDirs;
 use crate::config::GlobalConfig;
+use crate::core::models::RunDirs;
+use anyhow::{bail, Result};
 use std::fs;
 
 #[allow(dead_code)]
@@ -13,12 +13,12 @@ pub fn preflight_checks(dirs: &RunDirs) -> Result<()> {
 
 pub fn preflight_checks_with_config(dirs: &RunDirs, config: Option<&GlobalConfig>) -> Result<()> {
     let mut errors = Vec::new();
-    
+
     // Check free space
     if let Err(e) = check_free_space(&dirs.root) {
         errors.push(format!("Disk space: {}", e));
     }
-    
+
     // Verify write permissions
     for (name, path) in &[
         ("root", &dirs.root),
@@ -31,7 +31,7 @@ pub fn preflight_checks_with_config(dirs: &RunDirs, config: Option<&GlobalConfig
             errors.push(format!("{}: {}", name, e));
         }
     }
-    
+
     // Check file descriptor limits on Unix
     #[cfg(unix)]
     {
@@ -39,11 +39,11 @@ pub fn preflight_checks_with_config(dirs: &RunDirs, config: Option<&GlobalConfig
             errors.push(format!("File descriptors: {}", e));
         }
     }
-    
+
     if !errors.is_empty() {
         bail!("Preflight checks failed:\n{}", errors.join("\n"));
     }
-    
+
     Ok(())
 }
 
@@ -66,18 +66,18 @@ fn verify_writable(path: &std::path::Path) -> Result<()> {
 #[cfg(unix)]
 fn check_ulimit_with_config(config: Option<&GlobalConfig>) -> Result<()> {
     use libc::{getrlimit, rlimit, RLIMIT_NOFILE};
-    
+
     let mut rlim = rlimit {
         rlim_cur: 0,
         rlim_max: 0,
     };
-    
+
     unsafe {
         if getrlimit(RLIMIT_NOFILE, &mut rlim) != 0 {
             bail!("Failed to get file descriptor limit");
         }
     }
-    
+
     // Calculate actual requirement based on configuration
     let required_fds = if let Some(config) = config {
         // Base requirement: 100 for basic operations
@@ -89,19 +89,19 @@ fn check_ulimit_with_config(config: Option<&GlobalConfig>) -> Result<()> {
         // Conservative default when no config available
         512
     };
-    
+
     if rlim.rlim_cur < required_fds as u64 {
         // Provide helpful error message with actual requirement and how to fix
         bail!(
             "File descriptor limit too low: {} (minimum: {})\n\
             Quick fix: Run 'ulimit -n {}' before scanning\n\
             For permanent fix, add 'ulimit -n {}' to your shell profile",
-            rlim.rlim_cur, 
-            required_fds, 
+            rlim.rlim_cur,
+            required_fds,
             required_fds * 2,
             required_fds * 2
         );
     }
-    
+
     Ok(())
 }

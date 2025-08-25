@@ -9,7 +9,7 @@ pub enum UiEvent {
         target: String,
         total_tasks: usize,
     },
-    
+
     /// Task lifecycle events
     TaskStarted {
         id: String,
@@ -23,42 +23,42 @@ pub enum UiEvent {
         id: String,
         result: TaskResult,
     },
-    
+
     /// System monitoring
     SystemStats {
         cpu_percent: f32,
         memory_used_gb: f64,
     },
-    
+
     /// Progress updates from RunState
     ProgressUpdate {
         completed: usize,
         total: usize,
     },
-    
+
     /// Port discovery event
     PortDiscovered {
         port: u16,
         service: String,
     },
-    
+
     /// Phase transition event
     PhaseChange {
         phase: String,
     },
-    
+
     /// Plugin inventory - shows all available plugins
     PluginInventory {
         port_scanners: Vec<String>,
         service_scanners: Vec<String>,
     },
-    
+
     /// Log message event
     LogMessage {
         level: String,
         message: String,
     },
-    
+
     /// UI lifecycle
     Shutdown,
 }
@@ -89,7 +89,7 @@ impl ActiveTask {
             started_at: std::time::Instant::now(),
         }
     }
-    
+
     #[allow(dead_code)]
     pub fn duration(&self) -> Duration {
         self.started_at.elapsed()

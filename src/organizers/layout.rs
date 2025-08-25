@@ -1,12 +1,12 @@
-use std::path::{Path, PathBuf};
-use std::fs;
-use anyhow::{Result, Context};
 use crate::core::models::RunDirs;
+use anyhow::{Context, Result};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub fn prepare_run_dirs(run_id: &str) -> Result<RunDirs> {
     let base = PathBuf::from("artifacts");
     let root = base.join("runs").join(run_id);
-    
+
     let dirs = RunDirs {
         root: root.clone(),
         scans: root.join("scans"),
@@ -14,16 +14,22 @@ pub fn prepare_run_dirs(run_id: &str) -> Result<RunDirs> {
         report: root.join("report"),
         logs: base.join("logs"),
     };
-    
+
     // Create all directories
-    for dir in &[&dirs.root, &dirs.scans, &dirs.loot, &dirs.report, &dirs.logs] {
+    for dir in &[
+        &dirs.root,
+        &dirs.scans,
+        &dirs.loot,
+        &dirs.report,
+        &dirs.logs,
+    ] {
         fs::create_dir_all(dir)
             .with_context(|| format!("Failed to create directory: {:?}", dir))?;
     }
-    
+
     // Verify writability
     verify_writable(&dirs.logs)?;
-    
+
     // fsync directories on Unix for durability
     #[cfg(unix)]
     {
@@ -36,7 +42,7 @@ pub fn prepare_run_dirs(run_id: &str) -> Result<RunDirs> {
                 .sync_all();
         }
     }
-    
+
     Ok(dirs)
 }
 

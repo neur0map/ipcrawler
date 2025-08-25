@@ -1,9 +1,9 @@
-use clap::{Parser, ArgAction};
+use clap::{ArgAction, Parser};
 
 #[derive(Parser, Debug, Clone)]
 #[command(
-    name = "ipcrawler", 
-    version, 
+    name = "ipcrawler",
+    version,
     author = "ipcrawler",
     about = "DNS Reconnaissance Tool - Multi-tool DNS enumeration with real-time TUI",
     long_about = "IPCrawler is a concurrent DNS reconnaissance tool that uses both nslookup and dig \
@@ -29,7 +29,7 @@ use clap::{Parser, ArgAction};
 )]
 pub struct Cli {
     /// Target host, IP address, or domain to scan
-    /// 
+    ///
     /// Examples:
     ///   google.com      - Domain name
     ///   8.8.8.8         - IPv4 address  
@@ -46,7 +46,7 @@ pub struct Cli {
     pub debug: bool,
 
     /// Skip system preflight checks
-    /// 
+    ///
     /// Bypasses validation of file descriptors, disk space,
     /// and required tools availability
     #[arg(long = "skip-checks", action = ArgAction::SetTrue)]

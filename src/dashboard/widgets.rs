@@ -1,9 +1,9 @@
-use std::io::{self, Write};
 use crossterm::{
     cursor::MoveTo,
     queue,
-    style::{Color, Print, SetForegroundColor, ResetColor},
+    style::{Color, Print, ResetColor, SetForegroundColor},
 };
+use std::io::{self, Write};
 
 use crate::dashboard::layout::Rect;
 
@@ -16,17 +16,24 @@ pub fn draw_box<W: Write>(w: &mut W, rect: &Rect, title: &str) -> io::Result<()>
         SetForegroundColor(Color::DarkGrey),
         Print("┌")
     )?;
-    
+
     if !title.is_empty() && rect.width > title.len() as u16 + 4 {
-        queue!(w, Print("─ "), SetForegroundColor(Color::White), Print(title), SetForegroundColor(Color::DarkGrey), Print(" "))?;
+        queue!(
+            w,
+            Print("─ "),
+            SetForegroundColor(Color::White),
+            Print(title),
+            SetForegroundColor(Color::DarkGrey),
+            Print(" ")
+        )?;
         let remaining = rect.width - title.len() as u16 - 5;
         queue!(w, Print("─".repeat(remaining as usize)))?;
     } else {
         queue!(w, Print("─".repeat((rect.width - 2) as usize)))?;
     }
-    
+
     queue!(w, Print("┐"))?;
-    
+
     // Sides
     for y in 1..rect.height - 1 {
         queue!(
@@ -37,7 +44,7 @@ pub fn draw_box<W: Write>(w: &mut W, rect: &Rect, title: &str) -> io::Result<()>
             Print("│")
         )?;
     }
-    
+
     // Bottom border
     queue!(
         w,
@@ -59,7 +66,7 @@ pub fn draw_progress_bar<W: Write>(
 ) -> io::Result<()> {
     let filled = ((percent as f32 / 100.0) * width as f32) as u16;
     let empty = width.saturating_sub(filled);
-    
+
     queue!(
         w,
         MoveTo(x, y),
@@ -69,7 +76,7 @@ pub fn draw_progress_bar<W: Write>(
         Print("░".repeat(empty as usize)),
         ResetColor
     )?;
-    
+
     // Percentage text
     let pct_str = format!(" {}%", percent);
     if width > pct_str.len() as u16 + 2 {
@@ -81,7 +88,7 @@ pub fn draw_progress_bar<W: Write>(
             ResetColor
         )?;
     }
-    
+
     Ok(())
 }
 
@@ -90,11 +97,11 @@ pub fn truncate_string(s: &str, max_len: usize) -> String {
     if max_len == 0 {
         return String::new();
     }
-    
+
     // Use grapheme clusters to handle unicode properly
     let chars: Vec<char> = s.chars().collect();
     let char_count = chars.len();
-    
+
     if char_count <= max_len {
         s.to_string()
     } else if max_len < 3 {

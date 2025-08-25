@@ -108,11 +108,26 @@ impl AppState {
             tasks: Vec::new(),
             tabs: TabBar {
                 tabs: vec![
-                    Tab { id: "overview".to_string(), label: "Overview".to_string() },
-                    Tab { id: "ports".to_string(), label: "Ports".to_string() },
-                    Tab { id: "services".to_string(), label: "Services".to_string() },
-                    Tab { id: "logs".to_string(), label: "Logs".to_string() },
-                    Tab { id: "help".to_string(), label: "Help".to_string() },
+                    Tab {
+                        id: "overview".to_string(),
+                        label: "Overview".to_string(),
+                    },
+                    Tab {
+                        id: "ports".to_string(),
+                        label: "Ports".to_string(),
+                    },
+                    Tab {
+                        id: "services".to_string(),
+                        label: "Services".to_string(),
+                    },
+                    Tab {
+                        id: "logs".to_string(),
+                        label: "Logs".to_string(),
+                    },
+                    Tab {
+                        id: "help".to_string(),
+                        label: "Help".to_string(),
+                    },
                 ],
                 active_tab_id: "overview".to_string(),
             },
@@ -134,7 +149,7 @@ impl AppState {
     pub fn add_result(&mut self, result: String) {
         self.results.rows.push(result);
     }
-    
+
     pub fn add_log(&mut self, level: LogLevel, message: String) {
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
         let entry = LogEntry {
@@ -142,16 +157,16 @@ impl AppState {
             level,
             message,
         };
-        
+
         self.logs.entries.push(entry);
-        
+
         // Keep only the last max_entries
         if self.logs.entries.len() > self.logs.max_entries {
             self.logs.entries.remove(0);
         }
-        
+
         // Auto-scroll to bottom when new entries arrive
-        let visible_entries = 20; // Approximate visible entries 
+        let visible_entries = 20; // Approximate visible entries
         if self.logs.entries.len() > visible_entries {
             self.logs.scroll_offset = self.logs.entries.len() - visible_entries;
         }
