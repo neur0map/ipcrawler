@@ -66,11 +66,17 @@ impl Renderer {
         }
         
         if let Some(rect) = layout.panels.get("results_view") {
-            self.render_results_view(state, rect)?;
+            match state.tabs.active_tab_id.as_str() {
+                "help" => self.render_help_view(state, rect)?,
+                _ => self.render_results_view(state, rect)?,
+            }
         }
         
         if let Some(rect) = layout.panels.get("logs_view") {
-            self.render_logs_view(state, rect)?;
+            match state.tabs.active_tab_id.as_str() {
+                "help" => {}, // Don't render logs view when on help tab
+                _ => self.render_logs_view(state, rect)?,
+            }
         }
         
         Ok(())
@@ -277,17 +283,6 @@ impl Renderer {
                     let available_width = if inner.width > 0 { inner.width as usize } else { 0 };
                     let row_str = truncate_string(row, available_width);
                     
-                    // Color based on content
-                    let color = if row.contains("✓") {
-                        Color::Green
-                    } else if row.contains("✗") {
-                        Color::Red
-                    } else if row.contains("OPEN") {
-                        Color::Cyan
-                    } else {
-                        Color::White
-                    };
-                    
                     // Clear only this panel's area to prevent overflow into other panels
                     let clear_width = inner.width as usize;
                     queue!(
@@ -296,13 +291,8 @@ impl Renderer {
                         Print(" ".repeat(clear_width))
                     )?;
                     
-                    queue!(
-                        self.stdout,
-                        MoveTo(inner.x, inner.y + i as u16),
-                        SetForegroundColor(color),
-                        Print(row_str),
-                        ResetColor
-                    )?;
+                    // Parse and render with tool name highlighting
+                    self.render_colored_result_row(&row_str, inner.x, inner.y + i as u16)?;
                 }
             }
             
@@ -410,6 +400,153 @@ impl Renderer {
                     ResetColor
                 )?;
             }
+        }
+        
+        Ok(())
+    }
+
+    fn render_help_view(&mut self, _state: &AppState, rect: &Rect) -> io::Result<()> {
+        // Use full width for help, spanning both result and log areas
+        let logs_rect = Rect::new(rect.x + rect.width, rect.y, rect.width, rect.height); // Approximate logs area
+        let full_rect = Rect::new(rect.x, rect.y, rect.width + logs_rect.width, rect.height);
+        
+        draw_box(&mut self.stdout, &full_rect, "Help & Documentation")?;
+        let inner = full_rect.inner(1);
+        
+        let help_content = vec![
+            "".to_string(),
+            "█ IPCrawler - DNS Reconnaissance Tool".to_string(),
+            "".to_string(),
+            "◦ NAVIGATION".to_string(),
+            "  ← → Arrow Keys    Navigate between tabs".to_string(),
+            "  ↑ ↓ Arrow Keys    Scroll content up/down".to_string(),
+            "  q / Ctrl+C       Quit application".to_string(),
+            "".to_string(),
+            "◦ SCANNING FEATURES".to_string(),
+            "  • DNS Enumeration  Query A, AAAA, MX, NS, TXT, CNAME, SOA, PTR records".to_string(),
+            "  • Multi-tool       Uses both nslookup and dig concurrently".to_string(),
+            "  • IP & Domain      Supports both IP addresses and domain names".to_string(),
+            "  • Live Results     Real-time scanning progress and results".to_string(),
+            "".to_string(),
+            "◦ ACTIVE PLUGINS".to_string(),
+            "  • nslookup        Standard DNS lookup queries".to_string(),
+            "  • dig             Advanced DNS queries with +short output".to_string(),
+            "".to_string(),
+            "◦ TABS OVERVIEW".to_string(),
+            "  Overview          Current scan status and system information".to_string(),
+            "  Ports             Port scanning results (future feature)".to_string(),
+            "  Services          Service enumeration results".to_string(),
+            "  Logs              Live scanning logs and debug information".to_string(),
+            "  Help              This help documentation".to_string(),
+            "".to_string(),
+            "◦ CONFIGURATION".to_string(),
+            "  global.toml       Main configuration file (optional overrides)".to_string(),
+            "  • Uncomment sections to customize tool behavior".to_string(),
+            "  • Record types, timeouts, delays, commands can be overridden".to_string(),
+            "  • Changes apply without rebuilding (restart scan)".to_string(),
+            "".to_string(),
+            "◦ OUTPUT ARTIFACTS".to_string(),
+            "  artifacts/runs/   Scan results and raw tool outputs".to_string(),
+            "  • Summary reports in multiple formats (txt, md, json)".to_string(),
+            "  • Individual tool results (dig_results.txt, nslookup_results.txt)".to_string(),
+            "  • Timestamped runs for historical tracking".to_string(),
+            "".to_string(),
+            "◦ SYSTEM REQUIREMENTS".to_string(),
+            "  • nslookup command available in PATH".to_string(),
+            "  • dig command available in PATH".to_string(),
+            "  • Terminal size ≥ 70x20 characters".to_string(),
+            "  • File descriptors ≥ 1024 (increase with ulimit -n)".to_string(),
+        ];
+        
+        let visible_rows = inner.height as usize;
+        let end_idx = visible_rows.min(help_content.len());
+        
+        for (i, line) in help_content.iter().take(end_idx).enumerate() {
+            let color = if line.starts_with("█") {
+                Color::Cyan
+            } else if line.starts_with("◦") {
+                Color::Green
+            } else if line.starts_with("  •") {
+                Color::Yellow
+            } else if line.trim().is_empty() {
+                Color::White
+            } else {
+                Color::White
+            };
+            
+            // Clear the line first
+            queue!(
+                self.stdout,
+                MoveTo(inner.x, inner.y + i as u16),
+                Print(" ".repeat(inner.width as usize))
+            )?;
+            
+            // Render the help content
+            queue!(
+                self.stdout,
+                MoveTo(inner.x, inner.y + i as u16),
+                SetForegroundColor(color),
+                Print(truncate_string(line, inner.width as usize)),
+                ResetColor
+            )?;
+        }
+        
+        Ok(())
+    }
+
+    fn render_colored_result_row(&mut self, text: &str, x: u16, y: u16) -> io::Result<()> {
+        // Check if this is a tool result line (contains " - " separator)
+        if let Some(dash_pos) = text.find(" - ") {
+            let tool_part = &text[..dash_pos];
+            let result_part = &text[dash_pos..];
+            
+            // Check if tool part contains known tool names
+            let tool_color = if tool_part.contains("dig ") || tool_part.contains("nslookup ") {
+                Color::Yellow // Same as progress bar
+            } else {
+                Color::White
+            };
+            
+            // Color result part based on content
+            let result_color = if result_part.contains("✓") {
+                Color::Green
+            } else if result_part.contains("✗") {
+                Color::Red
+            } else if result_part.contains("OPEN") {
+                Color::Cyan
+            } else {
+                Color::White
+            };
+            
+            // Render tool name in yellow, result in appropriate color
+            queue!(
+                self.stdout,
+                MoveTo(x, y),
+                SetForegroundColor(tool_color),
+                Print(tool_part),
+                SetForegroundColor(result_color),
+                Print(result_part),
+                ResetColor
+            )?;
+        } else {
+            // No tool separator, color entire line based on content
+            let color = if text.contains("✓") {
+                Color::Green
+            } else if text.contains("✗") {
+                Color::Red
+            } else if text.contains("OPEN") {
+                Color::Cyan
+            } else {
+                Color::White
+            };
+            
+            queue!(
+                self.stdout,
+                MoveTo(x, y),
+                SetForegroundColor(color),
+                Print(text),
+                ResetColor
+            )?;
         }
         
         Ok(())

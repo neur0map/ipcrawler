@@ -1,96 +1,226 @@
-# ipcrawler
+# 🕷️ IPCrawler
 
-A simple, modern CLI that orchestrates external recon tools via a typed, compile-time plugin model and a strict, bounded-concurrency scheduler.
+> *A modern DNS reconnaissance tool built by a cybersecurity engineer who's learning Rust, powered entirely by AI pair programming*
 
-## Features
+<div align="center">
 
-- Dev-local containment: all binaries, artifacts, outputs, logs live inside the repo folder
-- Minimal CLI: only `-t|--target`, `-v|--verbose`, `-d|--debug`, `-h|--help`
-- Fail-fast behavior with precise error reporting
-- Bounded concurrency scheduler with separate pools for port and service scans
-- Atomic report generation with mandatory validation
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Language](https://img.shields.io/badge/language-Rust-orange.svg)
+![Status](https://img.shields.io/badge/status-Active%20Development-green.svg)
 
-## Quickstart
+**🚀 Real-time TUI • 🔍 Multi-tool DNS enumeration • ⚡ Concurrent scanning**
 
+[Discord Server](https://discord.gg/ipcrawler) • [Reddit Community](https://reddit.com/r/ipcrawler) • [Report Issues](https://github.com/ipcrawler/ipcrawler/issues)
+
+</div>
+
+---
+
+## 📖 About This Project
+
+Hi! I'm Carlos, a cybersecurity and networking engineer. While I'm not a programmer by trade, I built this tool entirely with [**Claude Code**](https://claude.ai/code) - an AI pair programming assistant. As someone who spends time on Hack The Box and CTF challenges, I was frustrated with complex tools like [AutoRecon](https://github.com/Tib3rius/AutoRecon) that are hard to set up and customize.
+
+Since the security industry seems to be moving from C to Rust, I decided this would be a perfect opportunity to learn Rust while building something actually useful for my workflow. Every line of code, every feature, and every bug fix has been implemented through careful collaboration with AI - and honestly, I've learned a ton about programming in the process!
+
+**⚠️ Full transparency:** As I'm not an experienced programmer, there might be bugs or issues. I welcome anyone to try the tool and submit issues - I'll review them and work on improvements with my AI coding partner.
+
+---
+
+## ✨ What IPCrawler Does
+
+IPCrawler is a **concurrent DNS reconnaissance tool** that uses both `nslookup` and `dig` simultaneously to perform comprehensive DNS enumeration. It features a real-time terminal interface that shows live results as they come in.
+
+### 🎯 Built For
+- **Hack The Box** challenges and labs
+- **CTF competitions** and practice
+- **Network reconnaissance** during security assessments  
+- **DNS enumeration** with immediate visual feedback
+
+### 🛠️ Key Features
+- **Real-time TUI**: Live updates with colored results and progress tracking
+- **Concurrent scanning**: Both tools run simultaneously for faster results
+- **Smart target handling**: Supports domains, IPv4, and IPv6 addresses
+- **Comprehensive DNS records**: A, AAAA, MX, NS, TXT, CNAME, SOA, PTR
+- **Configurable behavior**: Override tool settings via `global.toml`
+- **Detailed artifacts**: All scan results saved with timestamps
+
+---
+
+## 🚀 Quick Start
+
+### Installation
 ```bash
-# Verify environment
-make verify
+# Clone and build
+git clone https://github.com/ipcrawler/ipcrawler.git
+cd ipcrawler
+make build
 
-# Run a scan
-make run RUN_ARGS="-t scanme.nmap.org -v"
-# or with GNU make:
-make run -- -t scanme.nmap.org -v
+# The build process will:
+# ✅ Compile the binary
+# ✅ Create ~/.local/bin/ipcrawler symlink  
+# ✅ Install global.toml config
 ```
 
-## Outputs
-
-All outputs are stored under `./artifacts/`:
-- `./artifacts/logs/` - Application logs
-- `./artifacts/runs/<run-id>/` - Per-run artifacts
-- `./artifacts/runs/<run-id>/report/` - Summary reports (required for successful run)
-
-## Development
-
+### Basic Usage
 ```bash
-make build      # Build the binary
-make fmt        # Format code
-make clippy     # Run linter
-make check      # Run tests
-make clean      # Clean artifacts
+# Scan a domain
+ipcrawler -t google.com
+
+# Scan with verbose logging  
+ipcrawler -t 8.8.8.8 --verbose
+
+# Get help
+ipcrawler --help
 ```
 
-## Configuration & Defaults
+### Requirements
+- **Tools**: `nslookup` and `dig` in PATH
+- **Terminal**: Minimum 70x20 characters
+- **File descriptors**: ≥1024 (`ulimit -n 2048`)
 
-### Concurrency Settings
-- **Max Total Scans**: 50 concurrent operations
-- **Port Scan Pool**: 10 concurrent nmap processes  
-- **Service Scan Pool**: 40 concurrent service probes
-- **Port Range**: nmap default (top 1000 most common ports)
-- **File Descriptors Required**: 1024 minimum (2048 recommended)
+---
 
-### Tools & Timeouts
-- **nmap**: Configurable via global.toml (default: TCP connect scan -sT -sV -T4), 5 minute timeout
-- **curl**: Configurable via global.toml (default: -s -L -I), 15 second timeout  
-- **Parallelism**: Currently SEQUENTIAL execution (not truly parallel)
-- **Configuration**: Override any tool command/args in global.toml
+## 🎮 Interface Preview
 
-### Default Scan Scope
-- **Ports Scanned**: ~1000 (nmap's default top ports list)
-- **Protocols**: TCP only
-- **Service Detection**: HTTP services on discovered ports
-
-## Requirements
-
-### External Tools
-External tools (must be installed manually):
-- nmap
-- curl
-
-Run `make tools` to check tool availability.
-
-### System Requirements
-- **File Descriptors**: Minimum 1024 (for concurrent scanning)
-
-## Troubleshooting
-
-### "File descriptor limit too low" Error
-If you see this error:
 ```
-fatal: Preflight checks failed:
-File descriptors: File descriptor limit too low: 256 (minimum: 1024)
+┌─ IPCrawler ──────────────────────────────────────────────────────────────┐
+│ Target: google.com | Status: Running | Elapsed: 00:03.2s                │
+└──────────────────────────────────────────────────────────────────────────┘
+┌─ System ─────────────────────────────────────────────────────────────────┐
+│ CPU: 12.3% | RAM: 8.2GB/16.0GB | FDs: 45/2048                           │
+└──────────────────────────────────────────────────────────────────────────┘
+┌─ Scan Progress ──────────────┬─ Active Tasks ─────────────────────────────┐
+│ DNS Reconnaissance           │ • dig queries: Running                     │
+│ ████████████████░░░░ 82%     │ • nslookup queries: Running                │
+└──────────────────────────────┴─────────────────────────────────────────────┘
+┌─ Tabs (←→ to switch) ────────────────────────────────────────────────────┐
+│ [Overview] [Ports] [Services] [Logs] [Help]                             │
+└──────────────────────────────────────────────────────────────────────────┘
+┌─ Results ────────────────────┬─ Live Logs ─────────────────────────────────┐
+│ dig A - A: 142.250.80.78     │ 12:34:56 INF Starting dig DNS queries      │
+│ dig AAAA - AAAA: 2607:f8b0   │ 12:34:56 INF dig A query completed         │  
+│ nslookup MX - MX: smtp.goog  │ 12:34:57 INF nslookup MX query completed   │
+│ dig NS - NS: ns1.google.com  │ 12:34:57 INF Found 15 DNS records total    │
+└──────────────────────────────┴─────────────────────────────────────────────┘
 ```
 
-**Quick Fix (current session):**
+---
+
+## ⚙️ Configuration
+
+IPCrawler uses **optional overrides** - everything works out of the box, but you can customize:
+
+```toml
+# ~/.config/ipcrawler/global.toml
+# Uncomment sections to override defaults
+
+# [tools.dig]
+# command = "/usr/local/bin/dig"
+# base_args = ["+short", "+time=2"]
+# 
+# [tools.dig.options]  
+# record_types = ["A", "MX", "NS"]  # Only query these types
+# delay_between_queries_ms = 100    # Faster queries
+#
+# [tools.dig.limits]
+# timeout_ms = 5000                 # 5 second timeout
+```
+
+**No rebuild required** - configuration changes apply immediately on next scan.
+
+---
+
+## 📁 Output Structure
+
+All scan results are preserved:
+
+```
+artifacts/runs/run_google.com_20250825_143022/
+├── scans/
+│   ├── dig_results.txt           # Raw dig output
+│   ├── nslookup_results.txt      # Raw nslookup output
+│   └── scan_summary.txt          # Combined results  
+└── reports/
+    ├── summary.txt               # Human-readable summary
+    ├── summary.md                # Markdown report
+    └── summary.json              # Machine-readable data
+```
+
+---
+
+## 🗺️ Roadmap
+
+This is just the beginning! More plugins are planned:
+
+- 🔍 **Port scanning** (nmap integration)
+- 🌐 **HTTP enumeration** (directory bruteforcing) 
+- 🔒 **SSL/TLS analysis**
+- 📡 **Subdomain discovery**
+- 🗂️ **Custom plugin system**
+
+*Want a specific feature? Join our Discord and let me know!*
+
+---
+
+## 🤝 Community & Support
+
+### Get Help
+- 💬 **[Discord Server](https://discord.gg/ipcrawler)** - Chat with users and get help
+- 📖 **[Reddit Community](https://reddit.com/r/ipcrawler)** - Discussions and tips
+- 🐛 **[GitHub Issues](https://github.com/ipcrawler/ipcrawler/issues)** - Bug reports and feature requests
+
+### Contributing
+While I'm still learning programming, I'm happy to review:
+- 🐛 Bug reports with detailed reproduction steps
+- 💡 Feature suggestions and use cases
+- 📝 Documentation improvements
+- 🧪 Testing on different systems
+
+---
+
+## 🔧 Troubleshooting
+
+### File Descriptor Limit
 ```bash
+# Quick fix (current session)
 ulimit -n 2048
-./artifacts/bin/ipcrawler -t target.com -v
+
+# Permanent fix - add to ~/.zshrc or ~/.bashrc  
+echo "ulimit -n 2048" >> ~/.zshrc
 ```
 
-**Permanent Fix:**
-Add to your `~/.zshrc` or `~/.bash_profile`:
+### Terminal Size Issues
+Ensure your terminal is at least **70x20 characters**. The TUI will warn you if it's too small.
+
+### Tool Not Found
 ```bash
-# Increase file descriptor limit for ipcrawler
-ulimit -n 2048
+# Verify required tools
+which nslookup dig
+
+# macOS (via Homebrew)
+brew install bind
+
+# Ubuntu/Debian  
+sudo apt install dnsutils
 ```
 
-**Why this is required:** ipcrawler uses bounded concurrency (up to 50 concurrent scans) and needs sufficient file descriptors to avoid mid-scan failures.
+---
+
+## 📄 License
+
+MIT License - feel free to use, modify, and learn from this code.
+
+---
+
+## 🙏 Acknowledgments
+
+- **[Claude Code](https://claude.ai/code)** - The AI pair programming assistant that made this possible
+- **[AutoRecon](https://github.com/Tib3rius/AutoRecon)** - Inspiration for building a better alternative
+- **The Rust Community** - For creating such an amazing language and ecosystem
+- **CTF/HTB Community** - For providing the challenges that drive tool development
+
+---
+
+<div align="center">
+<i>Built with ❤️ and lots of AI assistance by a cybersecurity engineer learning to code</i>
+</div>

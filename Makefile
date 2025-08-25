@@ -9,7 +9,7 @@ RUN_ARGS     ?=
 
 help:
 	@echo "Targets:"
-	@echo "  make build                        - Build $(BIN) (release) + create system symlink"
+	@echo "  make build                        - Build $(BIN) (release) + create system symlink + install config"
 	@echo "  make build-prod                   - Build $(BIN) (production)"
 	@echo "  make run RUN_ARGS=\"-v -t host\"     - Run with args"
 	@echo "  make clean                        - Clean build + remove system symlink"
@@ -26,6 +26,9 @@ build:
 	@mkdir -p ~/.local/bin
 	@rm -f ~/.local/bin/ipcrawler
 	@ln -sf $(PWD)/$(BIN) ~/.local/bin/ipcrawler
+	@echo "Installing global config: ~/.config/ipcrawler/global.toml"
+	@mkdir -p ~/.config/ipcrawler
+	@cp -f global.toml ~/.config/ipcrawler/global.toml
 	@echo "✅ ipcrawler command now available (add ~/.local/bin to PATH if needed)"
 
 build-prod:
@@ -59,6 +62,8 @@ clean:
 	rm -rf artifacts/
 	@echo "Removing local symlink: ~/.local/bin/ipcrawler"
 	@rm -f ~/.local/bin/ipcrawler
+	@echo "Removing user config: ~/.config/ipcrawler/"
+	@rm -rf ~/.config/ipcrawler
 
 # Swallow incidental phony goals if user passes flags directly
 %:

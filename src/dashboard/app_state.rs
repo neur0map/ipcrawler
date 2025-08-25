@@ -112,6 +112,7 @@ impl AppState {
                     Tab { id: "ports".to_string(), label: "Ports".to_string() },
                     Tab { id: "services".to_string(), label: "Services".to_string() },
                     Tab { id: "logs".to_string(), label: "Logs".to_string() },
+                    Tab { id: "help".to_string(), label: "Help".to_string() },
                 ],
                 active_tab_id: "overview".to_string(),
             },
