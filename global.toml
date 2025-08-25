@@ -70,6 +70,25 @@ recommended_file_descriptors = 2048
 # total_timeout_ms = 30000       # 30 seconds total per target
 # query_timeout_ms = 3000        # 3 seconds per individual query (+time=3)
 
+# [tools.hosts_discovery]
+# # Enable/disable hosts discovery and automatic /etc/hosts updates
+# enabled = true                  # Enable hosts discovery plugin
+# target_ip = "127.0.0.1"        # IP to map discovered domains to
+# auto_write = true              # Automatically write to /etc/hosts if sudo available
+# backup_hosts = true            # Create backup before modifying /etc/hosts
+
+# # dnsx configuration for subdomain enumeration
+# [tools.hosts_discovery.dnsx] 
+# command = "dnsx"               # Path to dnsx binary
+# timeout_ms = 30000             # 30 seconds timeout for dnsx
+# max_results = 1000             # Maximum subdomains to discover
+
+# # httpx configuration for virtual host enumeration
+# [tools.hosts_discovery.httpx]
+# command = "httpx"              # Path to httpx binary  
+# timeout_ms = 60000             # 60 seconds timeout for httpx
+# max_results = 100              # Maximum vhosts to discover
+
 # ========================================
 # GLOBAL OVERRIDES
 # ========================================
@@ -79,6 +98,8 @@ recommended_file_descriptors = 2048
 [overrides.paths]
 nslookup = "/usr/bin/nslookup"   # Override nslookup path if needed
 dig = "/usr/bin/dig"             # Override dig path if needed
+dnsx = "/usr/local/bin/dnsx"     # Override dnsx path if needed
+httpx = "/usr/local/bin/httpx"   # Override httpx path if needed
 
 # Global timeout multipliers
 [overrides.timeouts]
@@ -125,7 +146,7 @@ max_total_runtime_s = 300        # 5 minutes total scan limit
 
 # [validation]
 # # Pre-flight checks for active tools only
-# require_tools = ["nslookup", "dig"]
+# require_tools = ["nslookup", "dig", "dnsx", "httpx"]
 # check_file_descriptors = true
 # check_disk_space_mb = 100
 
@@ -148,7 +169,7 @@ max_total_runtime_s = 300        # 5 minutes total scan limit
 
 # # Plugin execution order for active reconnaissance plugins
 # [plugins.execution_order]
-# reconnaissance = ["nslookup", "dig"]
+# reconnaissance = ["nslookup", "dig", "hosts_discovery"]
 # port_scanners = []               # Empty - using reconnaissance plugins
 # service_scanners = []            # Empty - no service scanning plugins active
 # reporters = ["summary_reporter"]

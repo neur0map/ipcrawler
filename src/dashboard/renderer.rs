@@ -293,7 +293,6 @@ impl Renderer {
                     } else {
                         0
                     };
-                    let row_str = truncate_string(row, available_width);
 
                     // Clear only this panel's area to prevent overflow into other panels
                     let clear_width = inner.width as usize;
@@ -304,7 +303,8 @@ impl Renderer {
                     )?;
 
                     // Parse and render with tool name highlighting
-                    self.render_colored_result_row(&row_str, inner.x, inner.y + i as u16)?;
+                    // Pass original row for color detection, but truncate within the render function
+                    self.render_colored_result_row_with_truncation(row, inner.x, inner.y + i as u16, available_width)?;
                 }
             }
 
@@ -502,40 +502,67 @@ impl Renderer {
         Ok(())
     }
 
-    fn render_colored_result_row(&mut self, text: &str, x: u16, y: u16) -> io::Result<()> {
-        // Check if this is a tool result line (contains " - " separator)
+    fn render_colored_result_row_with_truncation(
+        &mut self,
+        text: &str,
+        x: u16,
+        y: u16,
+        max_width: usize,
+    ) -> io::Result<()> {
+        // Detect colors on the ORIGINAL text before truncation
         if let Some(dash_pos) = text.find(" - ") {
             let tool_part = &text[..dash_pos];
             let result_part = &text[dash_pos..];
 
             // Check if tool part contains known tool names
-            let tool_color = if tool_part.contains("dig ") || tool_part.contains("nslookup ") {
+            let tool_color = if tool_part.contains("dig ")
+                || tool_part.contains("nslookup ")
+                || tool_part.contains("hosts_discovery ")
+            {
                 Color::Yellow // Same as progress bar
             } else {
                 Color::White
             };
 
-            // Color result part based on content
+            // Color result part based on ORIGINAL content (before truncation)
             let result_color = if result_part.contains("✓") {
                 Color::Green
             } else if result_part.contains("✗") {
                 Color::Red
             } else if result_part.contains("OPEN") {
-                Color::Cyan
+                Color::Cyan  // All DNS/discovery results have "OPEN" appended
             } else {
                 Color::White
             };
 
-            // Render tool name in yellow, result in appropriate color
-            queue!(
-                self.stdout,
-                MoveTo(x, y),
-                SetForegroundColor(tool_color),
-                Print(tool_part),
-                SetForegroundColor(result_color),
-                Print(result_part),
-                ResetColor
-            )?;
+            // Now truncate the text for display
+            let truncated = truncate_string(text, max_width);
+            
+            // Find the dash position in the truncated text
+            if let Some(truncated_dash_pos) = truncated.find(" - ") {
+                let truncated_tool = &truncated[..truncated_dash_pos];
+                let truncated_result = &truncated[truncated_dash_pos..];
+                
+                // Render with detected colors
+                queue!(
+                    self.stdout,
+                    MoveTo(x, y),
+                    SetForegroundColor(tool_color),
+                    Print(truncated_tool),
+                    SetForegroundColor(result_color),
+                    Print(truncated_result),
+                    ResetColor
+                )?;
+            } else {
+                // Dash was truncated out, just render with tool color
+                queue!(
+                    self.stdout,
+                    MoveTo(x, y),
+                    SetForegroundColor(tool_color),
+                    Print(truncated),
+                    ResetColor
+                )?;
+            }
         } else {
             // No tool separator, color entire line based on content
             let color = if text.contains("✓") {
@@ -548,17 +575,18 @@ impl Renderer {
                 Color::White
             };
 
+            let truncated = truncate_string(text, max_width);
             queue!(
                 self.stdout,
                 MoveTo(x, y),
                 SetForegroundColor(color),
-                Print(text),
+                Print(truncated),
                 ResetColor
             )?;
         }
-
         Ok(())
     }
+
 
     pub fn flush(&mut self) -> io::Result<()> {
         self.stdout.flush()

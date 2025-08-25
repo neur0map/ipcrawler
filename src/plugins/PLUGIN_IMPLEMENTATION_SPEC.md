@@ -560,6 +560,9 @@ mod tests {
 - [ ] Add module declaration to `plugins/mod.rs`
 - [ ] Register plugin in `scheduler.rs` cloning logic
 - [ ] Add plugin to `registry.rs` for validation and inventory
+- [ ] Add plugin name to dashboard color rendering in `dashboard/renderer.rs` (line ~512)
+  - Update the `tool_color` check to include your plugin name with trailing space
+  - Example: Add `|| tool_part.contains("your_plugin ")` to the condition
 
 ### QUALITY_ASSURANCE
 - [ ] Write comprehensive unit tests

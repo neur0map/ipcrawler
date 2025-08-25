@@ -9,11 +9,20 @@ pub struct PluginRegistry {
 
 impl PluginRegistry {
     pub fn new() -> Self {
+        let mut recon_plugins: Vec<Box<dyn crate::plugins::types::PortScan>> = vec![
+            Box::new(crate::plugins::nslookup::NslookupPlugin),
+            Box::new(crate::plugins::dig::DigPlugin),
+        ];
+        
+        // Only add hosts discovery plugin if tools are available
+        if Self::hosts_discovery_tools_available() {
+            recon_plugins.push(Box::new(crate::plugins::hosts_discovery::HostsDiscoveryPlugin));
+        } else {
+            tracing::info!("Hosts discovery plugin disabled - dnsx or httpx not available");
+        }
+        
         Self {
-            recon_plugins: vec![
-                Box::new(crate::plugins::nslookup::NslookupPlugin),
-                Box::new(crate::plugins::dig::DigPlugin),
-            ],
+            recon_plugins,
             port_scan_plugins: vec![
                 // Empty for now - nslookup is our only plugin
             ],
@@ -75,6 +84,14 @@ impl PluginRegistry {
         let tools = match plugin_name {
             "nslookup" => vec!["nslookup".to_string()],
             "dig" => vec!["dig".to_string()],
+            "hosts_discovery" => {
+                // Only validate if plugin is actually loaded
+                if Self::hosts_discovery_tools_available() {
+                    vec!["dnsx".to_string(), "httpx".to_string()]
+                } else {
+                    vec![]
+                }
+            },
             _ => vec![],
         };
         Ok(tools)
@@ -85,6 +102,11 @@ impl PluginRegistry {
             + self.port_scan_plugins.len()
             + self.service_probe_plugins.len()
             + self.vulnerability_plugins.len()
+    }
+
+    /// Check if hosts discovery tools (dnsx, httpx) are available
+    fn hosts_discovery_tools_available() -> bool {
+        which::which("dnsx").is_ok() && which::which("httpx").is_ok()
     }
 
     pub fn log_plugin_summary(&self) {

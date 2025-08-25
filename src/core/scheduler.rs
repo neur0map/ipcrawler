@@ -228,6 +228,7 @@ async fn execute_plugin_phase_without_ui_start(
         let plugin_clone: Box<dyn PortScan> = match plugin_name {
             "nslookup" => Box::new(crate::plugins::nslookup::NslookupPlugin),
             "dig" => Box::new(crate::plugins::dig::DigPlugin),
+            "hosts_discovery" => Box::new(crate::plugins::hosts_discovery::HostsDiscoveryPlugin),
             _ => continue, // Skip unknown plugins
         };
 

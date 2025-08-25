@@ -5,20 +5,37 @@ RUN_DIR      := artifacts/runs
 PROFILE      ?= release
 RUN_ARGS     ?=
 
-.PHONY: help build clean test
+.PHONY: help build clean test verbose-build
 
 help:
 	@echo "IPCrawler Build System"
 	@echo ""
 	@echo "Main Commands:"
-	@echo "  make build    - Complete setup: compile, install tools, create symlinks, install config"
+	@echo "  make build    - Complete setup: compile, check tools, create symlinks, install config"
 	@echo "  make clean    - Remove all artifacts, symlinks, and user config"
 	@echo "  make test     - Run full validation: environment checks, formatting, linting, tests"
 	@echo "  make help     - Show this help message"
 	@echo ""
+	@echo "Tool Installation:"
+	@echo "  • Basic DNS tools (nslookup, dig) are required and usually pre-installed"
+	@echo "  • Optional Go tools for hosts discovery: dnsx, httpx"
+	@echo "  • Install Go tools: go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
+	@echo "  •                  go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+	@echo ""
 	@echo "After 'make build', run: ipcrawler -t google.com"
 
 build:
+	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR) 2>/dev/null
+	@bash scripts/install_tools.sh >/dev/null 2>&1 || true
+	@cargo build --release >/dev/null 2>&1
+	@cp -f target/release/ipcrawler $(BIN) 2>/dev/null
+	@mkdir -p ~/.local/bin 2>/dev/null
+	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
+	@ln -sf $(PWD)/$(BIN) ~/.local/bin/ipcrawler 2>/dev/null
+	@mkdir -p ~/.config/ipcrawler 2>/dev/null
+	@cp -f global.toml ~/.config/ipcrawler/global.toml 2>/dev/null
+
+verbose-build:
 	@echo "🔧 Setting up IPCrawler..."
 	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR)
 	

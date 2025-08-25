@@ -44,6 +44,7 @@ impl Default for ConcurrencyConfig {
 pub struct ToolsConfig {
     pub nslookup: NslookupConfig,
     pub dig: DigConfig,
+    pub hosts_discovery: Option<HostsDiscoveryConfig>,
     #[serde(flatten)]
     pub custom_tools: HashMap<String, CustomToolConfig>,
 }
@@ -295,6 +296,48 @@ pub struct TargetValidation {
     pub allow_localhost: bool,
     pub max_target_length: usize,
     pub validate_dns: bool,
+}
+
+// ========================================
+// HOSTS DISCOVERY CONFIGURATION
+// ========================================
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HostsDiscoveryConfig {
+    pub enabled: bool,
+    pub target_ip: String,
+    pub auto_write: bool,
+    pub backup_hosts: bool,
+    pub dnsx: HostsDiscoveryToolConfig,
+    pub httpx: HostsDiscoveryToolConfig,
+}
+
+impl Default for HostsDiscoveryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            target_ip: "127.0.0.1".to_string(),
+            auto_write: true,
+            backup_hosts: true,
+            dnsx: HostsDiscoveryToolConfig {
+                command: "dnsx".to_string(),
+                timeout_ms: 30000,
+                max_results: 1000,
+            },
+            httpx: HostsDiscoveryToolConfig {
+                command: "httpx".to_string(),
+                timeout_ms: 60000,
+                max_results: 100,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HostsDiscoveryToolConfig {
+    pub command: String,
+    pub timeout_ms: u64,
+    pub max_results: usize,
 }
 
 // ========================================

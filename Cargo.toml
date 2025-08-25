@@ -37,6 +37,8 @@ which = "6"
 libc = "0.2"
 minijinja = { version = "2", features = ["loader"] }
 chrono = { version = "0.4", features = ["serde"] }
+dirs = "5.0"
+url = "2.0"
 
 [dev-dependencies]
 tempfile = "3.0"
