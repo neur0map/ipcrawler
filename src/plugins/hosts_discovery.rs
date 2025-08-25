@@ -159,12 +159,8 @@ impl HostsDiscoveryPlugin {
                 
                 Ok(discoveries)
             }
-            Err(e) => {
-                self.send_log(
-                    ui_sender,
-                    "ERROR",
-                    &format!("dnsx comprehensive command failed for {}: {}", target, e),
-                );
+            Err(_e) => {
+                // Silently handle dnsx failures - tool may not be available
                 Ok(vec![])
             }
         }
@@ -177,11 +173,7 @@ impl HostsDiscoveryPlugin {
         ui_sender: &mpsc::UnboundedSender<UiEvent>,
         config: &GlobalConfig,
     ) -> Result<Vec<(String, String)>> {
-        self.send_log(
-            ui_sender,
-            "INFO",
-            &format!("Running dnsx reverse DNS for {}", target),
-        );
+        // Running reverse DNS lookup
 
         let (command, timeout) = if let Some(ref tools) = config.tools {
             if let Some(ref hosts_config) = &tools.hosts_discovery {
@@ -212,12 +204,8 @@ impl HostsDiscoveryPlugin {
                 );
                 Ok(discoveries)
             }
-            Err(e) => {
-                self.send_log(
-                    ui_sender,
-                    "ERROR",
-                    &format!("dnsx reverse command failed for {}: {}", target, e),
-                );
+            Err(_e) => {
+                // Silently handle dnsx reverse lookup failures
                 Ok(vec![])
             }
         }
@@ -230,11 +218,7 @@ impl HostsDiscoveryPlugin {
         ui_sender: &mpsc::UnboundedSender<UiEvent>,
         config: &GlobalConfig,
     ) -> Result<Vec<(String, String, String)>> {
-        self.send_log(
-            ui_sender,
-            "INFO",
-            &format!("Running comprehensive HTTP discovery for {}", target),
-        );
+        // Running comprehensive HTTP discovery
 
         let (command, timeout) = if let Some(ref tools) = config.tools {
             if let Some(ref hosts_config) = &tools.hosts_discovery {
@@ -279,11 +263,7 @@ impl HostsDiscoveryPlugin {
 
         let mut all_discoveries = Vec::new();
         for input in inputs {
-            self.send_log(
-                ui_sender,
-                "INFO",
-                &format!("Testing HTTP/HTTPS on: {}", input),
-            );
+            // Testing HTTP/HTTPS endpoints (reduced verbosity)
             
             match self.execute_with_stdin(&command, &args, &input, timeout).await {
                 Ok(stdout) => {
@@ -293,12 +273,8 @@ impl HostsDiscoveryPlugin {
                     
                     all_discoveries.extend(discoveries);
                 }
-                Err(e) => {
-                    self.send_log(
-                        ui_sender,
-                        "WARN",
-                        &format!("httpx command failed for {}: {}", input, e),
-                    );
+                Err(_e) => {
+                    // Silently handle httpx failures - service may not be available
                 }
             }
         }
@@ -823,7 +799,6 @@ impl PortScan for HostsDiscoveryPlugin {
         
         if is_ip {
             // For IP targets: comprehensive reverse DNS + HTTP discovery
-            self.send_log(ui_sender, "INFO", "Target is IP - running reverse DNS and HTTP discovery");
             
             let reverse_results = self.run_dnsx_reverse(target, ui_sender, config).await?;
             all_discoveries.extend(reverse_results.clone());
@@ -837,14 +812,13 @@ impl PortScan for HostsDiscoveryPlugin {
             // Try to resolve any discovered hostnames for comprehensive DNS enum
             for (domain, _) in &reverse_results {
                 if !domain.contains("CNAME:") && !domain.contains("MX:") && !domain.contains("NS:") {
-                    self.send_log(ui_sender, "INFO", &format!("Running comprehensive DNS enum on discovered domain: {}", domain));
+                    // Running DNS enum on discovered domain
                     let dns_results = self.run_dnsx_comprehensive(domain, ui_sender, config).await?;
                     all_discoveries.extend(dns_results);
                 }
             }
         } else {
             // For domain targets: comprehensive DNS enumeration + HTTP discovery
-            self.send_log(ui_sender, "INFO", "Target is domain - running comprehensive DNS and HTTP discovery");
             
             let dns_results = self.run_dnsx_comprehensive(target, ui_sender, config).await?;
             

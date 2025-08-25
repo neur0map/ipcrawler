@@ -563,6 +563,28 @@ mod tests {
 - [ ] Add plugin name to dashboard color rendering in `dashboard/renderer.rs` (line ~512)
   - Update the `tool_color` check to include your plugin name with trailing space
   - Example: Add `|| tool_part.contains("your_plugin ")` to the condition
+- [ ] **CRITICAL**: Add tool availability check in `registry.rs` for optional tools
+  - Implement `{plugin}_tools_available()` function if your plugin depends on external tools
+  - Add conditional plugin loading: `if Self::{plugin}_tools_available() { /* add plugin */ }`
+  - This prevents plugin loading when required tools are missing
+- [ ] **STDIN-BASED TOOLS**: If your tool requires stdin input (like dnsx/httpx):
+  - Implement `execute_with_stdin()` method for piping input to commands
+  - DO NOT use regular command-line arguments for input data
+  - Use `tokio::process::Command` with `Stdio::piped()` for stdin
+  - Tools like `dnsx` and `httpx` from ProjectDiscovery require this pattern
+- [ ] **CONFIGURATION INTEGRATION**: For complex tools with multiple sub-tools:
+  - Define separate config structs for each sub-tool (e.g., `DnsxConfig`, `HttpxConfig`)
+  - Use `Option<YourPluginConfig>` in `ToolsConfig` for optional plugins
+  - Implement proper timeout and command path configuration per sub-tool
+- [ ] **FILE OUTPUT**: Create comprehensive result files:
+  - Use descriptive filenames like `{plugin}_comprehensive.txt` vs `{plugin}_results.txt`
+  - Organize output by discovery type (DNS records, HTTP services, etc.)
+  - Include summary statistics and metadata (wildcard detection, timestamps)
+- [ ] **UI PANEL SEPARATION**: Ensure proper UI integration:
+  - **Live Logs Panel**: Use `send_log()` for progress messages only
+  - **Results Panel**: Use `UiEvent::PortDiscovered` for actual discoveries
+  - Never log individual discoveries - they should only go to Results panel
+  - Follow format: `"{plugin} {TYPE} - {discovery_info}"`
 
 ### QUALITY_ASSURANCE
 - [ ] Write comprehensive unit tests
@@ -573,6 +595,145 @@ mod tests {
 - [ ] Test concurrent execution compatibility
 - [ ] Validate scan file creation
 - [ ] Test error handling and recovery
+
+## ADVANCED_PATTERNS
+
+### COMPREHENSIVE_DISCOVERY_PATTERN
+```rust
+// For tools that perform multiple types of discovery (DNS + HTTP + Tech detection)
+struct ComprehensivePlugin {
+    // Multiple discovery methods
+}
+
+impl ComprehensivePlugin {
+    /// Run comprehensive discovery based on target type
+    async fn run_comprehensive_discovery(&self, target: &str, config: &GlobalConfig) -> Result<DiscoveryResults> {
+        let is_ip = target.parse::<std::net::IpAddr>().is_ok();
+        let mut all_discoveries = Vec::new();
+        
+        if is_ip {
+            // IP targets: Reverse DNS + HTTP tech detection
+            let reverse_results = self.run_reverse_dns(target, config).await?;
+            let http_results = self.run_http_discovery(target, config).await?;
+            all_discoveries.extend(reverse_results);
+            all_discoveries.extend(http_results);
+        } else {
+            // Domain targets: Forward DNS + HTTP + Chain resolution
+            let dns_results = self.run_forward_dns(target, config).await?;
+            all_discoveries.extend(dns_results.clone());
+            
+            // Follow CNAME/MX/NS chains
+            for (domain, value) in &dns_results {
+                if value.starts_with("CNAME:") {
+                    let canonical = value.strip_prefix("CNAME:").unwrap();
+                    let chain_results = self.run_forward_dns(canonical, config).await?;
+                    all_discoveries.extend(chain_results);
+                }
+            }
+            
+            // Run HTTP discovery on discovered IPs
+            let unique_ips: HashSet<String> = dns_results.iter()
+                .filter_map(|(_, ip)| {
+                    if ip.parse::<std::net::IpAddr>().is_ok() { Some(ip.clone()) } else { None }
+                })
+                .collect();
+                
+            for ip in unique_ips {
+                let http_results = self.run_http_discovery(&ip, config).await?;
+                all_discoveries.extend(http_results);
+            }
+        }
+        
+        Ok(all_discoveries)
+    }
+}
+```
+
+### STDIN_EXECUTION_PATTERN
+```rust
+// For tools that require stdin input (dnsx, httpx, etc.)
+use tokio::process::Command;
+use std::process::Stdio;
+use tokio::io::AsyncWriteExt;
+
+impl YourPlugin {
+    async fn execute_with_stdin(&self, command: &str, args: &[&str], stdin_input: &str, timeout_ms: u64) -> Result<String> {
+        let mut cmd = Command::new(command);
+        cmd.args(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let mut child = cmd.spawn()?;
+
+        // Write to stdin - CRITICAL for tools like dnsx/httpx
+        if let Some(stdin) = child.stdin.take() {
+            let mut stdin = stdin;
+            stdin.write_all(stdin_input.as_bytes()).await?;
+            stdin.shutdown().await?;
+        }
+
+        let output = tokio::time::timeout(
+            tokio::time::Duration::from_millis(timeout_ms),
+            child.wait_with_output(),
+        ).await??;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            Err(anyhow::anyhow!("Command failed: {}", String::from_utf8_lossy(&output.stderr)))
+        }
+    }
+}
+```
+
+### OPTIONAL_TOOLS_PATTERN
+```rust
+// In src/plugins/registry.rs - Add tool availability checks
+impl PluginRegistry {
+    fn your_plugin_tools_available() -> bool {
+        // Check if required external tools are available
+        which::which("your_required_tool").is_ok() && 
+        which::which("your_second_tool").is_ok()
+    }
+    
+    pub fn new() -> Self {
+        let mut recon_plugins = vec![
+            // Always available plugins
+            Box::new(crate::plugins::dig::DigPlugin),
+            Box::new(crate::plugins::nslookup::NslookupPlugin),
+        ];
+        
+        // Conditionally available plugins
+        if Self::your_plugin_tools_available() {
+            recon_plugins.push(Box::new(crate::plugins::your_plugin::YourPlugin));
+        } else {
+            tracing::info!("YourPlugin disabled - required tools not available");
+        }
+        
+        Self { recon_plugins, /* ... */ }
+    }
+}
+```
+
+### WILDCARD_DETECTION_PATTERN
+```rust
+// Prevent false positives from wildcard DNS
+impl YourPlugin {
+    async fn detect_wildcard_dns(&self, target: &str, config: &GlobalConfig) -> Result<bool> {
+        let random_subdomains = vec![
+            format!("randomtest12345.{}", target),
+            format!("nonexistentabcd.{}", target),
+            format!("shouldnotexist9999.{}", target),
+        ];
+        
+        let test_input = random_subdomains.join("\n");
+        let result = self.execute_with_stdin("dnsx", &["-silent", "-a"], &test_input, 15000).await?;
+        
+        Ok(!result.trim().is_empty()) // If random subdomains resolve, wildcard exists
+    }
+}
+```
 
 ## COMMON_PATTERNS
 
@@ -658,4 +819,26 @@ fn determine_query_types(&self, target: &str) -> Vec<&str> {
 - **Comprehensive Testing**: Cover edge cases and error conditions
 - **Documentation**: Comment complex parsing and validation logic
 
-This specification provides a comprehensive, tool-agnostic guide for implementing any type of reconnaissance plugin in the ipcrawler system, focusing on the general process and patterns rather than specific tool implementations.
+## LESSONS_LEARNED
+
+### CRITICAL_GAPS_ADDRESSED
+This specification was enhanced based on real implementation experience with the `hosts_discovery` plugin. Key gaps that were identified and addressed:
+
+1. **Tool Availability Checking**: The original spec didn't emphasize conditional plugin loading for optional external tools
+2. **Stdin Execution Pattern**: Many modern recon tools (dnsx, httpx) require stdin input, not command arguments
+3. **UI Panel Separation**: Critical distinction between Live Logs vs Results panel was underemphasized
+4. **Comprehensive Discovery**: Pattern for chaining multiple discovery types and following DNS chains
+5. **Wildcard Detection**: Essential for DNS-based tools to prevent false positives
+6. **Configuration Complexity**: Multi-tool plugins need more sophisticated config structures
+
+### DEBUGGING_CHECKLIST
+If your plugin isn't working as expected:
+
+- [ ] **No Results in UI**: Check that you're sending `UiEvent::PortDiscovered` not just logs
+- [ ] **Tool Not Found**: Verify tool availability check in registry.rs
+- [ ] **Empty Output**: For stdin tools, ensure you're using `execute_with_stdin()` not regular execution
+- [ ] **Color Issues**: Verify plugin name is in dashboard renderer color list
+- [ ] **Config Errors**: Check that config structs match TOML structure exactly
+- [ ] **Build Failures**: Ensure all imports and async patterns match existing plugins
+
+This specification provides a comprehensive, battle-tested guide for implementing any type of reconnaissance plugin in the ipcrawler system, based on real-world implementation experience and identified gaps in the original specification.

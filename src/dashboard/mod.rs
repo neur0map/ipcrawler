@@ -261,31 +261,89 @@ impl Dashboard {
                 return true;
             }
             KeyCode::Up => {
-                // Scroll active panel (results on left, logs on right based on which has focus)
-                if self.state.results.scroll_offset > 0 {
-                    self.state.results.scroll_offset -= 1;
-                    self.needs_redraw = true;
+                // Check for modifiers to determine which panel to scroll
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    // Shift+Up: Scroll logs panel up
+                    if self.state.logs.scroll_offset > 0 {
+                        self.state.logs.scroll_offset -= 1;
+                        self.needs_redraw = true;
+                    }
+                } else {
+                    // Regular Up: Scroll results panel up
+                    if self.state.results.scroll_offset > 0 {
+                        self.state.results.scroll_offset -= 1;
+                        self.needs_redraw = true;
+                    }
                 }
             }
             KeyCode::Down => {
-                let max_offset = self.state.results.rows.len().saturating_sub(10);
-                if self.state.results.scroll_offset < max_offset {
-                    self.state.results.scroll_offset += 1;
-                    self.needs_redraw = true;
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    // Shift+Down: Scroll logs panel down
+                    let max_offset = self.state.logs.entries.len().saturating_sub(10);
+                    if self.state.logs.scroll_offset < max_offset {
+                        self.state.logs.scroll_offset += 1;
+                        self.needs_redraw = true;
+                    }
+                } else {
+                    // Regular Down: Scroll results panel down
+                    let max_offset = self.state.results.rows.len().saturating_sub(10);
+                    if self.state.results.scroll_offset < max_offset {
+                        self.state.results.scroll_offset += 1;
+                        self.needs_redraw = true;
+                    }
                 }
             }
             KeyCode::PageUp => {
-                self.state.results.scroll_offset =
-                    self.state.results.scroll_offset.saturating_sub(10);
-                self.needs_redraw = true;
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    // Shift+PageUp: Scroll logs panel up by page
+                    self.state.logs.scroll_offset = 
+                        self.state.logs.scroll_offset.saturating_sub(10);
+                    self.needs_redraw = true;
+                } else {
+                    // Regular PageUp: Scroll results panel up by page
+                    self.state.results.scroll_offset =
+                        self.state.results.scroll_offset.saturating_sub(10);
+                    self.needs_redraw = true;
+                }
             }
             KeyCode::PageDown => {
-                let max_offset = self.state.results.rows.len().saturating_sub(10);
-                self.state.results.scroll_offset =
-                    (self.state.results.scroll_offset + 10).min(max_offset);
-                self.needs_redraw = true;
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    // Shift+PageDown: Scroll logs panel down by page
+                    let max_offset = self.state.logs.entries.len().saturating_sub(10);
+                    self.state.logs.scroll_offset = 
+                        (self.state.logs.scroll_offset + 10).min(max_offset);
+                    self.needs_redraw = true;
+                } else {
+                    // Regular PageDown: Scroll results panel down by page
+                    let max_offset = self.state.results.rows.len().saturating_sub(10);
+                    self.state.results.scroll_offset =
+                        (self.state.results.scroll_offset + 10).min(max_offset);
+                    self.needs_redraw = true;
+                }
             }
-            // TODO: Add Shift+Up/Down or Ctrl+Up/Down for logs scrolling
+            KeyCode::Home => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    // Shift+Home: Scroll logs to top
+                    self.state.logs.scroll_offset = 0;
+                    self.needs_redraw = true;
+                } else {
+                    // Regular Home: Scroll results to top
+                    self.state.results.scroll_offset = 0;
+                    self.needs_redraw = true;
+                }
+            }
+            KeyCode::End => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    // Shift+End: Scroll logs to bottom
+                    self.state.logs.scroll_offset = self.state.logs.entries.len().saturating_sub(10);
+                    self.needs_redraw = true;
+                } else {
+                    // Regular End: Scroll results to bottom
+                    self.state.results.scroll_offset = self.state.results.rows.len().saturating_sub(10);
+                    self.needs_redraw = true;
+                }
+            }
+            // Logs scrolling completed - now handle tab navigation
             KeyCode::Left => {
                 let tab_count = self.state.tabs.tabs.len();
                 if tab_count > 0 {

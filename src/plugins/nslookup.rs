@@ -8,6 +8,8 @@ use crate::plugins::types::PortScan;
 use crate::ui::events::UiEvent;
 use anyhow::Result;
 use async_trait::async_trait;
+use chrono::Utc;
+use std::path::Path;
 use tokio::sync::mpsc;
 
 #[derive(Clone)]
@@ -158,6 +160,49 @@ impl NslookupPlugin {
 
         results
     }
+
+    /// Write nslookup results to file in scans directory
+    fn write_results_to_file(
+        &self,
+        target: &str,
+        results: &[(String, Vec<String>)], // (record_type, parsed_results)
+        scans_dir: &Path,
+        ui_sender: &mpsc::UnboundedSender<UiEvent>,
+    ) -> Result<()> {
+        let mut content = String::new();
+        content.push_str(&format!("=== nslookup Results for {} ===\n", target));
+        content.push_str(&format!("Timestamp: {}\n\n", Utc::now()));
+
+        if results.is_empty() {
+            content.push_str("No DNS records found\n");
+        } else {
+            for (record_type, parsed_results) in results {
+                if !parsed_results.is_empty() {
+                    content.push_str(&format!("=== {} Records ({}) ===\n", record_type, parsed_results.len()));
+                    for result in parsed_results {
+                        content.push_str(&format!("{}\n", result));
+                    }
+                    content.push('\n');
+                }
+            }
+
+            content.push_str(&format!("=== Summary ===\n"));
+            let total_records: usize = results.iter().map(|(_, r)| r.len()).sum();
+            content.push_str(&format!("Total DNS records found: {}\n", total_records));
+            content.push_str(&format!("Record types queried: {}\n", results.len()));
+        }
+
+        let result_file = scans_dir.join("nslookup_results.txt");
+        crate::utils::fs::atomic_write(result_file, content.as_bytes())?;
+        
+        self.send_log(
+            ui_sender,
+            "INFO",
+            "nslookup results written to scans/nslookup_results.txt",
+        );
+        
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -172,6 +217,10 @@ impl PortScan for NslookupPlugin {
             .ui_sender
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No UI sender available"))?;
+        let dirs = state
+            .dirs
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No directories available"))?;
 
         self.send_log(
             ui_sender,
@@ -190,6 +239,7 @@ impl PortScan for NslookupPlugin {
         }
 
         let mut services = Vec::new();
+        let mut all_results = Vec::new(); // Collect all results for file output
 
         // Check if target is an IP address
         let is_ip = target.parse::<std::net::IpAddr>().is_ok();
@@ -230,6 +280,9 @@ impl PortScan for NslookupPlugin {
             {
                 Ok(output) => {
                     let parsed_results = self.parse_nslookup_output(&output, record_type);
+
+                    // Always collect results for file output (even if empty)
+                    all_results.push((record_type.to_string(), parsed_results.clone()));
 
                     if parsed_results.is_empty() {
                         self.send_log(
@@ -285,6 +338,15 @@ impl PortScan for NslookupPlugin {
                 500
             };
             tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+        }
+
+        // Write results to file
+        if let Err(e) = self.write_results_to_file(target, &all_results, &dirs.scans, ui_sender) {
+            self.send_log(
+                ui_sender,
+                "WARN",
+                &format!("Failed to write nslookup results to file: {}", e),
+            );
         }
 
         if services.is_empty() {

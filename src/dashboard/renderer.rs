@@ -102,7 +102,7 @@ impl Renderer {
         )?;
 
         // Control buttons (visual only)
-        let controls = " [Q]uit | [←→] Switch Tabs | [↑↓] Scroll ";
+        let controls = " [Q]uit | [←→] Switch Tabs | [↑↓] Scroll Results | [Shift+↑↓] Scroll Logs ";
 
         queue!(
             self.stdout,
@@ -428,9 +428,14 @@ impl Renderer {
             "█ IPCrawler - DNS Reconnaissance Tool".to_string(),
             "".to_string(),
             "◦ NAVIGATION".to_string(),
-            "  ← → Arrow Keys    Navigate between tabs".to_string(),
-            "  ↑ ↓ Arrow Keys    Scroll content up/down".to_string(),
-            "  q / Ctrl+C       Quit application".to_string(),
+            "  ← → Arrow Keys       Navigate between tabs".to_string(),
+            "  ↑ ↓ Arrow Keys       Scroll Results panel up/down".to_string(),
+            "  Shift + ↑ ↓         Scroll Live Logs panel up/down".to_string(),
+            "  Page Up/Down        Scroll Results by page".to_string(),
+            "  Shift + Page Up/Dn  Scroll Live Logs by page".to_string(),
+            "  Home/End            Jump to top/bottom of Results".to_string(),
+            "  Shift + Home/End    Jump to top/bottom of Live Logs".to_string(),
+            "  q / Ctrl+C          Quit application".to_string(),
             "".to_string(),
             "◦ SCANNING FEATURES".to_string(),
             "  • DNS Enumeration  Query A, AAAA, MX, NS, TXT, CNAME, SOA, PTR records".to_string(),

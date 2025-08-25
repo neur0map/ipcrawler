@@ -25,15 +25,26 @@ help:
 	@echo "After 'make build', run: ipcrawler -t google.com"
 
 build:
+	@echo "🔧 Building IPCrawler..."
+	@echo "[▏         ] 10% - Setting up directories"
 	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR) 2>/dev/null
-	@bash scripts/install_tools.sh >/dev/null 2>&1 || true
-	@cargo build --release >/dev/null 2>&1
+	@echo "[▏▏        ] 20% - Checking tools"
+	@bash scripts/install_tools.sh >/dev/null 2>&1 || echo "  ⚠ Some optional tools missing (continuing)"
+	@echo "[▏▏▏       ] 30% - Starting compilation"
+	@echo "[▏▏▏▏      ] 40% - Compiling dependencies"
+	@echo "[▏▏▏▏▏     ] 50% - Compiling ipcrawler"
+	@cargo build --release --quiet || (echo "  ✗ Compilation failed" && exit 1)
+	@echo "[▏▏▏▏▏▏▏   ] 70% - Optimizing release build"
+	@echo "[▏▏▏▏▏▏▏▏  ] 80% - Copying binary"
 	@cp -f target/release/ipcrawler $(BIN) 2>/dev/null
+	@echo "[▏▏▏▏▏▏▏▏▏ ] 90% - Installing system integration"
 	@mkdir -p ~/.local/bin 2>/dev/null
 	@rm -f ~/.local/bin/ipcrawler 2>/dev/null || true
 	@ln -sf $(PWD)/$(BIN) ~/.local/bin/ipcrawler 2>/dev/null
 	@mkdir -p ~/.config/ipcrawler 2>/dev/null
 	@cp -f global.toml ~/.config/ipcrawler/global.toml 2>/dev/null
+	@echo "[▏▏▏▏▏▏▏▏▏▏] 100% - Complete!"
+	@echo "✅ IPCrawler build successful! Try: ipcrawler -t google.com"
 
 verbose-build:
 	@echo "🔧 Setting up IPCrawler..."
