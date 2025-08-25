@@ -33,12 +33,12 @@ command = "nmap"
 base_args = ["-sT", "-sV", "-T4"]
 
 # Port specifications (choose one strategy)
-port_strategy = "default"  # Options: "default", "top", "range", "list"
+port_strategy = "top"  # Options: "default", "top", "range", "list"
 
 # Strategy-specific settings
 [tools.nmap.ports]
 # For port_strategy = "top" 
-top_ports = 1000
+top_ports = 100
 
 # For port_strategy = "range"
 range_start = 1
@@ -58,7 +58,7 @@ stealth_mode = false          # Use -sS instead of -sT (requires root)
 
 # Timeouts and limits
 [tools.nmap.limits]
-timeout_ms = 300000           # 5 minutes
+timeout_ms = 30000            # 30 seconds
 max_retries = 2
 host_timeout_ms = 90000       # 90 seconds per host
 scan_delay_ms = 0            # Delay between probes
@@ -70,13 +70,13 @@ scan_delay_ms = 0            # Delay between probes
 [tools.http_probe]
 # Default command and arguments
 command = "curl"
-base_args = ["-s", "-L", "-I"]
+base_args = ["-s", "-L"]
 
 # HTTP-specific options
 [tools.http_probe.options]
 follow_redirects = true       # -L flag
 silent_mode = true           # -s flag
-headers_only = true          # -I flag (HEAD request)
+headers_only = false         # Use GET instead of HEAD request
 max_redirects = 10           # -m flag
 include_headers = true       # Include response headers
 user_agent = "ipcrawler/0.1.0"
@@ -93,6 +93,7 @@ ssl_protocols = ["TLSv1.2", "TLSv1.3"]
 verbose = false              # -v flag for debugging
 write_response = true        # Save response to file
 include_timing = true        # Include timing information
+log_connection_failures = false
 
 # Timeouts and limits
 [tools.http_probe.limits]
@@ -101,22 +102,88 @@ max_retries = 1
 connection_timeout_ms = 10000 # 10 seconds
 
 # ========================================
-# CUSTOM TOOL DEFINITIONS
+# NAABU PORT SCANNER CONFIGURATION
 # ========================================
 
-# Example: Add custom DNS enumeration tool
-[tools.dns_enum]
-enabled = false
-command = "dig"
-base_args = ["+short"]
-timeout_ms = 30000
+[tools.naabu]
+# Default command and arguments
+command = "naabu"
+base_args = ["-silent", "-json"]
 
-# Example: Add custom directory brute force
-[tools.dir_scan]
-enabled = false
-command = "ffuf"
-base_args = ["-c", "-v"]
-timeout_ms = 120000
+# Scanning options
+[tools.naabu.options]
+rate = 1000                   # Packets per second
+concurrency = 50              # Number of concurrent goroutines
+interface = ""                # Network interface to use (empty = auto)
+source_ip = ""               # Source IP address (empty = auto)
+verify = true                # Verify open ports
+scan_all_ips = false         # Scan all IPs in CIDR
+scan_type = "s"              # s=SYN, c=CONNECT
+
+# Timeouts and limits
+[tools.naabu.limits]
+timeout_ms = 15000           # 15 seconds total timeout (faster failure)
+port_timeout_ms = 5000       # 5 seconds per port
+max_retries = 1
+host_timeout_ms = 30000      # 30 seconds per host
+
+# ========================================
+# HTTPX PROBE CONFIGURATION  
+# ========================================
+
+[tools.httpx]
+# Default command and arguments (using ProjectDiscovery's httpx)
+command = "/Users/carlosm/go/bin/httpx"
+base_args = ["-silent", "-no-color"]
+
+# HTTP-specific options
+[tools.httpx.options]
+method = "GET"               # HTTP method
+user_agent = "ipcrawler/0.1.0"
+timeout_s = 10
+follow_redirects = true
+follow_host_redirects = false
+probe_all_ips = false
+http2 = true
+
+# Output options
+[tools.httpx.output]
+status_code = true           # Show HTTP status codes
+content_length = true        # Show content length
+title = true                 # Extract page titles
+tech_detect = true           # Technology detection
+server = true                # Show server headers
+content_type = true          # Show content type
+
+# Timeouts and limits
+[tools.httpx.limits]
+timeout_ms = 15000           # 15 seconds
+max_retries = 1
+connection_timeout_ms = 10000 # 10 seconds
+
+# ========================================
+# DNS ENUMERATION CONFIGURATION
+# ========================================
+
+[tools.dns_enum]
+# Default command and arguments
+command = "dig"
+base_args = ["+short", "+time=3", "+tries=2"]
+
+# DNS enumeration options
+[tools.dns_enum.options]
+subdomain_enum = true         # Enable subdomain enumeration
+zone_transfer = true          # Attempt zone transfer
+record_types = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
+recursive = true              # Use recursive DNS queries
+dnssec = false               # Validate DNSSEC
+
+# Timeouts and limits
+[tools.dns_enum.limits]
+timeout_ms = 30000           # 30 seconds total
+query_timeout_ms = 5000      # 5 seconds per query
+max_retries = 2
+max_subdomains = 100         # Limit subdomain enumeration
 
 # ========================================
 # GLOBAL OVERRIDES
@@ -174,7 +241,7 @@ rotate_files = true
 
 [validation]
 # Pre-flight checks
-require_tools = ["nmap", "curl"]
+require_tools = ["nmap", "curl", "dig"]
 check_file_descriptors = true
 check_disk_space_mb = 100
 
@@ -196,6 +263,6 @@ plugin_dirs = ["./plugins", "./custom_plugins"]
 
 # Plugin execution order
 [plugins.execution_order]
-port_scanners = ["nmap_portscan"]
-service_scanners = ["http_probe"]
+port_scanners = ["nmap_portscan", "naabu_portscan", "dns_enum"]
+service_scanners = ["http_probe", "httpx_probe"]
 reporters = ["summary_reporter"]

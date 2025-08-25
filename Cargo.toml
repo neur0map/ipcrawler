@@ -14,11 +14,15 @@ toml = "0.8"
 # Async + process handling
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
+futures = "0.3"
 
 # Output & UX
-indicatif = "0.17"
-console = "0.15"
-yansi = "1"
+ratatui = "0.28"
+crossterm = "0.27"
+unicode-width = "0.1"
+
+# System monitoring
+sysinfo = "0.30"
 
 # Logging & errors
 tracing = "0.1"

@@ -14,6 +14,7 @@ pub struct RunDirs {
 pub struct Target {
     pub value: String,    // host/IP/domain
     pub run_id: String,
+    #[allow(dead_code)]
     pub dirs: RunDirs,
 }
 

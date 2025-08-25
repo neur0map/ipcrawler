@@ -2,6 +2,7 @@ use std::path::Path;
 use anyhow::Result;
 use super::command::{execute, CommandResult};
 
+#[allow(dead_code)]
 pub async fn run_nmap(
     target: &str,
     output_file: &Path,
@@ -19,6 +20,7 @@ pub async fn run_nmap(
     execute("nmap", &args, cwd, Some(300000)).await  // 5 minute timeout
 }
 
+#[allow(dead_code)]
 pub async fn run_curl(
     url: &str,
     output_file: Option<&Path>,

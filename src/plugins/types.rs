@@ -17,6 +17,7 @@ pub trait ServiceScan: Send + Sync {
 }
 
 #[async_trait]
+#[allow(dead_code)]
 pub trait Report: Send + Sync {
     fn name(&self) -> &'static str;
     async fn generate(&self, state: &RunState) -> Result<()>;

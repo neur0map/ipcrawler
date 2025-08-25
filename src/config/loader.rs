@@ -148,6 +148,7 @@ impl ConfigLoader {
     }
 
     /// Generate a default configuration file template
+    #[allow(dead_code)]
     pub fn generate_template(path: &Path) -> Result<()> {
         let default_config = GlobalConfig::default();
         Self::save_to_file(&default_config, path)

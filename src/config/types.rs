@@ -59,6 +59,9 @@ impl Default for ConcurrencyConfig {
 pub struct ToolsConfig {
     pub nmap: NmapConfig,
     pub http_probe: HttpProbeConfig,
+    pub naabu: NaabuConfig,
+    pub httpx: HttpxConfig,
+    pub dns_enum: DnsEnumConfig,
     #[serde(flatten)]
     pub custom_tools: HashMap<String, CustomToolConfig>,
 }
@@ -68,6 +71,9 @@ impl Default for ToolsConfig {
         Self {
             nmap: NmapConfig::default(),
             http_probe: HttpProbeConfig::default(),
+            naabu: NaabuConfig::default(),
+            httpx: HttpxConfig::default(),
+            dns_enum: DnsEnumConfig::default(),
             custom_tools: HashMap::new(),
         }
     }
@@ -236,6 +242,7 @@ pub struct HttpProbeOutput {
     pub verbose: bool,
     pub write_response: bool,
     pub include_timing: bool,
+    pub log_connection_failures: bool,
 }
 
 impl Default for HttpProbeOutput {
@@ -244,6 +251,7 @@ impl Default for HttpProbeOutput {
             verbose: false,
             write_response: true,
             include_timing: true,
+            log_connection_failures: false,
         }
     }
 }
@@ -344,4 +352,219 @@ pub struct ExecutionOrder {
     pub port_scanners: Vec<String>,
     pub service_scanners: Vec<String>,
     pub reporters: Vec<String>,
+}
+
+// ========================================
+// NEW TOOL CONFIGURATIONS
+// ========================================
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NaabuConfig {
+    pub command: String,
+    pub base_args: Vec<String>,
+    pub options: NaabuOptions,
+    pub limits: NaabuLimits,
+}
+
+impl Default for NaabuConfig {
+    fn default() -> Self {
+        Self {
+            command: "naabu".to_string(),
+            base_args: vec!["-silent".to_string(), "-json".to_string()],
+            options: NaabuOptions::default(),
+            limits: NaabuLimits::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NaabuOptions {
+    pub rate: u32,
+    pub concurrency: u32,
+    pub interface: String,
+    pub source_ip: String,
+    pub verify: bool,
+    pub scan_all_ips: bool,
+    pub scan_type: String,
+}
+
+impl Default for NaabuOptions {
+    fn default() -> Self {
+        Self {
+            rate: 1000,
+            concurrency: 50,
+            interface: String::new(),
+            source_ip: String::new(),
+            verify: true,
+            scan_all_ips: false,
+            scan_type: "s".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NaabuLimits {
+    pub timeout_ms: u64,
+    pub port_timeout_ms: u64,
+    pub max_retries: u32,
+    pub host_timeout_ms: u64,
+}
+
+impl Default for NaabuLimits {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 60000,
+            port_timeout_ms: 5000,
+            max_retries: 1,
+            host_timeout_ms: 30000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HttpxConfig {
+    pub command: String,
+    pub base_args: Vec<String>,
+    pub options: HttpxOptions,
+    pub output: HttpxOutput,
+    pub limits: HttpxLimits,
+}
+
+impl Default for HttpxConfig {
+    fn default() -> Self {
+        Self {
+            command: "httpx".to_string(),
+            base_args: vec!["-silent".to_string(), "-no-color".to_string()],
+            options: HttpxOptions::default(),
+            output: HttpxOutput::default(),
+            limits: HttpxLimits::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HttpxOptions {
+    pub method: String,
+    pub user_agent: String,
+    pub timeout_s: u32,
+    pub follow_redirects: bool,
+    pub follow_host_redirects: bool,
+    pub probe_all_ips: bool,
+    pub http2: bool,
+}
+
+impl Default for HttpxOptions {
+    fn default() -> Self {
+        Self {
+            method: "GET".to_string(),
+            user_agent: "ipcrawler/0.1.0".to_string(),
+            timeout_s: 10,
+            follow_redirects: true,
+            follow_host_redirects: false,
+            probe_all_ips: false,
+            http2: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HttpxOutput {
+    pub status_code: bool,
+    pub content_length: bool,
+    pub title: bool,
+    pub tech_detect: bool,
+    pub server: bool,
+    pub content_type: bool,
+}
+
+impl Default for HttpxOutput {
+    fn default() -> Self {
+        Self {
+            status_code: true,
+            content_length: true,
+            title: true,
+            tech_detect: true,
+            server: true,
+            content_type: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HttpxLimits {
+    pub timeout_ms: u64,
+    pub max_retries: u32,
+    pub connection_timeout_ms: u64,
+}
+
+impl Default for HttpxLimits {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 15000,
+            max_retries: 1,
+            connection_timeout_ms: 10000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DnsEnumConfig {
+    pub command: String,
+    pub base_args: Vec<String>,
+    pub options: DnsEnumOptions,
+    pub limits: DnsEnumLimits,
+}
+
+impl Default for DnsEnumConfig {
+    fn default() -> Self {
+        Self {
+            command: "dig".to_string(),
+            base_args: vec!["+short".to_string(), "+time=3".to_string(), "+tries=2".to_string()],
+            options: DnsEnumOptions::default(),
+            limits: DnsEnumLimits::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DnsEnumOptions {
+    pub subdomain_enum: bool,
+    pub zone_transfer: bool,
+    pub record_types: Vec<String>,
+    pub recursive: bool,
+    pub dnssec: bool,
+}
+
+impl Default for DnsEnumOptions {
+    fn default() -> Self {
+        Self {
+            subdomain_enum: true,
+            zone_transfer: true,
+            record_types: vec![
+                "A".to_string(), "AAAA".to_string(), "MX".to_string(), 
+                "NS".to_string(), "TXT".to_string(), "CNAME".to_string(), "SOA".to_string()
+            ],
+            recursive: true,
+            dnssec: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DnsEnumLimits {
+    pub timeout_ms: u64,
+    pub query_timeout_ms: u64,
+    pub max_retries: u32,
+    pub max_subdomains: u32,
+}
+
+impl Default for DnsEnumLimits {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 30000,
+            query_timeout_ms: 5000,
+            max_retries: 2,
+            max_subdomains: 100,
+        }
+    }
 }

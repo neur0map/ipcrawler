@@ -1,10 +1,17 @@
 use anyhow::{Result, bail};
 use crate::core::models::RunDirs;
+use crate::config::GlobalConfig;
 use std::fs;
 
+#[allow(dead_code)]
 const MIN_FREE_SPACE_MB: u64 = 100;
 
+#[allow(dead_code)]
 pub fn preflight_checks(dirs: &RunDirs) -> Result<()> {
+    preflight_checks_with_config(dirs, None)
+}
+
+pub fn preflight_checks_with_config(dirs: &RunDirs, config: Option<&GlobalConfig>) -> Result<()> {
     let mut errors = Vec::new();
     
     // Check free space
@@ -28,7 +35,7 @@ pub fn preflight_checks(dirs: &RunDirs) -> Result<()> {
     // Check file descriptor limits on Unix
     #[cfg(unix)]
     {
-        if let Err(e) = check_ulimit() {
+        if let Err(e) = check_ulimit_with_config(config) {
             errors.push(format!("File descriptors: {}", e));
         }
     }
@@ -57,7 +64,7 @@ fn verify_writable(path: &std::path::Path) -> Result<()> {
 }
 
 #[cfg(unix)]
-fn check_ulimit() -> Result<()> {
+fn check_ulimit_with_config(config: Option<&GlobalConfig>) -> Result<()> {
     use libc::{getrlimit, rlimit, RLIMIT_NOFILE};
     
     let mut rlim = rlimit {
@@ -71,8 +78,29 @@ fn check_ulimit() -> Result<()> {
         }
     }
     
-    if rlim.rlim_cur < 1024 {
-        bail!("File descriptor limit too low: {} (minimum: 1024)", rlim.rlim_cur);
+    // Calculate actual requirement based on configuration
+    let required_fds = if let Some(config) = config {
+        // Base requirement: 100 for basic operations
+        // Add requirement for concurrent scans
+        let base_fds = 100;
+        let scan_fds = config.concurrency.max_total_scans * 2; // 2 FDs per concurrent operation
+        base_fds + scan_fds
+    } else {
+        // Conservative default when no config available
+        512
+    };
+    
+    if rlim.rlim_cur < required_fds as u64 {
+        // Provide helpful error message with actual requirement and how to fix
+        bail!(
+            "File descriptor limit too low: {} (minimum: {})\n\
+            Quick fix: Run 'ulimit -n {}' before scanning\n\
+            For permanent fix, add 'ulimit -n {}' to your shell profile",
+            rlim.rlim_cur, 
+            required_fds, 
+            required_fds * 2,
+            required_fds * 2
+        );
     }
     
     Ok(())

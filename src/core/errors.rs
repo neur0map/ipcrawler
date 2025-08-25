@@ -17,17 +17,21 @@ pub enum IpcrawlerError {
     Exec(ExecError),
     
     #[error("report failure: {0}")]
+    #[allow(dead_code)]
     Report(String),
     
     #[error("organizer failure: {0}")]
+    #[allow(dead_code)]
     Organizer(String),
     
     #[error("dependency missing: {0}")]
+    #[allow(dead_code)]
     Dependency(String),
     
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     
     #[error("general error: {0}")]
+    #[allow(dead_code)]
     Other(String),
 }

@@ -7,11 +7,13 @@ use tokio::time::timeout;
 use anyhow::{Result, Context};
 use crate::core::errors::{ExecError, IpcrawlerError};
 
+#[allow(dead_code)]
 pub struct CommandResult {
     pub stdout: String,
     pub stderr: String,
     pub exit_code: i32,
     pub duration_ms: u128,
+    pub pid: Option<u32>,
 }
 
 pub async fn execute(
@@ -34,6 +36,8 @@ pub async fn execute(
     
     let mut child = cmd.spawn()
         .with_context(|| format!("Failed to spawn {}", tool))?;
+    
+    let pid = child.id();
     
     let stdout_handle = child.stdout.take().expect("stdout");
     let stderr_handle = child.stderr.take().expect("stderr");
@@ -112,6 +116,7 @@ pub async fn execute(
         stderr,
         exit_code,
         duration_ms,
+        pid,
     })
 }
 
@@ -130,6 +135,7 @@ where
 }
 
 // Synchronous wrapper for non-async contexts
+#[allow(dead_code)]
 pub fn execute_sync(
     tool: &str,
     args: &[&str],

@@ -6,6 +6,7 @@ use crate::executors::command::execute;
 use crate::plugins::types::PortScan;
 use crate::config::{GlobalConfig, PortStrategy};
 
+#[derive(Clone)]
 pub struct NmapPortScan;
 
 impl NmapPortScan {
@@ -139,8 +140,8 @@ impl crate::plugins::types::PortScan for NmapPortScan {
 fn parse_nmap_xml(xml: &str, target: &str) -> Result<Vec<(Service, (u16, String))>> {
     let mut services = Vec::new();
     
-    // Parse open ports with regex - more flexible pattern
-    let port_re = Regex::new(r#"<port protocol="(\w+)" portid="(\d+)">.*?<state state="open".*?(?:<service name="([^"]+)".*?)?</port>"#)?;
+    // Parse open ports with regex - handle multiline XML
+    let port_re = Regex::new(r#"(?s)<port protocol="(\w+)" portid="(\d+)">.*?<state state="open".*?(?:<service name="([^"]+)".*?)?</port>"#)?;
     
     for cap in port_re.captures_iter(xml) {
         let proto = match &cap[1] {

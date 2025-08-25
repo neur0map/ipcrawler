@@ -5,6 +5,7 @@ use crate::executors::command::execute;
 use crate::plugins::types::ServiceScan;
 use crate::config::GlobalConfig;
 
+#[derive(Clone)]
 pub struct HttpProbe;
 
 impl HttpProbe {
@@ -43,7 +44,7 @@ impl crate::plugins::types::ServiceScan for HttpProbe {
         let dirs = state.dirs.as_ref().unwrap();
         let scheme = if service.secure || service.port == 443 { "https" } else { "http" };
         let url = format!("{}://{}:{}", scheme, service.address, service.port);
-        let output_file = dirs.scans.join(format!("http_{}_{}.txt", service.address, service.port));
+        let output_filename = format!("http_{}_{}.txt", service.address, service.port);
         
         let mut args = config.tools.http_probe.base_args.clone();
         
@@ -84,10 +85,10 @@ impl crate::plugins::types::ServiceScan for HttpProbe {
             args.push("-v".to_string());
         }
         
-        // Add output file
+        // Add output file (just filename since we're running from scans directory)
         args.extend(vec![
             "-o".to_string(),
-            output_file.to_str().unwrap().to_string(),
+            output_filename.clone(),
         ]);
         
         args.push(url.clone());
