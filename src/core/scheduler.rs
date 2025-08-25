@@ -114,10 +114,7 @@ pub async fn execute_all_async(state: &mut RunState, registry: &PluginRegistry, 
                         let plugin = crate::plugins::portscan_nmap::NmapPortScan;
                         plugin.run(&mut temp_state, &config_clone).await
                     }
-                    "naabu_portscan" => {
-                        let plugin = crate::plugins::portscan_naabu::NaabuPortScan;
-                        plugin.run(&mut temp_state, &config_clone).await
-                    }
+
                     "dns_enum" => {
                         let plugin = crate::plugins::dns_enum::DnsEnum;
                         plugin.run(&mut temp_state, &config_clone).await

@@ -59,7 +59,6 @@ impl Default for ConcurrencyConfig {
 pub struct ToolsConfig {
     pub nmap: NmapConfig,
     pub http_probe: HttpProbeConfig,
-    pub naabu: NaabuConfig,
     pub httpx: HttpxConfig,
     pub dns_enum: DnsEnumConfig,
     #[serde(flatten)]
@@ -71,7 +70,6 @@ impl Default for ToolsConfig {
         Self {
             nmap: NmapConfig::default(),
             http_probe: HttpProbeConfig::default(),
-            naabu: NaabuConfig::default(),
             httpx: HttpxConfig::default(),
             dns_enum: DnsEnumConfig::default(),
             custom_tools: HashMap::new(),
@@ -358,68 +356,7 @@ pub struct ExecutionOrder {
 // NEW TOOL CONFIGURATIONS
 // ========================================
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct NaabuConfig {
-    pub command: String,
-    pub base_args: Vec<String>,
-    pub options: NaabuOptions,
-    pub limits: NaabuLimits,
-}
 
-impl Default for NaabuConfig {
-    fn default() -> Self {
-        Self {
-            command: "naabu".to_string(),
-            base_args: vec!["-silent".to_string(), "-json".to_string()],
-            options: NaabuOptions::default(),
-            limits: NaabuLimits::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct NaabuOptions {
-    pub rate: u32,
-    pub concurrency: u32,
-    pub interface: String,
-    pub source_ip: String,
-    pub verify: bool,
-    pub scan_all_ips: bool,
-    pub scan_type: String,
-}
-
-impl Default for NaabuOptions {
-    fn default() -> Self {
-        Self {
-            rate: 1000,
-            concurrency: 50,
-            interface: String::new(),
-            source_ip: String::new(),
-            verify: true,
-            scan_all_ips: false,
-            scan_type: "s".to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct NaabuLimits {
-    pub timeout_ms: u64,
-    pub port_timeout_ms: u64,
-    pub max_retries: u32,
-    pub host_timeout_ms: u64,
-}
-
-impl Default for NaabuLimits {
-    fn default() -> Self {
-        Self {
-            timeout_ms: 60000,
-            port_timeout_ms: 5000,
-            max_retries: 1,
-            host_timeout_ms: 30000,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct HttpxConfig {

@@ -102,32 +102,6 @@ max_retries = 1
 connection_timeout_ms = 10000 # 10 seconds
 
 # ========================================
-# NAABU PORT SCANNER CONFIGURATION
-# ========================================
-
-[tools.naabu]
-# Default command and arguments
-command = "naabu"
-base_args = ["-silent", "-json"]
-
-# Scanning options
-[tools.naabu.options]
-rate = 1000                   # Packets per second
-concurrency = 50              # Number of concurrent goroutines
-interface = ""                # Network interface to use (empty = auto)
-source_ip = ""               # Source IP address (empty = auto)
-verify = true                # Verify open ports
-scan_all_ips = false         # Scan all IPs in CIDR
-scan_type = "s"              # s=SYN, c=CONNECT
-
-# Timeouts and limits
-[tools.naabu.limits]
-timeout_ms = 15000           # 15 seconds total timeout (faster failure)
-port_timeout_ms = 5000       # 5 seconds per port
-max_retries = 1
-host_timeout_ms = 30000      # 30 seconds per host
-
-# ========================================
 # HTTPX PROBE CONFIGURATION  
 # ========================================
 
@@ -263,6 +237,6 @@ plugin_dirs = ["./plugins", "./custom_plugins"]
 
 # Plugin execution order
 [plugins.execution_order]
-port_scanners = ["nmap_portscan", "naabu_portscan", "dns_enum"]
+port_scanners = ["nmap_portscan", "dns_enum"]
 service_scanners = ["http_probe", "httpx_probe"]
 reporters = ["summary_reporter"]
