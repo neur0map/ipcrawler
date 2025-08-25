@@ -84,11 +84,20 @@ pub fn compute_layout(spec: &LayoutSpec, cols: u16, rows: u16) -> Layout {
     );
     current_y += spec.tab_bar_height;
 
-    // Results view (remaining space)
+    // Results view - split into two panels (remaining space)
     let results_height = rows.saturating_sub(current_y);
+    let results_width = cols / 2;
+    
+    // Left panel: Results
     panels.insert(
         "results_view".to_string(),
-        Rect::new(0, current_y, cols, results_height),
+        Rect::new(0, current_y, results_width, results_height),
+    );
+    
+    // Right panel: Live Logs  
+    panels.insert(
+        "logs_view".to_string(),
+        Rect::new(results_width, current_y, cols - results_width, results_height),
     );
 
     Layout {

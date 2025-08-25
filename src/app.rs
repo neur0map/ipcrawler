@@ -49,6 +49,11 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
     // Verify tools are available
     toolchain::verify_or_bail()?;
     
+    // Validate all plugins and their dependencies
+    let registry = crate::core::scheduler::PluginRegistry::default();
+    tracing::info!("Validating {} plugins and their dependencies...", registry.total_plugins());
+    registry.validate_all_plugins()?;
+    
     // Create target and state
     let target = Target::new(cli.target.clone(), run_id.clone(), dirs.clone())?;
     let mut state = RunState::new(&target, &dirs);
@@ -57,7 +62,7 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
     state.set_ui_sender(ui_sender.clone());
     
     // Execute scans with live monitoring
-    crate::core::scheduler::execute_all_with_ui_sender(&mut state, &config, &ui_sender).await?;
+    crate::core::scheduler::execute_all_phases(&mut state, &registry, &config, &ui_sender).await?;
     
     // Write reports
     writer::write_all(&state, &dirs, start_time)?;

@@ -10,6 +10,30 @@ use crate::config::{GlobalConfig, PortStrategy};
 pub struct NmapPortScan;
 
 impl NmapPortScan {
+    /// Check if running with root/sudo privileges
+    fn has_root_privileges() -> bool {
+        // Check if UID is 0 (root)
+        if let Ok(output) = std::process::Command::new("id").arg("-u").output() {
+            if let Ok(uid_str) = String::from_utf8(output.stdout) {
+                if let Ok(uid) = uid_str.trim().parse::<u32>() {
+                    return uid == 0;
+                }
+            }
+        }
+        false
+    }
+    
+    /// Get nmap scan arguments based on privileges
+    fn get_scan_args_for_privileges(&self) -> (String, bool) {
+        if Self::has_root_privileges() {
+            // Root privileges: Use SYN stealth scan with OS detection
+            ("-sS".to_string(), true) // (scan_type, can_detect_os)
+        } else {
+            // Regular user: Use TCP connect scan, no OS detection  
+            ("-sT".to_string(), false)
+        }
+    }
+
     fn write_plugin_results(&self, results: &[(Service, (u16, String))], scans_dir: &std::path::Path) -> Result<()> {
         let mut content = String::new();
         content.push_str(&format!("=== {} Results ===\n", self.name()));
@@ -45,8 +69,20 @@ impl crate::plugins::types::PortScan for NmapPortScan {
         let dirs = state.dirs.as_ref().unwrap();
         let output_file = dirs.scans.join("nmap.xml");
         
-        // Create the output file path relative to the working directory
+        // Detect privileges and get appropriate scan configuration
+        let (scan_type, can_detect_os) = self.get_scan_args_for_privileges();
+        let is_root = Self::has_root_privileges();
+        
+        tracing::info!("Nmap scan mode: {} (root: {})", 
+                      if is_root { "SYN stealth scan" } else { "TCP connect scan" }, 
+                      is_root);
+        
+        // Start with base args but replace scan type dynamically
         let mut args = config.tools.nmap.base_args.clone();
+        
+        // Remove any existing scan type and add the appropriate one
+        args.retain(|arg| !matches!(arg.as_str(), "-sS" | "-sT" | "-sU"));
+        args.push(scan_type);
         
         // Add port specification based on strategy
         match config.tools.nmap.port_strategy {
@@ -91,21 +127,23 @@ impl crate::plugins::types::PortScan for NmapPortScan {
             args.extend(vec!["-oX".to_string(), "nmap.xml".to_string()]);
         }
         
-        // Add optional features
-        if config.tools.nmap.options.os_detection {
+        // Add optional features - OS detection only if we have privileges
+        if config.tools.nmap.options.os_detection && can_detect_os {
             args.push("-O".to_string());
+        } else if config.tools.nmap.options.os_detection && !can_detect_os {
+            tracing::warn!("OS detection (-O) requires root privileges, skipping");
         }
         
         if config.tools.nmap.options.script_scan {
             args.push("-sC".to_string());
         }
         
-        // Use stealth mode if configured and available
+        // Log stealth mode status
         if config.tools.nmap.options.stealth_mode {
-            // Replace -sT with -sS if stealth mode is requested
-            if let Some(pos) = args.iter().position(|x| x == "-sT") {
-                args[pos] = "-sS".to_string();
-                tracing::warn!("Stealth mode (-sS) requires root privileges");
+            if is_root {
+                tracing::info!("Stealth mode enabled (SYN scan)");
+            } else {
+                tracing::warn!("Stealth mode requested but no root privileges, using TCP connect scan");
             }
         }
         

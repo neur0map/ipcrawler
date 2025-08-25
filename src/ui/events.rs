@@ -53,6 +53,12 @@ pub enum UiEvent {
         service_scanners: Vec<String>,
     },
     
+    /// Log message event
+    LogMessage {
+        level: String,
+        message: String,
+    },
+    
     /// UI lifecycle
     Shutdown,
 }

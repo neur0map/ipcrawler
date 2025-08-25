@@ -14,7 +14,7 @@ use crossterm::{
 };
 use tokio::sync::mpsc;
 
-use self::app_state::{AppState, AppStatus};
+use self::app_state::{AppState, AppStatus, LogLevel};
 use self::layout::{LayoutSpec, compute_layout};
 use self::renderer::Renderer;
 use crate::ui::events::UiEvent;
@@ -147,6 +147,12 @@ impl Dashboard {
             TaskCompleted { id, result } => {
                 self.state.tasks.retain(|t| t.id != id);
                 self.state.scan.tasks_done += 1;
+                
+                // Update progress percentage
+                if self.state.scan.tasks_total > 0 {
+                    self.state.scan.progress_pct = (self.state.scan.tasks_done as f32 / self.state.scan.tasks_total as f32 * 100.0) as u8;
+                }
+                
                 match result {
                     crate::ui::events::TaskResult::Success(msg) => {
                         self.state.add_result(format!("✓ {}: {}", id, msg));
@@ -179,6 +185,16 @@ impl Dashboard {
                 tracing::debug!("Received plugin inventory: {} port scanners, {} service scanners", 
                     port_scanners.len(), service_scanners.len());
             }
+            LogMessage { level, message } => {
+                let log_level = match level.as_str() {
+                    "DEBUG" => LogLevel::Debug,
+                    "INFO" => LogLevel::Info,
+                    "WARN" => LogLevel::Warn,
+                    "ERROR" => LogLevel::Error,
+                    _ => LogLevel::Info,
+                };
+                self.state.add_log(log_level, message);
+            }
             Shutdown => {
                 self.state.status = AppStatus::Completed;
             }
@@ -196,6 +212,7 @@ impl Dashboard {
                 std::process::exit(0);
             }
             KeyCode::Up => {
+                // Scroll active panel (results on left, logs on right based on which has focus)
                 if self.state.results.scroll_offset > 0 {
                     self.state.results.scroll_offset -= 1;
                     self.needs_redraw = true;
@@ -217,6 +234,7 @@ impl Dashboard {
                 self.state.results.scroll_offset = (self.state.results.scroll_offset + 10).min(max_offset);
                 self.needs_redraw = true;
             }
+            // TODO: Add Shift+Up/Down or Ctrl+Up/Down for logs scrolling
             KeyCode::Left => {
                 let tab_count = self.state.tabs.tabs.len();
                 if tab_count > 0 {

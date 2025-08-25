@@ -7,7 +7,7 @@ use crossterm::{
 };
 
 use crate::dashboard::{
-    app_state::{AppState, AppStatus},
+    app_state::{AppState, AppStatus, LogLevel},
     layout::{Layout, Rect},
     widgets::{draw_box, draw_progress_bar, truncate_string},
 };
@@ -67,6 +67,10 @@ impl Renderer {
         
         if let Some(rect) = layout.panels.get("results_view") {
             self.render_results_view(state, rect)?;
+        }
+        
+        if let Some(rect) = layout.panels.get("logs_view") {
+            self.render_logs_view(state, rect)?;
         }
         
         Ok(())
@@ -296,6 +300,80 @@ impl Renderer {
             if state.results.rows.len() > visible_rows {
                 let scroll_pct = if state.results.rows.len() > 1 {
                     (state.results.scroll_offset as f32 / (state.results.rows.len() - 1) as f32 * 100.0) as u16
+                } else {
+                    0
+                };
+                
+                queue!(
+                    self.stdout,
+                    MoveTo(inner.x + inner.width - 10, inner.y + inner.height - 1),
+                    SetForegroundColor(Color::DarkGrey),
+                    Print(format!("[{:3}%]", scroll_pct)),
+                    ResetColor
+                )?;
+            }
+        }
+        
+        Ok(())
+    }
+
+    fn render_logs_view(&mut self, state: &AppState, rect: &Rect) -> io::Result<()> {
+        draw_box(&mut self.stdout, rect, "Live Logs")?;
+        let inner = rect.inner(1);
+        
+        if state.logs.entries.is_empty() {
+            queue!(
+                self.stdout,
+                MoveTo(inner.x, inner.y),
+                SetForegroundColor(Color::DarkGrey),
+                Print("No logs yet..."),
+                ResetColor
+            )?;
+        } else {
+            let visible_rows = inner.height as usize;
+            let start_idx = state.logs.scroll_offset;
+            let end_idx = (start_idx + visible_rows).min(state.logs.entries.len());
+            
+            for (i, entry_idx) in (start_idx..end_idx).enumerate() {
+                if let Some(entry) = state.logs.entries.get(entry_idx) {
+                    // Color based on log level
+                    let level_color = match entry.level {
+                        LogLevel::Debug => Color::DarkGrey,
+                        LogLevel::Info => Color::White,
+                        LogLevel::Warn => Color::Yellow,
+                        LogLevel::Error => Color::Red,
+                    };
+                    
+                    let level_str = match entry.level {
+                        LogLevel::Debug => "DBG",
+                        LogLevel::Info => "INF", 
+                        LogLevel::Warn => "WRN",
+                        LogLevel::Error => "ERR",
+                    };
+                    
+                    let message_width = inner.width as usize - 13; // Leave space for timestamp + level
+                    let truncated_message = truncate_string(&entry.message, message_width);
+                    
+                    queue!(
+                        self.stdout,
+                        MoveTo(inner.x, inner.y + i as u16),
+                        SetForegroundColor(Color::DarkGrey),
+                        Print(&entry.timestamp),
+                        Print(" "),
+                        SetForegroundColor(level_color),
+                        Print(level_str),
+                        Print(" "),
+                        SetForegroundColor(Color::White),
+                        Print(&truncated_message),
+                        ResetColor
+                    )?;
+                }
+            }
+            
+            // Scroll indicator
+            if state.logs.entries.len() > visible_rows {
+                let scroll_pct = if state.logs.entries.len() > 1 {
+                    (state.logs.scroll_offset as f32 / (state.logs.entries.len() - 1) as f32 * 100.0) as u16
                 } else {
                     0
                 };

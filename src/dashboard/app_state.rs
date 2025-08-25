@@ -14,6 +14,7 @@ pub struct AppState {
     pub tasks: Vec<Task>,
     pub tabs: TabBar,
     pub results: Results,
+    pub logs: Logs,
     pub target: String,
     pub status: AppStatus,
     pub start_time: Instant,
@@ -65,6 +66,28 @@ pub struct Results {
     pub scroll_offset: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct Logs {
+    pub entries: Vec<LogEntry>,
+    pub scroll_offset: usize,
+    pub max_entries: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct LogEntry {
+    pub timestamp: String,
+    pub level: LogLevel,
+    pub message: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
 impl AppState {
     pub fn new(target: String) -> Self {
         Self {
@@ -96,6 +119,11 @@ impl AppState {
                 rows: Vec::new(),
                 scroll_offset: 0,
             },
+            logs: Logs {
+                entries: Vec::new(),
+                scroll_offset: 0,
+                max_entries: 1000, // Keep last 1000 log entries
+            },
             target,
             status: AppStatus::Running,
             start_time: Instant::now(),
@@ -104,5 +132,27 @@ impl AppState {
 
     pub fn add_result(&mut self, result: String) {
         self.results.rows.push(result);
+    }
+    
+    pub fn add_log(&mut self, level: LogLevel, message: String) {
+        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+        let entry = LogEntry {
+            timestamp,
+            level,
+            message,
+        };
+        
+        self.logs.entries.push(entry);
+        
+        // Keep only the last max_entries
+        if self.logs.entries.len() > self.logs.max_entries {
+            self.logs.entries.remove(0);
+        }
+        
+        // Auto-scroll to bottom when new entries arrive
+        let visible_entries = 20; // Approximate visible entries 
+        if self.logs.entries.len() > visible_entries {
+            self.logs.scroll_offset = self.logs.entries.len() - visible_entries;
+        }
     }
 }
