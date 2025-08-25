@@ -2,8 +2,9 @@ mod app;
 mod cli;
 mod config;
 mod core;
+mod dashboard;
 mod executors;
-// mod monitoring;  // Disabled - replaced by ui::progress system
+mod monitoring;
 mod organizers;
 mod plugins;
 mod reporters;

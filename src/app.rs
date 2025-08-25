@@ -5,7 +5,6 @@ use crate::{
     reporters::{writer, validate},
     ui::{
         printer,
-        progress::{start_system_stats_task},
         events::UiEvent,
     },
     utils::{logging, time},
@@ -28,11 +27,11 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
     tracing::info!("Configuration loaded with {} max scans, {} port scans", 
                   config.concurrency.max_total_scans, config.concurrency.max_port_scans);
     
-    // Start the UI task (TUI or simple mode based on CLI flag)
-    let ui_sender = crate::ui::progress::start_ui_task_with_options(cli.simple).await;
+    // Start the dashboard task
+    let ui_sender = crate::dashboard::start_dashboard_task(cli.target.clone()).await;
     
     // Start system stats monitoring
-    let _stats_handle = start_system_stats_task(ui_sender.clone());
+    let _stats_handle = crate::monitoring::start_system_stats_task(ui_sender.clone());
     
     // Generate run ID and prepare directories
     let run_id = time::new_run_id(&cli.target);

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 /// UI-specific events for thread-safe communication with the single UI owner
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum UiEvent {
     /// Initialize progress tracking
     InitProgress {
@@ -64,6 +65,7 @@ pub enum TaskResult {
 
 /// Active task information for bounded display
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ActiveTask {
     pub id: String,
     pub name: String,
@@ -72,6 +74,7 @@ pub struct ActiveTask {
 }
 
 impl ActiveTask {
+    #[allow(dead_code)]
     pub fn new(id: String, name: String) -> Self {
         Self {
             id,
@@ -81,6 +84,7 @@ impl ActiveTask {
         }
     }
     
+    #[allow(dead_code)]
     pub fn duration(&self) -> Duration {
         self.started_at.elapsed()
     }

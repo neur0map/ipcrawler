@@ -5,11 +5,12 @@ RUN_DIR      := artifacts/runs
 PROFILE      ?= release
 RUN_ARGS     ?=
 
-.PHONY: help build run clean fmt clippy check tools verify
+.PHONY: help build build-prod run clean fmt clippy check tools verify
 
 help:
 	@echo "Targets:"
-	@echo "  make build                        - Build $(BIN) (dev-only)"
+	@echo "  make build                        - Build $(BIN) (dev)"
+	@echo "  make build-prod                   - Build $(BIN) (production)"
 	@echo "  make run RUN_ARGS=\"-v -t host\"     - Run with args"
 	@echo "  make tools                        - Install/verify external tools locally"
 	@echo "  make verify                       - Verify env and folder writability"
@@ -17,9 +18,15 @@ help:
 
 build:
 	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR)
-	@cargo build --$(PROFILE)
-	@cp -f target/$(PROFILE)/ipcrawler $(BIN)
-	@echo "Built $(BIN)"
+	@cargo build
+	@cp -f target/debug/ipcrawler $(BIN)
+	@echo "Built $(BIN) (dev)"
+
+build-prod:
+	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR)
+	@cargo build --release
+	@cp -f target/release/ipcrawler $(BIN)
+	@echo "Built $(BIN) (production)"
 
 run: build
 	@./scripts/run.sh $(RUN_ARGS)

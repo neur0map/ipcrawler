@@ -15,10 +15,6 @@ pub struct Cli {
     #[arg(short = 'd', long = "debug", action = ArgAction::SetTrue)]
     pub debug: bool,
 
-    /// Force simple progress mode (no TUI)
-    #[arg(long = "simple", action = ArgAction::SetTrue)]
-    pub simple: bool,
-
     /// Skip preflight checks (file descriptors, disk space, etc.)
     #[arg(long = "skip-checks", action = ArgAction::SetTrue)]
     pub skip_checks: bool,
