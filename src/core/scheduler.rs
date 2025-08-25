@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 use anyhow::Result;
 use super::state::RunState;
+use super::events::Event;
 use crate::config::GlobalConfig;
 use crate::plugins::types::PortScan;
 use crate::ui::events::{UiEvent, TaskResult};
@@ -62,6 +63,8 @@ pub async fn execute_all_phases(state: &mut RunState, registry: &PluginRegistry,
             id: format!("plugin_{}", plugin.name()),
             name: plugin.name().to_string(),
         });
+        // Update state task counter
+        state.on_event(Event::TaskStarted(plugin.name()));
     }
     for plugin in &registry.port_scan_plugins {
         let _ = ui_sender.send(UiEvent::LogMessage {
@@ -72,6 +75,8 @@ pub async fn execute_all_phases(state: &mut RunState, registry: &PluginRegistry,
             id: format!("plugin_{}", plugin.name()),
             name: plugin.name().to_string(),
         });
+        // Update state task counter
+        state.on_event(Event::TaskStarted(plugin.name()));
     }
     for plugin in &registry.service_probe_plugins {
         let _ = ui_sender.send(UiEvent::LogMessage {
@@ -82,6 +87,8 @@ pub async fn execute_all_phases(state: &mut RunState, registry: &PluginRegistry,
             id: format!("plugin_{}", plugin.name()),
             name: plugin.name().to_string(),
         });
+        // Update state task counter
+        state.on_event(Event::TaskStarted(plugin.name()));
     }
 
     // Execute recon and port scan plugins 
@@ -159,6 +166,9 @@ pub async fn execute_all_phases(state: &mut RunState, registry: &PluginRegistry,
         }
     }
 
+    // Store all discovered services in state
+    state.services.extend(all_discovered_services.clone());
+    
     tracing::info!("All scanning phases completed successfully");
     Ok(())
 }
@@ -189,6 +199,8 @@ async fn execute_plugin_phase_without_ui_start(
                         format!("Found {} services", services.len())
                     ),
                 });
+                // Notify state that task completed
+                state.on_event(Event::TaskCompleted(plugin_name));
             }
             Err(e) => {
                 let _ = ui_sender.send(UiEvent::TaskCompleted {
@@ -196,6 +208,8 @@ async fn execute_plugin_phase_without_ui_start(
                     result: TaskResult::Failed(e.to_string()),
                 });
                 tracing::warn!("Plugin {} failed: {}", plugin_name, e);
+                // Notify state that task completed (even if failed)
+                state.on_event(Event::TaskCompleted(plugin_name));
             }
         }
     }
@@ -203,25 +217,3 @@ async fn execute_plugin_phase_without_ui_start(
     Ok(all_services)
 }
 
-// Legacy function - kept for backward compatibility if needed elsewhere
-async fn execute_plugin_phase(
-    plugins: &[&Box<dyn PortScan>],
-    state: &mut RunState,
-    config: &GlobalConfig,
-    ui_sender: &mpsc::UnboundedSender<UiEvent>,
-    semaphore: &Arc<Semaphore>,
-) -> Result<Vec<Service>> {
-    // Start task UI events
-    for plugin in plugins {
-        let plugin_name = plugin.name();
-        let task_id = format!("plugin_{}", plugin_name);
-        
-        let _ = ui_sender.send(UiEvent::TaskStarted {
-            id: task_id,
-            name: plugin_name.to_string(),
-        });
-    }
-    
-    // Execute the actual work
-    execute_plugin_phase_without_ui_start(plugins, state, config, ui_sender, semaphore).await
-}

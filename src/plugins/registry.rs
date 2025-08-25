@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use anyhow::Result;
-use crate::plugins::types::PluginPhase;
 
 pub struct PluginRegistry {
     pub recon_plugins: Vec<Box<dyn crate::plugins::types::PortScan>>,
@@ -13,17 +11,16 @@ impl PluginRegistry {
     pub fn new() -> Self {
         Self {
             recon_plugins: vec![
-                Box::new(crate::plugins::dns_enum::DnsEnum),
+                Box::new(crate::plugins::nslookup::NslookupPlugin),
             ],
             port_scan_plugins: vec![
-                Box::new(crate::plugins::portscan_nmap::NmapPortScan),
+                // Empty for now - nslookup is our only plugin
             ],
             service_probe_plugins: vec![
-                Box::new(crate::plugins::http_probe::HttpProbe),
-                Box::new(crate::plugins::httpx_probe::HttpxProbe),
+                // Empty for now
             ],
             vulnerability_plugins: vec![
-                // Add nuclei or other vuln scanners here
+                // Empty for now
             ],
         }
     }
@@ -72,10 +69,7 @@ impl PluginRegistry {
     
     fn get_plugin_tools(&self, plugin_name: &str) -> Result<Vec<String>> {
         let tools = match plugin_name {
-            "dns_enum" => vec!["dig".to_string()],
-            "nmap_portscan" => vec!["nmap".to_string()],
-            "http_probe" => vec!["curl".to_string()],
-            "httpx_probe" => vec!["httpx".to_string()],
+            "nslookup" => vec!["nslookup".to_string()],
             _ => vec![],
         };
         Ok(tools)
@@ -86,15 +80,6 @@ impl PluginRegistry {
         self.port_scan_plugins.len() + 
         self.service_probe_plugins.len() + 
         self.vulnerability_plugins.len()
-    }
-    
-    pub fn get_phase_counts(&self) -> HashMap<PluginPhase, usize> {
-        let mut counts = HashMap::new();
-        counts.insert(PluginPhase::Reconnaissance, self.recon_plugins.len());
-        counts.insert(PluginPhase::PortDiscovery, self.port_scan_plugins.len());
-        counts.insert(PluginPhase::ServiceProbing, self.service_probe_plugins.len());
-        counts.insert(PluginPhase::Vulnerability, self.vulnerability_plugins.len());
-        counts
     }
     
     pub fn log_plugin_summary(&self) {

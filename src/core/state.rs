@@ -19,6 +19,7 @@ pub struct RunState {
     pub target_obj: Option<Target>,  // Full target object, not serialized
     
     #[serde(skip)]
+    #[allow(dead_code)]
     pub dirs: Option<RunDirs>,  // Dirs reference, not serialized
     
     #[serde(skip)]

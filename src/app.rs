@@ -28,7 +28,7 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
                   config.concurrency.max_total_scans, config.concurrency.max_port_scans);
     
     // Start the dashboard task
-    let ui_sender = crate::dashboard::start_dashboard_task(cli.target.clone()).await;
+    let (ui_sender, _dashboard_enabled, dashboard_handle) = crate::dashboard::start_dashboard_task(cli.target.clone()).await;
     
     // Start system stats monitoring
     let _stats_handle = crate::monitoring::start_system_stats_task(ui_sender.clone());
@@ -69,11 +69,17 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
     validate::validate_reports(&dirs)?;
     let _ = ui_sender.send(UiEvent::Shutdown);
     
-    // Give UI time to shutdown cleanly
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    
-    // Print final summary after UI is done
-    printer::print_summary(&state);
+    // Handle post-scan behavior
+    if let Some(handle) = dashboard_handle {
+        tracing::info!("Dashboard is running - press 'q' to quit");
+        // Wait for dashboard to complete (user presses 'q')
+        let _ = handle.await;
+    } else {
+        tracing::info!("CLI mode was used, printing final summary");
+        // Only print CLI summary when no dashboard was used
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        printer::print_summary(&state);
+    }
     
     Ok(())
 }

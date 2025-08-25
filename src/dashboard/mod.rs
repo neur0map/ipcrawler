@@ -29,7 +29,18 @@ pub struct Dashboard {
 
 impl Dashboard {
     pub fn new(target: String) -> io::Result<Self> {
-        let (cols, rows) = crossterm::terminal::size()?;
+        // Try to get terminal size, fall back to reasonable defaults if it fails
+        let (mut cols, mut rows) = crossterm::terminal::size().unwrap_or_else(|e| {
+            tracing::warn!("Failed to detect terminal size: {}. Using default 80x24", e);
+            (80, 24)
+        });
+        
+        // Handle edge case where terminal reports size as 0x0
+        if cols == 0 || rows == 0 {
+            tracing::warn!("Terminal reported size as {}x{}. Using default 80x24", cols, rows);
+            cols = 80;
+            rows = 24;
+        }
         
         Ok(Self {
             state: AppState::new(target),
@@ -83,10 +94,13 @@ impl Dashboard {
         
         loop {
             tokio::select! {
-                // Handle UI events from the application
-                Some(ui_event) = rx.recv() => {
-                    self.handle_ui_event(ui_event);
-                    self.needs_redraw = true;
+                // Handle UI events from the application (or channel closed)
+                ui_event = rx.recv() => {
+                    if let Some(event) = ui_event {
+                        self.handle_ui_event(event);
+                        self.needs_redraw = true;
+                    }
+                    // If None, channel is closed but we keep running
                 }
                 
                 // Update system metrics
@@ -104,7 +118,13 @@ impl Dashboard {
                                 break;
                             }
                         } else if let Event::Resize(cols, rows) = event::read()? {
-                            self.terminal_size = (cols, rows);
+                            // Update terminal size on resize events
+                            if cols > 0 && rows > 0 {
+                                self.terminal_size = (cols, rows);
+                            } else {
+                                // Fallback if resize event has invalid dimensions
+                                self.terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
+                            }
                             self.needs_redraw = true;
                         }
                     }
@@ -197,6 +217,8 @@ impl Dashboard {
             }
             Shutdown => {
                 self.state.status = AppStatus::Completed;
+                // Update status but don't exit - user should press 'q' to quit
+                self.needs_redraw = true;
             }
         }
     }
@@ -204,12 +226,12 @@ impl Dashboard {
     fn handle_key_event(&mut self, key: KeyEvent) -> bool {
         match key.code {
             KeyCode::Char('q') | KeyCode::Char('Q') => {
-                // Send SIGINT to gracefully stop the program
-                std::process::exit(0);
+                // Return true to exit the dashboard loop
+                return true;
             }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                // Send SIGINT to gracefully stop the program
-                std::process::exit(0);
+                // Ctrl+C also exits
+                return true;
             }
             KeyCode::Up => {
                 // Scroll active panel (results on left, logs on right based on which has focus)
@@ -297,15 +319,47 @@ impl Dashboard {
     }
 }
 
-pub async fn start_dashboard_task(target: String) -> mpsc::UnboundedSender<UiEvent> {
-    let (tx, rx) = mpsc::unbounded_channel();
+pub async fn start_dashboard_task(target: String) -> (mpsc::UnboundedSender<UiEvent>, bool, Option<tokio::task::JoinHandle<()>>) {
+    let (tx, mut rx) = mpsc::unbounded_channel();
     
-    tokio::spawn(async move {
-        let dashboard = Dashboard::new(target);
-        if let Ok(dashboard) = dashboard {
-            let _ = dashboard.run(rx).await;
-        }
-    });
+    // Check if we can enable raw mode (interactive terminal)
+    let can_use_dashboard = crossterm::terminal::enable_raw_mode().is_ok();
+    if can_use_dashboard {
+        let _ = crossterm::terminal::disable_raw_mode(); // Reset for dashboard to handle properly
+        tracing::info!("Dashboard mode enabled - terminal supports raw mode");
+    } else {
+        tracing::info!("Dashboard mode disabled - terminal does not support raw mode, falling back to CLI");
+    }
     
-    tx
+    let handle = if can_use_dashboard {
+        Some(tokio::spawn(async move {
+            match Dashboard::new(target) {
+                Ok(dashboard) => {
+                    if let Err(e) = dashboard.run(rx).await {
+                        tracing::error!("Dashboard runtime error: {}", e);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to create dashboard: {}. Falling back to CLI event consumer", e);
+                    // Still need to consume events to prevent channel from blocking
+                    while let Some(_event) = rx.recv().await {
+                        // Consume and ignore events when dashboard fails
+                    }
+                }
+            }
+        }))
+    } else {
+        // Still need to consume events to prevent channel from blocking
+        tokio::spawn(async move {
+            while let Some(_event) = rx.recv().await {
+                // Consume and ignore events in non-interactive mode
+            }
+        });
+        None
+    };
+    
+    // Add small delay to ensure dashboard starts
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    
+    (tx, can_use_dashboard, handle)
 }

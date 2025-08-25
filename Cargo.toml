@@ -37,3 +37,15 @@ which = "6"
 libc = "0.2"
 minijinja = { version = "2", features = ["loader"] }
 chrono = { version = "0.4", features = ["serde"] }
+
+# Optimize for release builds
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+# Make dev builds faster to compile
+[profile.dev]
+opt-level = 0
+
