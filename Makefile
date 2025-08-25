@@ -9,18 +9,24 @@ RUN_ARGS     ?=
 
 help:
 	@echo "Targets:"
-	@echo "  make build                        - Build $(BIN) (dev)"
+	@echo "  make build                        - Build $(BIN) (release) + create system symlink"
 	@echo "  make build-prod                   - Build $(BIN) (production)"
 	@echo "  make run RUN_ARGS=\"-v -t host\"     - Run with args"
+	@echo "  make clean                        - Clean build + remove system symlink"
 	@echo "  make tools                        - Install/verify external tools locally"
 	@echo "  make verify                       - Verify env and folder writability"
 	@echo "  make fmt | make clippy | check    - Format, lint, tests"
 
 build:
 	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR)
-	@cargo build
-	@cp -f target/debug/ipcrawler $(BIN)
-	@echo "Built $(BIN) (dev)"
+	@cargo build --release
+	@cp -f target/release/ipcrawler $(BIN)
+	@echo "Built $(BIN) (release)"
+	@echo "Creating local symlink: ~/.local/bin/ipcrawler -> $(PWD)/$(BIN)"
+	@mkdir -p ~/.local/bin
+	@rm -f ~/.local/bin/ipcrawler
+	@ln -sf $(PWD)/$(BIN) ~/.local/bin/ipcrawler
+	@echo "✅ ipcrawler command now available (add ~/.local/bin to PATH if needed)"
 
 build-prod:
 	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR)
@@ -51,6 +57,8 @@ check:
 clean:
 	cargo clean
 	rm -rf artifacts/
+	@echo "Removing local symlink: ~/.local/bin/ipcrawler"
+	@rm -f ~/.local/bin/ipcrawler
 
 # Swallow incidental phony goals if user passes flags directly
 %:

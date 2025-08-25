@@ -73,7 +73,17 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
     if let Some(handle) = dashboard_handle {
         tracing::info!("Dashboard is running - press 'q' to quit");
         // Wait for dashboard to complete (user presses 'q')
-        let _ = handle.await;
+        match handle.await {
+            Ok(()) => {
+                tracing::info!("Dashboard exited successfully");
+            }
+            Err(e) => {
+                tracing::warn!("Dashboard task failed: {}", e);
+            }
+        }
+        
+        // Give a small delay to ensure clean exit
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     } else {
         tracing::info!("CLI mode was used, printing final summary");
         // Only print CLI summary when no dashboard was used

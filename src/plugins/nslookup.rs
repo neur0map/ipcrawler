@@ -39,7 +39,12 @@ impl NslookupPlugin {
     async fn run_nslookup(&self, target: &str, record_type: &str, ui_sender: &mpsc::UnboundedSender<UiEvent>) -> Result<String> {
         self.send_log(ui_sender, "INFO", &format!("Running nslookup {} for {}", record_type, target));
         
-        let args = vec![format!("-type={}", record_type), target.to_string()];
+        let args = if record_type == "PTR" {
+            // For reverse DNS, just use the IP directly
+            vec![target.to_string()]
+        } else {
+            vec![format!("-type={}", record_type), target.to_string()]
+        };
         let args_str: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let timeout = Some(10000); // 10 second timeout
         
@@ -100,6 +105,11 @@ impl NslookupPlugin {
                         results.push(line.to_string());
                     }
                 }
+                "PTR" => {
+                    if line.contains("name =") || line.contains("pointer") {
+                        results.push(line.to_string());
+                    }
+                }
                 _ => {
                     if !line.starts_with("Non-authoritative") && line.len() > 10 {
                         results.push(line.to_string());
@@ -132,7 +142,18 @@ impl PortScan for NslookupPlugin {
         }
 
         let mut services = Vec::new();
-        let record_types = vec!["A", "AAAA", "MX", "NS", "TXT"];
+        
+        // Check if target is an IP address
+        let is_ip = target.parse::<std::net::IpAddr>().is_ok();
+        
+        let record_types = if is_ip {
+            // For IP addresses, only do reverse DNS (PTR) lookup
+            self.send_log(ui_sender, "INFO", "Target is an IP address, performing reverse DNS lookup");
+            vec!["PTR"]
+        } else {
+            // For domain names, do forward lookups
+            vec!["A", "AAAA", "MX", "NS", "TXT"]
+        };
         
         self.send_log(ui_sender, "INFO", &format!("Running {} DNS record type queries", record_types.len()));
         

@@ -286,6 +286,14 @@ impl Renderer {
                         Color::White
                     };
                     
+                    // Clear the line first to prevent text overflow/ghosting  
+                    let clear_width = inner.width as usize;
+                    queue!(
+                        self.stdout,
+                        MoveTo(inner.x, inner.y + i as u16),
+                        Print(" ".repeat(clear_width))
+                    )?;
+                    
                     queue!(
                         self.stdout,
                         MoveTo(inner.x, inner.y + i as u16),
@@ -353,6 +361,14 @@ impl Renderer {
                     
                     let message_width = inner.width as usize - 13; // Leave space for timestamp + level
                     let truncated_message = truncate_string(&entry.message, message_width);
+                    
+                    // Clear the line first to prevent text overflow/ghosting
+                    let clear_width = inner.width as usize;
+                    queue!(
+                        self.stdout,
+                        MoveTo(inner.x, inner.y + i as u16),
+                        Print(" ".repeat(clear_width))
+                    )?;
                     
                     queue!(
                         self.stdout,

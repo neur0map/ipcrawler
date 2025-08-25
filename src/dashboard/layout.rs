@@ -87,6 +87,7 @@ pub fn compute_layout(spec: &LayoutSpec, cols: u16, rows: u16) -> Layout {
     // Results view - split into two panels (remaining space)
     let results_height = rows.saturating_sub(current_y);
     let results_width = cols / 2;
+    let logs_width = cols - results_width; // Ensure no overlap
     
     // Left panel: Results
     panels.insert(
@@ -97,7 +98,7 @@ pub fn compute_layout(spec: &LayoutSpec, cols: u16, rows: u16) -> Layout {
     // Right panel: Live Logs  
     panels.insert(
         "logs_view".to_string(),
-        Rect::new(results_width, current_y, cols - results_width, results_height),
+        Rect::new(results_width, current_y, logs_width, results_height),
     );
 
     Layout {

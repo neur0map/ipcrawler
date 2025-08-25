@@ -84,7 +84,11 @@ impl Dashboard {
 
         let result = self.run_loop(&mut rx).await;
         
-        Self::teardown_terminal()?;
+        // Ensure terminal cleanup happens even if there's an error
+        if let Err(e) = Self::teardown_terminal() {
+            tracing::warn!("Terminal teardown failed: {}", e);
+        }
+        
         result
     }
 
@@ -115,6 +119,7 @@ impl Dashboard {
                     if event::poll(Duration::from_millis(0))? {
                         if let Event::Key(key_event) = event::read()? {
                             if self.handle_key_event(key_event) {
+                                tracing::info!("Dashboard received exit command, shutting down");
                                 break;
                             }
                         } else if let Event::Resize(cols, rows) = event::read()? {
@@ -335,8 +340,13 @@ pub async fn start_dashboard_task(target: String) -> (mpsc::UnboundedSender<UiEv
         Some(tokio::spawn(async move {
             match Dashboard::new(target) {
                 Ok(dashboard) => {
-                    if let Err(e) = dashboard.run(rx).await {
-                        tracing::error!("Dashboard runtime error: {}", e);
+                    match dashboard.run(rx).await {
+                        Ok(()) => {
+                            tracing::info!("Dashboard completed successfully");
+                        }
+                        Err(e) => {
+                            tracing::error!("Dashboard runtime error: {}", e);
+                        }
                     }
                 }
                 Err(e) => {
@@ -347,6 +357,7 @@ pub async fn start_dashboard_task(target: String) -> (mpsc::UnboundedSender<UiEv
                     }
                 }
             }
+            tracing::info!("Dashboard task ending");
         }))
     } else {
         // Still need to consume events to prevent channel from blocking
