@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use which::which;
 
-const REQUIRED_TOOLS: &[&str] = &["nmap", "curl"];
+const REQUIRED_TOOLS: &[&str] = &["nslookup", "dig"];
 
 pub fn verify_or_bail() -> Result<()> {
     let mut missing = Vec::new();

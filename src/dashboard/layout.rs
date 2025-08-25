@@ -84,21 +84,21 @@ pub fn compute_layout(spec: &LayoutSpec, cols: u16, rows: u16) -> Layout {
     );
     current_y += spec.tab_bar_height;
 
-    // Results view - split into two panels (remaining space)
-    let results_height = rows.saturating_sub(current_y);
-    let results_width = cols / 2;
-    let logs_width = cols - results_width; // Ensure no overlap
+    // Bottom view - split into two panels (remaining space)
+    let bottom_height = rows.saturating_sub(current_y);
+    let logs_width = cols / 2;
+    let results_width = cols - logs_width; // Ensure no overlap
     
-    // Left panel: Results
-    panels.insert(
-        "results_view".to_string(),
-        Rect::new(0, current_y, results_width, results_height),
-    );
-    
-    // Right panel: Live Logs  
+    // Left panel: Live Logs
     panels.insert(
         "logs_view".to_string(),
-        Rect::new(results_width, current_y, logs_width, results_height),
+        Rect::new(0, current_y, logs_width, bottom_height),
+    );
+    
+    // Right panel: Results  
+    panels.insert(
+        "results_view".to_string(),
+        Rect::new(logs_width, current_y, results_width, bottom_height),
     );
 
     Layout {

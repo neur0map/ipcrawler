@@ -173,7 +173,7 @@ pub async fn execute_all_phases(state: &mut RunState, registry: &PluginRegistry,
     Ok(())
 }
 
-// Execute plugins without sending TaskStarted events (those were sent earlier)
+// Execute plugins concurrently using tokio::spawn
 async fn execute_plugin_phase_without_ui_start(
     plugins: &[&Box<dyn PortScan>],
     state: &mut RunState,
@@ -181,39 +181,92 @@ async fn execute_plugin_phase_without_ui_start(
     ui_sender: &mpsc::UnboundedSender<UiEvent>,
     _semaphore: &Arc<Semaphore>,
 ) -> Result<Vec<Service>> {
-    let mut all_services = Vec::new();
+    use std::sync::{Arc, Mutex};
     
-    // Execute plugins sequentially (UI tasks already started)
+    let all_services = Arc::new(Mutex::new(Vec::new()));
+    let mut tasks = Vec::new();
+    
+    // Execute plugins concurrently using tokio::spawn
     for plugin in plugins {
         let plugin_name = plugin.name();
         let task_id = format!("plugin_{}", plugin_name);
         
-        let result = plugin.run(state, config).await;
+        // Clone plugin for move into async task - we need to create a new boxed instance
+        let plugin_clone: Box<dyn PortScan> = match plugin_name {
+            "nslookup" => Box::new(crate::plugins::nslookup::NslookupPlugin),
+            "dig" => Box::new(crate::plugins::dig::DigPlugin),
+            _ => continue, // Skip unknown plugins
+        };
         
-        match &result {
-            Ok(services) => {
-                all_services.extend(services.clone());
-                let _ = ui_sender.send(UiEvent::TaskCompleted {
-                    id: task_id,
-                    result: TaskResult::Success(
-                        format!("Found {} services", services.len())
-                    ),
-                });
+        let mut state_clone = state.clone();
+        let config_clone = config.clone();
+        let ui_sender_clone = ui_sender.clone();
+        let all_services_clone = all_services.clone();
+        
+        let task = tokio::spawn(async move {
+            let result = plugin_clone.run(&mut state_clone, &config_clone).await;
+            
+            match result {
+                Ok(services) => {
+                    // Add services to shared collection
+                    {
+                        let mut all_services_lock = all_services_clone.lock().unwrap();
+                        all_services_lock.extend(services.clone());
+                    }
+                    
+                    // Send completion message to log window instead of results panel
+                    let _ = ui_sender_clone.send(UiEvent::LogMessage {
+                        level: "INFO".to_string(),
+                        message: format!("✓ {}: Found {} services", plugin_name, services.len()),
+                    });
+                    
+                    let _ = ui_sender_clone.send(UiEvent::TaskCompleted {
+                        id: task_id,
+                        result: TaskResult::Success("Completed".to_string()),
+                    });
+                    
+                    Ok((plugin_name, services.len()))
+                }
+                Err(e) => {
+                    let _ = ui_sender_clone.send(UiEvent::TaskCompleted {
+                        id: task_id,
+                        result: TaskResult::Failed(e.to_string()),
+                    });
+                    tracing::warn!("Plugin {} failed: {}", plugin_name, e);
+                    
+                    Err((plugin_name, e))
+                }
+            }
+        });
+        
+        tasks.push(task);
+    }
+    
+    // Wait for all tasks to complete
+    for task in tasks {
+        match task.await {
+            Ok(Ok((plugin_name, count))) => {
+                tracing::info!("Plugin {} completed successfully with {} services", plugin_name, count);
                 // Notify state that task completed
                 state.on_event(Event::TaskCompleted(plugin_name));
             }
-            Err(e) => {
-                let _ = ui_sender.send(UiEvent::TaskCompleted {
-                    id: task_id,
-                    result: TaskResult::Failed(e.to_string()),
-                });
+            Ok(Err((plugin_name, e))) => {
                 tracing::warn!("Plugin {} failed: {}", plugin_name, e);
                 // Notify state that task completed (even if failed)
                 state.on_event(Event::TaskCompleted(plugin_name));
             }
+            Err(e) => {
+                tracing::error!("Task execution error: {}", e);
+            }
         }
     }
     
-    Ok(all_services)
+    // Extract final services list
+    let final_services = {
+        let services_lock = all_services.lock().unwrap();
+        services_lock.clone()
+    };
+    
+    Ok(final_services)
 }
 

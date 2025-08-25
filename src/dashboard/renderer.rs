@@ -273,7 +273,9 @@ impl Renderer {
             
             for (i, row_idx) in (start_idx..end_idx).enumerate() {
                 if let Some(row) = state.results.rows.get(row_idx) {
-                    let row_str = truncate_string(row, inner.width as usize);
+                    // Account for box border margins
+                    let available_width = if inner.width > 0 { inner.width as usize } else { 0 };
+                    let row_str = truncate_string(row, available_width);
                     
                     // Color based on content
                     let color = if row.contains("✓") {
@@ -286,7 +288,7 @@ impl Renderer {
                         Color::White
                     };
                     
-                    // Clear the line first to prevent text overflow/ghosting  
+                    // Clear only this panel's area to prevent overflow into other panels
                     let clear_width = inner.width as usize;
                     queue!(
                         self.stdout,
@@ -359,10 +361,16 @@ impl Renderer {
                         LogLevel::Error => "ERR",
                     };
                     
-                    let message_width = inner.width as usize - 13; // Leave space for timestamp + level
+                    // Calculate proper message width: timestamp (8) + space (1) + level (3) + space (1) = 13 chars
+                    let prefix_width = 13;
+                    let message_width = if inner.width as usize > prefix_width {
+                        inner.width as usize - prefix_width
+                    } else {
+                        0
+                    };
                     let truncated_message = truncate_string(&entry.message, message_width);
                     
-                    // Clear the line first to prevent text overflow/ghosting
+                    // Clear only this panel's area to prevent overflow into other panels
                     let clear_width = inner.width as usize;
                     queue!(
                         self.stdout,

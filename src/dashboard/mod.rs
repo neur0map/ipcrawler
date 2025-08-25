@@ -53,6 +53,13 @@ impl Dashboard {
 
     fn setup_terminal() -> io::Result<()> {
         enable_raw_mode()?;
+        
+        // Set terminal size to 205x50
+        execute!(
+            io::stdout(),
+            crossterm::terminal::SetSize(205, 50)
+        )?;
+        
         execute!(
             io::stdout(),
             EnterAlternateScreen,

@@ -75,50 +75,32 @@ impl ConfigLoader {
             anyhow::bail!("max_port_scans must be less than max_total_scans");
         }
 
-        // Validate tool commands are not empty
-        if config.tools.nmap.command.is_empty() {
-            anyhow::bail!("nmap command cannot be empty");
-        }
-
-        if config.tools.http_probe.command.is_empty() {
-            anyhow::bail!("http_probe command cannot be empty");
-        }
-
-        // Validate timeout values
-        if config.tools.nmap.limits.timeout_ms == 0 {
-            anyhow::bail!("nmap timeout_ms must be greater than 0");
-        }
-
-        if config.tools.http_probe.limits.timeout_ms == 0 {
-            anyhow::bail!("http_probe timeout_ms must be greater than 0");
-        }
-
-        // Validate port strategy settings
-        match config.tools.nmap.port_strategy {
-            super::types::PortStrategy::Top => {
-                if config.tools.nmap.ports.top_ports.is_none() || 
-                   config.tools.nmap.ports.top_ports.unwrap() == 0 {
-                    anyhow::bail!("top_ports must be specified and greater than 0 for 'top' port strategy");
-                }
+        // Validate tool commands if tools config is provided
+        if let Some(ref tools) = config.tools {
+            if tools.nslookup.command.is_empty() {
+                anyhow::bail!("nslookup command cannot be empty");
             }
-            super::types::PortStrategy::Range => {
-                let start = config.tools.nmap.ports.range_start;
-                let end = config.tools.nmap.ports.range_end;
-                if start.is_none() || end.is_none() {
-                    anyhow::bail!("range_start and range_end must be specified for 'range' port strategy");
-                }
-                if start.unwrap() >= end.unwrap() {
-                    anyhow::bail!("range_start must be less than range_end");
-                }
+
+            if tools.dig.command.is_empty() {
+                anyhow::bail!("dig command cannot be empty");
             }
-            super::types::PortStrategy::List => {
-                if config.tools.nmap.ports.specific_ports.is_none() || 
-                   config.tools.nmap.ports.specific_ports.as_ref().unwrap().is_empty() {
-                    anyhow::bail!("specific_ports must be specified and non-empty for 'list' port strategy");
-                }
+
+            // Validate timeout values
+            if tools.nslookup.limits.timeout_ms == 0 {
+                anyhow::bail!("nslookup timeout_ms must be greater than 0");
             }
-            super::types::PortStrategy::Default => {
-                // No validation needed for default
+
+            if tools.dig.limits.timeout_ms == 0 {
+                anyhow::bail!("dig timeout_ms must be greater than 0");
+            }
+
+            // Validate DNS tool settings
+            if tools.nslookup.options.record_types.is_empty() {
+                anyhow::bail!("nslookup record_types cannot be empty");
+            }
+
+            if tools.dig.options.record_types.is_empty() {
+                anyhow::bail!("dig record_types cannot be empty");
             }
         }
 
@@ -180,17 +162,23 @@ max_service_scans = 80
 min_file_descriptors = 2048
 recommended_file_descriptors = 4096
 
-[tools.nmap]
-command = "custom-nmap"
-base_args = ["-sS", "-O"]
+[tools.nslookup]
+command = "custom-nslookup"
+base_args = ["-debug"]
+
+[tools.dig]
+command = "custom-dig"
+base_args = ["+short", "+time=5"]
 "#;
         fs::write(&temp_file, config_content).unwrap();
         
         let config = ConfigLoader::load_with_custom_path(Some(temp_file.path())).unwrap();
         assert_eq!(config.concurrency.max_total_scans, 100);
         assert_eq!(config.concurrency.max_port_scans, 20);
-        assert_eq!(config.tools.nmap.command, "custom-nmap");
-        assert_eq!(config.tools.nmap.base_args, vec!["-sS", "-O"]);
+        assert_eq!(config.tools.nslookup.command, "custom-nslookup");
+        assert_eq!(config.tools.nslookup.base_args, vec!["-debug"]);
+        assert_eq!(config.tools.dig.command, "custom-dig");
+        assert_eq!(config.tools.dig.base_args, vec!["+short", "+time=5"]);
     }
 
     #[test]

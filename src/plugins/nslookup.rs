@@ -36,7 +36,7 @@ impl NslookupPlugin {
     }
 
     /// Run nslookup command and return output
-    async fn run_nslookup(&self, target: &str, record_type: &str, ui_sender: &mpsc::UnboundedSender<UiEvent>) -> Result<String> {
+    async fn run_nslookup(&self, target: &str, record_type: &str, ui_sender: &mpsc::UnboundedSender<UiEvent>, config: &GlobalConfig) -> Result<String> {
         self.send_log(ui_sender, "INFO", &format!("Running nslookup {} for {}", record_type, target));
         
         let args = if record_type == "PTR" {
@@ -46,9 +46,15 @@ impl NslookupPlugin {
             vec![format!("-type={}", record_type), target.to_string()]
         };
         let args_str: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let timeout = Some(10000); // 10 second timeout
         
-        match execute("nslookup", &args_str, std::path::Path::new("."), timeout).await {
+        // Get tool configuration with fallback to defaults
+        let (command, timeout) = if let Some(ref tools) = config.tools {
+            (tools.nslookup.command.clone(), tools.nslookup.limits.timeout_ms)
+        } else {
+            ("nslookup".to_string(), 10000)
+        };
+        
+        match execute(&command, &args_str, std::path::Path::new("."), Some(timeout)).await {
             Ok(command_result) => {
                 if command_result.exit_code == 0 {
                     self.send_log(ui_sender, "INFO", &format!("nslookup {} completed for {}", record_type, target));
@@ -128,7 +134,7 @@ impl PortScan for NslookupPlugin {
         "nslookup"
     }
 
-    async fn run(&self, state: &mut RunState, _config: &GlobalConfig) -> Result<Vec<Service>> {
+    async fn run(&self, state: &mut RunState, config: &GlobalConfig) -> Result<Vec<Service>> {
         let target = &state.target;
         let ui_sender = state.ui_sender.as_ref().ok_or_else(|| anyhow::anyhow!("No UI sender available"))?;
         
@@ -151,14 +157,18 @@ impl PortScan for NslookupPlugin {
             self.send_log(ui_sender, "INFO", "Target is an IP address, performing reverse DNS lookup");
             vec!["PTR"]
         } else {
-            // For domain names, do forward lookups
-            vec!["A", "AAAA", "MX", "NS", "TXT"]
+            // Use config record types if available, otherwise use defaults
+            if let Some(ref tools) = config.tools {
+                tools.nslookup.options.record_types.iter().map(|s| s.as_str()).collect()
+            } else {
+                vec!["A", "AAAA", "MX", "NS", "TXT"]
+            }
         };
         
         self.send_log(ui_sender, "INFO", &format!("Running {} DNS record type queries", record_types.len()));
         
         for record_type in &record_types {
-            match self.run_nslookup(target, record_type, ui_sender).await {
+            match self.run_nslookup(target, record_type, ui_sender, config).await {
                 Ok(output) => {
                     let parsed_results = self.parse_nslookup_output(&output, record_type);
                     
@@ -169,10 +179,10 @@ impl PortScan for NslookupPlugin {
                             // Send to logs
                             self.send_log(ui_sender, "INFO", &format!("{} record: {}", record_type, result));
                             
-                            // Send to Results panel as discovered service
+                            // Send to Results panel as discovered service with nslookup prefix
                             let _ = ui_sender.send(UiEvent::PortDiscovered {
                                 port: 53, // DNS port
-                                service: format!("{} - {}", record_type, result),
+                                service: format!("nslookup {} - {}", record_type, result),
                             });
                         }
                         
@@ -195,7 +205,12 @@ impl PortScan for NslookupPlugin {
             }
             
             // Small delay between queries to be nice to DNS servers
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            let delay = if let Some(ref tools) = config.tools {
+                tools.nslookup.options.delay_between_queries_ms
+            } else {
+                500
+            };
+            tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
         }
         
         if services.is_empty() {

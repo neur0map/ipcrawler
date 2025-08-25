@@ -87,11 +87,20 @@ pub fn draw_progress_bar<W: Write>(
 
 /// Truncate string with ellipsis if too long
 pub fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    if max_len == 0 {
+        return String::new();
+    }
+    
+    // Use grapheme clusters to handle unicode properly
+    let chars: Vec<char> = s.chars().collect();
+    let char_count = chars.len();
+    
+    if char_count <= max_len {
         s.to_string()
     } else if max_len < 3 {
-        s.chars().take(max_len).collect()
+        chars.iter().take(max_len).collect()
     } else {
-        format!("{}...", s.chars().take(max_len - 3).collect::<String>())
+        let truncated: String = chars.iter().take(max_len - 3).collect();
+        format!("{}...", truncated)
     }
 }

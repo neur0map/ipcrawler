@@ -1,9 +1,9 @@
 # ipcrawler Global Configuration
-# Override default tool commands, concurrency limits, and timeouts
+# Configuration for active DNS reconnaissance plugins
 
 [metadata]
 version = "0.1.0"
-description = "Global configuration for ipcrawler tool overrides"
+description = "Global configuration for ipcrawler DNS reconnaissance tools"
 
 # ========================================
 # CONCURRENCY & PERFORMANCE SETTINGS
@@ -20,223 +20,135 @@ max_port_scans = 10
 max_service_scans = 40
 
 # File descriptor requirements
+# If you get "too many open files" errors, increase your system limit:
+# Linux/macOS: ulimit -n 4096  (temporary)
+# Linux permanent: Add "* soft nofile 4096" and "* hard nofile 8192" to /etc/security/limits.conf
+# macOS permanent: Add "limit maxfiles 4096 8192" to ~/.zshrc or ~/.bash_profile
 min_file_descriptors = 1024
 recommended_file_descriptors = 2048
 
 # ========================================
-# NMAP CONFIGURATION
+# DNS RECONNAISSANCE TOOLS
 # ========================================
+# Uncomment any section below to override default plugin behavior
 
-[tools.nmap]
-# Default command and arguments
-command = "nmap"
-base_args = ["-sT", "-sV", "-T4"]
+# [tools.nslookup]
+# # Override default command and arguments
+# command = "nslookup"
+# base_args = []
 
-# Port specifications (choose one strategy)
-port_strategy = "top"  # Options: "default", "top", "range", "list"
+# # Override DNS query options
+# [tools.nslookup.options]
+# record_types = ["A", "AAAA", "MX", "NS", "TXT", "PTR"]
+# reverse_dns = true              # Enable PTR lookups for IPs
+# recursive = true               # Use recursive DNS queries
+# delay_between_queries_ms = 500 # Be nice to DNS servers
 
-# Strategy-specific settings
-[tools.nmap.ports]
-# For port_strategy = "top" 
-top_ports = 100
+# # Override timeouts and limits
+# [tools.nslookup.limits]
+# timeout_ms = 10000             # 10 seconds per query
+# max_retries = 2
+# total_timeout_ms = 30000       # 30 seconds total per target
 
-# For port_strategy = "range"
-range_start = 1
-range_end = 65535
+# [tools.dig]
+# # Override default command and arguments for better output formatting
+# command = "dig"
+# base_args = ["+short", "+time=3", "+tries=2"]
 
-# For port_strategy = "list"
-specific_ports = [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 993, 995, 1723, 3306, 3389, 5432, 5900, 8080, 8443]
+# # Override DNS query options
+# [tools.dig.options]
+# record_types = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "PTR"]
+# reverse_dns = true              # Enable PTR lookups for IPs
+# recursive = true               # Use recursive DNS queries
+# delay_between_queries_ms = 250 # Faster than nslookup due to +short output
+# include_additional_records = false
 
-# Output and timing
-[tools.nmap.options]
-output_format = "xml"          # xml, grepable, normal
-timing_template = "T4"         # T0-T5 (T4 = aggressive)
-service_detection = true       # -sV flag
-os_detection = false          # -O flag
-script_scan = false           # -sC flag
-stealth_mode = false          # Use -sS instead of -sT (requires root)
-
-# Timeouts and limits
-[tools.nmap.limits]
-timeout_ms = 30000            # 30 seconds
-max_retries = 2
-host_timeout_ms = 90000       # 90 seconds per host
-scan_delay_ms = 0            # Delay between probes
-
-# ========================================
-# HTTP PROBE CONFIGURATION  
-# ========================================
-
-[tools.http_probe]
-# Default command and arguments
-command = "curl"
-base_args = ["-s", "-L"]
-
-# HTTP-specific options
-[tools.http_probe.options]
-follow_redirects = true       # -L flag
-silent_mode = true           # -s flag
-headers_only = false         # Use GET instead of HEAD request
-max_redirects = 10           # -m flag
-include_headers = true       # Include response headers
-user_agent = "ipcrawler/0.1.0"
-connect_timeout_s = 10
-max_time_s = 15
-
-# SSL/TLS options
-[tools.http_probe.ssl]
-verify_cert = false          # -k flag (insecure)
-ssl_protocols = ["TLSv1.2", "TLSv1.3"]
-
-# Output and logging
-[tools.http_probe.output]
-verbose = false              # -v flag for debugging
-write_response = true        # Save response to file
-include_timing = true        # Include timing information
-log_connection_failures = false
-
-# Timeouts and limits
-[tools.http_probe.limits]
-timeout_ms = 15000           # 15 seconds
-max_retries = 1
-connection_timeout_ms = 10000 # 10 seconds
-
-# ========================================
-# HTTPX PROBE CONFIGURATION  
-# ========================================
-
-[tools.httpx]
-# Default command and arguments (using ProjectDiscovery's httpx)
-command = "/Users/carlosm/go/bin/httpx"
-base_args = ["-silent", "-no-color"]
-
-# HTTP-specific options
-[tools.httpx.options]
-method = "GET"               # HTTP method
-user_agent = "ipcrawler/0.1.0"
-timeout_s = 10
-follow_redirects = true
-follow_host_redirects = false
-probe_all_ips = false
-http2 = true
-
-# Output options
-[tools.httpx.output]
-status_code = true           # Show HTTP status codes
-content_length = true        # Show content length
-title = true                 # Extract page titles
-tech_detect = true           # Technology detection
-server = true                # Show server headers
-content_type = true          # Show content type
-
-# Timeouts and limits
-[tools.httpx.limits]
-timeout_ms = 15000           # 15 seconds
-max_retries = 1
-connection_timeout_ms = 10000 # 10 seconds
-
-# ========================================
-# DNS ENUMERATION CONFIGURATION
-# ========================================
-
-[tools.dns_enum]
-# Default command and arguments
-command = "dig"
-base_args = ["+short", "+time=3", "+tries=2"]
-
-# DNS enumeration options
-[tools.dns_enum.options]
-subdomain_enum = true         # Enable subdomain enumeration
-zone_transfer = true          # Attempt zone transfer
-record_types = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
-recursive = true              # Use recursive DNS queries
-dnssec = false               # Validate DNSSEC
-
-# Timeouts and limits
-[tools.dns_enum.limits]
-timeout_ms = 30000           # 30 seconds total
-query_timeout_ms = 5000      # 5 seconds per query
-max_retries = 2
-max_subdomains = 100         # Limit subdomain enumeration
+# # Override timeouts and limits
+# [tools.dig.limits]
+# timeout_ms = 10000             # 10 seconds per query
+# max_retries = 2
+# total_timeout_ms = 30000       # 30 seconds total per target
+# query_timeout_ms = 3000        # 3 seconds per individual query (+time=3)
 
 # ========================================
 # GLOBAL OVERRIDES
 # ========================================
 
 [overrides]
-# Force specific tool versions or paths
+# Force specific tool versions or paths if needed
 [overrides.paths]
-nmap = "/usr/local/bin/nmap"     # Override nmap path
-curl = "/usr/bin/curl"           # Override curl path
-
-# Environment variables to set
-[overrides.env]
-NMAP_PRIVILEGED = "0"            # Force non-privileged mode
+nslookup = "/usr/bin/nslookup"   # Override nslookup path if needed
+dig = "/usr/bin/dig"             # Override dig path if needed
 
 # Global timeout multipliers
 [overrides.timeouts]
 multiplier = 1.0                 # Multiply all timeouts by this factor
-max_total_runtime_s = 1800       # 30 minutes total scan limit
+max_total_runtime_s = 300        # 5 minutes total scan limit
 
 # ========================================
 # OUTPUT CONFIGURATION
 # ========================================
+# Uncomment to override default output settings
 
-[output]
-# Template selection
-report_formats = ["txt", "md", "json"]
-default_template = "summary"
+# [output]
+# # Template selection
+# report_formats = ["txt", "md", "json"]
+# default_template = "summary"
 
-# File naming patterns
-[output.naming]
-run_id_pattern = "run_{target}_{timestamp}"
-timestamp_format = "%Y%m%d_%H%M%S"
+# # File naming patterns
+# [output.naming]
+# run_id_pattern = "run_{target}_{timestamp}"
+# timestamp_format = "%Y%m%d_%H%M%S"
 
-# Artifact retention
-[output.retention]
-keep_raw_scans = true
-keep_plugin_results = true
-compress_old_runs = false
-max_run_history = 50
+# # Artifact retention
+# [output.retention]
+# keep_raw_scans = true
+# keep_plugin_results = true
+# compress_old_runs = false
+# max_run_history = 50
 
 # ========================================
 # LOGGING CONFIGURATION
 # ========================================
+# Uncomment to override default logging settings
 
-[logging]
-level = "info"                   # trace, debug, info, warn, error
-target = "file"                 # console, file, both
-max_file_size_mb = 10
-rotate_files = true
+# [logging]
+# level = "info"                   # trace, debug, info, warn, error
+# target = "file"                 # console, file, both
+# max_file_size_mb = 10
+# rotate_files = true
 
 # ========================================
 # VALIDATION RULES
 # ========================================
+# Uncomment to override default validation settings
 
-[validation]
-# Pre-flight checks
-require_tools = ["nmap", "curl", "dig"]
-check_file_descriptors = true
-check_disk_space_mb = 100
+# [validation]
+# # Pre-flight checks for active tools only
+# require_tools = ["nslookup", "dig"]
+# check_file_descriptors = true
+# check_disk_space_mb = 100
 
-# Input validation  
-[validation.targets]
-allow_private_ips = true
-allow_localhost = true
-max_target_length = 253
-validate_dns = false
+# # Input validation  
+# [validation.targets]
+# allow_private_ips = true
+# allow_localhost = true
+# max_target_length = 253
+# validate_dns = false
 
 # ========================================
 # PLUGIN SYSTEM
 # ========================================
+# Uncomment to override default plugin settings
 
-[plugins]
-# Plugin discovery and loading
-auto_discover = true
-plugin_dirs = ["./plugins", "./custom_plugins"]
+# [plugins]
+# # Plugin discovery and loading
+# auto_discover = true
+# plugin_dirs = ["./plugins", "./custom_plugins"]
 
-# Plugin execution order
-[plugins.execution_order]
-port_scanners = ["nmap_portscan", "dns_enum"]
-service_scanners = ["http_probe", "httpx_probe"]
-reporters = ["summary_reporter"]
+# # Plugin execution order for active reconnaissance plugins
+# [plugins.execution_order]
+# reconnaissance = ["nslookup", "dig"]
+# port_scanners = []               # Empty - using reconnaissance plugins
+# service_scanners = []            # Empty - no service scanning plugins active
+# reporters = ["summary_reporter"]

@@ -12,6 +12,7 @@ impl PluginRegistry {
         Self {
             recon_plugins: vec![
                 Box::new(crate::plugins::nslookup::NslookupPlugin),
+                Box::new(crate::plugins::dig::DigPlugin),
             ],
             port_scan_plugins: vec![
                 // Empty for now - nslookup is our only plugin
@@ -70,6 +71,7 @@ impl PluginRegistry {
     fn get_plugin_tools(&self, plugin_name: &str) -> Result<Vec<String>> {
         let tools = match plugin_name {
             "nslookup" => vec!["nslookup".to_string()],
+            "dig" => vec!["dig".to_string()],
             _ => vec![],
         };
         Ok(tools)
