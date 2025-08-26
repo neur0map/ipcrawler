@@ -59,6 +59,11 @@ pub enum UiEvent {
         message: String,
     },
 
+    /// Summary report available
+    SummaryReady {
+        file_path: std::path::PathBuf,
+    },
+
     /// UI lifecycle
     Shutdown,
 }

@@ -242,6 +242,10 @@ impl Dashboard {
                 };
                 self.state.add_log(log_level, message);
             }
+            SummaryReady { file_path } => {
+                self.state.load_summary(&file_path);
+                self.needs_redraw = true;
+            }
             Shutdown => {
                 self.state.status = AppStatus::Completed;
                 // Update status but don't exit - user should press 'q' to quit
@@ -261,86 +265,148 @@ impl Dashboard {
                 return true;
             }
             KeyCode::Up => {
-                // Check for modifiers to determine which panel to scroll
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    // Shift+Up: Scroll logs panel up
-                    if self.state.logs.scroll_offset > 0 {
-                        self.state.logs.scroll_offset -= 1;
-                        self.needs_redraw = true;
+                match self.state.tabs.active_tab_id.as_str() {
+                    "summary" => {
+                        // Scroll summary up
+                        if self.state.summary.scroll_offset > 0 {
+                            self.state.summary.scroll_offset -= 1;
+                            self.needs_redraw = true;
+                        }
                     }
-                } else {
-                    // Regular Up: Scroll results panel up
-                    if self.state.results.scroll_offset > 0 {
-                        self.state.results.scroll_offset -= 1;
-                        self.needs_redraw = true;
+                    _ => {
+                        // Check for modifiers to determine which panel to scroll
+                        if key.modifiers.contains(KeyModifiers::SHIFT) {
+                            // Shift+Up: Scroll logs panel up
+                            if self.state.logs.scroll_offset > 0 {
+                                self.state.logs.scroll_offset -= 1;
+                                self.needs_redraw = true;
+                            }
+                        } else {
+                            // Regular Up: Scroll results panel up
+                            if self.state.results.scroll_offset > 0 {
+                                self.state.results.scroll_offset -= 1;
+                                self.needs_redraw = true;
+                            }
+                        }
                     }
                 }
             }
             KeyCode::Down => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    // Shift+Down: Scroll logs panel down
-                    let max_offset = self.state.logs.entries.len().saturating_sub(10);
-                    if self.state.logs.scroll_offset < max_offset {
-                        self.state.logs.scroll_offset += 1;
-                        self.needs_redraw = true;
+                match self.state.tabs.active_tab_id.as_str() {
+                    "summary" => {
+                        // Scroll summary down
+                        let max_offset = self.state.summary.content.len().saturating_sub(10);
+                        if self.state.summary.scroll_offset < max_offset {
+                            self.state.summary.scroll_offset += 1;
+                            self.needs_redraw = true;
+                        }
                     }
-                } else {
-                    // Regular Down: Scroll results panel down
-                    let max_offset = self.state.results.rows.len().saturating_sub(10);
-                    if self.state.results.scroll_offset < max_offset {
-                        self.state.results.scroll_offset += 1;
-                        self.needs_redraw = true;
+                    _ => {
+                        if key.modifiers.contains(KeyModifiers::SHIFT) {
+                            // Shift+Down: Scroll logs panel down
+                            let max_offset = self.state.logs.entries.len().saturating_sub(10);
+                            if self.state.logs.scroll_offset < max_offset {
+                                self.state.logs.scroll_offset += 1;
+                                self.needs_redraw = true;
+                            }
+                        } else {
+                            // Regular Down: Scroll results panel down
+                            let max_offset = self.state.results.rows.len().saturating_sub(10);
+                            if self.state.results.scroll_offset < max_offset {
+                                self.state.results.scroll_offset += 1;
+                                self.needs_redraw = true;
+                            }
+                        }
                     }
                 }
             }
             KeyCode::PageUp => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    // Shift+PageUp: Scroll logs panel up by page
-                    self.state.logs.scroll_offset = 
-                        self.state.logs.scroll_offset.saturating_sub(10);
-                    self.needs_redraw = true;
-                } else {
-                    // Regular PageUp: Scroll results panel up by page
-                    self.state.results.scroll_offset =
-                        self.state.results.scroll_offset.saturating_sub(10);
-                    self.needs_redraw = true;
+                match self.state.tabs.active_tab_id.as_str() {
+                    "summary" => {
+                        // Scroll summary up by page
+                        self.state.summary.scroll_offset = 
+                            self.state.summary.scroll_offset.saturating_sub(10);
+                        self.needs_redraw = true;
+                    }
+                    _ => {
+                        if key.modifiers.contains(KeyModifiers::SHIFT) {
+                            // Shift+PageUp: Scroll logs panel up by page
+                            self.state.logs.scroll_offset = 
+                                self.state.logs.scroll_offset.saturating_sub(10);
+                            self.needs_redraw = true;
+                        } else {
+                            // Regular PageUp: Scroll results panel up by page
+                            self.state.results.scroll_offset =
+                                self.state.results.scroll_offset.saturating_sub(10);
+                            self.needs_redraw = true;
+                        }
+                    }
                 }
             }
             KeyCode::PageDown => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    // Shift+PageDown: Scroll logs panel down by page
-                    let max_offset = self.state.logs.entries.len().saturating_sub(10);
-                    self.state.logs.scroll_offset = 
-                        (self.state.logs.scroll_offset + 10).min(max_offset);
-                    self.needs_redraw = true;
-                } else {
-                    // Regular PageDown: Scroll results panel down by page
-                    let max_offset = self.state.results.rows.len().saturating_sub(10);
-                    self.state.results.scroll_offset =
-                        (self.state.results.scroll_offset + 10).min(max_offset);
-                    self.needs_redraw = true;
+                match self.state.tabs.active_tab_id.as_str() {
+                    "summary" => {
+                        // Scroll summary down by page
+                        let max_offset = self.state.summary.content.len().saturating_sub(10);
+                        self.state.summary.scroll_offset = 
+                            (self.state.summary.scroll_offset + 10).min(max_offset);
+                        self.needs_redraw = true;
+                    }
+                    _ => {
+                        if key.modifiers.contains(KeyModifiers::SHIFT) {
+                            // Shift+PageDown: Scroll logs panel down by page
+                            let max_offset = self.state.logs.entries.len().saturating_sub(10);
+                            self.state.logs.scroll_offset = 
+                                (self.state.logs.scroll_offset + 10).min(max_offset);
+                            self.needs_redraw = true;
+                        } else {
+                            // Regular PageDown: Scroll results panel down by page
+                            let max_offset = self.state.results.rows.len().saturating_sub(10);
+                            self.state.results.scroll_offset =
+                                (self.state.results.scroll_offset + 10).min(max_offset);
+                            self.needs_redraw = true;
+                        }
+                    }
                 }
             }
             KeyCode::Home => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    // Shift+Home: Scroll logs to top
-                    self.state.logs.scroll_offset = 0;
-                    self.needs_redraw = true;
-                } else {
-                    // Regular Home: Scroll results to top
-                    self.state.results.scroll_offset = 0;
-                    self.needs_redraw = true;
+                match self.state.tabs.active_tab_id.as_str() {
+                    "summary" => {
+                        // Scroll summary to top
+                        self.state.summary.scroll_offset = 0;
+                        self.needs_redraw = true;
+                    }
+                    _ => {
+                        if key.modifiers.contains(KeyModifiers::SHIFT) {
+                            // Shift+Home: Scroll logs to top
+                            self.state.logs.scroll_offset = 0;
+                            self.needs_redraw = true;
+                        } else {
+                            // Regular Home: Scroll results to top
+                            self.state.results.scroll_offset = 0;
+                            self.needs_redraw = true;
+                        }
+                    }
                 }
             }
             KeyCode::End => {
-                if key.modifiers.contains(KeyModifiers::SHIFT) {
-                    // Shift+End: Scroll logs to bottom
-                    self.state.logs.scroll_offset = self.state.logs.entries.len().saturating_sub(10);
-                    self.needs_redraw = true;
-                } else {
-                    // Regular End: Scroll results to bottom
-                    self.state.results.scroll_offset = self.state.results.rows.len().saturating_sub(10);
-                    self.needs_redraw = true;
+                match self.state.tabs.active_tab_id.as_str() {
+                    "summary" => {
+                        // Scroll summary to bottom
+                        self.state.summary.scroll_offset = self.state.summary.content.len().saturating_sub(10);
+                        self.needs_redraw = true;
+                    }
+                    _ => {
+                        if key.modifiers.contains(KeyModifiers::SHIFT) {
+                            // Shift+End: Scroll logs to bottom
+                            self.state.logs.scroll_offset = self.state.logs.entries.len().saturating_sub(10);
+                            self.needs_redraw = true;
+                        } else {
+                            // Regular End: Scroll results to bottom
+                            self.state.results.scroll_offset = self.state.results.rows.len().saturating_sub(10);
+                            self.needs_redraw = true;
+                        }
+                    }
                 }
             }
             // Logs scrolling completed - now handle tab navigation

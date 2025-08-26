@@ -67,17 +67,31 @@ impl Renderer {
             self.render_tab_bar(state, rect)?;
         }
 
-        if let Some(rect) = layout.panels.get("results_view") {
-            match state.tabs.active_tab_id.as_str() {
-                "help" => self.render_help_view(state, rect)?,
-                _ => self.render_results_view(state, rect)?,
+        // For summary and help tabs, use full width combining both panels
+        if state.tabs.active_tab_id == "summary" || state.tabs.active_tab_id == "help" {
+            if let (Some(logs_rect), Some(results_rect)) = (layout.panels.get("logs_view"), layout.panels.get("results_view")) {
+                // Create a combined rect spanning both areas
+                let full_rect = Rect::new(
+                    logs_rect.x,
+                    logs_rect.y,
+                    logs_rect.width + results_rect.width,
+                    logs_rect.height,
+                );
+                
+                match state.tabs.active_tab_id.as_str() {
+                    "help" => self.render_help_view(state, &full_rect)?,
+                    "summary" => self.render_summary_view(state, &full_rect)?,
+                    _ => {}
+                }
             }
-        }
+        } else {
+            // Normal split view for other tabs
+            if let Some(rect) = layout.panels.get("results_view") {
+                self.render_results_view(state, rect)?;
+            }
 
-        if let Some(rect) = layout.panels.get("logs_view") {
-            match state.tabs.active_tab_id.as_str() {
-                "help" => {} // Don't render logs view when on help tab
-                _ => self.render_logs_view(state, rect)?,
+            if let Some(rect) = layout.panels.get("logs_view") {
+                self.render_logs_view(state, rect)?;
             }
         }
 
@@ -462,12 +476,9 @@ impl Renderer {
     }
 
     fn render_help_view(&mut self, _state: &AppState, rect: &Rect) -> io::Result<()> {
-        // Use full width for help, spanning both result and log areas
-        let logs_rect = Rect::new(rect.x + rect.width, rect.y, rect.width, rect.height); // Approximate logs area
-        let full_rect = Rect::new(rect.x, rect.y, rect.width + logs_rect.width, rect.height);
-
-        draw_box(&mut self.stdout, &full_rect, "Help & Documentation")?;
-        let inner = full_rect.inner(1);
+        // Use the provided rect which is already full width
+        draw_box(&mut self.stdout, rect, "Help & Documentation")?;
+        let inner = rect.inner(1);
 
         let help_content = vec![
             "".to_string(),
@@ -635,6 +646,125 @@ impl Renderer {
                 ResetColor
             )?;
         }
+        Ok(())
+    }
+
+    fn render_summary_view(&mut self, state: &AppState, rect: &Rect) -> io::Result<()> {
+        // Enhanced title with icon
+        draw_box(&mut self.stdout, rect, "◦ Summary Report ◦")?;
+        let inner = rect.inner(1);
+
+        if state.summary.content.is_empty() {
+            // Enhanced empty state with better formatting
+            let empty_y = inner.y + inner.height / 2;
+            queue!(
+                self.stdout,
+                MoveTo(inner.x + (inner.width / 2).saturating_sub(25), empty_y),
+                SetForegroundColor(Color::DarkGrey),
+                Print("┌─────────────────────────────────────────────────┐"),
+                ResetColor
+            )?;
+            queue!(
+                self.stdout,
+                MoveTo(inner.x + (inner.width / 2).saturating_sub(25), empty_y + 1),
+                SetForegroundColor(Color::DarkGrey),
+                Print("│"),
+                SetForegroundColor(Color::Yellow),
+                Print("  Summary will appear after scan completion  "),
+                SetForegroundColor(Color::DarkGrey),
+                Print("│"),
+                ResetColor
+            )?;
+            queue!(
+                self.stdout,
+                MoveTo(inner.x + (inner.width / 2).saturating_sub(25), empty_y + 2),
+                SetForegroundColor(Color::DarkGrey),
+                Print("│"),
+                SetForegroundColor(Color::Cyan),
+                Print("         Use ↑↓ keys to scroll when ready      "),
+                SetForegroundColor(Color::DarkGrey),
+                Print("│"),
+                ResetColor
+            )?;
+            queue!(
+                self.stdout,
+                MoveTo(inner.x + (inner.width / 2).saturating_sub(25), empty_y + 3),
+                SetForegroundColor(Color::DarkGrey),
+                Print("└─────────────────────────────────────────────────┘"),
+                ResetColor
+            )?;
+        } else {
+            let visible_rows = inner.height as usize;
+            let start_idx = state.summary.scroll_offset;
+            let end_idx = (start_idx + visible_rows).min(state.summary.content.len());
+
+            for (i, line_idx) in (start_idx..end_idx).enumerate() {
+                if let Some(line) = state.summary.content.get(line_idx) {
+                    // Clear the line first
+                    queue!(
+                        self.stdout,
+                        MoveTo(inner.x, inner.y + i as u16),
+                        Print(" ".repeat(inner.width as usize))
+                    )?;
+
+                    // Render the markdown content with enhanced formatting
+                    queue!(
+                        self.stdout,
+                        MoveTo(inner.x + 1, inner.y + i as u16), // Small left margin for readability
+                        Print(truncate_string(line, inner.width as usize - 2))
+                    )?;
+                }
+            }
+
+            // Enhanced scroll indicator with progress bar
+            if state.summary.content.len() > visible_rows {
+                let scroll_pct = if state.summary.content.len() > 1 {
+                    (state.summary.scroll_offset as f32 / (state.summary.content.len() - 1) as f32
+                        * 100.0) as u16
+                } else {
+                    0
+                };
+
+                // Draw scroll progress bar on the right edge
+                let scroll_bar_height = (inner.height as f32 * 0.8) as u16;
+                let scroll_bar_start = inner.y + 1;
+                let progress_height = ((scroll_pct as f32 / 100.0) * scroll_bar_height as f32) as u16;
+
+                for y in 0..scroll_bar_height {
+                    let char = if y <= progress_height { "▓" } else { "░" };
+                    let color = if y <= progress_height { Color::Cyan } else { Color::DarkGrey };
+                    
+                    queue!(
+                        self.stdout,
+                        MoveTo(inner.x + inner.width - 1, scroll_bar_start + y),
+                        SetForegroundColor(color),
+                        Print(char),
+                        ResetColor
+                    )?;
+                }
+
+                // Scroll percentage
+                queue!(
+                    self.stdout,
+                    MoveTo(inner.x + inner.width - 8, inner.y + inner.height - 1),
+                    SetForegroundColor(Color::Cyan),
+                    Print(format!("[{:3}%]", scroll_pct)),
+                    ResetColor
+                )?;
+            }
+
+            // Navigation hint at bottom
+            if inner.height > 2 {
+                queue!(
+                    self.stdout,
+                    MoveTo(inner.x + 1, inner.y + inner.height - 1),
+                    SetForegroundColor(Color::DarkGrey),
+                    Print("↑↓ Scroll • PgUp/PgDn Page • Home/End Jump"),
+                    ResetColor
+                )?;
+            }
+        }
+
         Ok(())
     }
 

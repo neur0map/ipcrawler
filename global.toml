@@ -2,8 +2,7 @@
 # Configuration for active DNS reconnaissance plugins
 
 [metadata]
-version = "0.1.0"
-description = "Global configuration for ipcrawler DNS reconnaissance tools"
+description = "Global configuration for ipcrawler reconnaissance automation tools"
 
 # ========================================
 # CONCURRENCY & PERFORMANCE SETTINGS

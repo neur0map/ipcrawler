@@ -15,6 +15,7 @@ pub struct AppState {
     pub tabs: TabBar,
     pub results: Results,
     pub logs: Logs,
+    pub summary: Summary,
     pub target: String,
     pub status: AppStatus,
     pub start_time: Instant,
@@ -75,6 +76,12 @@ pub struct Logs {
 }
 
 #[derive(Debug, Clone)]
+pub struct Summary {
+    pub content: Vec<String>,
+    pub scroll_offset: usize,
+}
+
+#[derive(Debug, Clone)]
 pub struct LogEntry {
     pub timestamp: String,
     pub level: LogLevel,
@@ -114,16 +121,8 @@ impl AppState {
                         label: "Overview".to_string(),
                     },
                     Tab {
-                        id: "ports".to_string(),
-                        label: "Ports".to_string(),
-                    },
-                    Tab {
-                        id: "services".to_string(),
-                        label: "Services".to_string(),
-                    },
-                    Tab {
-                        id: "logs".to_string(),
-                        label: "Logs".to_string(),
+                        id: "summary".to_string(),
+                        label: "Summary".to_string(),
                     },
                     Tab {
                         id: "help".to_string(),
@@ -140,6 +139,10 @@ impl AppState {
                 entries: Vec::new(),
                 scroll_offset: 0,
                 max_entries: 1000, // Keep last 1000 log entries
+            },
+            summary: Summary {
+                content: Vec::new(),
+                scroll_offset: 0,
             },
             target,
             status: AppStatus::Running,
@@ -172,5 +175,60 @@ impl AppState {
         if self.logs.entries.len() > visible_entries {
             self.logs.scroll_offset = self.logs.entries.len() - visible_entries;
         }
+    }
+
+    pub fn load_summary(&mut self, markdown_path: &std::path::Path) {
+        use std::fs;
+        if let Ok(content) = fs::read_to_string(markdown_path) {
+            self.summary.content = self.parse_markdown(content);
+            self.summary.scroll_offset = 0;
+        }
+    }
+
+    fn parse_markdown(&self, markdown: String) -> Vec<String> {
+        let mut rendered_lines = Vec::new();
+        
+        for line in markdown.lines() {
+            let trimmed = line.trim();
+            
+            if trimmed.starts_with("# ") {
+                // H1 headers - cyan and bold
+                rendered_lines.push(format!("\x1b[1;36m{}\x1b[0m", &trimmed[2..]));
+                rendered_lines.push("".to_string()); // Add spacing
+            } else if trimmed.starts_with("## ") {
+                // H2 headers - green and bold
+                rendered_lines.push(format!("\x1b[1;32m{}\x1b[0m", &trimmed[3..]));
+                rendered_lines.push("".to_string());
+            } else if trimmed.starts_with("### ") {
+                // H3 headers - yellow
+                rendered_lines.push(format!("\x1b[1;33m{}\x1b[0m", &trimmed[4..]));
+            } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
+                // Bullet points - green bullet
+                rendered_lines.push(format!("\x1b[32m●\x1b[0m {}", &trimmed[2..]));
+            } else if trimmed.starts_with("```") {
+                // Code blocks - gray background
+                if trimmed == "```" {
+                    rendered_lines.push("\x1b[100m \x1b[0m".to_string());
+                } else {
+                    rendered_lines.push(format!("\x1b[100m {} \x1b[0m", &trimmed[3..]));
+                }
+            } else if trimmed.starts_with("`") && trimmed.ends_with("`") && trimmed.len() > 2 {
+                // Inline code - gray background
+                let code = &trimmed[1..trimmed.len()-1];
+                rendered_lines.push(format!("\x1b[100m{}\x1b[0m", code));
+            } else if trimmed.starts_with("**") && trimmed.ends_with("**") && trimmed.len() > 4 {
+                // Bold text
+                let bold_text = &trimmed[2..trimmed.len()-2];
+                rendered_lines.push(format!("\x1b[1m{}\x1b[0m", bold_text));
+            } else if !trimmed.is_empty() {
+                // Regular text
+                rendered_lines.push(trimmed.to_string());
+            } else {
+                // Empty lines
+                rendered_lines.push("".to_string());
+            }
+        }
+        
+        rendered_lines
     }
 }
