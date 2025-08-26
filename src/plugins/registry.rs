@@ -13,23 +13,25 @@ impl PluginRegistry {
             Box::new(crate::plugins::nslookup::NslookupPlugin),
             Box::new(crate::plugins::dig::DigPlugin),
         ];
-        
+
         // Only add hosts discovery plugin if tools are available
         if Self::hosts_discovery_tools_available() {
-            recon_plugins.push(Box::new(crate::plugins::hosts_discovery::HostsDiscoveryPlugin));
+            recon_plugins.push(Box::new(
+                crate::plugins::hosts_discovery::HostsDiscoveryPlugin,
+            ));
         } else {
             tracing::info!("Hosts discovery plugin disabled - dnsx or httpx not available");
         }
-        
+
         let mut port_scan_plugins: Vec<Box<dyn crate::plugins::types::PortScan>> = vec![];
-        
+
         // Only add port scanner plugin if tools are available
         if Self::port_scanner_tools_available() {
             port_scan_plugins.push(Box::new(crate::plugins::port_scanner::PortScannerPlugin));
         } else {
             tracing::info!("Port scanner plugin disabled - rustscan or nmap not available");
         }
-        
+
         Self {
             recon_plugins,
             port_scan_plugins,
@@ -98,7 +100,7 @@ impl PluginRegistry {
                 } else {
                     vec![]
                 }
-            },
+            }
             "port_scanner" => {
                 // Only validate if plugin is actually loaded
                 if Self::port_scanner_tools_available() {
@@ -107,7 +109,7 @@ impl PluginRegistry {
                 } else {
                     vec![]
                 }
-            },
+            }
             _ => vec![],
         };
         Ok(tools)

@@ -69,7 +69,10 @@ impl Renderer {
 
         // For summary and help tabs, use full width combining both panels
         if state.tabs.active_tab_id == "summary" || state.tabs.active_tab_id == "help" {
-            if let (Some(logs_rect), Some(results_rect)) = (layout.panels.get("logs_view"), layout.panels.get("results_view")) {
+            if let (Some(logs_rect), Some(results_rect)) = (
+                layout.panels.get("logs_view"),
+                layout.panels.get("results_view"),
+            ) {
                 // Create a combined rect spanning both areas
                 let full_rect = Rect::new(
                     logs_rect.x,
@@ -77,7 +80,7 @@ impl Renderer {
                     logs_rect.width + results_rect.width,
                     logs_rect.height,
                 );
-                
+
                 match state.tabs.active_tab_id.as_str() {
                     "help" => self.render_help_view(state, &full_rect)?,
                     "summary" => self.render_summary_view(state, &full_rect)?,
@@ -157,18 +160,34 @@ impl Renderer {
             MoveTo(inner.x, inner.y),
             SetForegroundColor(Color::Green),
             Print("CPU: "),
-            SetForegroundColor(if state.system.cpu_pct > 80.0 { Color::Red } else if state.system.cpu_pct > 50.0 { Color::Yellow } else { Color::Green }),
+            SetForegroundColor(if state.system.cpu_pct > 80.0 {
+                Color::Red
+            } else if state.system.cpu_pct > 50.0 {
+                Color::Yellow
+            } else {
+                Color::Green
+            }),
             Print(&cpu_meter),
             Print(&format!(" {:.1}%", state.system.cpu_pct)),
             SetForegroundColor(Color::Green),
             Print(" | RAM: "),
-            SetForegroundColor(if state.system.ram_gb > 12.0 { Color::Red } else if state.system.ram_gb > 8.0 { Color::Yellow } else { Color::Green }),
+            SetForegroundColor(if state.system.ram_gb > 12.0 {
+                Color::Red
+            } else if state.system.ram_gb > 8.0 {
+                Color::Yellow
+            } else {
+                Color::Green
+            }),
             Print(&format!("{:.1}GB", state.system.ram_gb)),
             SetForegroundColor(Color::Green),
             Print(" | Time: "),
             SetForegroundColor(Color::Cyan),
             Print(&elapsed_str),
-            SetForegroundColor(if status_str.is_empty() { Color::Green } else { Color::Magenta }),
+            SetForegroundColor(if status_str.is_empty() {
+                Color::Green
+            } else {
+                Color::Magenta
+            }),
             Print(status_str),
             ResetColor
         )
@@ -241,9 +260,17 @@ impl Renderer {
             let max_tasks = inner.height as usize;
             for (i, task) in state.tasks.iter().take(max_tasks).enumerate() {
                 // Enhanced active task indicators with pulsing effect simulation
-                let indicator = if task.seconds_active % 2 == 0 { "◉" } else { "◯" };
-                let task_color = if task.seconds_active > 30 { Color::Yellow } else { Color::Green };
-                
+                let indicator = if task.seconds_active % 2 == 0 {
+                    "◉"
+                } else {
+                    "◯"
+                };
+                let task_color = if task.seconds_active > 30 {
+                    Color::Yellow
+                } else {
+                    Color::Green
+                };
+
                 queue!(
                     self.stdout,
                     MoveTo(inner.x, inner.y + i as u16),
@@ -252,7 +279,7 @@ impl Renderer {
                     Print(" "),
                     SetForegroundColor(Color::White),
                     Print(truncate_string(
-                        &format!("{}", task.name),
+                        &task.name.to_string(),
                         inner.width as usize - 10
                     )),
                     SetForegroundColor(Color::DarkGrey),
@@ -360,11 +387,16 @@ impl Renderer {
                     } else {
                         "active"
                     };
-                    
+
                     draw_status_indicator(&mut self.stdout, inner.x, inner.y + i as u16, status)?;
-                    
+
                     // Parse and render with tool name highlighting (offset for status indicator)
-                    self.render_colored_result_row_with_truncation(row, inner.x + 2, inner.y + i as u16, available_width - 2)?;
+                    self.render_colored_result_row_with_truncation(
+                        row,
+                        inner.x + 2,
+                        inner.y + i as u16,
+                        available_width - 2,
+                    )?;
                 }
             }
 
@@ -593,19 +625,19 @@ impl Renderer {
             } else if result_part.contains("✗") {
                 Color::Red
             } else if result_part.contains("OPEN") {
-                Color::Cyan  // All DNS/discovery results have "OPEN" appended
+                Color::Cyan // All DNS/discovery results have "OPEN" appended
             } else {
                 Color::White
             };
 
             // Now truncate the text for display
             let truncated = truncate_string(text, max_width);
-            
+
             // Find the dash position in the truncated text
             if let Some(truncated_dash_pos) = truncated.find(" - ") {
                 let truncated_tool = &truncated[..truncated_dash_pos];
                 let truncated_result = &truncated[truncated_dash_pos..];
-                
+
                 // Render with detected colors
                 queue!(
                     self.stdout,
@@ -729,12 +761,17 @@ impl Renderer {
                 // Draw scroll progress bar on the right edge
                 let scroll_bar_height = (inner.height as f32 * 0.8) as u16;
                 let scroll_bar_start = inner.y + 1;
-                let progress_height = ((scroll_pct as f32 / 100.0) * scroll_bar_height as f32) as u16;
+                let progress_height =
+                    ((scroll_pct as f32 / 100.0) * scroll_bar_height as f32) as u16;
 
                 for y in 0..scroll_bar_height {
                     let char = if y <= progress_height { "▓" } else { "░" };
-                    let color = if y <= progress_height { Color::Cyan } else { Color::DarkGrey };
-                    
+                    let color = if y <= progress_height {
+                        Color::Cyan
+                    } else {
+                        Color::DarkGrey
+                    };
+
                     queue!(
                         self.stdout,
                         MoveTo(inner.x + inner.width - 1, scroll_bar_start + y),
@@ -768,7 +805,6 @@ impl Renderer {
 
         Ok(())
     }
-
 
     pub fn flush(&mut self) -> io::Result<()> {
         self.stdout.flush()

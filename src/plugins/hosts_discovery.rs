@@ -9,14 +9,14 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Utc;
 use regex::Regex;
-use url;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
-use tokio::sync::mpsc;
-use tokio::process::Command;
 use std::process::Stdio;
 use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
+use tokio::sync::mpsc;
+use url;
 
 #[derive(Clone)]
 pub struct HostsDiscoveryPlugin;
@@ -115,12 +115,17 @@ impl HostsDiscoveryPlugin {
         };
 
         // Comprehensive record types: A, AAAA, CNAME, MX, NS, TXT, SOA
-        let args = vec!["-silent", "-resp", "-a", "-aaaa", "-cname", "-mx", "-ns", "-txt", "-soa", "-nc"];
+        let args = vec![
+            "-silent", "-resp", "-a", "-aaaa", "-cname", "-mx", "-ns", "-txt", "-soa", "-nc",
+        ];
 
-        match self.execute_with_stdin(&command, &args, target, timeout).await {
+        match self
+            .execute_with_stdin(&command, &args, target, timeout)
+            .await
+        {
             Ok(stdout) => {
                 let discoveries = self.parse_dnsx_comprehensive_output(&stdout);
-                
+
                 // Log detailed record type breakdown
                 let mut record_counts = HashMap::new();
                 for (_, value) in &discoveries {
@@ -138,12 +143,12 @@ impl HostsDiscoveryPlugin {
                         *record_counts.entry("SOA").or_insert(0) += 1;
                     }
                 }
-                
+
                 let breakdown: Vec<String> = record_counts
                     .iter()
                     .map(|(record_type, count)| format!("{}: {}", record_type, count))
                     .collect();
-                
+
                 self.send_log(
                     ui_sender,
                     "INFO",
@@ -154,9 +159,9 @@ impl HostsDiscoveryPlugin {
                         breakdown.join(", ")
                     ),
                 );
-                
+
                 // Don't log individual discoveries here - they'll go to Results panel
-                
+
                 Ok(discoveries)
             }
             Err(_e) => {
@@ -190,7 +195,10 @@ impl HostsDiscoveryPlugin {
 
         let args = vec!["-silent", "-resp", "-ptr", "-nc"]; // -nc disables color
 
-        match self.execute_with_stdin(&command, &args, target, timeout).await {
+        match self
+            .execute_with_stdin(&command, &args, target, timeout)
+            .await
+        {
             Ok(stdout) => {
                 let discoveries = self.parse_dnsx_reverse_output(&stdout, target);
                 self.send_log(
@@ -228,20 +236,42 @@ impl HostsDiscoveryPlugin {
                 )
             } else {
                 // Try to find the Go version of httpx first
-                if which::which("httpx").map(|p| p.to_string_lossy().contains("go/bin")).unwrap_or(false) {
+                if which::which("httpx")
+                    .map(|p| p.to_string_lossy().contains("go/bin"))
+                    .unwrap_or(false)
+                {
                     ("httpx".to_string(), 60000)
-                } else if std::path::Path::new(&format!("{}/go/bin/httpx", std::env::var("HOME").unwrap_or_default())).exists() {
-                    (format!("{}/go/bin/httpx", std::env::var("HOME").unwrap_or_default()), 60000)
+                } else if std::path::Path::new(&format!(
+                    "{}/go/bin/httpx",
+                    std::env::var("HOME").unwrap_or_default()
+                ))
+                .exists()
+                {
+                    (
+                        format!("{}/go/bin/httpx", std::env::var("HOME").unwrap_or_default()),
+                        60000,
+                    )
                 } else {
                     ("httpx".to_string(), 60000) // Fallback to PATH
                 }
             }
         } else {
-            // Try to find the Go version of httpx first  
-            if which::which("httpx").map(|p| p.to_string_lossy().contains("go/bin")).unwrap_or(false) {
+            // Try to find the Go version of httpx first
+            if which::which("httpx")
+                .map(|p| p.to_string_lossy().contains("go/bin"))
+                .unwrap_or(false)
+            {
                 ("httpx".to_string(), 60000)
-            } else if std::path::Path::new(&format!("{}/go/bin/httpx", std::env::var("HOME").unwrap_or_default())).exists() {
-                (format!("{}/go/bin/httpx", std::env::var("HOME").unwrap_or_default()), 60000)
+            } else if std::path::Path::new(&format!(
+                "{}/go/bin/httpx",
+                std::env::var("HOME").unwrap_or_default()
+            ))
+            .exists()
+            {
+                (
+                    format!("{}/go/bin/httpx", std::env::var("HOME").unwrap_or_default()),
+                    60000,
+                )
             } else {
                 ("httpx".to_string(), 60000) // Fallback to PATH
             }
@@ -249,11 +279,19 @@ impl HostsDiscoveryPlugin {
 
         // Comprehensive httpx flags: vhost, tech detection, titles, CDN detection, status codes
         let args = vec![
-            "-silent", "-vhost", "-status-code", "-ip", 
-            "-tech-detect", "-title", "-favicon", "-cdn", "-waf",
-            "-follow-redirects", "-nc"
+            "-silent",
+            "-vhost",
+            "-status-code",
+            "-ip",
+            "-tech-detect",
+            "-title",
+            "-favicon",
+            "-cdn",
+            "-waf",
+            "-follow-redirects",
+            "-nc",
         ];
-        
+
         // Prepare input - httpx expects URLs, try both HTTP and HTTPS
         let inputs = if target.starts_with("http") {
             vec![target.to_string()]
@@ -264,13 +302,16 @@ impl HostsDiscoveryPlugin {
         let mut all_discoveries = Vec::new();
         for input in inputs {
             // Testing HTTP/HTTPS endpoints (reduced verbosity)
-            
-            match self.execute_with_stdin(&command, &args, &input, timeout).await {
+
+            match self
+                .execute_with_stdin(&command, &args, &input, timeout)
+                .await
+            {
                 Ok(stdout) => {
                     let discoveries = self.parse_httpx_comprehensive_output(&stdout);
-                    
+
                     // Don't log individual HTTP discoveries here - they'll go to Results panel
-                    
+
                     all_discoveries.extend(discoveries);
                 }
                 Err(_e) => {
@@ -302,7 +343,7 @@ impl HostsDiscoveryPlugin {
     /// Parse comprehensive dnsx output for all DNS record types
     fn parse_dnsx_comprehensive_output(&self, output: &str) -> Vec<(String, String)> {
         let mut results = Vec::new();
-        
+
         // Regex patterns for different DNS record types
         let a_regex = Regex::new(r"^([^\s]+)\s+\[A\]\s+\[([^\]]+)\]").unwrap();
         let aaaa_regex = Regex::new(r"^([^\s]+)\s+\[AAAA\]\s+\[([^\]]+)\]").unwrap();
@@ -395,10 +436,10 @@ impl HostsDiscoveryPlugin {
     /// Parse comprehensive httpx output with technology detection
     fn parse_httpx_comprehensive_output(&self, output: &str) -> Vec<(String, String, String)> {
         let mut results = Vec::new();
-        
+
         // Enhanced regex to capture URL, IP, status, title, and tech
         let httpx_regex = Regex::new(r"(https?://[^\s\[]+)(?:\s+\[([^\]]+)\])?(?:\s+\[(\d+)\])?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?.*").unwrap();
-        
+
         for line in output.lines() {
             let line = line.trim();
             if line.is_empty() {
@@ -407,27 +448,28 @@ impl HostsDiscoveryPlugin {
 
             if let Some(captures) = httpx_regex.captures(line) {
                 let url = captures.get(1).unwrap().as_str();
-                
+
                 // Extract hostname from URL
                 if let Ok(parsed_url) = url::Url::parse(url) {
                     if let Some(host) = parsed_url.host_str() {
                         let mut ip = String::new();
                         let mut tech_info = String::new();
-                        
+
                         // Parse captured groups for IP and tech info
                         for i in 2..=5 {
                             if let Some(group) = captures.get(i) {
                                 let group_str = group.as_str();
-                                
+
                                 // Check if it's an IP address
                                 if group_str.parse::<std::net::IpAddr>().is_ok() {
                                     ip = group_str.to_string();
                                 }
                                 // Check if it contains technology info
-                                else if group_str.contains(":") || 
-                                       group_str.to_lowercase().contains("apache") ||
-                                       group_str.to_lowercase().contains("nginx") ||
-                                       group_str.to_lowercase().contains("cloudflare") {
+                                else if group_str.contains(":")
+                                    || group_str.to_lowercase().contains("apache")
+                                    || group_str.to_lowercase().contains("nginx")
+                                    || group_str.to_lowercase().contains("cloudflare")
+                                {
                                     if !tech_info.is_empty() {
                                         tech_info.push_str(", ");
                                     }
@@ -442,7 +484,7 @@ impl HostsDiscoveryPlugin {
                                 }
                             }
                         }
-                        
+
                         results.push((host.to_string(), ip, tech_info));
                     }
                 }
@@ -594,7 +636,7 @@ impl HostsDiscoveryPlugin {
         };
 
         // Test random subdomains to detect wildcards
-        let random_subdomains = vec![
+        let random_subdomains = [
             format!("randomtest12345.{}", target),
             format!("nonexistentabcd.{}", target),
             format!("shouldnotexist9999.{}", target),
@@ -603,14 +645,20 @@ impl HostsDiscoveryPlugin {
         let args = vec!["-silent", "-resp", "-a", "-nc"];
         let test_input = random_subdomains.join("\n");
 
-        match self.execute_with_stdin(&command, &args, &test_input, timeout).await {
+        match self
+            .execute_with_stdin(&command, &args, &test_input, timeout)
+            .await
+        {
             Ok(stdout) => {
                 let has_wildcard = !stdout.trim().is_empty();
                 if has_wildcard {
                     self.send_log(
                         ui_sender,
                         "WARN",
-                        &format!("⚠ Wildcard DNS detected on {} - results may include false positives", target),
+                        &format!(
+                            "⚠ Wildcard DNS detected on {} - results may include false positives",
+                            target
+                        ),
                     );
                 } else {
                     self.send_log(
@@ -642,9 +690,15 @@ impl HostsDiscoveryPlugin {
         has_wildcard: bool,
     ) -> Result<()> {
         let mut content = String::new();
-        content.push_str(&format!("=== Comprehensive Hosts Discovery Results for {} ===\n", target));
+        content.push_str(&format!(
+            "=== Comprehensive Hosts Discovery Results for {} ===\n",
+            target
+        ));
         content.push_str(&format!("Timestamp: {}\n", Utc::now()));
-        content.push_str(&format!("Wildcard DNS detected: {}\n\n", if has_wildcard { "YES" } else { "NO" }));
+        content.push_str(&format!(
+            "Wildcard DNS detected: {}\n\n",
+            if has_wildcard { "YES" } else { "NO" }
+        ));
 
         if discoveries.is_empty() && http_tech_discoveries.is_empty() {
             content.push_str("No hosts or services discovered\n");
@@ -660,7 +714,7 @@ impl HostsDiscoveryPlugin {
                 let mut txt_records = Vec::new();
                 let mut soa_records = Vec::new();
                 let mut ptr_records = Vec::new();
-                
+
                 for (domain, value) in discoveries {
                     if value.parse::<std::net::Ipv4Addr>().is_ok() {
                         a_records.push((domain, value));
@@ -680,56 +734,56 @@ impl HostsDiscoveryPlugin {
                         ptr_records.push((domain, value));
                     }
                 }
-                
+
                 if !a_records.is_empty() {
                     content.push_str(&format!("\nA Records ({}):\n", a_records.len()));
                     for (domain, ip) in a_records {
                         content.push_str(&format!("{:<30} -> {}\n", domain, ip));
                     }
                 }
-                
+
                 if !aaaa_records.is_empty() {
                     content.push_str(&format!("\nAAAA Records ({}):\n", aaaa_records.len()));
                     for (domain, ip) in aaaa_records {
                         content.push_str(&format!("{:<30} -> {}\n", domain, ip));
                     }
                 }
-                
+
                 if !cname_records.is_empty() {
                     content.push_str(&format!("\nCNAME Records ({}):\n", cname_records.len()));
                     for (domain, canonical) in cname_records {
                         content.push_str(&format!("{:<30} -> {}\n", domain, canonical));
                     }
                 }
-                
+
                 if !mx_records.is_empty() {
                     content.push_str(&format!("\nMX Records ({}):\n", mx_records.len()));
                     for (domain, mx) in mx_records {
                         content.push_str(&format!("{:<30} -> {}\n", domain, mx));
                     }
                 }
-                
+
                 if !ns_records.is_empty() {
                     content.push_str(&format!("\nNS Records ({}):\n", ns_records.len()));
                     for (domain, ns) in ns_records {
                         content.push_str(&format!("{:<30} -> {}\n", domain, ns));
                     }
                 }
-                
+
                 if !txt_records.is_empty() {
                     content.push_str(&format!("\nTXT Records ({}):\n", txt_records.len()));
                     for (domain, txt) in txt_records {
                         content.push_str(&format!("{:<30} -> {}\n", domain, txt));
                     }
                 }
-                
+
                 if !soa_records.is_empty() {
                     content.push_str(&format!("\nSOA Records ({}):\n", soa_records.len()));
                     for (domain, soa) in soa_records {
                         content.push_str(&format!("{:<30} -> {}\n", domain, soa));
                     }
                 }
-                
+
                 if !ptr_records.is_empty() {
                     content.push_str(&format!("\nPTR Records ({}):\n", ptr_records.len()));
                     for (domain, ip) in ptr_records {
@@ -737,10 +791,13 @@ impl HostsDiscoveryPlugin {
                     }
                 }
             }
-            
+
             // HTTP Technology Discoveries section
             if !http_tech_discoveries.is_empty() {
-                content.push_str(&format!("\n=== HTTP Technology Discoveries ({}) ===\n", http_tech_discoveries.len()));
+                content.push_str(&format!(
+                    "\n=== HTTP Technology Discoveries ({}) ===\n",
+                    http_tech_discoveries.len()
+                ));
                 for (host, ip, tech) in http_tech_discoveries {
                     content.push_str(&format!("{:<30} -> {}", host, ip));
                     if !tech.is_empty() {
@@ -749,11 +806,21 @@ impl HostsDiscoveryPlugin {
                     content.push('\n');
                 }
             }
-            
-            content.push_str(&format!("\n=== Summary ===\n"));
+
+            content.push_str("\n=== Summary ===\n");
             content.push_str(&format!("Total DNS records: {}\n", discoveries.len()));
-            content.push_str(&format!("Total HTTP services: {}\n", http_tech_discoveries.len()));
-            content.push_str(&format!("Wildcard DNS: {}\n", if has_wildcard { "Detected" } else { "Not detected" }));
+            content.push_str(&format!(
+                "Total HTTP services: {}\n",
+                http_tech_discoveries.len()
+            ));
+            content.push_str(&format!(
+                "Wildcard DNS: {}\n",
+                if has_wildcard {
+                    "Detected"
+                } else {
+                    "Not detected"
+                }
+            ));
         }
 
         let result_file = scans_dir.join("hosts_discovery_comprehensive.txt");
@@ -796,36 +863,43 @@ impl PortScan for HostsDiscoveryPlugin {
 
         // Run comprehensive discovery tools based on target type
         let mut http_tech_discoveries = Vec::new();
-        
+
         if is_ip {
             // For IP targets: comprehensive reverse DNS + HTTP discovery
-            
+
             let reverse_results = self.run_dnsx_reverse(target, ui_sender, config).await?;
             all_discoveries.extend(reverse_results.clone());
 
-            let http_results = self.run_httpx_comprehensive(target, ui_sender, config).await?;
+            let http_results = self
+                .run_httpx_comprehensive(target, ui_sender, config)
+                .await?;
             for (host, ip, tech) in http_results {
                 all_discoveries.push((host.clone(), ip.clone()));
                 http_tech_discoveries.push((host, ip, tech));
             }
-            
+
             // Try to resolve any discovered hostnames for comprehensive DNS enum
             for (domain, _) in &reverse_results {
-                if !domain.contains("CNAME:") && !domain.contains("MX:") && !domain.contains("NS:") {
+                if !domain.contains("CNAME:") && !domain.contains("MX:") && !domain.contains("NS:")
+                {
                     // Running DNS enum on discovered domain
-                    let dns_results = self.run_dnsx_comprehensive(domain, ui_sender, config).await?;
+                    let dns_results = self
+                        .run_dnsx_comprehensive(domain, ui_sender, config)
+                        .await?;
                     all_discoveries.extend(dns_results);
                 }
             }
         } else {
             // For domain targets: comprehensive DNS enumeration + HTTP discovery
-            
-            let dns_results = self.run_dnsx_comprehensive(target, ui_sender, config).await?;
-            
+
+            let dns_results = self
+                .run_dnsx_comprehensive(target, ui_sender, config)
+                .await?;
+
             // Separate A/AAAA records (real IPs) from other records
             let mut real_ips = HashSet::new();
             let mut dns_mappings = Vec::new();
-            
+
             for (domain, value) in dns_results {
                 if value.parse::<std::net::IpAddr>().is_ok() {
                     // Real IP address mapping
@@ -834,28 +908,34 @@ impl PortScan for HostsDiscoveryPlugin {
                 } else if value.starts_with("CNAME:") {
                     // Follow CNAME chains
                     let canonical = value.strip_prefix("CNAME:").unwrap();
-                    let cname_results = self.run_dnsx_comprehensive(canonical, ui_sender, config).await?;
+                    let cname_results = self
+                        .run_dnsx_comprehensive(canonical, ui_sender, config)
+                        .await?;
                     dns_mappings.extend(cname_results);
                 } else if value.starts_with("MX:") || value.starts_with("NS:") {
                     // Resolve MX and NS hostnames
                     let hostname = value.split(':').nth(1).unwrap_or("");
                     if !hostname.is_empty() {
-                        let mx_results = self.run_dnsx_comprehensive(hostname, ui_sender, config).await?;
+                        let mx_results = self
+                            .run_dnsx_comprehensive(hostname, ui_sender, config)
+                            .await?;
                         dns_mappings.extend(mx_results);
                     }
                 }
                 // Store all discoveries
                 all_discoveries.push((domain, value));
             }
-            
+
             all_discoveries.extend(dns_mappings);
-            
+
             // Run HTTP discovery on all discovered IPs and the original target
             let mut targets_to_scan = vec![target.to_string()];
-            targets_to_scan.extend(real_ips.into_iter());
-            
+            targets_to_scan.extend(real_ips);
+
             for scan_target in targets_to_scan {
-                let http_results = self.run_httpx_comprehensive(&scan_target, ui_sender, config).await?;
+                let http_results = self
+                    .run_httpx_comprehensive(&scan_target, ui_sender, config)
+                    .await?;
                 for (host, ip, tech) in http_results {
                     all_discoveries.push((host.clone(), ip.clone()));
                     http_tech_discoveries.push((host, ip, tech));
@@ -873,7 +953,7 @@ impl PortScan for HostsDiscoveryPlugin {
                 unique_discoveries.push((domain, ip));
             }
         }
-        
+
         self.send_log(
             ui_sender,
             "INFO",
@@ -900,24 +980,35 @@ impl PortScan for HostsDiscoveryPlugin {
 
         // Check for wildcard DNS if target is a domain
         let has_wildcard = if !is_ip {
-            self.run_wildcard_detection(target, ui_sender, config).await.unwrap_or(false)
+            self.run_wildcard_detection(target, ui_sender, config)
+                .await
+                .unwrap_or(false)
         } else {
             false
         };
-        
+
         // Write comprehensive results to scan files
-        if let Err(e) = self.write_comprehensive_results(&unique_discoveries, &http_tech_discoveries, &dirs.scans, target, has_wildcard) {
+        if let Err(e) = self.write_comprehensive_results(
+            &unique_discoveries,
+            &http_tech_discoveries,
+            &dirs.scans,
+            target,
+            has_wildcard,
+        ) {
             self.send_log(
                 ui_sender,
                 "WARN",
-                &format!("Failed to write comprehensive hosts discovery results: {}", e),
+                &format!(
+                    "Failed to write comprehensive hosts discovery results: {}",
+                    e
+                ),
             );
         }
 
         // Create service objects for discovered hosts and send enhanced results to UI
         let mut services = Vec::new();
         let mut processed_hosts = HashSet::new();
-        
+
         // Process regular host discoveries
         for (domain, ip) in &unique_discoveries {
             let host_key = format!("{}:{}", domain, ip);
@@ -925,25 +1016,40 @@ impl PortScan for HostsDiscoveryPlugin {
                 continue;
             }
             processed_hosts.insert(host_key.clone());
-            
+
             // Skip non-IP mappings for service creation
-            if ip.parse::<std::net::IpAddr>().is_err() && 
-               !ip.starts_with("CNAME:") && !ip.starts_with("MX:") && 
-               !ip.starts_with("NS:") && !ip.starts_with("TXT:") && 
-               !ip.starts_with("SOA:") {
+            if ip.parse::<std::net::IpAddr>().is_err()
+                && !ip.starts_with("CNAME:")
+                && !ip.starts_with("MX:")
+                && !ip.starts_with("NS:")
+                && !ip.starts_with("TXT:")
+                && !ip.starts_with("SOA:")
+            {
                 continue;
             }
-            
+
             // Determine service type and create display info matching dig/nslookup format
             let (port, service_name, result_display) = if ip.starts_with("CNAME:") {
                 let canonical = ip.strip_prefix("CNAME:").unwrap();
-                (53, format!("DNS_CNAME_{}", domain.to_uppercase()), format!("hosts_discovery CNAME - {} -> {}", domain, canonical))
+                (
+                    53,
+                    format!("DNS_CNAME_{}", domain.to_uppercase()),
+                    format!("hosts_discovery CNAME - {} -> {}", domain, canonical),
+                )
             } else if ip.starts_with("MX:") {
                 let mx_server = ip.strip_prefix("MX:").unwrap();
-                (25, format!("MAIL_{}", domain.to_uppercase()), format!("hosts_discovery MX - {} -> {}", domain, mx_server))
+                (
+                    25,
+                    format!("MAIL_{}", domain.to_uppercase()),
+                    format!("hosts_discovery MX - {} -> {}", domain, mx_server),
+                )
             } else if ip.starts_with("NS:") {
                 let nameserver = ip.strip_prefix("NS:").unwrap();
-                (53, format!("DNS_NS_{}", domain.to_uppercase()), format!("hosts_discovery NS - {} -> {}", domain, nameserver))
+                (
+                    53,
+                    format!("DNS_NS_{}", domain.to_uppercase()),
+                    format!("hosts_discovery NS - {} -> {}", domain, nameserver),
+                )
             } else if ip.starts_with("TXT:") {
                 let txt_content = ip.strip_prefix("TXT:").unwrap();
                 let truncated_txt = if txt_content.len() > 50 {
@@ -951,7 +1057,11 @@ impl PortScan for HostsDiscoveryPlugin {
                 } else {
                     txt_content.to_string()
                 };
-                (53, format!("DNS_TXT_{}", domain.to_uppercase()), format!("hosts_discovery TXT - {}: {}", domain, truncated_txt))
+                (
+                    53,
+                    format!("DNS_TXT_{}", domain.to_uppercase()),
+                    format!("hosts_discovery TXT - {}: {}", domain, truncated_txt),
+                )
             } else if ip.starts_with("SOA:") {
                 let soa_content = ip.strip_prefix("SOA:").unwrap();
                 let truncated_soa = if soa_content.len() > 50 {
@@ -959,17 +1069,29 @@ impl PortScan for HostsDiscoveryPlugin {
                 } else {
                     soa_content.to_string()
                 };
-                (53, format!("DNS_SOA_{}", domain.to_uppercase()), format!("hosts_discovery SOA - {}: {}", domain, truncated_soa))
+                (
+                    53,
+                    format!("DNS_SOA_{}", domain.to_uppercase()),
+                    format!("hosts_discovery SOA - {}: {}", domain, truncated_soa),
+                )
             } else {
-                (80, format!("HOST_{}", domain.to_uppercase()), format!("hosts_discovery A - {} -> {}", domain, ip))
+                (
+                    80,
+                    format!("HOST_{}", domain.to_uppercase()),
+                    format!("hosts_discovery A - {} -> {}", domain, ip),
+                )
             };
-            
+
             let service = Service {
                 proto: if port == 53 { Proto::Udp } else { Proto::Tcp },
                 port,
                 name: service_name,
                 secure: false,
-                address: if ip.parse::<std::net::IpAddr>().is_ok() { ip.clone() } else { domain.clone() },
+                address: if ip.parse::<std::net::IpAddr>().is_ok() {
+                    ip.clone()
+                } else {
+                    domain.clone()
+                },
             };
             services.push(service);
 
@@ -979,19 +1101,19 @@ impl PortScan for HostsDiscoveryPlugin {
                 service: result_display,
             });
         }
-        
+
         // Process HTTP technology discoveries with enhanced information
         for (host, ip, tech) in &http_tech_discoveries {
             if ip.is_empty() {
                 continue;
             }
-            
+
             let host_key = format!("{}:{}:tech", host, ip);
             if processed_hosts.contains(&host_key) {
                 continue;
             }
             processed_hosts.insert(host_key);
-            
+
             let service = Service {
                 proto: Proto::Tcp,
                 port: 443, // HTTPS for technology detection
@@ -1007,7 +1129,7 @@ impl PortScan for HostsDiscoveryPlugin {
             } else {
                 format!("hosts_discovery HTTP - {} -> {} [{}]", host, ip, tech)
             };
-            
+
             let _ = ui_sender.send(UiEvent::PortDiscovered {
                 port: 443,
                 service: result_display,
@@ -1024,7 +1146,11 @@ impl PortScan for HostsDiscoveryPlugin {
                     "Comprehensive discovery completed. Found {} DNS records, {} HTTP services{}",
                     unique_discoveries.len(),
                     http_tech_discoveries.len(),
-                    if has_wildcard { " (wildcard DNS detected)" } else { "" }
+                    if has_wildcard {
+                        " (wildcard DNS detected)"
+                    } else {
+                        ""
+                    }
                 ),
             );
         }

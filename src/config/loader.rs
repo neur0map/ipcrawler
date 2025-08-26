@@ -62,7 +62,11 @@ impl ConfigLoader {
         let config: GlobalConfig = match toml::from_str(&content) {
             Ok(cfg) => cfg,
             Err(e) => {
-                return Err(anyhow::anyhow!("Failed to parse TOML config: {:?} - Parse error: {}", path, e));
+                return Err(anyhow::anyhow!(
+                    "Failed to parse TOML config: {:?} - Parse error: {}",
+                    path,
+                    e
+                ));
             }
         };
 

@@ -21,10 +21,10 @@ pub fn print_summary(state: &RunState) {
     println!("{}: {}", "Run ID".with(Color::Cyan).bold(), state.run_id);
 
     println!("\n{}", "Results:".with(Color::Yellow).bold());
-    
+
     // Count unique ports from services
     let unique_ports: HashSet<u16> = state.services.iter().map(|s| s.port).collect();
-    
+
     println!(
         "  Open Ports: {}",
         unique_ports.len().to_string().with(Color::Green).bold()

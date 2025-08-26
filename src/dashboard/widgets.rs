@@ -42,11 +42,7 @@ pub fn draw_box<W: Write>(w: &mut W, rect: &Rect, title: &str) -> io::Result<()>
         )?;
     }
 
-    queue!(
-        w,
-        SetForegroundColor(Color::Cyan),
-        Print("╮")
-    )?;
+    queue!(w, SetForegroundColor(Color::Cyan), Print("╮"))?;
 
     // Enhanced sides with subtle gradient effect
     for y in 1..rect.height - 1 {
@@ -55,7 +51,7 @@ pub fn draw_box<W: Write>(w: &mut W, rect: &Rect, title: &str) -> io::Result<()>
         } else {
             Color::DarkGrey
         };
-        
+
         queue!(
             w,
             MoveTo(rect.x, rect.y + y),
@@ -104,12 +100,7 @@ pub fn draw_progress_bar<W: Write>(
             Color::Green
         };
 
-        queue!(
-            w,
-            MoveTo(x + i, y),
-            SetForegroundColor(color),
-            Print("▓"),
-        )?;
+        queue!(w, MoveTo(x + i, y), SetForegroundColor(color), Print("▓"),)?;
     }
 
     // Draw empty portion with subtle styling
@@ -170,15 +161,10 @@ pub fn truncate_string(s: &str, max_len: usize) -> String {
 }
 
 /// Draw an animated spinner for loading states
-pub fn draw_spinner<W: Write>(
-    w: &mut W,
-    x: u16,
-    y: u16,
-    frame: usize,
-) -> io::Result<()> {
+pub fn draw_spinner<W: Write>(w: &mut W, x: u16, y: u16, frame: usize) -> io::Result<()> {
     let spinner_chars = ["◐", "◓", "◑", "◒"];
     let spinner_char = spinner_chars[frame % spinner_chars.len()];
-    
+
     queue!(
         w,
         MoveTo(x, y),
@@ -189,12 +175,7 @@ pub fn draw_spinner<W: Write>(
 }
 
 /// Draw a status indicator with color coding
-pub fn draw_status_indicator<W: Write>(
-    w: &mut W,
-    x: u16,
-    y: u16,
-    status: &str,
-) -> io::Result<()> {
+pub fn draw_status_indicator<W: Write>(w: &mut W, x: u16, y: u16, status: &str) -> io::Result<()> {
     let (color, symbol) = match status.to_lowercase().as_str() {
         "running" | "active" => (Color::Green, "●"),
         "completed" | "done" => (Color::Blue, "◉"),
@@ -202,7 +183,7 @@ pub fn draw_status_indicator<W: Write>(
         "warning" | "warn" => (Color::Yellow, "◐"),
         _ => (Color::White, "○"),
     };
-    
+
     queue!(
         w,
         MoveTo(x, y),

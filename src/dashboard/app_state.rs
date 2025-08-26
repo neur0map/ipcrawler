@@ -187,38 +187,38 @@ impl AppState {
 
     fn parse_markdown(&self, markdown: String) -> Vec<String> {
         let mut rendered_lines = Vec::new();
-        
+
         for line in markdown.lines() {
             let trimmed = line.trim();
-            
-            if trimmed.starts_with("# ") {
+
+            if let Some(stripped) = trimmed.strip_prefix("# ") {
                 // H1 headers - cyan and bold
-                rendered_lines.push(format!("\x1b[1;36m{}\x1b[0m", &trimmed[2..]));
+                rendered_lines.push(format!("\x1b[1;36m{}\x1b[0m", stripped));
                 rendered_lines.push("".to_string()); // Add spacing
-            } else if trimmed.starts_with("## ") {
+            } else if let Some(stripped) = trimmed.strip_prefix("## ") {
                 // H2 headers - green and bold
-                rendered_lines.push(format!("\x1b[1;32m{}\x1b[0m", &trimmed[3..]));
+                rendered_lines.push(format!("\x1b[1;32m{}\x1b[0m", stripped));
                 rendered_lines.push("".to_string());
-            } else if trimmed.starts_with("### ") {
+            } else if let Some(stripped) = trimmed.strip_prefix("### ") {
                 // H3 headers - yellow
-                rendered_lines.push(format!("\x1b[1;33m{}\x1b[0m", &trimmed[4..]));
+                rendered_lines.push(format!("\x1b[1;33m{}\x1b[0m", stripped));
             } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
                 // Bullet points - green bullet
                 rendered_lines.push(format!("\x1b[32m●\x1b[0m {}", &trimmed[2..]));
-            } else if trimmed.starts_with("```") {
+            } else if let Some(stripped) = trimmed.strip_prefix("```") {
                 // Code blocks - gray background
-                if trimmed == "```" {
+                if stripped.is_empty() {
                     rendered_lines.push("\x1b[100m \x1b[0m".to_string());
                 } else {
-                    rendered_lines.push(format!("\x1b[100m {} \x1b[0m", &trimmed[3..]));
+                    rendered_lines.push(format!("\x1b[100m {} \x1b[0m", stripped));
                 }
             } else if trimmed.starts_with("`") && trimmed.ends_with("`") && trimmed.len() > 2 {
                 // Inline code - gray background
-                let code = &trimmed[1..trimmed.len()-1];
+                let code = &trimmed[1..trimmed.len() - 1];
                 rendered_lines.push(format!("\x1b[100m{}\x1b[0m", code));
             } else if trimmed.starts_with("**") && trimmed.ends_with("**") && trimmed.len() > 4 {
                 // Bold text
-                let bold_text = &trimmed[2..trimmed.len()-2];
+                let bold_text = &trimmed[2..trimmed.len() - 2];
                 rendered_lines.push(format!("\x1b[1m{}\x1b[0m", bold_text));
             } else if !trimmed.is_empty() {
                 // Regular text
@@ -228,7 +228,7 @@ impl AppState {
                 rendered_lines.push("".to_string());
             }
         }
-        
+
         rendered_lines
     }
 }

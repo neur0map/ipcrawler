@@ -70,10 +70,7 @@ impl NslookupPlugin {
                     nslookup_config.limits.timeout_ms,
                 )
             } else {
-                (
-                    "nslookup".to_string(),
-                    10000,
-                )
+                ("nslookup".to_string(), 10000)
             }
         } else {
             ("nslookup".to_string(), 10000)
@@ -185,7 +182,11 @@ impl NslookupPlugin {
         } else {
             for (record_type, parsed_results) in results {
                 if !parsed_results.is_empty() {
-                    content.push_str(&format!("=== {} Records ({}) ===\n", record_type, parsed_results.len()));
+                    content.push_str(&format!(
+                        "=== {} Records ({}) ===\n",
+                        record_type,
+                        parsed_results.len()
+                    ));
                     for result in parsed_results {
                         content.push_str(&format!("{}\n", result));
                     }
@@ -193,7 +194,7 @@ impl NslookupPlugin {
                 }
             }
 
-            content.push_str(&format!("=== Summary ===\n"));
+            content.push_str("=== Summary ===\n");
             let total_records: usize = results.iter().map(|(_, r)| r.len()).sum();
             content.push_str(&format!("Total DNS records found: {}\n", total_records));
             content.push_str(&format!("Record types queried: {}\n", results.len()));
@@ -201,13 +202,13 @@ impl NslookupPlugin {
 
         let result_file = scans_dir.join("nslookup_results.txt");
         crate::utils::fs::atomic_write(result_file, content.as_bytes())?;
-        
+
         self.send_log(
             ui_sender,
             "INFO",
             "nslookup results written to scans/nslookup_results.txt",
         );
-        
+
         Ok(())
     }
 }

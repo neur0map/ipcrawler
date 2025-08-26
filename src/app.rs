@@ -71,13 +71,15 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
     // Write reports
     writer::write_all(&state, &dirs, start_time)?;
     validate::validate_reports(&dirs)?;
-    
+
     // Notify UI that summary is ready
     let summary_path = dirs.report.join("summary.md");
     if summary_path.exists() {
-        let _ = ui_sender.send(UiEvent::SummaryReady { file_path: summary_path });
+        let _ = ui_sender.send(UiEvent::SummaryReady {
+            file_path: summary_path,
+        });
     }
-    
+
     let _ = ui_sender.send(UiEvent::Shutdown);
 
     // Handle post-scan behavior

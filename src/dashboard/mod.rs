@@ -76,12 +76,12 @@ impl Dashboard {
         execute!(io::stdout(), Show)?;
         execute!(io::stdout(), LeaveAlternateScreen)?;
         io::stdout().flush()?;
-        
+
         // Small delay to ensure terminal commands are processed
         std::thread::sleep(Duration::from_millis(10));
-        
+
         disable_raw_mode()?;
-        
+
         // Final flush after disabling raw mode
         io::stdout().flush()?;
         Ok(())
@@ -332,14 +332,14 @@ impl Dashboard {
                 match self.state.tabs.active_tab_id.as_str() {
                     "summary" => {
                         // Scroll summary up by page
-                        self.state.summary.scroll_offset = 
+                        self.state.summary.scroll_offset =
                             self.state.summary.scroll_offset.saturating_sub(10);
                         self.needs_redraw = true;
                     }
                     _ => {
                         if key.modifiers.contains(KeyModifiers::SHIFT) {
                             // Shift+PageUp: Scroll logs panel up by page
-                            self.state.logs.scroll_offset = 
+                            self.state.logs.scroll_offset =
                                 self.state.logs.scroll_offset.saturating_sub(10);
                             self.needs_redraw = true;
                         } else {
@@ -356,7 +356,7 @@ impl Dashboard {
                     "summary" => {
                         // Scroll summary down by page
                         let max_offset = self.state.summary.content.len().saturating_sub(10);
-                        self.state.summary.scroll_offset = 
+                        self.state.summary.scroll_offset =
                             (self.state.summary.scroll_offset + 10).min(max_offset);
                         self.needs_redraw = true;
                     }
@@ -364,7 +364,7 @@ impl Dashboard {
                         if key.modifiers.contains(KeyModifiers::SHIFT) {
                             // Shift+PageDown: Scroll logs panel down by page
                             let max_offset = self.state.logs.entries.len().saturating_sub(10);
-                            self.state.logs.scroll_offset = 
+                            self.state.logs.scroll_offset =
                                 (self.state.logs.scroll_offset + 10).min(max_offset);
                             self.needs_redraw = true;
                         } else {
@@ -401,17 +401,20 @@ impl Dashboard {
                 match self.state.tabs.active_tab_id.as_str() {
                     "summary" => {
                         // Scroll summary to bottom
-                        self.state.summary.scroll_offset = self.state.summary.content.len().saturating_sub(10);
+                        self.state.summary.scroll_offset =
+                            self.state.summary.content.len().saturating_sub(10);
                         self.needs_redraw = true;
                     }
                     _ => {
                         if key.modifiers.contains(KeyModifiers::SHIFT) {
                             // Shift+End: Scroll logs to bottom
-                            self.state.logs.scroll_offset = self.state.logs.entries.len().saturating_sub(10);
+                            self.state.logs.scroll_offset =
+                                self.state.logs.entries.len().saturating_sub(10);
                             self.needs_redraw = true;
                         } else {
                             // Regular End: Scroll results to bottom
-                            self.state.results.scroll_offset = self.state.results.rows.len().saturating_sub(10);
+                            self.state.results.scroll_offset =
+                                self.state.results.rows.len().saturating_sub(10);
                             self.needs_redraw = true;
                         }
                     }
