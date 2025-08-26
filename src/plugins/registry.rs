@@ -21,11 +21,18 @@ impl PluginRegistry {
             tracing::info!("Hosts discovery plugin disabled - dnsx or httpx not available");
         }
         
+        let mut port_scan_plugins: Vec<Box<dyn crate::plugins::types::PortScan>> = vec![];
+        
+        // Only add port scanner plugin if tools are available
+        if Self::port_scanner_tools_available() {
+            port_scan_plugins.push(Box::new(crate::plugins::port_scanner::PortScannerPlugin));
+        } else {
+            tracing::info!("Port scanner plugin disabled - rustscan or nmap not available");
+        }
+        
         Self {
             recon_plugins,
-            port_scan_plugins: vec![
-                // Empty for now - nslookup is our only plugin
-            ],
+            port_scan_plugins,
             service_probe_plugins: vec![
                 // Empty for now
             ],
@@ -92,6 +99,15 @@ impl PluginRegistry {
                     vec![]
                 }
             },
+            "port_scanner" => {
+                // Only validate if plugin is actually loaded
+                if Self::port_scanner_tools_available() {
+                    // Require nmap, rustscan is optional
+                    vec!["nmap".to_string()]
+                } else {
+                    vec![]
+                }
+            },
             _ => vec![],
         };
         Ok(tools)
@@ -107,6 +123,12 @@ impl PluginRegistry {
     /// Check if hosts discovery tools (dnsx, httpx) are available
     fn hosts_discovery_tools_available() -> bool {
         which::which("dnsx").is_ok() && which::which("httpx").is_ok()
+    }
+
+    /// Check if port scanner tools (rustscan, nmap) are available
+    /// Allow plugin to load if at least nmap is available
+    fn port_scanner_tools_available() -> bool {
+        which::which("nmap").is_ok()
     }
 
     pub fn log_plugin_summary(&self) {

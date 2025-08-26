@@ -42,9 +42,10 @@ impl Default for ConcurrencyConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ToolsConfig {
-    pub nslookup: NslookupConfig,
-    pub dig: DigConfig,
+    pub nslookup: Option<NslookupConfig>,
+    pub dig: Option<DigConfig>,
     pub hosts_discovery: Option<HostsDiscoveryConfig>,
+    pub port_scanner: Option<PortScannerConfig>,
     #[serde(flatten)]
     pub custom_tools: HashMap<String, CustomToolConfig>,
 }
@@ -338,6 +339,96 @@ pub struct HostsDiscoveryToolConfig {
     pub command: String,
     pub timeout_ms: u64,
     pub max_results: usize,
+}
+
+// ========================================
+// PORT SCANNER CONFIGURATION
+// ========================================
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PortScannerConfig {
+    pub enabled: bool,
+    pub ports: Option<PortsConfig>,
+    pub rustscan: RustScanConfig,
+    pub nmap: NmapConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PortsConfig {
+    pub scan_strategy: String,
+    pub custom_range: String,
+}
+
+impl Default for PortScannerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            ports: Some(PortsConfig::default()),
+            rustscan: RustScanConfig::default(),
+            nmap: NmapConfig::default(),
+        }
+    }
+}
+
+impl Default for PortsConfig {
+    fn default() -> Self {
+        Self {
+            scan_strategy: "top-1000".to_string(),
+            custom_range: "1-1000".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RustScanConfig {
+    pub command: String,
+    pub base_args: Vec<String>,
+    pub timeout_ms: u64,
+    pub total_timeout_ms: u64,
+    pub batch_size: u32,
+    pub ulimit: u32,
+    pub tries: u32,
+}
+
+impl Default for RustScanConfig {
+    fn default() -> Self {
+        Self {
+            command: "rustscan".to_string(),
+            base_args: vec!["--greppable".to_string()],
+            timeout_ms: 3000,
+            total_timeout_ms: 300000, // 5 minutes
+            batch_size: 4500,
+            ulimit: 5000,
+            tries: 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NmapConfig {
+    pub command: String,
+    pub base_args: Vec<String>,
+    pub total_timeout_ms: u64,
+    pub version_intensity: u32,
+    pub max_retries: u32,
+    pub host_timeout_sec: u32,
+    pub auto_detect_sudo: bool,
+    pub fallback_to_connect_scan: bool,
+}
+
+impl Default for NmapConfig {
+    fn default() -> Self {
+        Self {
+            command: "nmap".to_string(),
+            base_args: vec!["--open".to_string()],
+            total_timeout_ms: 600000, // 10 minutes
+            version_intensity: 7,
+            max_retries: 2,
+            host_timeout_sec: 300, // 5 minutes per host
+            auto_detect_sudo: true,
+            fallback_to_connect_scan: true,
+        }
+    }
 }
 
 // ========================================

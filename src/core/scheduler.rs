@@ -229,6 +229,7 @@ async fn execute_plugin_phase_without_ui_start(
             "nslookup" => Box::new(crate::plugins::nslookup::NslookupPlugin),
             "dig" => Box::new(crate::plugins::dig::DigPlugin),
             "hosts_discovery" => Box::new(crate::plugins::hosts_discovery::HostsDiscoveryPlugin),
+            "port_scanner" => Box::new(crate::plugins::port_scanner::PortScannerPlugin),
             _ => continue, // Skip unknown plugins
         };
 

@@ -1,5 +1,6 @@
 use crate::core::state::RunState;
 use crossterm::style::{Color, Stylize};
+use std::collections::HashSet;
 
 pub fn print_summary(state: &RunState) {
     println!(
@@ -20,9 +21,13 @@ pub fn print_summary(state: &RunState) {
     println!("{}: {}", "Run ID".with(Color::Cyan).bold(), state.run_id);
 
     println!("\n{}", "Results:".with(Color::Yellow).bold());
+    
+    // Count unique ports from services
+    let unique_ports: HashSet<u16> = state.services.iter().map(|s| s.port).collect();
+    
     println!(
         "  Open Ports: {}",
-        state.ports_open.len().to_string().with(Color::Green).bold()
+        unique_ports.len().to_string().with(Color::Green).bold()
     );
     println!(
         "  Services: {}",

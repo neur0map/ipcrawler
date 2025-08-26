@@ -67,11 +67,19 @@ impl DigPlugin {
 
         // Get tool configuration with fallback to defaults
         let (command, base_args, timeout) = if let Some(ref tools) = config.tools {
-            (
-                tools.dig.command.clone(),
-                tools.dig.base_args.clone(),
-                tools.dig.limits.timeout_ms,
-            )
+            if let Some(ref dig_config) = tools.dig {
+                (
+                    dig_config.command.clone(),
+                    dig_config.base_args.clone(),
+                    dig_config.limits.timeout_ms,
+                )
+            } else {
+                (
+                    "dig".to_string(),
+                    vec!["+noall".to_string(), "+answer".to_string()],
+                    8000,
+                )
+            }
         } else {
             ("dig".to_string(), vec!["+short".to_string()], 10000)
         };
@@ -275,13 +283,16 @@ impl PortScan for DigPlugin {
         } else {
             // Use config record types if available, otherwise use defaults
             if let Some(ref tools) = config.tools {
-                tools
-                    .dig
-                    .options
-                    .record_types
-                    .iter()
-                    .map(|s| s.as_str())
-                    .collect()
+                if let Some(ref dig_config) = tools.dig {
+                    dig_config
+                        .options
+                        .record_types
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect()
+                } else {
+                    vec!["A", "AAAA", "MX", "NS", "TXT"]
+                }
             } else {
                 vec!["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
             }
@@ -350,7 +361,11 @@ impl PortScan for DigPlugin {
 
             // Small delay between queries to be nice to DNS servers
             let delay = if let Some(ref tools) = config.tools {
-                tools.dig.options.delay_between_queries_ms
+                if let Some(ref dig_config) = tools.dig {
+                    dig_config.options.delay_between_queries_ms
+                } else {
+                    250
+                }
             } else {
                 250
             };

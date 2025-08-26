@@ -59,8 +59,12 @@ impl ConfigLoader {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {:?}", path))?;
 
-        let config: GlobalConfig = toml::from_str(&content)
-            .with_context(|| format!("Failed to parse TOML config: {:?}", path))?;
+        let config: GlobalConfig = match toml::from_str(&content) {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                return Err(anyhow::anyhow!("Failed to parse TOML config: {:?} - Parse error: {}", path, e));
+            }
+        };
 
         // Validate configuration
         Self::validate_config(&config)?;
@@ -81,30 +85,28 @@ impl ConfigLoader {
 
         // Validate tool commands if tools config is provided
         if let Some(ref tools) = config.tools {
-            if tools.nslookup.command.is_empty() {
-                anyhow::bail!("nslookup command cannot be empty");
+            if let Some(ref nslookup_config) = tools.nslookup {
+                if nslookup_config.command.is_empty() {
+                    anyhow::bail!("nslookup command cannot be empty");
+                }
+                if nslookup_config.limits.timeout_ms == 0 {
+                    anyhow::bail!("nslookup timeout_ms must be greater than 0");
+                }
+                if nslookup_config.options.record_types.is_empty() {
+                    anyhow::bail!("nslookup record_types cannot be empty");
+                }
             }
 
-            if tools.dig.command.is_empty() {
-                anyhow::bail!("dig command cannot be empty");
-            }
-
-            // Validate timeout values
-            if tools.nslookup.limits.timeout_ms == 0 {
-                anyhow::bail!("nslookup timeout_ms must be greater than 0");
-            }
-
-            if tools.dig.limits.timeout_ms == 0 {
-                anyhow::bail!("dig timeout_ms must be greater than 0");
-            }
-
-            // Validate DNS tool settings
-            if tools.nslookup.options.record_types.is_empty() {
-                anyhow::bail!("nslookup record_types cannot be empty");
-            }
-
-            if tools.dig.options.record_types.is_empty() {
-                anyhow::bail!("dig record_types cannot be empty");
+            if let Some(ref dig_config) = tools.dig {
+                if dig_config.command.is_empty() {
+                    anyhow::bail!("dig command cannot be empty");
+                }
+                if dig_config.limits.timeout_ms == 0 {
+                    anyhow::bail!("dig timeout_ms must be greater than 0");
+                }
+                if dig_config.options.record_types.is_empty() {
+                    anyhow::bail!("dig record_types cannot be empty");
+                }
             }
         }
 

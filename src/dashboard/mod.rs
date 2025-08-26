@@ -13,7 +13,7 @@ use crossterm::{
         LeaveAlternateScreen,
     },
 };
-use std::io;
+use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
@@ -61,21 +61,29 @@ impl Dashboard {
     fn setup_terminal() -> io::Result<()> {
         enable_raw_mode()?;
 
-        // Set terminal size to 205x50
-        execute!(io::stdout(), crossterm::terminal::SetSize(205, 50))?;
-
         execute!(
             io::stdout(),
             EnterAlternateScreen,
             Hide,
             Clear(ClearType::All)
         )?;
+        io::stdout().flush()?;
         Ok(())
     }
 
     fn teardown_terminal() -> io::Result<()> {
-        execute!(io::stdout(), Show, LeaveAlternateScreen)?;
+        // Ensure all commands are executed in correct order
+        execute!(io::stdout(), Show)?;
+        execute!(io::stdout(), LeaveAlternateScreen)?;
+        io::stdout().flush()?;
+        
+        // Small delay to ensure terminal commands are processed
+        std::thread::sleep(Duration::from_millis(10));
+        
         disable_raw_mode()?;
+        
+        // Final flush after disabling raw mode
+        io::stdout().flush()?;
         Ok(())
     }
 

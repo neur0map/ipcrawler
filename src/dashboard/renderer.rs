@@ -580,6 +580,7 @@ impl Renderer {
             let tool_color = if tool_part.contains("dig ")
                 || tool_part.contains("nslookup ")
                 || tool_part.contains("hosts_discovery ")
+                || tool_part.contains("port_scanner ")
             {
                 Color::Yellow // Same as progress bar
             } else {

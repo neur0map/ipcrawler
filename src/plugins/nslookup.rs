@@ -64,10 +64,17 @@ impl NslookupPlugin {
 
         // Get tool configuration with fallback to defaults
         let (command, timeout) = if let Some(ref tools) = config.tools {
-            (
-                tools.nslookup.command.clone(),
-                tools.nslookup.limits.timeout_ms,
-            )
+            if let Some(ref nslookup_config) = tools.nslookup {
+                (
+                    nslookup_config.command.clone(),
+                    nslookup_config.limits.timeout_ms,
+                )
+            } else {
+                (
+                    "nslookup".to_string(),
+                    10000,
+                )
+            }
         } else {
             ("nslookup".to_string(), 10000)
         };
@@ -255,13 +262,16 @@ impl PortScan for NslookupPlugin {
         } else {
             // Use config record types if available, otherwise use defaults
             if let Some(ref tools) = config.tools {
-                tools
-                    .nslookup
-                    .options
-                    .record_types
-                    .iter()
-                    .map(|s| s.as_str())
-                    .collect()
+                if let Some(ref nslookup_config) = tools.nslookup {
+                    nslookup_config
+                        .options
+                        .record_types
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect()
+                } else {
+                    vec!["A", "AAAA", "MX", "NS", "TXT"]
+                }
             } else {
                 vec!["A", "AAAA", "MX", "NS", "TXT"]
             }
@@ -333,7 +343,11 @@ impl PortScan for NslookupPlugin {
 
             // Small delay between queries to be nice to DNS servers
             let delay = if let Some(ref tools) = config.tools {
-                tools.nslookup.options.delay_between_queries_ms
+                if let Some(ref nslookup_config) = tools.nslookup {
+                    nslookup_config.options.delay_between_queries_ms
+                } else {
+                    500
+                }
             } else {
                 500
             };
