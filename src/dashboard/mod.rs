@@ -392,6 +392,9 @@ impl Dashboard {
         // Update elapsed time
         self.state.controls.elapsed = self.state.start_time.elapsed();
 
+        // Update animation frame for spinners and other animations
+        self.state.animation_frame = self.state.animation_frame.wrapping_add(1);
+
         // Update system metrics
         if let Ok((cpu, mem)) = metrics::get_system_stats() {
             self.state.system.cpu_pct = cpu;

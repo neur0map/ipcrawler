@@ -11,7 +11,7 @@ use std::io::{self, Write};
 use crate::dashboard::{
     app_state::{AppState, AppStatus, LogLevel},
     layout::{Layout, Rect},
-    widgets::{draw_box, draw_progress_bar, truncate_string},
+    widgets::{draw_box, draw_progress_bar, draw_spinner, draw_status_indicator, truncate_string},
 };
 
 pub struct Renderer {
@@ -126,10 +126,10 @@ impl Renderer {
             elapsed.as_secs() % 60
         );
 
-        // CPU meter
+        // Enhanced CPU meter with visual appeal
         let cpu_width = 10;
         let cpu_filled = ((state.system.cpu_pct / 100.0) * cpu_width as f32) as usize;
-        let cpu_meter: String = "█".repeat(cpu_filled) + &"░".repeat(cpu_width - cpu_filled);
+        let cpu_meter: String = "▓".repeat(cpu_filled) + &"▒".repeat(cpu_width - cpu_filled);
 
         // Status indicator
         let status_str = match state.status {
@@ -137,15 +137,26 @@ impl Renderer {
             _ => "",
         };
 
-        let monitor_str = format!(
-            "CPU: {} {:.1}% | RAM: {:.1}GB | Time: {}{}",
-            cpu_meter, state.system.cpu_pct, state.system.ram_gb, elapsed_str, status_str
-        );
-
+        // Enhanced system monitor with color coding
         queue!(
             self.stdout,
             MoveTo(inner.x, inner.y),
-            Print(truncate_string(&monitor_str, inner.width as usize))
+            SetForegroundColor(Color::Green),
+            Print("CPU: "),
+            SetForegroundColor(if state.system.cpu_pct > 80.0 { Color::Red } else if state.system.cpu_pct > 50.0 { Color::Yellow } else { Color::Green }),
+            Print(&cpu_meter),
+            Print(&format!(" {:.1}%", state.system.cpu_pct)),
+            SetForegroundColor(Color::Green),
+            Print(" | RAM: "),
+            SetForegroundColor(if state.system.ram_gb > 12.0 { Color::Red } else if state.system.ram_gb > 8.0 { Color::Yellow } else { Color::Green }),
+            Print(&format!("{:.1}GB", state.system.ram_gb)),
+            SetForegroundColor(Color::Green),
+            Print(" | Time: "),
+            SetForegroundColor(Color::Cyan),
+            Print(&elapsed_str),
+            SetForegroundColor(if status_str.is_empty() { Color::Green } else { Color::Magenta }),
+            Print(status_str),
+            ResetColor
         )
     }
 
@@ -153,17 +164,32 @@ impl Renderer {
         draw_box(&mut self.stdout, rect, "Scan Progress")?;
         let inner = rect.inner(1);
 
-        // Phase label
-        queue!(
-            self.stdout,
-            MoveTo(inner.x, inner.y),
-            SetForegroundColor(Color::Yellow),
-            Print(truncate_string(
-                &state.scan.phase_label,
-                inner.width as usize
-            )),
-            ResetColor
-        )?;
+        // Phase label with spinner for running scans
+        if state.status == AppStatus::Running && !state.scan.phase_label.is_empty() {
+            // Add spinner to indicate active scanning
+            draw_spinner(&mut self.stdout, inner.x, inner.y, state.animation_frame)?;
+            queue!(
+                self.stdout,
+                MoveTo(inner.x + 2, inner.y),
+                SetForegroundColor(Color::Yellow),
+                Print(truncate_string(
+                    &state.scan.phase_label,
+                    inner.width as usize - 2
+                )),
+                ResetColor
+            )?;
+        } else {
+            queue!(
+                self.stdout,
+                MoveTo(inner.x, inner.y),
+                SetForegroundColor(Color::Yellow),
+                Print(truncate_string(
+                    &state.scan.phase_label,
+                    inner.width as usize
+                )),
+                ResetColor
+            )?;
+        }
 
         // Progress bar
         if inner.height > 2 {
@@ -200,16 +226,24 @@ impl Renderer {
         } else {
             let max_tasks = inner.height as usize;
             for (i, task) in state.tasks.iter().take(max_tasks).enumerate() {
+                // Enhanced active task indicators with pulsing effect simulation
+                let indicator = if task.seconds_active % 2 == 0 { "◉" } else { "◯" };
+                let task_color = if task.seconds_active > 30 { Color::Yellow } else { Color::Green };
+                
                 queue!(
                     self.stdout,
                     MoveTo(inner.x, inner.y + i as u16),
-                    SetForegroundColor(Color::Green),
-                    Print("• "),
-                    ResetColor,
+                    SetForegroundColor(task_color),
+                    Print(indicator),
+                    Print(" "),
+                    SetForegroundColor(Color::White),
                     Print(truncate_string(
-                        &format!("{} [{}s]", task.name, task.seconds_active),
-                        inner.width as usize - 2
-                    ))
+                        &format!("{}", task.name),
+                        inner.width as usize - 10
+                    )),
+                    SetForegroundColor(Color::DarkGrey),
+                    Print(&format!(" [{}s]", task.seconds_active)),
+                    ResetColor
                 )?;
             }
         }
@@ -234,8 +268,8 @@ impl Renderer {
                 queue!(
                     self.stdout,
                     MoveTo(x_offset, inner.y),
-                    SetBackgroundColor(Color::Blue),
-                    SetForegroundColor(Color::White),
+                    SetBackgroundColor(Color::Cyan),
+                    SetForegroundColor(Color::Black),
                     SetAttribute(Attribute::Bold),
                     Print(&tab_str),
                     ResetColor,
@@ -302,9 +336,21 @@ impl Renderer {
                         Print(" ".repeat(clear_width))
                     )?;
 
-                    // Parse and render with tool name highlighting
-                    // Pass original row for color detection, but truncate within the render function
-                    self.render_colored_result_row_with_truncation(row, inner.x, inner.y + i as u16, available_width)?;
+                    // Add status indicator before result text
+                    let status = if row.contains("✓") {
+                        "completed"
+                    } else if row.contains("✗") {
+                        "failed"
+                    } else if row.contains("OPEN") {
+                        "running"
+                    } else {
+                        "active"
+                    };
+                    
+                    draw_status_indicator(&mut self.stdout, inner.x, inner.y + i as u16, status)?;
+                    
+                    // Parse and render with tool name highlighting (offset for status indicator)
+                    self.render_colored_result_row_with_truncation(row, inner.x + 2, inner.y + i as u16, available_width - 2)?;
                 }
             }
 

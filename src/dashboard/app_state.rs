@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AppStatus {
     Running,
     Completed,
@@ -18,6 +18,7 @@ pub struct AppState {
     pub target: String,
     pub status: AppStatus,
     pub start_time: Instant,
+    pub animation_frame: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -143,6 +144,7 @@ impl AppState {
             target,
             status: AppStatus::Running,
             start_time: Instant::now(),
+            animation_frame: 0,
         }
     }
 
