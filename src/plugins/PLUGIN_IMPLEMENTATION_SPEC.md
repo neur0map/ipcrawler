@@ -385,45 +385,54 @@ impl {PluginName}Plugin {
 ## CONFIGURATION_INTEGRATION
 
 ### CONFIGURATION_PHILOSOPHY
-Each plugin needs configuration to be customizable without code changes:
+Each plugin follows a two-tier configuration system:
 
-1. **Command Configuration**: Tool path and base arguments
-2. **Behavior Options**: Query types, delays, retry logic
-3. **Limits**: Timeouts, retries, rate limiting
-4. **Output Settings**: File formats, verbosity levels
+1. **Built-in Defaults**: Plugins have sensible defaults hardcoded
+2. **Global.toml Overrides**: ALL configurations in global.toml are COMMENTED OUT by default
+3. **User Customization**: Users uncomment sections to override specific settings
+4. **Plugin Resilience**: Plugins MUST work without any global.toml configuration
+
+**CRITICAL**: The global.toml file is NOT for default configuration - it's purely for overrides!
 
 ### GLOBAL_TOML_SECTION
 ```toml
-[tools.{plugin_name}]
-command = "{command_name}"           # Executable name or path
-base_args = ["{arg1}", "{arg2}"]     # Default arguments
+# ========================================
+# {PLUGIN_NAME} CONFIGURATION
+# ========================================
+# Uncomment any section below to override default plugin behavior
 
-[tools.{plugin_name}.options]
-query_types = ["type1", "type2"]     # Supported query types
-enable_feature = true                # Boolean options
-delay_between_queries_ms = 250       # Timing configuration
-max_results = 100                    # Result limitations
-
-[tools.{plugin_name}.limits]
-timeout_ms = 10000                   # Per-query timeout
-max_retries = 2                      # Retry attempts
-total_timeout_ms = 30000             # Total plugin timeout
+# [tools.{plugin_name}]
+# command = "{command_name}"           # Executable name or path
+# base_args = ["{arg1}", "{arg2}"]     # Default arguments
+# 
+# [tools.{plugin_name}.options]
+# query_types = ["type1", "type2"]     # Supported query types
+# enable_feature = true                # Boolean options
+# delay_between_queries_ms = 250       # Timing configuration
+# max_results = 100                    # Result limitations
+# 
+# [tools.{plugin_name}.limits]
+# timeout_ms = 10000                   # Per-query timeout
+# max_retries = 2                      # Retry attempts
+# total_timeout_ms = 30000             # Total plugin timeout
 ```
+
+**NOTE**: All plugin configurations in global.toml MUST be commented out by default!
 
 ### CONFIG_STRUCT_PATTERN
 Add to `src/config/types.rs`:
 
 ```rust
-// Add to ToolsConfig struct
-pub {plugin_name}: {PluginName}Config,
+// Add to ToolsConfig struct - MUST BE OPTIONAL!
+pub {plugin_name}: Option<{PluginName}Config>,
 
 // Configuration structures
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct {PluginName}Config {
     pub command: String,
     pub base_args: Vec<String>,
-    pub options: {PluginName}Options,
-    pub limits: {PluginName}Limits,
+    pub options: Option<{PluginName}Options>,  // Optional for partial overrides
+    pub limits: Option<{PluginName}Limits>,    // Optional for partial overrides
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -441,15 +450,62 @@ pub struct {PluginName}Limits {
     pub total_timeout_ms: u64,
 }
 
-// Default implementations
+// Default implementations - CRITICAL FOR PLUGIN OPERATION WITHOUT CONFIG!
 impl Default for {PluginName}Config {
     fn default() -> Self {
         Self {
             command: "{command_name}".to_string(),
             base_args: vec![],
-            options: {PluginName}Options::default(),
-            limits: {PluginName}Limits::default(),
+            options: Some({PluginName}Options::default()),
+            limits: Some({PluginName}Limits::default()),
         }
+    }
+}
+
+impl Default for {PluginName}Options {
+    fn default() -> Self {
+        Self {
+            query_types: vec!["default".to_string()],
+            enable_feature: true,
+            delay_between_queries_ms: 250,
+        }
+    }
+}
+
+impl Default for {PluginName}Limits {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 10000,
+            max_retries: 2,
+            total_timeout_ms: 30000,
+        }
+    }
+}
+```
+
+### PLUGIN_CONFIG_ACCESS_PATTERN
+```rust
+// In your plugin implementation - ALWAYS handle missing configuration!
+impl YourPlugin {
+    fn get_config<'a>(&self, global_config: &'a GlobalConfig) -> YourPluginConfig {
+        global_config.tools
+            .as_ref()
+            .and_then(|tools| tools.your_plugin.as_ref())
+            .cloned()
+            .unwrap_or_else(YourPluginConfig::default())
+    }
+    
+    fn get_command(&self, config: &GlobalConfig) -> String {
+        let plugin_config = self.get_config(config);
+        plugin_config.command
+    }
+    
+    fn get_timeout(&self, config: &GlobalConfig) -> u64 {
+        let plugin_config = self.get_config(config);
+        plugin_config.limits
+            .as_ref()
+            .map(|l| l.timeout_ms)
+            .unwrap_or(10000)  // Fallback to hardcoded default
     }
 }
 ```
@@ -554,9 +610,11 @@ mod tests {
 - [ ] Add `determine_query_types()` for smart query selection
 
 ### SYSTEM_INTEGRATION
-- [ ] Create configuration structs in `config/types.rs`
-- [ ] Add plugin config to `ToolsConfig` struct
-- [ ] Update `ToolsConfig` Default implementation
+- [ ] Create configuration structs in `config/types.rs` with `Option<YourPluginConfig>`
+- [ ] Add plugin config to `ToolsConfig` struct as OPTIONAL field
+- [ ] Implement proper Default traits for all config structs
+- [ ] Ensure plugin works WITHOUT any global.toml configuration
+- [ ] Add COMMENTED OUT configuration to global.toml (for overrides only)
 - [ ] Add module declaration to `plugins/mod.rs`
 - [ ] Register plugin in `scheduler.rs` cloning logic
 - [ ] Add plugin to `registry.rs` for validation and inventory
@@ -818,6 +876,51 @@ fn determine_query_types(&self, target: &str) -> Vec<&str> {
 - **Modular Design**: Separate validation, execution, parsing, output
 - **Comprehensive Testing**: Cover edge cases and error conditions
 - **Documentation**: Comment complex parsing and validation logic
+
+## CONFIGURATION_EXAMPLE
+
+### INCORRECT_APPROACH (DON'T DO THIS)
+```toml
+# global.toml - WRONG: Active default configuration
+[tools.port_scanner]
+enabled = true
+scan_strategy = "top-1000"  # <-- This is a default, not an override!
+
+[tools.port_scanner.rustscan]
+command = "rustscan"
+timeout_ms = 1500
+```
+
+### CORRECT_APPROACH (DO THIS)
+```toml
+# global.toml - CORRECT: All commented, acts as override documentation
+# ========================================
+# PORT SCANNER CONFIGURATION
+# ========================================
+# Uncomment any section below to override default plugin behavior
+
+# [tools.port_scanner]
+# enabled = true           # Override to disable: enabled = false
+# scan_strategy = "full"   # Override default top-1000 with full scan
+# 
+# [tools.port_scanner.rustscan]
+# command = "/custom/path/rustscan"  # Override if rustscan is in non-standard location
+# timeout_ms = 5000                   # Override for slower networks
+```
+
+```rust
+// In plugin code - CORRECT: Hardcoded defaults with override capability
+impl PortScannerPlugin {
+    fn get_scan_strategy(&self, config: &GlobalConfig) -> String {
+        config.tools
+            .as_ref()
+            .and_then(|t| t.port_scanner.as_ref())
+            .and_then(|ps| ps.ports.as_ref())
+            .map(|p| p.scan_strategy.clone())
+            .unwrap_or_else(|| "top-1000".to_string())  // Hardcoded default
+    }
+}
+```
 
 ## LESSONS_LEARNED
 
