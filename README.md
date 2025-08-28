@@ -53,12 +53,13 @@ IPCrawler is a **comprehensive reconnaissance automation tool** designed for cyb
 
 ### Installation
 ```bash
-# Clone and build
+# Clone and build with automatic tool installation
 git clone https://github.com/ipcrawler/ipcrawler.git
 cd ipcrawler
 make build
 
 # The build process will:
+# ✅ Install ALL reconnaissance tools automatically
 # ✅ Compile the binary
 # ✅ Create ~/.local/bin/ipcrawler symlink  
 # ✅ Install global.toml config
@@ -74,15 +75,30 @@ ipcrawler -t 8.8.8.8 --verbose
 
 # Get help
 ipcrawler --help
+
+# Install Go compiler (includes HTB VM support)
+make install-go
+
+# Install/update tools only (without rebuilding)
+make install-tools
+
+# Check which tools are available
+make check-tools
 ```
 
-### Requirements
-- **DNS Tools**: `nslookup` and `dig` in PATH (core reconnaissance)
-- **Port Scanner**: `rustscan` and `nmap` (optional, for comprehensive coverage)
-- **Host Discovery**: `dnsx` and `httpx` (optional, for subdomain enumeration)
-- **Web Analysis**: `feroxbuster`, `katana`, `cewl` (optional, for HTTP/HTTPS services)
+### System Requirements
+- **Prerequisites**: Homebrew (macOS) or apt (Linux), Rust/Cargo
+- **Auto-installed**: Go compiler and all reconnaissance tools are installed automatically
 - **Terminal**: Minimum 70x20 characters for TUI
 - **File descriptors**: ≥2048 (`ulimit -n 2048`) for concurrent operations
+
+**Tools Installed Automatically:**
+- **Go Compiler**: Latest Go (with HTB VM compatibility via `make install-go`)
+- **DNS**: `dig` (via system package manager)
+- **Go tools**: `dnsx`, `httpx`, `katana`, `hakrawler`, `ffuf` (via `go install`)
+- **Rust tools**: `rustscan`, `feroxbuster`, `xh` (via `cargo install`)
+- **System tools**: `nmap`, `gobuster`, `cewl` (via system package manager)
+- **Wordlists**: SecLists collection (via `git clone`)
 
 ---
 
@@ -229,30 +245,48 @@ echo "ulimit -n 2048" >> ~/.zshrc
 ### Terminal Size Issues
 Ensure your terminal is at least **70x20 characters**. The TUI will warn you if it's too small.
 
-### Tool Installation
+### Go Compiler Issues (HTB VMs)
 ```bash
-# Core DNS tools (required)
-which nslookup dig
+# HTB VM / KALI SPECIFIC (automatic detection and handling)
+make install-go       # Installs Go with HTB VM compatibility
 
-# macOS (via Homebrew)
-brew install bind
+# The script automatically detects HTB environments and:
+# • Uses /opt/go instead of /usr/local/go for better permissions
+# • Updates multiple shell profiles (.bashrc, .zshrc, .profile)
+# • Sets proper GOPATH and GOROOT environment variables
+# • Works around HTB VM permission restrictions
 
-# Ubuntu/Debian  
-sudo apt install dnsutils
+# Force reinstall Go (if current installation is broken)
+bash scripts/install_go.sh --force
+```
 
-# Optional reconnaissance tools (for full functionality)
-# Port scanning
-cargo install rustscan
-sudo apt install nmap
+### Tool Installation Issues  
+```bash
+# AUTOMATIC INSTALLATION (recommended)
+make install-tools    # Install all tools automatically
+make check-tools      # Verify installation status
 
-# Host discovery  
+# MANUAL INSTALLATION (if automatic fails)
+# Prerequisites
+# macOS: brew install go rust
+# Linux: sudo apt install golang rustc cargo
+
+# Go tools
 go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
 go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-
-# Web analysis
-cargo install feroxbuster
 go install -v github.com/projectdiscovery/katana/cmd/katana@latest
-apt install cewl
+go install -v github.com/hakluke/hakrawler@latest
+go install -v github.com/ffuf/ffuf@latest
+
+# Rust tools
+cargo install rustscan feroxbuster xh
+
+# System tools
+# macOS: brew install nmap bind gobuster cewl
+# Linux: sudo apt install nmap dnsutils gobuster cewl
+
+# Wordlists
+git clone https://github.com/danielmiessler/SecLists.git ~/.local/share/seclists
 ```
 
 ---

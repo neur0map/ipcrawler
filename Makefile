@@ -5,22 +5,28 @@ RUN_DIR      := artifacts/runs
 PROFILE      ?= release
 RUN_ARGS     ?=
 
-.PHONY: help build clean test verbose-build
+.PHONY: help build clean test verbose-build install-tools check-tools install-go
 
 help:
 	@echo "IPCrawler Build System"
 	@echo ""
 	@echo "Main Commands:"
-	@echo "  make build    - Complete setup: compile, check tools, create symlinks, install config"
-	@echo "  make clean    - Remove all artifacts, symlinks, and user config"
-	@echo "  make test     - Run full validation: environment checks, formatting, linting, tests"
-	@echo "  make help     - Show this help message"
+	@echo "  make build         - Complete setup: compile, install tools, create symlinks, install config"
+	@echo "  make install-go    - Install/update Go compiler with HTB VM support"
+	@echo "  make install-tools - Install/update all reconnaissance tools only"
+	@echo "  make check-tools   - Verify all tools are available (no installation)"
+	@echo "  make clean         - Remove all artifacts, symlinks, and user config"
+	@echo "  make test          - Run full validation: environment checks, formatting, linting, tests"
+	@echo "  make help          - Show this help message"
 	@echo ""
 	@echo "Tool Installation:"
 	@echo "  • 'make build' automatically installs ALL missing tools"
+	@echo "  • Go compiler: 'make install-go' (HTB VM compatible)"
 	@echo "  • DNS tools: dig (via brew/apt)"
-	@echo "  • Go tools: dnsx, httpx (via go install)"
-	@echo "  • Port scanning: nmap (via brew/apt), rustscan (via cargo)"
+	@echo "  • Go tools: dnsx, httpx, katana, hakrawler, ffuf (via go install)"
+	@echo "  • Rust tools: rustscan, feroxbuster, xh (via cargo install)"
+	@echo "  • System tools: nmap, gobuster, cewl (via brew/apt)"
+	@echo "  • SecLists wordlists (via git clone)"
 	@echo "  • Requires: Homebrew/apt, Go compiler, Rust/Cargo"
 	@echo ""
 	@echo "After 'make build', run: ipcrawler -t google.com"
@@ -30,7 +36,13 @@ build:
 	@echo "[▏         ] 10% - Setting up directories"
 	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR) 2>/dev/null
 	@echo "[▏▏        ] 20% - Installing and checking tools"
-	@bash scripts/install_tools.sh || echo "  ⚠ Some tool installations failed (continuing)"
+	@if bash scripts/install_tools.sh; then \
+		echo "  ✅ All tools installed successfully"; \
+	else \
+		echo "  ⚠️  Some tools failed to install - see warnings above"; \
+		echo "  ⚠️  Run 'make check-tools' after build to see what's missing"; \
+		echo "  ⚠️  IPCrawler will work but some plugins may be disabled"; \
+	fi
 	@echo "[▏▏▏       ] 30% - Starting compilation"
 	@echo "[▏▏▏▏      ] 40% - Compiling dependencies"
 	@echo "[▏▏▏▏▏     ] 50% - Compiling ipcrawler"
@@ -52,7 +64,7 @@ verbose-build:
 	@mkdir -p $(BIN_DIR) $(LOG_DIR) $(RUN_DIR)
 	
 	@echo "📦 Installing/verifying required tools..."
-	@bash scripts/install_tools.sh
+	@bash scripts/install_tools.sh || echo "⚠️  Some tool installations failed - continuing with build"
 	
 	@echo "🔨 Building IPCrawler..."
 	@cargo build --release
@@ -97,6 +109,20 @@ clean:
 	@echo "⚙️  Removing user configuration..."
 	@rm -rf ~/.config/ipcrawler
 	@echo "✅ Cleanup complete"
+
+install-go:
+	@echo "🔧 Installing/updating Go compiler for IPCrawler..."
+	@bash scripts/install_go.sh
+	@echo "💡 After Go installation, run 'make install-tools' to install Go-based reconnaissance tools"
+
+install-tools:
+	@echo "🔧 Installing/updating IPCrawler reconnaissance tools..."
+	@bash scripts/install_tools.sh
+	@echo "✅ Tool installation complete!"
+	@echo "💡 Run 'make check-tools' to verify all tools are working"
+
+check-tools:
+	@bash scripts/check_tools.sh
 
 # Swallow incidental phony goals if user passes flags directly
 %:

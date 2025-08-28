@@ -2,6 +2,16 @@
 # Don't fail on missing optional tools
 set -eo pipefail
 
+# Track installation failures for final warning
+FAILED_TOOLS=()
+
+# Function to track failed installations
+track_failure() {
+    local tool=$1
+    local plugin_impact=$2
+    FAILED_TOOLS+=("$tool ($plugin_impact)")
+}
+
 echo "🔧 Checking required tools..."
 
 # Install and check Go tools
@@ -136,30 +146,30 @@ install_rust_tool() {
 echo ""
 echo "System DNS tools:"
 check_system_tool "nslookup" "Usually pre-installed with system"
-install_system_tool "dig" "bind" "dnsutils" "DNS lookup tool" || true
+install_system_tool "dig" "bind" "dnsutils" "DNS lookup tool" || track_failure "dig" "affects DNS reconnaissance"
 
 echo ""
 echo "Go-based reconnaissance tools (for hosts discovery plugin):"
-install_go_tool "dnsx" "github.com/projectdiscovery/dnsx/cmd/dnsx" "DNS toolkit" || true
-install_go_tool "httpx" "github.com/projectdiscovery/httpx/cmd/httpx" "HTTP toolkit" || true
+install_go_tool "dnsx" "github.com/projectdiscovery/dnsx/cmd/dnsx" "DNS toolkit" || track_failure "dnsx" "disables hosts_discovery plugin"
+install_go_tool "httpx" "github.com/projectdiscovery/httpx/cmd/httpx" "HTTP toolkit" || track_failure "httpx" "disables hosts_discovery plugin"
 
 echo ""
 echo "Port scanning tools (for port scanner plugin):"
-install_system_tool "nmap" "nmap" "nmap" "network mapper" || true
-install_rust_tool "rustscan" "rustscan" "fast port scanner" || true
+install_system_tool "nmap" "nmap" "nmap" "network mapper" || track_failure "nmap" "disables port_scanner service detection"
+install_rust_tool "rustscan" "rustscan" "fast port scanner" || track_failure "rustscan" "disables port_scanner port discovery"
 
 echo ""
 echo "Web application scanning tools (for looter plugin):"
-install_go_tool "katana" "github.com/projectdiscovery/katana/cmd/katana" "web crawler" || true
-install_go_tool "hakrawler" "github.com/hakluke/hakrawler" "web crawler" || true
-install_rust_tool "feroxbuster" "feroxbuster" "directory brute-forcer" || true
-install_go_tool "ffuf" "github.com/ffuf/ffuf" "directory fuzzer" || true
-install_system_tool "gobuster" "gobuster" "gobuster" "directory brute-forcer" || true
-install_rust_tool "xh" "xh" "HTTP client" || true
+install_go_tool "katana" "github.com/projectdiscovery/katana/cmd/katana" "web crawler" || track_failure "katana" "reduces looter crawler effectiveness"
+install_go_tool "hakrawler" "github.com/hakluke/hakrawler" "web crawler" || track_failure "hakrawler" "reduces looter crawler fallback"
+install_rust_tool "feroxbuster" "feroxbuster" "directory brute-forcer" || track_failure "feroxbuster" "disables looter directory enumeration"
+install_go_tool "ffuf" "github.com/ffuf/ffuf" "directory fuzzer" || track_failure "ffuf" "reduces looter directory enumeration fallback"
+install_system_tool "gobuster" "gobuster" "gobuster" "directory brute-forcer" || track_failure "gobuster" "reduces looter directory enumeration fallback"
+install_rust_tool "xh" "xh" "HTTP client" || track_failure "xh" "reduces looter content retrieval performance"
 
 echo ""
 echo "Content analysis tools (for looter plugin):"
-install_system_tool "cewl" "cewl" "cewl" "wordlist generator" || true
+install_system_tool "cewl" "cewl" "cewl" "wordlist generator" || track_failure "cewl" "disables looter wordlist generation"
 
 echo ""
 echo "SecLists wordlists (recommended for looter plugin):"
@@ -182,7 +192,7 @@ check_seclists_install() {
         fi
     fi
 }
-check_seclists_install || true
+check_seclists_install || track_failure "SecLists" "reduces looter wordlist quality"
 
 echo ""
 echo "📋 Installation Summary:"
@@ -210,3 +220,24 @@ echo "  Rust tools: cargo install rustscan feroxbuster xh"
 echo "  System:     brew install nmap bind gobuster cewl (macOS)"
 echo "             sudo apt install nmap dnsutils gobuster cewl (Linux)"
 echo "  SecLists:   git clone https://github.com/danielmiessler/SecLists.git ~/.local/share/seclists"
+
+echo ""
+# Display final warning for failed installations
+if [ ${#FAILED_TOOLS[@]} -gt 0 ]; then
+    echo "⚠️  WARNING: Some tools failed to install and will affect IPCrawler functionality:"
+    echo ""
+    for failed_tool in "${FAILED_TOOLS[@]}"; do
+        echo "  ❌ $failed_tool"
+    done
+    echo ""
+    echo "🔧 To fix these issues:"
+    echo "  • Install missing prerequisites (Homebrew/apt, Go, Rust/Cargo)"
+    echo "  • Run 'make install-tools' again after installing prerequisites"
+    echo "  • Use manual installation commands shown above"
+    echo "  • Run 'make check-tools' to verify installation status"
+    echo ""
+    echo "💡 IPCrawler will still work, but some reconnaissance capabilities will be limited."
+    exit 1  # Signal that there were installation failures
+else
+    echo "✅ All tools installed successfully! IPCrawler fully functional."
+fi
