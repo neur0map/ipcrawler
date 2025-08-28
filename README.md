@@ -211,7 +211,71 @@ artifacts/runs/run_example.com_20250828_142015/
 - 🔧 **Custom plugin development** framework
 - 📊 **Advanced reporting** with executive summaries
 
-*Contributing to penetration testing automation - one plugin at a time!*
+---
+
+## 🔌 Plugin Ecosystem & Roadmap
+# The following list may change as the project evolves and I will be using more external tools instead of reinventing the wheel, but for now this is the plan.
+IPCrawler follows a **reconnaissance-only** philosophy - we enumerate and discover, not exploit. All plugins are designed for OSCP exam compliance and responsible security testing.
+
+### ✅ **Currently Implemented Plugins**
+
+| Plugin | Description | Key Features |
+|--------|-------------|--------------|
+| **nslookup** | DNS record enumeration | A, AAAA, MX, NS, TXT, SOA records |
+| **dig** | Advanced DNS queries | AXFR attempts, DNSSEC validation |
+| **hosts_discovery** | Subdomain & vhost enumeration | dnsx/httpx integration, automatic /etc/hosts updates |
+| **port_scanner** | Two-phase port discovery | RustScan speed + Nmap accuracy, service detection |
+| **looter** | Web application analysis | Directory brute-force, sensitive file discovery, auto-analysis of looted files |
+
+### 🚀 **Web Application Security Plugins** (v0.2.0 - Coming Soon)
+
+| Plugin | Description | Scope Limitation |
+|--------|-------------|-----------------|
+| **Website Code Keywords Analyzer** | Parse HTML/JS for tech hints and sensitive keywords (e.g., password, apiKey, config) | Lightweight parsing only - not reinventing linkfinder/jsfinder |
+| **CMS Detector + SQLi Probes** | Identify common CMS (WordPress, Joomla, Drupal) and test basic SQLi payloads | Limited to lightweight probes - not a sqlmap replacement |
+| **LFI/Path Traversal Prober** | Classic payload set for ../../etc/passwd, Windows paths, log file inclusions | Curated SecLists payloads only - no aggressive spraying |
+| **Cookie & Session Inspector** | Detect base64/JWT cookies, flag missing security flags (HttpOnly, Secure) | Analysis only - no session hijacking capabilities |
+| **Form Field Enumerator** | Detect login/register/reset forms, extract parameter names for tool integration | Prepares data for Hydra - doesn't perform authentication attacks |
+
+### 🔧 **Network Service Plugins** (v0.3.0 - Mid-term)
+
+| Plugin | Description | OSCP Relevance |
+|--------|-------------|----------------|
+| **SMB Enumerator** | Test for null sessions, enumerate users, check SMB signing status | Classic OSCP enumeration technique |
+| **SNMP Walker Lite** | Quick snmpwalk with default communities (public, private), extract system info | Essential for OSCP lab environments |
+| **Auth & Login Hunter** | Detect login panels across services, enumerate authentication parameters | Preparation for credential testing only |
+| **FTP Prober** | Anonymous login checks, banner grabbing, directory listing | Common CTF/OSCP service |
+| **SSH Enumerator** | Version detection, weak algorithm detection, user enumeration timing attacks | Information gathering only |
+
+### 🔬 **Advanced Analysis Plugins** (v0.4.0 - Long-term)
+
+| Plugin | Description | Integration Notes |
+|--------|-------------|-------------------|
+| **Tech Fingerprinting Add-On** | Headers + favicon hash + TLS fingerprinting to identify tech stack | Leverages existing Wappalyzer signatures |
+| **File Decryptor Integration** | When encrypted files are found, pass to John the Ripper or Hashcat | Lightweight wrapper - requires external tools |
+| **Hydra Integration Lite** | Controlled credential testing with generated wordlists | Rate-limited, single-threaded to avoid account lockouts |
+| **API Endpoint Mapper** | Discover and document REST/GraphQL endpoints | Focus on enumeration, not fuzzing |
+| **Certificate Analyzer** | SSL/TLS certificate chain analysis, expiry warnings, weak ciphers | Security assessment only |
+
+### ⚠️ **Important Scope Notes**
+
+- **Enumeration Only**: IPCrawler is a reconnaissance tool, not an exploitation framework
+- **OSCP Compliant**: All plugins follow OSCP exam restrictions (no automatic exploitation)
+- **Lightweight Probes**: We prioritize speed and stealth over comprehensive coverage
+- **Responsible Use**: Designed for authorized security testing and CTF competitions only
+- **Time-Bounded**: Each plugin respects time budgets to prevent hanging on slow targets
+- **No Brute Force**: Authentication testing is limited to common defaults, not dictionary attacks
+
+### 🎯 **Design Philosophy**
+
+Each plugin follows these principles:
+1. **Fast**: Complete within 2-minute time budgets
+2. **Focused**: Do one thing well, not everything poorly
+3. **Safe**: No destructive operations or DoS conditions
+4. **Informative**: Provide actionable intelligence for manual testing
+5. **Integrated**: Work seamlessly with other plugins and external tools
+
+*Want to contribute a plugin? Check our [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md) for the implementation spec!*
 
 ---
 

@@ -8,7 +8,7 @@ pub struct PluginRegistry {
 }
 
 impl PluginRegistry {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         let mut recon_plugins: Vec<Box<dyn crate::plugins::types::PortScan>> = vec![
             Box::new(crate::plugins::nslookup::NslookupPlugin),
             Box::new(crate::plugins::dig::DigPlugin),
@@ -38,7 +38,7 @@ impl PluginRegistry {
         if Self::looter_tools_available() {
             // Create a default global config for looter plugin initialization
             let default_config = crate::config::types::GlobalConfig::default();
-            match crate::plugins::looter::LooterPlugin::new(&default_config) {
+            match crate::plugins::looter::LooterPlugin::new(&default_config).await {
                 Ok(looter_plugin) => {
                     service_probe_plugins.push(Box::new(looter_plugin));
                 }
@@ -222,8 +222,8 @@ impl PluginRegistry {
     }
 }
 
-impl Default for PluginRegistry {
-    fn default() -> Self {
-        Self::new()
+impl PluginRegistry {
+    pub async fn default() -> Self {
+        Self::new().await
     }
 }

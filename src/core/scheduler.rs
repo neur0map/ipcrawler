@@ -171,7 +171,7 @@ pub async fn execute_all_phases(
                     // Create a new plugin instance for parallel execution
                     let plugin_instance: Box<dyn ServiceScan> = match plugin_name.as_str() {
                         "looter" => {
-                            match crate::plugins::looter::LooterPlugin::new(&config_clone) {
+                            match crate::plugins::looter::LooterPlugin::new(&config_clone).await {
                                 Ok(plugin) => Box::new(plugin),
                                 Err(e) => {
                                     tracing::warn!("Failed to create looter plugin: {}", e);

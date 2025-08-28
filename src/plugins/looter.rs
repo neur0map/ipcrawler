@@ -739,8 +739,8 @@ impl Telemetry {
 // ============================================================================
 
 impl LooterPlugin {
-    pub fn new(config: &GlobalConfig) -> Result<Self> {
-        let looter_config = Self::parse_config(config)?;
+    pub async fn new(config: &GlobalConfig) -> Result<Self> {
+        let looter_config = Self::parse_config(config).await?;
         
         Ok(Self {
             budget: TimeBudget::default_ctf(),
@@ -754,17 +754,20 @@ impl LooterPlugin {
         })
     }
     
-    fn parse_config(_config: &GlobalConfig) -> Result<LooterConfig> {
+    async fn parse_config(_config: &GlobalConfig) -> Result<LooterConfig> {
         // Use configuration values with graceful fallbacks
         let looter_config = LooterConfig {
             time_budget_sec: 120, // 2 minutes per target (optimized for CTF/lab)
             deterministic: true,   // Use deterministic RNG for reproducible results
             seclists_path: Self::find_seclists_path(),
-            temp_dir: Self::get_safe_temp_dir()?,
+            temp_dir: Self::get_safe_temp_dir().await?,
         };
         
-        // Ensure temp directory exists with graceful error handling
-        if let Err(e) = std::fs::create_dir_all(&looter_config.temp_dir) {
+        // Ensure temp directory exists with graceful error handling (non-blocking)
+        let temp_dir_clone = looter_config.temp_dir.clone();
+        if let Err(e) = tokio::task::spawn_blocking(move || {
+            std::fs::create_dir_all(&temp_dir_clone)
+        }).await.unwrap_or_else(|e| Err(std::io::Error::new(std::io::ErrorKind::Other, e))) {
             tracing::warn!("Failed to create looter temp directory: {}, using fallback", e);
         }
         
@@ -791,7 +794,7 @@ impl LooterPlugin {
         "~/.local/share/seclists".to_string()
     }
     
-    fn get_safe_temp_dir() -> Result<std::path::PathBuf> {
+    async fn get_safe_temp_dir() -> Result<std::path::PathBuf> {
         let candidates = [
             std::env::temp_dir().join("looter"),
             std::path::PathBuf::from("/tmp/looter"),
@@ -799,7 +802,10 @@ impl LooterPlugin {
         ];
         
         for candidate in &candidates {
-            if let Ok(_) = std::fs::create_dir_all(candidate) {
+            let candidate_clone = candidate.clone();
+            if tokio::task::spawn_blocking(move || {
+                std::fs::create_dir_all(&candidate_clone)
+            }).await.is_ok() {
                 return Ok(candidate.clone());
             }
         }
@@ -1449,7 +1455,9 @@ impl LooterPlugin {
         
         let mut discovered_files = Vec::new();
         let mut line_count = 0;
+        let mut batch_counter = 0;
         const MAX_LINES: usize = 10000; // Line budget
+        const YIELD_EVERY: usize = 50; // Yield every 50 lines processed
         
         loop {
             tokio::select! {
@@ -1457,6 +1465,8 @@ impl LooterPlugin {
                     match line {
                         Ok(Some(line)) => {
                             line_count += 1;
+                            batch_counter += 1;
+                            
                             if line_count > MAX_LINES {
                                 break;
                             }
@@ -1479,6 +1489,12 @@ impl LooterPlugin {
                                         });
                                     }
                                 }
+                            }
+                            
+                            // Periodically yield to prevent blocking other tasks
+                            if batch_counter >= YIELD_EVERY {
+                                batch_counter = 0;
+                                tokio::task::yield_now().await;
                             }
                         }
                         Ok(None) => break,
@@ -1722,7 +1738,9 @@ impl LooterPlugin {
         
         let mut discovered_files = Vec::new();
         let mut line_count = 0;
+        let mut batch_counter = 0;
         const MAX_LINES: usize = 8000; // Slightly lower line budget for enhanced pass
+        const YIELD_EVERY: usize = 50; // Yield every 50 lines processed
         
         loop {
             tokio::select! {
@@ -1730,6 +1748,8 @@ impl LooterPlugin {
                     match line {
                         Ok(Some(line)) => {
                             line_count += 1;
+                            batch_counter += 1;
+                            
                             if line_count > MAX_LINES {
                                 break;
                             }
@@ -1750,6 +1770,12 @@ impl LooterPlugin {
                                         });
                                     }
                                 }
+                            }
+                            
+                            // Periodically yield to prevent blocking other tasks
+                            if batch_counter >= YIELD_EVERY {
+                                batch_counter = 0;
+                                tokio::task::yield_now().await;
                             }
                         }
                         Ok(None) => break,

@@ -51,7 +51,7 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
     toolchain::verify_or_bail()?;
 
     // Validate all plugins and their dependencies
-    let registry = crate::core::scheduler::PluginRegistry::default();
+    let registry = crate::core::scheduler::PluginRegistry::default().await;
     tracing::info!(
         "Validating {} plugins and their dependencies...",
         registry.total_plugins()

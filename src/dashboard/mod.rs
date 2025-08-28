@@ -109,7 +109,8 @@ impl Dashboard {
 
     async fn run_loop(&mut self, rx: &mut mpsc::UnboundedReceiver<UiEvent>) -> io::Result<()> {
         let mut metrics_ticker = tokio::time::interval(Duration::from_secs(1));
-        let mut render_ticker = tokio::time::interval(Duration::from_millis(50));
+        let mut render_ticker = tokio::time::interval(Duration::from_millis(16)); // ~60Hz for better responsiveness
+        let mut input_ticker = tokio::time::interval(Duration::from_millis(8)); // High-frequency input polling
 
         loop {
             tokio::select! {
@@ -128,27 +129,34 @@ impl Dashboard {
                     self.needs_redraw = true;
                 }
 
-                // Render tick
-                _ = render_ticker.tick() => {
+                // High-priority input handling (separate from rendering)
+                _ = input_ticker.tick() => {
                     // Poll for input events (non-blocking)
-                    if event::poll(Duration::from_millis(0))? {
-                        if let Event::Key(key_event) = event::read()? {
-                            if self.handle_key_event(key_event) {
-                                tracing::info!("Dashboard received exit command, shutting down");
-                                break;
-                            }
-                        } else if let Event::Resize(cols, rows) = event::read()? {
-                            // Update terminal size on resize events
-                            if cols > 0 && rows > 0 {
-                                self.terminal_size = (cols, rows);
-                            } else {
-                                // Fallback if resize event has invalid dimensions
-                                self.terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
-                            }
-                            self.needs_redraw = true;
+                    while event::poll(Duration::from_millis(0))? {
+                        match event::read()? {
+                            Event::Key(key_event) => {
+                                if self.handle_key_event(key_event) {
+                                    tracing::info!("Dashboard received exit command, shutting down");
+                                    return Ok(());
+                                }
+                            },
+                            Event::Resize(cols, rows) => {
+                                // Update terminal size on resize events
+                                if cols > 0 && rows > 0 {
+                                    self.terminal_size = (cols, rows);
+                                } else {
+                                    // Fallback if resize event has invalid dimensions
+                                    self.terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
+                                }
+                                self.needs_redraw = true;
+                            },
+                            _ => {} // Ignore other events
                         }
                     }
+                }
 
+                // Render tick
+                _ = render_ticker.tick() => {
                     // Render if needed
                     if self.needs_redraw {
                         self.render()?;
@@ -157,8 +165,6 @@ impl Dashboard {
                 }
             }
         }
-
-        Ok(())
     }
 
     fn handle_ui_event(&mut self, event: UiEvent) {
