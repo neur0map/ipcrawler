@@ -8,6 +8,16 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginFindings {
+    pub plugin_name: String,
+    pub high_value_files: usize,
+    pub secrets_found: usize,
+    pub total_findings: usize,
+    pub summary: String,
+    pub artifacts_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunState {
     pub target: String, // Just the target value for serialization
     pub run_id: String,
@@ -16,6 +26,7 @@ pub struct RunState {
     pub tasks_started: usize,
     pub tasks_completed: usize,
     pub errors: Vec<ExecError>,
+    pub plugin_findings: std::collections::HashMap<String, PluginFindings>,
 
     #[serde(skip)]
     #[allow(dead_code)]
@@ -39,6 +50,7 @@ impl RunState {
             tasks_started: 0,
             tasks_completed: 0,
             errors: vec![],
+            plugin_findings: std::collections::HashMap::new(),
             target_obj: Some(target.clone()),
             dirs: Some(dirs.clone()),
             ui_sender: None,

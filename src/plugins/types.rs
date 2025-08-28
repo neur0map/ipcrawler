@@ -15,7 +15,7 @@ pub trait PortScan: Send + Sync {
 pub trait ServiceScan: Send + Sync {
     fn name(&self) -> &'static str;
     fn matches(&self, service: &Service) -> bool;
-    async fn run(&self, service: &Service, state: &RunState, config: &GlobalConfig) -> Result<()>;
+    async fn run(&self, service: &Service, state: &RunState, config: &GlobalConfig) -> Result<Option<crate::core::state::PluginFindings>>;
 }
 
 #[async_trait]

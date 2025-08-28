@@ -2,7 +2,7 @@ use super::events::Event;
 use super::state::RunState;
 use crate::config::GlobalConfig;
 use crate::core::models::Service;
-use crate::plugins::types::PortScan;
+use crate::plugins::types::{PortScan, ServiceScan};
 use crate::ui::events::{TaskResult, UiEvent};
 use anyhow::Result;
 use std::sync::Arc;
@@ -154,21 +154,85 @@ pub async fn execute_all_phases(
             total: new_total,              // updated total including service tasks
         });
 
-        // Execute service probes (UI tasks already started earlier)
+        // Execute service probes in parallel using semaphore for concurrency control
+        let sem_services = Arc::new(Semaphore::new(max_services));
+        let mut tasks = Vec::new();
+        
         for service in discovered {
             for plugin in &registry.service_probe_plugins {
                 if plugin.matches(&service) {
-                    let result = plugin.run(&service, state, config).await;
-                    // Task completion handled separately
-                    if let Err(e) = result {
-                        tracing::warn!(
-                            "Service probe {} failed on {}:{}: {}",
-                            plugin.name(),
-                            service.address,
-                            service.port,
-                            e
-                        );
+                    let permit = sem_services.clone().acquire_owned().await?;
+                    let service_clone = service.clone();
+                    let plugin_name = plugin.name().to_string();
+                    let state_clone = state.clone();
+                    let config_clone = config.clone();
+                    let ui_sender_clone = ui_sender.clone();
+
+                    // Create a new plugin instance for parallel execution
+                    let plugin_instance: Box<dyn ServiceScan> = match plugin_name.as_str() {
+                        "looter" => {
+                            match crate::plugins::looter::LooterPlugin::new(&config_clone) {
+                                Ok(plugin) => Box::new(plugin),
+                                Err(e) => {
+                                    tracing::warn!("Failed to create looter plugin: {}", e);
+                                    continue;
+                                }
+                            }
+                        }
+                        _ => continue, // Skip unknown service plugins
+                    };
+
+                    let task = tokio::spawn(async move {
+                        let _permit = permit; // Hold semaphore permit
+                        let result = plugin_instance.run(&service_clone, &state_clone, &config_clone).await;
+                        
+                        match result {
+                            Ok(Some(findings)) => {
+                                let _ = ui_sender_clone.send(UiEvent::LogMessage {
+                                    level: "INFO".to_string(),
+                                    message: format!("✓ {}: Completed with findings on {}:{}", 
+                                        plugin_name, service_clone.address, service_clone.port),
+                                });
+                                Ok((plugin_name, Some(findings)))
+                            }
+                            Ok(None) => {
+                                let _ = ui_sender_clone.send(UiEvent::LogMessage {
+                                    level: "INFO".to_string(),
+                                    message: format!("✓ {}: Completed with no findings on {}:{}", 
+                                        plugin_name, service_clone.address, service_clone.port),
+                                });
+                                Ok((plugin_name, None))
+                            }
+                            Err(e) => {
+                                let _ = ui_sender_clone.send(UiEvent::LogMessage {
+                                    level: "WARN".to_string(),
+                                    message: format!("✗ {}: Failed on {}:{}: {}", 
+                                        plugin_name, service_clone.address, service_clone.port, e),
+                                });
+                                Err((plugin_name, e))
+                            }
+                        }
+                    });
+
+                    tasks.push(task);
+                }
+            }
+        }
+
+        // Wait for all service probe tasks to complete
+        for task in tasks {
+            match task.await {
+                Ok(Ok((plugin_name, findings))) => {
+                    if let Some(findings) = findings {
+                        state.plugin_findings.insert(plugin_name.clone(), findings);
                     }
+                    tracing::info!("Service probe {} completed successfully", plugin_name);
+                }
+                Ok(Err((plugin_name, e))) => {
+                    tracing::warn!("Service probe {} failed: {}", plugin_name, e);
+                }
+                Err(e) => {
+                    tracing::error!("Service probe task execution error: {}", e);
                 }
             }
         }

@@ -3,12 +3,17 @@
 
 ## ARCHITECTURE_OVERVIEW
 
-The ipcrawler system supports **reconnaissance plugins** that implement the `PortScan` trait. All plugins run concurrently, provide real-time UI feedback, and create persistent scan results.
+The ipcrawler system supports **reconnaissance plugins** that implement either `PortScan` or `ServiceScan` traits. All plugins run concurrently, provide real-time UI feedback, and create persistent scan results.
+
+**Plugin Trait Types:**
+- **PortScan**: Target-based plugins that discover services from IP/domain targets
+- **ServiceScan**: Service-based plugins that analyze discovered services in detail
 
 **Current Plugin Types:**
-- **DNS Reconnaissance** - Query DNS records and resolve hostnames
-- **Network Discovery** - Identify open ports and services
-- **Service Enumeration** - Probe specific services for details
+- **DNS Reconnaissance** (PortScan) - Query DNS records and resolve hostnames
+- **Network Discovery** (PortScan) - Identify open ports and services  
+- **Service Enumeration** (ServiceScan) - Probe specific services for details
+- **Web Application Analysis** (ServiceScan) - Directory enumeration and content analysis
 
 ## PLUGIN_DEVELOPMENT_PROCESS
 
@@ -20,15 +25,20 @@ Before coding, analyze your target tool:
 3. **Error Conditions**: How does the tool indicate failures?
 4. **Record Types**: What types of information does it discover?
 5. **Target Support**: Does it handle IPs, domains, or both?
+6. **Plugin Type**: Does it scan targets (PortScan) or analyze services (ServiceScan)?
+7. **Performance Budget**: What time constraints are appropriate for this tool?
 
 ### STEP_2_DESIGN_DECISIONS
 Make these architectural choices:
 
 1. **Plugin Name**: Choose a clear, lowercase identifier
-2. **Protocol**: Will it discover TCP or UDP services?
-3. **Record Types**: What information categories will it report?
-4. **Query Strategy**: Single query vs multiple queries per target?
-5. **Error Tolerance**: Continue on partial failures or stop completely?
+2. **Plugin Trait**: PortScan (target-based) or ServiceScan (service-based)
+3. **Protocol**: Will it discover TCP or UDP services?
+4. **Record Types**: What information categories will it report?
+5. **Query Strategy**: Single query vs multiple queries per target?
+6. **Error Tolerance**: Continue on partial failures or stop completely?
+7. **Time Budget**: Per-target vs per-service time allocation
+8. **Concurrency**: Can it run safely in parallel with other plugins?
 
 ### STEP_3_IMPLEMENTATION_STRUCTURE
 Every plugin follows this pattern:
@@ -84,9 +94,9 @@ use tokio::sync::mpsc;
 use chrono::Utc;
 ```
 
-## PLUGIN_TEMPLATE
+## PLUGIN_TEMPLATES
 
-### BASIC_STRUCTURE
+### PORTSCAN_TEMPLATE (Target-based discovery)
 ```rust
 #[derive(Clone)]
 pub struct {PluginName}Plugin;
@@ -382,6 +392,259 @@ impl {PluginName}Plugin {
 }
 ```
 
+### SERVICESCAN_TEMPLATE (Service-based analysis)
+```rust
+use async_trait::async_trait;
+use anyhow::Result;
+use crate::core::{models::Service, state::{RunState, PluginFindings}};
+use crate::plugins::types::ServiceScan;
+use crate::config::GlobalConfig;
+use std::collections::HashMap;
+use tokio::time::{sleep, Duration, timeout};
+
+#[derive(Clone)]
+pub struct {PluginName}Plugin {
+    // Internal configuration and state
+    config: {PluginName}Config,
+    // Per-service time budget
+    time_budget: Duration,
+}
+
+#[derive(Debug, Clone)]
+struct {PluginName}Config {
+    time_budget_sec: u64,
+    // Tool-specific configuration
+    max_concurrent_operations: usize,
+    rate_limit_ms: u64,
+}
+
+impl Default for {PluginName}Config {
+    fn default() -> Self {
+        Self {
+            time_budget_sec: 120,  // 2 minutes per service (optimized for CTF/lab)
+            max_concurrent_operations: 8,
+            rate_limit_ms: 67,  // ~15 requests/second
+        }
+    }
+}
+
+impl {PluginName}Plugin {
+    pub fn new(global_config: &GlobalConfig) -> Result<Self> {
+        // Parse configuration with graceful fallbacks
+        let config = Self::parse_config(global_config)?;
+        
+        Ok(Self {
+            time_budget: Duration::from_secs(config.time_budget_sec),
+            config,
+        })
+    }
+    
+    fn parse_config(_config: &GlobalConfig) -> Result<{PluginName}Config> {
+        // Use internal configuration with graceful fallbacks
+        // CRITICAL: Plugin must work without any global.toml configuration
+        let config = {PluginName}Config::default();
+        Ok(config)
+    }
+    
+    /// Check if this plugin should analyze the given service
+    fn should_analyze_service(&self, service: &Service) -> bool {
+        // IMPLEMENT: Service filtering logic
+        // Examples:
+        // - HTTP services: service.name.to_lowercase().contains("http")
+        // - Specific ports: vec![80, 443, 8080].contains(&service.port)
+        // - Protocol match: service.proto == Proto::Tcp
+        // - Service patterns: service.name.contains("web") || service.name.contains("http")
+        
+        match service.port {
+            80 | 443 | 8080 | 8443 => true,  // Common web ports
+            _ => service.name.to_lowercase().contains("http"),
+        }
+    }
+    
+    /// Execute the main analysis workflow with time budget
+    async fn execute_analysis(&self, service: &Service, state: &RunState) -> Result<Option<PluginFindings>> {
+        let start_time = std::time::Instant::now();
+        let mut findings = HashMap::new();
+        
+        // Phase-based execution with time budget allocation
+        // Phase 1: Initial reconnaissance (25% of budget)
+        let phase1_budget = self.time_budget / 4;
+        if let Ok(recon_results) = timeout(phase1_budget, self.phase_initial_recon(service, state)).await {
+            if let Ok(results) = recon_results {
+                findings.extend(results);
+            }
+        }
+        
+        // Phase 2: Deep analysis (50% of budget) 
+        let remaining = self.time_budget.saturating_sub(start_time.elapsed());
+        let phase2_budget = remaining / 2;
+        if let Ok(analysis_results) = timeout(phase2_budget, self.phase_deep_analysis(service, state, &findings)).await {
+            if let Ok(results) = analysis_results {
+                findings.extend(results);
+            }
+        }
+        
+        // Phase 3: Content retrieval (25% of remaining budget)
+        let remaining = self.time_budget.saturating_sub(start_time.elapsed());
+        if remaining > Duration::from_secs(5) {  // At least 5 seconds left
+            if let Ok(content_results) = timeout(remaining, self.phase_content_retrieval(service, state, &findings)).await {
+                if let Ok(results) = content_results {
+                    findings.extend(results);
+                }
+            }
+        }
+        
+        if findings.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(PluginFindings {
+                plugin_name: self.name().to_string(),
+                target: format!("{}:{}", service.address, service.port),
+                findings,
+                metadata: self.create_metadata(start_time.elapsed()),
+            }))
+        }
+    }
+    
+    // Phase implementation methods - IMPLEMENT for your specific tool
+    async fn phase_initial_recon(&self, service: &Service, _state: &RunState) -> Result<HashMap<String, String>> {
+        // IMPLEMENT: Initial service reconnaissance
+        todo!("Implement initial reconnaissance phase")
+    }
+    
+    async fn phase_deep_analysis(&self, service: &Service, _state: &RunState, initial_findings: &HashMap<String, String>) -> Result<HashMap<String, String>> {
+        // IMPLEMENT: Deep analysis based on initial findings
+        todo!("Implement deep analysis phase")
+    }
+    
+    async fn phase_content_retrieval(&self, service: &Service, _state: &RunState, previous_findings: &HashMap<String, String>) -> Result<HashMap<String, String>> {
+        // IMPLEMENT: Content retrieval and analysis
+        todo!("Implement content retrieval phase")
+    }
+    
+    fn create_metadata(&self, elapsed: Duration) -> HashMap<String, String> {
+        let mut metadata = HashMap::new();
+        metadata.insert("execution_time_ms".to_string(), elapsed.as_millis().to_string());
+        metadata.insert("time_budget_ms".to_string(), self.time_budget.as_millis().to_string());
+        metadata.insert("plugin_version".to_string(), "1.0.0".to_string());
+        metadata
+    }
+}
+
+#[async_trait]
+impl ServiceScan for {PluginName}Plugin {
+    fn name(&self) -> &'static str {
+        "{plugin_name_lowercase}"
+    }
+    
+    fn matches(&self, service: &Service) -> bool {
+        self.should_analyze_service(service)
+    }
+    
+    async fn run(&self, service: &Service, state: &RunState, _config: &GlobalConfig) -> Result<Option<PluginFindings>> {
+        // Execute analysis with comprehensive error handling
+        match self.execute_analysis(service, state).await {
+            Ok(findings) => Ok(findings),
+            Err(e) => {
+                tracing::warn!("Plugin {} failed on {}:{}: {}", 
+                    self.name(), service.address, service.port, e);
+                Ok(None)  // Don't fail the entire scan for one service
+            }
+        }
+    }
+}
+```
+
+### PERFORMANCE_OPTIMIZATION_PATTERNS
+
+Based on real-world implementation experience, here are critical performance patterns discovered during looter plugin development:
+
+#### TIME_BUDGET_ALLOCATION
+```rust
+// Allocate time budget across phases for optimal results
+// Key insight: 2-minute budgets work well for CTF/lab environments
+impl TimeBudget {
+    fn allocate_phases(total_seconds: u64) -> HashMap<Phase, Duration> {
+        let mut allocations = HashMap::new();
+        allocations.insert(Phase::Seeds, 0.15);      // 15% - Quick reconnaissance
+        allocations.insert(Phase::Baseline, 0.25);   // 25% - Core discovery
+        allocations.insert(Phase::Enhanced, 0.30);   // 30% - Deep analysis
+        allocations.insert(Phase::Retrieval, 0.20);  // 20% - Content retrieval
+        allocations.insert(Phase::Analysis, 0.10);   // 10% - Final processing
+        
+        allocations.into_iter()
+            .map(|(phase, ratio)| (phase, Duration::from_secs((total_seconds as f64 * ratio) as u64)))
+            .collect()
+    }
+}
+```
+
+#### PARALLEL_PROCESSING_PATTERN
+```rust
+// For ServiceScan plugins running on multiple discovered services
+// Key insight: Use semaphores for concurrency control, not sequential execution
+use tokio::sync::Semaphore;
+use std::sync::Arc;
+
+async fn execute_parallel_service_analysis(
+    services: Vec<Service>,
+    plugin: Arc<dyn ServiceScan>,
+    max_concurrent: usize,
+) -> Vec<Result<Option<PluginFindings>>> {
+    let semaphore = Arc::new(Semaphore::new(max_concurrent));
+    let mut tasks = Vec::new();
+    
+    for service in services {
+        let permit = semaphore.clone().acquire_owned().await.unwrap();
+        let plugin_clone = plugin.clone();
+        let service_clone = service.clone();
+        
+        let task = tokio::spawn(async move {
+            let _permit = permit;
+            plugin_clone.run(&service_clone, &state, &config).await
+        });
+        
+        tasks.push(task);
+    }
+    
+    let mut results = Vec::new();
+    for task in tasks {
+        match task.await {
+            Ok(result) => results.push(result),
+            Err(e) => results.push(Err(anyhow::anyhow!("Task failed: {}", e))),
+        }
+    }
+    
+    results
+}
+```
+
+#### GRACEFUL_DEGRADATION_PATTERN  
+```rust
+// Handle timeouts and failures gracefully without losing progress
+// Key insight: Configuration crashes were caused by TOML parsing, not runtime errors
+impl YourPlugin {
+    async fn execute_with_graceful_fallback<T>(&self, operation: impl Future<Output = Result<T>>) -> Option<T> {
+        match operation.await {
+            Ok(result) => Some(result),
+            Err(e) => {
+                tracing::debug!("Operation failed gracefully: {}", e);
+                None  // Continue with partial results instead of failing entire plugin
+            }
+        }
+    }
+    
+    // CRITICAL: All plugins must work without global.toml configuration
+    fn get_config_with_fallback(global_config: &GlobalConfig) -> YourPluginConfig {
+        global_config.tools
+            .as_ref()
+            .and_then(|tools| tools.your_plugin.as_ref())
+            .cloned()
+            .unwrap_or_else(YourPluginConfig::default)  // Always provide working defaults
+    }
+}
+```
+
 ## CONFIGURATION_INTEGRATION
 
 ### CONFIGURATION_PHILOSOPHY
@@ -625,6 +888,11 @@ mod tests {
   - Implement `{plugin}_tools_available()` function if your plugin depends on external tools
   - Add conditional plugin loading: `if Self::{plugin}_tools_available() { /* add plugin */ }`
   - This prevents plugin loading when required tools are missing
+- [ ] **SERVICE SCAN PLUGINS**: If implementing ServiceScan trait (not PortScan):
+  - Implement `matches(&self, service: &Service) -> bool` to filter services
+  - Use `ServiceScan::run(&self, service: &Service, state: &RunState, config: &GlobalConfig)`
+  - Plugin runs per-service, not per-target like PortScan plugins
+  - Store findings in `state.plugin_findings` using `insert(plugin_name, findings)`
 - [ ] **STDIN-BASED TOOLS**: If your tool requires stdin input (like dnsx/httpx):
   - Implement `execute_with_stdin()` method for piping input to commands
   - DO NOT use regular command-line arguments for input data
@@ -925,7 +1193,7 @@ impl PortScannerPlugin {
 ## LESSONS_LEARNED
 
 ### CRITICAL_GAPS_ADDRESSED
-This specification was enhanced based on real implementation experience with the `hosts_discovery` plugin. Key gaps that were identified and addressed:
+This specification was enhanced based on real implementation experience with the `hosts_discovery` and `looter` plugins. Key gaps that were identified and addressed:
 
 1. **Tool Availability Checking**: The original spec didn't emphasize conditional plugin loading for optional external tools
 2. **Stdin Execution Pattern**: Many modern recon tools (dnsx, httpx) require stdin input, not command arguments
@@ -933,6 +1201,10 @@ This specification was enhanced based on real implementation experience with the
 4. **Comprehensive Discovery**: Pattern for chaining multiple discovery types and following DNS chains
 5. **Wildcard Detection**: Essential for DNS-based tools to prevent false positives
 6. **Configuration Complexity**: Multi-tool plugins need more sophisticated config structures
+7. **ServiceScan vs PortScan**: ServiceScan plugins analyze discovered services, not targets directly
+8. **Performance Optimization**: 2-minute time budgets with parallel processing for CTF/lab efficiency
+9. **Configuration Crashes**: TOML parsing failures caused by active configuration sections vs commented defaults
+10. **Graceful Error Handling**: Plugins must continue operating with partial failures and missing dependencies
 
 ### DEBUGGING_CHECKLIST
 If your plugin isn't working as expected:

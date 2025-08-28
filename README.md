@@ -28,21 +28,24 @@ Since the security industry seems to be moving from C to Rust, I decided this wo
 
 ## ✨ What IPCrawler Does
 
-IPCrawler is a **reconnaissance automation tool** that currently focuses on DNS enumeration using both `nslookup` and `dig` simultaneously. It features a real-time terminal interface that shows live results as they come in, with a plugin architecture designed for expanding into additional reconnaissance capabilities.
+IPCrawler is a **comprehensive reconnaissance automation tool** designed for cybersecurity professionals and enthusiasts. It combines DNS enumeration, host discovery, port scanning, and web application analysis into a unified workflow with real-time visual feedback.
 
 ### 🎯 Built For
-- **Hack The Box** challenges and labs
-- **CTF competitions** and practice
-- **Network reconnaissance** during security assessments  
-- **Reconnaissance tasks** with immediate visual feedback
+- **Penetration testing** engagements and security assessments
+- **Hack The Box** challenges and OSCP lab practice
+- **CTF competitions** requiring rapid reconnaissance
+- **Bug bounty hunting** and responsible disclosure programs
+- **Network security audits** with immediate results
 
-### 🛠️ Key Features
-- **Real-time TUI**: Live updates with colored results and progress tracking
-- **Concurrent scanning**: Both tools run simultaneously for faster results
-- **Smart target handling**: Supports domains, IPv4, and IPv6 addresses
-- **Comprehensive DNS records**: A, AAAA, MX, NS, TXT, CNAME, SOA, PTR
-- **Configurable behavior**: Override tool settings via `global.toml`
-- **Detailed artifacts**: All scan results saved with timestamps
+### 🛠️ Core Capabilities
+- **Multi-phase reconnaissance**: DNS → Host Discovery → Port Scanning → Service Analysis
+- **Real-time TUI**: Live progress tracking with colored results and system monitoring
+- **Parallel processing**: Concurrent execution across all reconnaissance phases
+- **Web application analysis**: Directory enumeration and file discovery on HTTP/HTTPS services
+- **Smart target handling**: IPv4/IPv6 addresses, domains, and CIDR ranges
+- **Performance optimized**: 2-minute time budgets per service for rapid CTF/lab workflows
+- **Comprehensive coverage**: DNS records, host enumeration, port discovery, and web content analysis
+- **Professional artifacts**: Timestamped results with multiple output formats (TXT/MD/JSON)
 
 ---
 
@@ -74,9 +77,12 @@ ipcrawler --help
 ```
 
 ### Requirements
-- **Tools**: `nslookup` and `dig` in PATH
-- **Terminal**: Minimum 70x20 characters
-- **File descriptors**: ≥1024 (`ulimit -n 2048`)
+- **DNS Tools**: `nslookup` and `dig` in PATH (core reconnaissance)
+- **Port Scanner**: `rustscan` and `nmap` (optional, for comprehensive coverage)
+- **Host Discovery**: `dnsx` and `httpx` (optional, for subdomain enumeration)
+- **Web Analysis**: `feroxbuster`, `katana`, `cewl` (optional, for HTTP/HTTPS services)
+- **Terminal**: Minimum 70x20 characters for TUI
+- **File descriptors**: ≥2048 (`ulimit -n 2048`) for concurrent operations
 
 ---
 
@@ -84,23 +90,25 @@ ipcrawler --help
 
 ```
 ┌─ IPCrawler ──────────────────────────────────────────────────────────────┐
-│ Target: google.com | Status: Running | Elapsed: 00:03.2s                │
+│ Target: example.com | Status: Running | Elapsed: 00:02.8s               │
 └──────────────────────────────────────────────────────────────────────────┘
 ┌─ System ─────────────────────────────────────────────────────────────────┐
-│ CPU: 12.3% | RAM: 8.2GB/16.0GB | FDs: 45/2048                           │
+│ CPU: 18.7% | RAM: 12.4GB/16.0GB | FDs: 127/2048                         │
 └──────────────────────────────────────────────────────────────────────────┘
 ┌─ Scan Progress ──────────────┬─ Active Tasks ─────────────────────────────┐
-│ DNS Reconnaissance           │ • dig queries: Running                     │
-│ ████████████████░░░░ 82%     │ • nslookup queries: Running                │
+│ Phase 3: Service Probing     │ ✓ nslookup: Found 8 DNS records           │
+│ ████████████████████░░░░ 85% │ ✓ dig: Found 12 DNS records               │
+│                              │ ✓ hosts_discovery: Found 3 subdomains     │
+│ 17/20 tasks completed        │ ◯ looter [89s]: Analyzing web services    │
 └──────────────────────────────┴─────────────────────────────────────────────┘
 ┌─ Tabs (←→ to switch) ────────────────────────────────────────────────────┐
 │ [Overview] [Ports] [Services] [Logs] [Help]                             │
 └──────────────────────────────────────────────────────────────────────────┘
-┌─ Results ────────────────────┬─ Live Logs ─────────────────────────────────┐
-│ dig A - A: 142.250.80.78     │ 12:34:56 INF Starting dig DNS queries      │
-│ dig AAAA - AAAA: 2607:f8b0   │ 12:34:56 INF dig A query completed         │  
-│ nslookup MX - MX: smtp.goog  │ 12:34:57 INF nslookup MX query completed   │
-│ dig NS - NS: ns1.google.com  │ 12:34:57 INF Found 15 DNS records total    │
+┌─ Discovered Services ────────┬─ Live Logs ─────────────────────────────────┐
+│ 80/tcp  http   example.com   │ 14:23:15 INF ✓ port_scanner: Found 6 ports │
+│ 443/tcp https  example.com   │ 14:23:16 INF ✓ looter: Phase B - Baseline  │
+│ 53/tcp  domain example.com   │ 14:23:18 INF ✓ looter: Found /admin.php    │
+│ 22/tcp  ssh    example.com   │ 14:23:19 INF ✓ looter: Found /config.bak   │
 └──────────────────────────────┴─────────────────────────────────────────────┘
 ```
 
@@ -108,57 +116,86 @@ ipcrawler --help
 
 ## ⚙️ Configuration
 
-IPCrawler uses **optional overrides** - everything works out of the box, but you can customize:
+IPCrawler uses **smart defaults** - everything works out of the box, but cybersecurity professionals can customize for their specific use cases:
 
 ```toml
 # ~/.config/ipcrawler/global.toml
 # Uncomment sections to override defaults
 
-# [tools.dig]
-# command = "/usr/local/bin/dig"
-# base_args = ["+short", "+time=2"]
-# 
-# [tools.dig.options]  
-# record_types = ["A", "MX", "NS"]  # Only query these types
-# delay_between_queries_ms = 100    # Faster queries
-#
-# [tools.dig.limits]
-# timeout_ms = 5000                 # 5 second timeout
+[concurrency]
+max_total_scans = 50          # Total concurrent operations 
+max_port_scans = 10          # Port scanning pool size
+max_service_scans = 20       # Service analysis parallelism
+
+# [tools.port_scanner.ports]
+# scan_strategy = "top-1000"   # Port selection strategy
+# # Options: "top-100", "top-1000", "top-10000", "full", "custom"
+
+# [tools.port_scanner.rustscan]
+# timeout_ms = 1500           # Fast port discovery
+# batch_size = 2000           # Ports per batch
+
+# [tools.port_scanner.nmap]  
+# version_intensity = 4       # Service detection depth (0-9)
+# total_timeout_ms = 90000    # 90 seconds for service analysis
+
+# [tools.hosts_discovery]
+# target_ip = "127.0.0.1"     # Map discovered domains to this IP
+# auto_write = true           # Update /etc/hosts if sudo available
 ```
 
-**No rebuild required** - configuration changes apply immediately on next scan.
+**Performance Note**: The looter plugin uses internal time budgets (2 minutes per service) optimized for CTF and lab environments. All reconnaissance phases run in parallel for maximum efficiency.
 
 ---
 
 ## 📁 Output Structure
 
-All scan results are preserved:
+Professional artifacts for documentation and analysis:
 
 ```
-artifacts/runs/run_google.com_20250825_143022/
+artifacts/runs/run_example.com_20250828_142015/
 ├── scans/
-│   ├── dig_results.txt           # Raw dig output
-│   ├── nslookup_results.txt      # Raw nslookup output
-│   └── scan_summary.txt          # Combined results  
-└── reports/
-    ├── summary.txt               # Human-readable summary
-    ├── summary.md                # Markdown report
-    └── summary.json              # Machine-readable data
+│   ├── nslookup_results.txt      # DNS enumeration results
+│   ├── dig_results.txt           # DNS query outputs  
+│   ├── port_scanner_results.txt  # Port discovery and service detection
+│   ├── hosts_discovery_results.txt # Subdomain and virtual host enumeration
+│   └── looter_results.txt        # Web application analysis findings
+├── reports/
+│   ├── summary.txt               # Executive summary for reports
+│   ├── summary.md                # Technical documentation
+│   └── summary.json              # Machine-readable data for tooling
+└── artifacts/
+    ├── discovered_files/         # Retrieved web content and configs
+    ├── wordlists/               # Generated target-specific wordlists  
+    └── screenshots/             # Visual evidence (future feature)
 ```
 
 ---
 
-## 🗺️ Roadmap
+## 🗺️ Roadmap & Current Status
 
-This is just the beginning! More plugins are planned:
+### ✅ **Current Capabilities** (v0.1.0-alpha)
+- ✅ **DNS enumeration** with nslookup and dig integration
+- ✅ **Host discovery** using dnsx and httpx for subdomain/vhost enumeration
+- ✅ **Port scanning** with RustScan + Nmap two-phase discovery
+- ✅ **Web application analysis** with directory enumeration and file discovery
+- ✅ **Parallel processing** across all reconnaissance phases
+- ✅ **Real-time TUI** with live progress and system monitoring
 
-- 🔍 **Port scanning** (nmap integration)
-- 🌐 **HTTP enumeration** (directory bruteforcing) 
-- 🔒 **SSL/TLS analysis**
-- 📡 **Subdomain discovery**
-- 🗂️ **Custom plugin system**
+### 🚧 **In Development**
+- 🔒 **SSL/TLS certificate analysis** and vulnerability assessment
+- 📷 **Screenshot capture** for HTTP/HTTPS services  
+- 🧬 **Advanced payload generation** and mutation strategies
+- 🎯 **Target scope management** for large engagements
 
-*Want a specific feature? Join our Discord and let me know!*
+### 📋 **Planned Features**
+- 🌐 **API endpoint discovery** and analysis
+- 🗃️ **Database service probing** (MySQL, PostgreSQL, MongoDB)
+- 📧 **Email enumeration** and OSINT integration
+- 🔧 **Custom plugin development** framework
+- 📊 **Advanced reporting** with executive summaries
+
+*Contributing to penetration testing automation - one plugin at a time!*
 
 ---
 
@@ -192,9 +229,9 @@ echo "ulimit -n 2048" >> ~/.zshrc
 ### Terminal Size Issues
 Ensure your terminal is at least **70x20 characters**. The TUI will warn you if it's too small.
 
-### Tool Not Found
+### Tool Installation
 ```bash
-# Verify required tools
+# Core DNS tools (required)
 which nslookup dig
 
 # macOS (via Homebrew)
@@ -202,6 +239,20 @@ brew install bind
 
 # Ubuntu/Debian  
 sudo apt install dnsutils
+
+# Optional reconnaissance tools (for full functionality)
+# Port scanning
+cargo install rustscan
+sudo apt install nmap
+
+# Host discovery  
+go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+
+# Web analysis
+cargo install feroxbuster
+go install -v github.com/projectdiscovery/katana/cmd/katana@latest
+apt install cewl
 ```
 
 ---

@@ -40,6 +40,20 @@ Success Rate: {{ (tasks_completed / tasks_started * 100)|round(1) }}%
 {% endfor %}
 {% endif %}
 
+{% if plugin_findings|length > 0 %}
+=== PLUGIN FINDINGS ===
+
+{% for plugin_name, findings in plugin_findings.items() %}
+{{ findings.plugin_name|upper }} PLUGIN:
+  High-Value Files: {{ findings.high_value_files }}
+  Secrets Found: {{ findings.secrets_found }}
+  Total Findings: {{ findings.total_findings }}
+  Summary: {{ findings.summary }}
+  Report: {{ findings.artifacts_path }}
+
+{% endfor %}
+{% endif %}
+
 === ARTIFACTS ===
 Raw scan data: {{ scans_dir }}
 Plugin results: {{ scans_dir }}

@@ -1,5 +1,5 @@
 # ipcrawler Global Configuration
-# Configuration for active DNS reconnaissance plugins
+# All of the commented settings are the default settings but you can uncomment them to override them.
 
 [metadata]
 version = "1.0.0"
@@ -16,8 +16,8 @@ max_total_scans = 50
 # Port scanning pool size  
 max_port_scans = 10
 
-# Service scanning pool size (auto-calculated: max_total_scans - max_port_scans)
-max_service_scans = 40
+# Service scanning pool size (auto-calculated: max_total_scans - max_port_scans)  
+max_service_scans = 20
 
 # File descriptor requirements
 # If you get "too many open files" errors, increase your system limit:
@@ -252,3 +252,93 @@ max_total_runtime_s = 300        # 5 minutes total scan limit
 # host_timeout_sec = 300   # Per-host timeout (5 minutes)
 # auto_detect_sudo = true  # Automatically detect sudo privileges
 # fallback_to_connect_scan = true # Use -sT when sudo unavailable
+
+# ========================================
+# LOOTER PLUGIN CONFIGURATION
+# ========================================
+# Web application file discovery and content analysis for OSCP/CTF scenarios
+# Optimized for speed over stealth - designed for authorized testing environments
+# Uncomment any section below to override default plugin behavior
+
+# [tools.looter]
+# enabled = true                    # Enable looter plugin for web services
+#
+# # Time budget configuration (CTF/OSCP optimized)
+# [tools.looter.budget]
+# total_time_minutes = 2            # Total plugin runtime limit per service
+# phase_a_seconds = 18              # Crawler seed generation (15% of total)
+# phase_b_seconds = 30              # Baseline discovery (25% of total)  
+# phase_c_seconds = 36              # Enhanced discovery with CEWL mutations (30% of total)
+# phase_d_seconds = 24              # Smart file retrieval (20% of total)
+# phase_e_seconds = 12              # Content analysis and pattern matching (10% of total)
+#
+# # Tool configuration and fallback matrix
+# [tools.looter.tools]
+# # Primary crawler for seed generation
+# katana_command = "katana"
+# katana_timeout_ms = 45000        # 45 second timeout per target
+#
+# # Fallback crawler
+# hakrawler_command = "hakrawler"  
+# hakrawler_timeout_ms = 30000     # 30 second timeout per target
+#
+# # Directory bruteforcer (primary)
+# feroxbuster_command = "feroxbuster"
+# feroxbuster_threads = 20         # Aggressive threading for CTF environments
+# feroxbuster_timeout_ms = 8000    # 8 second per-request timeout
+#
+# # Directory bruteforcer fallbacks
+# ffuf_command = "ffuf"
+# ffuf_threads = 25                # Even more aggressive for CTF
+# gobuster_command = "gobuster"
+#
+# # HTTP client for file retrieval
+# xh_command = "xh"                # Modern HTTP client (faster than curl)
+# xh_timeout_ms = 20000            # 20 second timeout per file
+#
+# # Wordlist generation
+# cewl_command = "cewl"
+# cewl_timeout_ms = 45000          # 45 second timeout for wordlist generation
+#
+# # Wordlist and mutation settings
+# [tools.looter.wordlists]
+# seclists_path = "~/.local/share/seclists"  # Path to SecLists wordlists
+# baseline_wordlist = "Discovery/Web-Content/common.txt"
+# extensions = ["php", "txt", "bak", "zip", "sql", "log", "config", "old", "backup"]
+# max_baseline_words = 10000       # Hard cap on baseline wordlist size
+# max_enhanced_words = 3000        # Cap on CEWL-generated words
+# max_mutations = 1000             # Cap on wordlist mutations
+#
+# # Content analysis and pattern matching
+# [tools.looter.analysis]
+# max_file_size_mb = 100           # Skip files larger than 100MB
+# sample_size_mb = 1               # For large files, analyze first 1MB only
+# max_concurrent_downloads = 8     # Parallel file retrieval limit
+#
+# # Rate limiting and WAF evasion (minimal for CTF environments)
+# [tools.looter.rate_limiting]
+# requests_per_second = 15         # Aggressive but not completely reckless
+# backoff_multiplier = 1.5         # Exponential backoff on failures
+# max_backoff_seconds = 10         # Maximum backoff time
+#
+# # Output and reporting
+# [tools.looter.output]
+# deterministic = true             # Use deterministic RNG for reproducible results
+# create_artifacts = true         # Store retrieved files for analysis
+# generate_reports = true         # Generate comprehensive telemetry reports
+# log_level = "info"              # Logging verbosity
+#
+# # Pattern matching for secret detection
+# [tools.looter.patterns]
+# enable_secret_detection = true   # Enable pattern-based secret detection
+# enable_config_analysis = true    # Analyze configuration files
+# enable_git_analysis = true       # Special handling for .git exposure
+# priority_threshold = 5           # Minimum priority score for reporting (1-10)
+#
+# # Plugin execution triggers - when to run looter
+# [tools.looter.triggers]
+# http_ports = [80, 443, 8080, 8443, 8000, 8888, 9000, 3000]  # Common web ports
+# require_http_service = true      # Only run on detected HTTP services
+# skip_cdn_hosts = false          # Run even on CDN/cloud hosts (good for CTF)
+# skip_large_sites = false        # Don't skip large sites (good for comprehensive CTF testing)
+

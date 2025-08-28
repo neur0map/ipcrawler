@@ -32,12 +32,28 @@ impl PluginRegistry {
             tracing::info!("Port scanner plugin disabled - rustscan or nmap not available");
         }
 
+        let mut service_probe_plugins: Vec<Box<dyn crate::plugins::types::ServiceScan>> = vec![];
+        
+        // Only add looter plugin if tools are available
+        if Self::looter_tools_available() {
+            // Create a default global config for looter plugin initialization
+            let default_config = crate::config::types::GlobalConfig::default();
+            match crate::plugins::looter::LooterPlugin::new(&default_config) {
+                Ok(looter_plugin) => {
+                    service_probe_plugins.push(Box::new(looter_plugin));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to initialize looter plugin: {}", e);
+                }
+            }
+        } else {
+            tracing::info!("Looter plugin disabled - required tools not available");
+        }
+
         Self {
             recon_plugins,
             port_scan_plugins,
-            service_probe_plugins: vec![
-                // Empty for now
-            ],
+            service_probe_plugins,
             vulnerability_plugins: vec![
                 // Empty for now
             ],
@@ -110,6 +126,34 @@ impl PluginRegistry {
                     vec![]
                 }
             }
+            "looter" => {
+                // Only validate if plugin is actually loaded
+                if Self::looter_tools_available() {
+                    // Check for minimum required tools - one from each category
+                    let mut tools = vec![];
+                    if which::which("katana").is_ok() {
+                        tools.push("katana".to_string());
+                    } else if which::which("hakrawler").is_ok() {
+                        tools.push("hakrawler".to_string());
+                    }
+                    
+                    if which::which("feroxbuster").is_ok() {
+                        tools.push("feroxbuster".to_string());
+                    } else if which::which("ffuf").is_ok() {
+                        tools.push("ffuf".to_string());
+                    } else if which::which("gobuster").is_ok() {
+                        tools.push("gobuster".to_string());
+                    }
+                    
+                    if which::which("xh").is_ok() {
+                        tools.push("xh".to_string());
+                    }
+                    
+                    tools
+                } else {
+                    vec![]
+                }
+            }
             _ => vec![],
         };
         Ok(tools)
@@ -131,6 +175,19 @@ impl PluginRegistry {
     /// Allow plugin to load if at least nmap is available
     fn port_scanner_tools_available() -> bool {
         which::which("nmap").is_ok()
+    }
+
+    /// Check if looter plugin tools are available
+    /// Require at least basic tools for the plugin to be useful
+    fn looter_tools_available() -> bool {
+        // Check for essential tools - at least one crawler and one directory brute-forcer
+        let crawler_available = which::which("katana").is_ok() || which::which("hakrawler").is_ok();
+        let brute_forcer_available = which::which("feroxbuster").is_ok() || 
+                                   which::which("ffuf").is_ok() || 
+                                   which::which("gobuster").is_ok();
+        let http_client_available = which::which("xh").is_ok() || which::which("curl").is_ok();
+        
+        crawler_available && brute_forcer_available && http_client_available
     }
 
     pub fn log_plugin_summary(&self) {

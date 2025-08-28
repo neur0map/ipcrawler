@@ -58,13 +58,121 @@ impl PortScannerPlugin {
         }
     }
 
-    /// Get RustScan port range arguments
+    /// Get essential ports that should always be scanned
+    fn get_essential_ports(&self) -> Vec<u16> {
+        vec![
+            21,   // FTP
+            22,   // SSH  
+            23,   // Telnet
+            25,   // SMTP
+            53,   // DNS (Critical - was missing!)
+            80,   // HTTP (Critical - was missing!)
+            110,  // POP3
+            135,  // RPC
+            139,  // NetBIOS
+            143,  // IMAP
+            443,  // HTTPS (Critical - was missing!)
+            445,  // SMB
+            993,  // IMAPS
+            995,  // POP3S
+            1433, // MSSQL
+            3306, // MySQL
+            3389, // RDP
+            5432, // PostgreSQL
+            5900, // VNC
+            8080, // HTTP-Alt
+            8443, // HTTPS-Alt
+        ]
+    }
+
+    /// Get comprehensive port list combining essential ports with RustScan's top ports
+    fn get_comprehensive_ports(&self, strategy: &str) -> String {
+        let essential = self.get_essential_ports();
+        
+        match strategy {
+            "top-100" => {
+                // Top 100 most common ports including all essential ones
+                let mut ports = essential.clone();
+                // Add other common ports to reach ~100
+                ports.extend(vec![
+                    111, 179, 389, 554, 587, 631, 873, 902, 1080, 1194, 1521, 1723, 2049,
+                    2082, 2083, 2086, 2087, 2095, 2096, 3000, 5000, 5060, 5432, 5800,
+                    6000, 6379, 7000, 7001, 8000, 8008, 8009, 8081, 8090, 8140, 8180,
+                    8443, 8888, 9000, 9090, 9100, 9200, 9443, 9999, 10000
+                ]);
+                ports.sort_unstable();
+                ports.dedup();
+                ports.into_iter().take(100).map(|p| p.to_string()).collect::<Vec<_>>().join(",")
+            },
+            "top-1000" | "top-10000" => {
+                // For larger scans, use RustScan's --top but add essential ports via --ports
+                // We'll combine both approaches in the arguments
+                "combined".to_string()
+            },
+            _ => strategy.to_string()
+        }
+    }
+
+    /// Get RustScan port range arguments  
     fn get_rustscan_port_args(&self, config: &GlobalConfig) -> Vec<String> {
         let port_strategy = self.get_port_range(config);
 
         match port_strategy.as_str() {
-            // RustScan only supports --top (top 1000), so use that for all "top" strategies
-            "top-100" | "top-1000" | "top-10000" => vec!["--top".to_string()],
+            "top-100" => {
+                // Use comprehensive top-100 port list
+                let ports = self.get_comprehensive_ports("top-100");
+                vec!["--ports".to_string(), ports]
+            },
+            "top-1000" => {
+                // Create a comprehensive 1000-port list that includes essential ports
+                // plus the most common ports from various sources
+                let mut all_ports = self.get_essential_ports();
+                
+                // Add standard top ports (well-known and common application ports)
+                all_ports.extend((1..=1024).collect::<Vec<u16>>()); // All well-known ports 1-1024
+                
+                // Add common high application ports
+                all_ports.extend(vec![
+                    1433, 1521, 1723, 2049, 2082, 2083, 2086, 2087, 2095, 2096,
+                    3000, 3001, 3306, 3389, 4000, 4443, 5000, 5060, 5432, 5800, 5900,
+                    6000, 6379, 7000, 7001, 8000, 8008, 8009, 8080, 8081, 8090, 8140,
+                    8180, 8443, 8888, 9000, 9090, 9100, 9200, 9443, 9999, 10000
+                ]);
+                
+                all_ports.sort_unstable();
+                all_ports.dedup();
+                all_ports.truncate(1000); // Limit to exactly 1000 ports
+                
+                let ports_str = all_ports.into_iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                
+                vec!["--ports".to_string(), ports_str]
+            },
+            "top-10000" => {
+                // For top-10000, create comprehensive port list with essential ports first
+                let mut all_ports = self.get_essential_ports();
+                
+                // Add extensive port list for comprehensive scanning
+                all_ports.extend((1..=10000).filter(|&p| {
+                    // Include common service ports and ranges
+                    p <= 1024 ||                           // Well-known ports
+                    (p >= 3000 && p <= 10000) ||          // Application ports
+                    [8080, 8443, 8888, 9000, 9090, 9200, 9443, 9999].contains(&p)
+                }));
+                
+                all_ports.sort_unstable();
+                all_ports.dedup();
+                all_ports.truncate(10000); // Ensure we don't exceed 10k ports
+                
+                let ports_str = all_ports.into_iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                
+                vec!["--ports".to_string(), ports_str]
+            },
             "1-65535" => vec!["--range".to_string(), "1-65535".to_string()],
             custom_range => {
                 // Parse custom range to determine if it's a range or comma-separated ports

@@ -51,6 +51,21 @@
 {% endfor %}
 {% endif %}
 
+{% if plugin_findings|length > 0 %}
+## Plugin Findings
+
+{% for plugin_name, findings in plugin_findings.items() %}
+### {{ findings.plugin_name|title }} Plugin Results
+
+- **High-Value Files Found**: {{ findings.high_value_files }}
+- **Secrets Discovered**: {{ findings.secrets_found }}
+- **Total Findings**: {{ findings.total_findings }}
+- **Summary**: {{ findings.summary }}
+- **Detailed Report**: `{{ findings.artifacts_path }}`
+
+{% endfor %}
+{% endif %}
+
 ## File Locations
 
 - **Raw Scan Data**: `{{ scans_dir }}`

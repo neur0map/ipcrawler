@@ -149,20 +149,64 @@ install_system_tool "nmap" "nmap" "nmap" "network mapper" || true
 install_rust_tool "rustscan" "rustscan" "fast port scanner" || true
 
 echo ""
+echo "Web application scanning tools (for looter plugin):"
+install_go_tool "katana" "github.com/projectdiscovery/katana/cmd/katana" "web crawler" || true
+install_go_tool "hakrawler" "github.com/hakluke/hakrawler" "web crawler" || true
+install_rust_tool "feroxbuster" "feroxbuster" "directory brute-forcer" || true
+install_go_tool "ffuf" "github.com/ffuf/ffuf" "directory fuzzer" || true
+install_system_tool "gobuster" "gobuster" "gobuster" "directory brute-forcer" || true
+install_rust_tool "xh" "xh" "HTTP client" || true
+
+echo ""
+echo "Content analysis tools (for looter plugin):"
+install_system_tool "cewl" "cewl" "cewl" "wordlist generator" || true
+
+echo ""
+echo "SecLists wordlists (recommended for looter plugin):"
+check_seclists_install() {
+    local seclists_path="$HOME/.local/share/seclists"
+    if [ -d "$seclists_path" ]; then
+        echo "✓ SecLists already installed at $seclists_path"
+        return 0
+    else
+        echo "⚠ SecLists not found - installing wordlists"
+        echo "  This may take a few minutes..."
+        mkdir -p "$(dirname "$seclists_path")"
+        if git clone --depth 1 https://github.com/danielmiessler/SecLists.git "$seclists_path" 2>/dev/null; then
+            echo "✓ SecLists installed successfully"
+            return 0
+        else
+            echo "✗ Failed to clone SecLists"
+            echo "  Try manually: git clone https://github.com/danielmiessler/SecLists.git $seclists_path"
+            return 1
+        fi
+    fi
+}
+check_seclists_install || true
+
+echo ""
 echo "📋 Installation Summary:"
 echo "  • All missing tools are automatically installed during 'make build'"
 echo "  • DNS tools: nslookup (system), dig (auto-installed via brew/apt)"
-echo "  • Go tools: dnsx, httpx (auto-installed via 'go install')"
-echo "  • Port scanning: nmap (auto-installed via brew/apt), rustscan (auto-installed via cargo)"
+echo "  • Go tools: dnsx, httpx, katana, hakrawler, ffuf (auto-installed via 'go install')"
+echo "  • Rust tools: rustscan, feroxbuster, xh (auto-installed via cargo)"
+echo "  • System tools: nmap, gobuster, cewl (auto-installed via brew/apt)"
+echo "  • SecLists wordlists (auto-downloaded from GitHub)"
 echo "  • If auto-installation fails, corresponding plugins will be skipped gracefully"
 echo ""
 echo "💡 Prerequisites for auto-installation:"
 echo "  • Homebrew (macOS) or apt (Linux) for system packages"
-echo "  • Go compiler for Go-based tools (dnsx, httpx)"
-echo "  • Rust/Cargo for Rust-based tools (rustscan)"
+echo "  • Go compiler for Go-based tools (dnsx, httpx, katana, hakrawler, ffuf)"
+echo "  • Rust/Cargo for Rust-based tools (rustscan, feroxbuster, xh)"
+echo "  • git for SecLists wordlist download"
 echo ""
 echo "🔧 Manual installation (if auto-install fails):"
 echo "  Go tools:   go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
 echo "             go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
-echo "  Rust tools: cargo install rustscan"
-echo "  System:     brew install nmap bind (macOS) or apt install nmap dnsutils (Linux)"
+echo "             go install -v github.com/projectdiscovery/katana/cmd/katana@latest"
+echo "             go install -v github.com/hakluke/hakrawler@latest"
+echo "             go install -v github.com/ffuf/ffuf@latest"
+echo "  Rust tools: cargo install rustscan feroxbuster xh"
+echo "  System:     brew install nmap bind gobuster cewl (macOS)"
+echo "             sudo apt install nmap dnsutils gobuster cewl (Linux)"
+echo "  SecLists:   git clone https://github.com/danielmiessler/SecLists.git ~/.local/share/seclists"
