@@ -1,0 +1,30 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output
+/output/
+/test-output/
+*.log
+
+# Credentials
+.env
+*.key
+*.pem
+
+development-files
+node_modules
+test-scan

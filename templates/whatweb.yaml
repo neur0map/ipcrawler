@@ -1,0 +1,20 @@
+name: whatweb
+description: Web technology identifier
+enabled: false
+
+command:
+  binary: whatweb
+  args:
+    - "-a"
+    - "3"
+    - "{{target}}"
+    - "--log-verbose={{output_dir}}/whatweb/{{target}}.txt"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/whatweb/*.txt"
+
+timeout: 300
+
+env: {}

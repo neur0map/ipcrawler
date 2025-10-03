@@ -1,0 +1,19 @@
+name: ping
+description: Simple connectivity test
+enabled: true
+
+command:
+  binary: ping
+  args:
+    - "-c"
+    - "4"
+    - "{{target}}"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/ping/*.txt"
+
+timeout: 30
+
+env: {}

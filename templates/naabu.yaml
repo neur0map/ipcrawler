@@ -1,0 +1,22 @@
+name: naabu
+description: Fast port scanner written in Go
+enabled: false
+
+command:
+  binary: naabu
+  args:
+    - "-host"
+    - "{{target}}"
+    - "-p"
+    - "-"
+    - "-o"
+    - "{{output_dir}}/naabu/{{target}}.txt"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/naabu/*.txt"
+
+timeout: 600
+
+env: {}

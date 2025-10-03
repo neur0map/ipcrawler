@@ -1,0 +1,18 @@
+name: test-scan
+description: Test tool that creates output files
+enabled: true
+
+command:
+  binary: bash
+  args:
+    - "-c"
+    - "mkdir -p {{output_dir}}/test-scan && echo 'Scan started at: '$(date) > {{output_dir}}/test-scan/scan-log.txt && sleep 2 && echo 'Finding: SSH port 22 is open' >> {{output_dir}}/test-scan/scan-log.txt && sleep 2 && echo 'Finding: HTTP port 80 is open' >> {{output_dir}}/test-scan/scan-log.txt && sleep 2 && echo 'Finding: Vulnerable Apache version detected' >> {{output_dir}}/test-scan/scan-log.txt && echo 'Scan completed at: '$(date) >> {{output_dir}}/test-scan/scan-log.txt"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/test-scan/*.txt"
+
+timeout: 30
+
+env: {}

@@ -1,0 +1,25 @@
+name: nmap
+description: Network port scanner - comprehensive scan (requires sudo for best results)
+enabled: false
+
+command:
+  binary: nmap
+  args:
+    - "-sV"
+    - "-sC"
+    - "-p-"
+    - "-Pn"
+    - "-oN"
+    - "{{output_dir}}/nmap/scan-full.txt"
+    - "{{target}}"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/nmap/*.xml"
+  - pattern: "{{output_dir}}/nmap/*.nmap"
+  - pattern: "{{output_dir}}/nmap/*.gnmap"
+
+timeout: 3600
+
+env: {}
