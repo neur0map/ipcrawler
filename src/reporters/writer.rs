@@ -39,6 +39,7 @@ fn write_text_summary(
         tasks_started => state.tasks_started,
         tasks_completed => state.tasks_completed,
         errors => &state.errors,
+        plugin_findings => &state.plugin_findings,
         scans_dir => dirs.scans.display().to_string(),
         report_dir => dirs.report.display().to_string(),
         version => env!("CARGO_PKG_VERSION")
@@ -76,6 +77,7 @@ fn write_markdown_summary(
         tasks_started => state.tasks_started,
         tasks_completed => state.tasks_completed,
         errors => &state.errors,
+        plugin_findings => &state.plugin_findings,
         scans_dir => dirs.scans.display().to_string(),
         report_dir => dirs.report.display().to_string(),
         version => env!("CARGO_PKG_VERSION")

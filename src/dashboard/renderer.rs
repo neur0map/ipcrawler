@@ -150,7 +150,7 @@ impl Renderer {
 
         // Status indicator
         let status_str = match state.status {
-            AppStatus::Completed => " [DONE]",
+            AppStatus::Completed => " ✓ COMPLETE",
             _ => "",
         };
 
@@ -197,6 +197,22 @@ impl Renderer {
         draw_box(&mut self.stdout, rect, "Scan Progress")?;
         let inner = rect.inner(1);
 
+        // Show completion message if done
+        if state.status == AppStatus::Completed {
+            queue!(
+                self.stdout,
+                MoveTo(inner.x, inner.y),
+                SetForegroundColor(Color::Green),
+                SetAttribute(Attribute::Bold),
+                Print("✓ SCAN COMPLETE"),
+                ResetColor,
+                MoveTo(inner.x, inner.y + 1),
+                SetForegroundColor(Color::Cyan),
+                Print("Press 'q' to quit the dashboard"),
+                ResetColor
+            )?;
+        }
+        
         // Phase label with spinner for running scans
         if state.status == AppStatus::Running && !state.scan.phase_label.is_empty() {
             // Add spinner to indicate active scanning

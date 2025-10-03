@@ -32,7 +32,7 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
         crate::dashboard::start_dashboard_task(cli.target.clone()).await;
 
     // Start system stats monitoring
-    let _stats_handle = crate::monitoring::start_system_stats_task(ui_sender.clone());
+    let stats_handle = crate::monitoring::start_system_stats_task(ui_sender.clone());
 
     // Generate run ID and prepare directories
     let run_id = time::new_run_id(&cli.target);
@@ -85,7 +85,10 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
     // Handle post-scan behavior
     if let Some(handle) = dashboard_handle {
         tracing::info!("Dashboard is running - press 'q' to quit");
+        
         // Wait for dashboard to complete (user presses 'q')
+        // Keep ui_sender alive so channel doesn't close
+        let _sender_guard = ui_sender.clone();
         match handle.await {
             Ok(()) => {
                 tracing::info!("Dashboard exited successfully");
@@ -94,6 +97,9 @@ pub async fn run(cli: crate::cli::args::Cli) -> Result<()> {
                 tracing::warn!("Dashboard task failed: {}", e);
             }
         }
+        
+        // Stop stats monitoring
+        stats_handle.abort();
 
         // Give a small delay to ensure clean exit
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;

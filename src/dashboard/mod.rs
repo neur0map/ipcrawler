@@ -5,7 +5,7 @@ pub mod renderer;
 pub mod widgets;
 
 use crossterm::{
-    cursor::{Hide, Show},
+    cursor::{Hide, MoveTo, Show},
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{
@@ -72,18 +72,30 @@ impl Dashboard {
     }
 
     fn teardown_terminal() -> io::Result<()> {
-        // Ensure all commands are executed in correct order
-        execute!(io::stdout(), Show)?;
-        execute!(io::stdout(), LeaveAlternateScreen)?;
-        io::stdout().flush()?;
+        // Proper terminal cleanup sequence to prevent broken terminal state
+        // 1. Clear screen in alternate buffer
+        let _ = execute!(io::stdout(), Clear(ClearType::All));
+        
+        // 2. Reset cursor position
+        let _ = execute!(io::stdout(), MoveTo(0, 0));
+        
+        // 3. Show cursor
+        let _ = execute!(io::stdout(), Show);
+        
+        // 4. Leave alternate screen
+        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        
+        // 5. Flush before disabling raw mode
+        let _ = io::stdout().flush();
 
-        // Small delay to ensure terminal commands are processed
-        std::thread::sleep(Duration::from_millis(10));
+        // 6. Disable raw mode
+        let _ = disable_raw_mode();
 
-        disable_raw_mode()?;
-
-        // Final flush after disabling raw mode
-        io::stdout().flush()?;
+        // 7. Final flush and clear in main buffer
+        let _ = execute!(io::stdout(), Clear(ClearType::All));
+        let _ = execute!(io::stdout(), MoveTo(0, 0));
+        let _ = io::stdout().flush();
+        
         Ok(())
     }
 
