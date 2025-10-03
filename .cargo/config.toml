@@ -1,8 +1,0 @@
-[alias]
-# Run in release mode by default
-r = "run --release --"
-scan = "run --release -- -t"
-
-[build]
-# Default to release for cargo run
-# Note: This doesn't work for cargo run, but documents intent
