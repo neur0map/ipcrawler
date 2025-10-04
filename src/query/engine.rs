@@ -61,9 +61,12 @@ impl QueryEngine {
         None
     }
     
-    async fn query_with_rag_internal(&self, question: &str, api_key: &str) -> Result<String> {
-        // Step 1: Create embedding for the question using OpenAI
-        let embedding = self.create_embedding(question, api_key).await?;
+    async fn query_with_rag_internal(&self, question: &str, _api_key: &str) -> Result<String> {
+        // Load config to get provider info
+        let config = crate::setup::config::Config::load()?;
+        
+        // Step 1: Create embedding for the question
+        let embedding = self.create_embedding(question, &config).await?;
         
         // Step 2: Search Qdrant for similar vectors
         let qdrant_url = std::env::var("QDRANT_URL")
@@ -118,72 +121,238 @@ impl QueryEngine {
             context, question
         );
         
-        // Step 5: Get completion from OpenAI
-        let answer = self.get_completion(&prompt, api_key).await?;
+        // Step 5: Get completion from LLM provider
+        let answer = self.get_completion(&prompt, &config).await?;
         
         Ok(answer)
     }
     
-    async fn create_embedding(&self, text: &str, api_key: &str) -> Result<Vec<f32>> {
+    async fn create_embedding(&self, text: &str, config: &crate::setup::config::Config) -> Result<Vec<f32>> {
+        use crate::setup::config::EmbeddingsProvider;
+        
         let client = reqwest::Client::new();
         
-        let response = client
-            .post("https://api.openai.com/v1/embeddings")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .header("Content-Type", "application/json")
-            .json(&serde_json::json!({
-                "input": text,
-                "model": "text-embedding-3-small"
-            }))
-            .send()
-            .await
-            .context("Failed to call OpenAI embeddings API")?;
-        
-        let json: serde_json::Value = response.json().await?;
-        
-        let embedding = json["data"][0]["embedding"]
-            .as_array()
-            .context("Invalid embedding response")?
-            .iter()
-            .filter_map(|v| v.as_f64().map(|f| f as f32))
-            .collect();
-        
-        Ok(embedding)
+        match config.embeddings.provider {
+            EmbeddingsProvider::OpenAI => {
+                let api_key = config.embeddings.api_key.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("OpenAI API key not found"))?;
+                
+                let response = client
+                    .post("https://api.openai.com/v1/embeddings")
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .header("Content-Type", "application/json")
+                    .json(&serde_json::json!({
+                        "input": text,
+                        "model": config.embeddings.model
+                    }))
+                    .send()
+                    .await
+                    .context("Failed to call OpenAI embeddings API")?;
+                
+                let json: serde_json::Value = response.json().await?;
+                let embedding = json["data"][0]["embedding"]
+                    .as_array()
+                    .context("Invalid embedding response")?
+                    .iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect();
+                
+                Ok(embedding)
+            }
+            EmbeddingsProvider::Huggingface => {
+                let api_key = config.embeddings.api_key.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Huggingface API key not found"))?;
+                
+                let url = format!("https://api-inference.huggingface.co/models/{}", config.embeddings.model);
+                let response = client
+                    .post(&url)
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .header("Content-Type", "application/json")
+                    .json(&serde_json::json!({
+                        "inputs": text
+                    }))
+                    .send()
+                    .await
+                    .context("Failed to call Huggingface embeddings API")?;
+                
+                let embedding: Vec<f32> = response.json().await
+                    .context("Failed to parse Huggingface embedding response")?;
+                
+                Ok(embedding)
+            }
+            EmbeddingsProvider::Ollama => {
+                let response = client
+                    .post("http://localhost:11434/api/embeddings")
+                    .header("Content-Type", "application/json")
+                    .json(&serde_json::json!({
+                        "model": config.embeddings.model,
+                        "prompt": text
+                    }))
+                    .send()
+                    .await
+                    .context("Failed to call Ollama embeddings API")?;
+                
+                let json: serde_json::Value = response.json().await?;
+                let embedding = json["embedding"]
+                    .as_array()
+                    .context("Invalid Ollama embedding response")?
+                    .iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect();
+                
+                Ok(embedding)
+            }
+            EmbeddingsProvider::Local => {
+                anyhow::bail!("Local embeddings not yet implemented")
+            }
+        }
     }
     
-    async fn get_completion(&self, prompt: &str, api_key: &str) -> Result<String> {
+    async fn get_completion(&self, prompt: &str, config: &crate::setup::config::Config) -> Result<String> {
+        use crate::setup::config::LlmProvider;
+        
         let client = reqwest::Client::new();
         
-        let response = client
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .header("Content-Type", "application/json")
-            .json(&serde_json::json!({
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a helpful penetration testing assistant."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "temperature": 0.3
-            }))
-            .send()
-            .await
-            .context("Failed to call OpenAI chat API")?;
+        let messages = serde_json::json!([
+            {
+                "role": "system",
+                "content": "You are a helpful penetration testing assistant."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]);
         
-        let json: serde_json::Value = response.json().await?;
-        
-        let answer = json["choices"][0]["message"]["content"]
-            .as_str()
-            .context("Invalid completion response")?
-            .to_string();
-        
-        Ok(answer)
+        match config.llm.provider {
+            LlmProvider::OpenAI => {
+                let api_key = config.llm.api_key.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("OpenAI API key not found"))?;
+                
+                let response = client
+                    .post("https://api.openai.com/v1/chat/completions")
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .header("Content-Type", "application/json")
+                    .json(&serde_json::json!({
+                        "model": config.llm.model,
+                        "messages": messages,
+                        "temperature": 0.3
+                    }))
+                    .send()
+                    .await
+                    .context("Failed to call OpenAI chat API")?;
+                
+                let json: serde_json::Value = response.json().await?;
+                let answer = json["choices"][0]["message"]["content"]
+                    .as_str()
+                    .context("Invalid completion response")?
+                    .to_string();
+                
+                Ok(answer)
+            }
+            LlmProvider::Groq | LlmProvider::OpenRouter => {
+                let api_key = config.llm.api_key.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("API key not found"))?;
+                let base_url = config.llm.api_base.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("API base URL not configured"))?;
+                let url = format!("{}/chat/completions", base_url);
+                
+                let mut headers = reqwest::header::HeaderMap::new();
+                headers.insert("Authorization", format!("Bearer {}", api_key).parse()?);
+                headers.insert("Content-Type", "application/json".parse()?);
+                
+                if matches!(config.llm.provider, LlmProvider::OpenRouter) {
+                    headers.insert("HTTP-Referer", "https://github.com/ipcrawler".parse()?);
+                    headers.insert("X-Title", "IPCrawler".parse()?);
+                }
+                
+                let response = client
+                    .post(&url)
+                    .headers(headers)
+                    .json(&serde_json::json!({
+                        "model": config.llm.model,
+                        "messages": messages,
+                        "temperature": 0.3
+                    }))
+                    .send()
+                    .await
+                    .context("Failed to call LLM API")?;
+                
+                let json: serde_json::Value = response.json().await?;
+                let answer = json["choices"][0]["message"]["content"]
+                    .as_str()
+                    .context("Invalid completion response")?
+                    .to_string();
+                
+                Ok(answer)
+            }
+            LlmProvider::Huggingface => {
+                let api_key = config.llm.api_key.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Huggingface API key not found"))?;
+                let url = format!("{}/{}", 
+                    config.llm.api_base.as_ref().unwrap_or(&"https://api-inference.huggingface.co/models".to_string()),
+                    config.llm.model
+                );
+                
+                let response = client
+                    .post(&url)
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .header("Content-Type", "application/json")
+                    .json(&serde_json::json!({
+                        "inputs": prompt,
+                        "parameters": {
+                            "temperature": 0.3,
+                            "max_new_tokens": 1024
+                        }
+                    }))
+                    .send()
+                    .await
+                    .context("Failed to call Huggingface API")?;
+                
+                let json: serde_json::Value = response.json().await?;
+                
+                let answer = if let Some(arr) = json.as_array() {
+                    arr.first()
+                        .and_then(|v| v["generated_text"].as_str())
+                        .unwrap_or("No response generated")
+                        .to_string()
+                } else {
+                    json["generated_text"].as_str()
+                        .unwrap_or("No response generated")
+                        .to_string()
+                };
+                
+                Ok(answer)
+            }
+            LlmProvider::Ollama => {
+                let url = format!("{}/api/chat", 
+                    config.llm.api_base.as_ref().unwrap_or(&"http://localhost:11434".to_string())
+                );
+                
+                let response = client
+                    .post(&url)
+                    .header("Content-Type", "application/json")
+                    .json(&serde_json::json!({
+                        "model": config.llm.model,
+                        "messages": messages,
+                        "stream": false
+                    }))
+                    .send()
+                    .await
+                    .context("Failed to call Ollama API")?;
+                
+                let json: serde_json::Value = response.json().await?;
+                let answer = json["message"]["content"]
+                    .as_str()
+                    .context("Invalid Ollama response")?
+                    .to_string();
+                
+                Ok(answer)
+            }
+            _ => {
+                anyhow::bail!("Unsupported LLM provider: {:?}", config.llm.provider)
+            }
+        }
     }
     
     async fn fallback_search(&self, question: &str, output_dir: &Path) -> Result<String> {

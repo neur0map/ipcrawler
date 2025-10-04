@@ -192,4 +192,150 @@ impl ModelDetector {
             },
         ]
     }
+
+    pub fn available_groq_models() -> Vec<ModelInfo> {
+        vec![
+            ModelInfo {
+                name: "llama-3.3-70b-versatile".to_string(),
+                provider: "Groq".to_string(),
+                size: None,
+                description: "Llama 3.3 70B - Most capable, versatile model".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "llama-3.1-70b-versatile".to_string(),
+                provider: "Groq".to_string(),
+                size: None,
+                description: "Llama 3.1 70B - High performance on hardware".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "llama-3.1-8b-instant".to_string(),
+                provider: "Groq".to_string(),
+                size: None,
+                description: "Llama 3.1 8B - Fast, lightweight model".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "mixtral-8x7b-32768".to_string(),
+                provider: "Groq".to_string(),
+                size: None,
+                description: "Mixtral 8x7B - Large context window (32k tokens)".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "gemma2-9b-it".to_string(),
+                provider: "Groq".to_string(),
+                size: None,
+                description: "Google Gemma 2 9B - Efficient instruction-tuned model".to_string(),
+                requires_api_key: true,
+            },
+        ]
+    }
+
+    pub fn available_openrouter_models() -> Vec<ModelInfo> {
+        vec![
+            ModelInfo {
+                name: "openai/gpt-4o".to_string(),
+                provider: "OpenRouter".to_string(),
+                size: None,
+                description: "GPT-4o via OpenRouter - Most capable".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "anthropic/claude-3.5-sonnet".to_string(),
+                provider: "OpenRouter".to_string(),
+                size: None,
+                description: "Claude 3.5 Sonnet - Excellent reasoning".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "google/gemini-pro-1.5".to_string(),
+                provider: "OpenRouter".to_string(),
+                size: None,
+                description: "Gemini Pro 1.5 - Large context window".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "meta-llama/llama-3.1-70b-instruct".to_string(),
+                provider: "OpenRouter".to_string(),
+                size: None,
+                description: "Llama 3.1 70B Instruct - Open source, powerful".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "mistralai/mixtral-8x7b-instruct".to_string(),
+                provider: "OpenRouter".to_string(),
+                size: None,
+                description: "Mixtral 8x7B Instruct - Fast and capable".to_string(),
+                requires_api_key: true,
+            },
+        ]
+    }
+
+    pub fn available_huggingface_models() -> Vec<ModelInfo> {
+        vec![
+            ModelInfo {
+                name: "meta-llama/Llama-3.1-70B-Instruct".to_string(),
+                provider: "Huggingface".to_string(),
+                size: None,
+                description: "Llama 3.1 70B Instruct - Powerful instruction-following".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "meta-llama/Llama-3.1-8B-Instruct".to_string(),
+                provider: "Huggingface".to_string(),
+                size: None,
+                description: "Llama 3.1 8B Instruct - Fast and efficient".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "mistralai/Mixtral-8x7B-Instruct-v0.1".to_string(),
+                provider: "Huggingface".to_string(),
+                size: None,
+                description: "Mixtral 8x7B - Mixture of experts model".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "microsoft/Phi-3-medium-4k-instruct".to_string(),
+                provider: "Huggingface".to_string(),
+                size: None,
+                description: "Phi-3 Medium - Small but powerful".to_string(),
+                requires_api_key: true,
+            },
+            ModelInfo {
+                name: "Qwen/Qwen2.5-72B-Instruct".to_string(),
+                provider: "Huggingface".to_string(),
+                size: None,
+                description: "Qwen 2.5 72B - Strong reasoning capabilities".to_string(),
+                requires_api_key: true,
+            },
+        ]
+    }
+
+    pub fn available_huggingface_embeddings() -> Vec<ModelInfo> {
+        vec![
+            ModelInfo {
+                name: "sentence-transformers/all-MiniLM-L6-v2".to_string(),
+                provider: "Huggingface".to_string(),
+                size: None,
+                description: "Fast, lightweight embedding model (384 dimensions)".to_string(),
+                requires_api_key: false,
+            },
+            ModelInfo {
+                name: "sentence-transformers/all-mpnet-base-v2".to_string(),
+                provider: "Huggingface".to_string(),
+                size: None,
+                description: "High quality embeddings (768 dimensions)".to_string(),
+                requires_api_key: false,
+            },
+            ModelInfo {
+                name: "BAAI/bge-large-en-v1.5".to_string(),
+                provider: "Huggingface".to_string(),
+                size: None,
+                description: "Best quality embeddings (1024 dimensions)".to_string(),
+                requires_api_key: false,
+            },
+        ]
+    }
 }

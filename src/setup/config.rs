@@ -28,6 +28,8 @@ pub enum LlmProvider {
     Groq,
     Together,
     Azure,
+    OpenRouter,
+    Huggingface,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +61,7 @@ pub enum EmbeddingsProvider {
     OpenAI,
     Ollama,
     Local,
+    Huggingface,
 }
 
 impl Config {

@@ -4,7 +4,6 @@ use dialoguer::{theme::ColorfulTheme, Select, Input, Confirm, Password};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 use tokio::process::Command;
-use std::io::Write;
 
 use super::config::{Config, LlmProvider, VectorDbProvider, EmbeddingsProvider};
 use super::models::ModelDetector;
@@ -230,18 +229,223 @@ impl SetupWizard {
 
         let provider_choice = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Select LLM provider")
-            .items(&["OpenAI", "Ollama", "Groq", "Together AI"])
+            .items(&["OpenAI", "Ollama", "Groq", "OpenRouter", "Huggingface", "Together AI"])
             .default(0)
             .interact()?;
 
         match provider_choice {
             0 => self.configure_openai(qdrant_available).await,
             1 => self.configure_ollama(qdrant_available).await,
-            _ => {
-                println!("{}", "Other providers coming soon!".yellow());
+            2 => self.configure_groq(qdrant_available).await,
+            3 => self.configure_openrouter(qdrant_available).await,
+            4 => self.configure_huggingface(qdrant_available).await,
+            5 => {
+                println!("{}", "Together AI coming soon!".yellow());
                 self.configure_openai(qdrant_available).await
             }
+            _ => unreachable!(),
         }
+    }
+
+    async fn configure_groq(&self, qdrant_available: bool) -> Result<Config> {
+        println!("\n{}", "(cloud)  Configuring Groq...".bright_cyan().bold());
+
+        // Get API key
+        let api_key = Password::with_theme(&ColorfulTheme::default())
+            .with_prompt("Groq API Key (get one at https://console.groq.com)")
+            .interact()?;
+
+        if api_key.is_empty() {
+            anyhow::bail!("API key is required");
+        }
+
+        // Select model
+        let models = ModelDetector::available_groq_models();
+        let model_names: Vec<String> = models.iter()
+            .map(|m| format!("{} - {}", m.name, m.description))
+            .collect();
+
+        let model_idx = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select LLM model")
+            .items(&model_names)
+            .default(0)
+            .interact()?;
+
+        let llm_model = models[model_idx].name.clone();
+
+        // Select embedding model - Groq doesn't provide embeddings, so use OpenAI or Ollama
+        println!("\n{}", "Note: Groq doesn't provide embeddings. Choose an embedding provider:".yellow());
+        let embedding_choice = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select embedding provider")
+            .items(&["OpenAI (requires API key)", "Ollama (local, free)"])
+            .default(0)
+            .interact()?;
+
+        let (embeddings_provider, embedding_model, embeddings_api_key) = if embedding_choice == 0 {
+            let emb_key = Password::with_theme(&ColorfulTheme::default())
+                .with_prompt("OpenAI API Key for embeddings")
+                .interact()?;
+            (EmbeddingsProvider::OpenAI, "text-embedding-3-small".to_string(), Some(emb_key))
+        } else {
+            (EmbeddingsProvider::Ollama, "nomic-embed-text".to_string(), None)
+        };
+
+        // Vector DB
+        let vector_db_config = self.configure_vector_db(qdrant_available).await?;
+
+        Ok(Config {
+            llm: super::config::LlmConfig {
+                provider: LlmProvider::Groq,
+                model: llm_model,
+                api_key: Some(api_key),
+                api_base: Some("https://api.groq.com/openai/v1".to_string()),
+            },
+            embeddings: super::config::EmbeddingsConfig {
+                provider: embeddings_provider,
+                model: embedding_model,
+                api_key: embeddings_api_key,
+            },
+            vector_db: vector_db_config,
+        })
+    }
+
+    async fn configure_openrouter(&self, qdrant_available: bool) -> Result<Config> {
+        println!("\n{}", "(cloud)  Configuring OpenRouter...".bright_cyan().bold());
+
+        // Get API key
+        let api_key = Password::with_theme(&ColorfulTheme::default())
+            .with_prompt("OpenRouter API Key (get one at https://openrouter.ai)")
+            .interact()?;
+
+        if api_key.is_empty() {
+            anyhow::bail!("API key is required");
+        }
+
+        // Select model
+        let models = ModelDetector::available_openrouter_models();
+        let model_names: Vec<String> = models.iter()
+            .map(|m| format!("{} - {}", m.name, m.description))
+            .collect();
+
+        let model_idx = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select LLM model")
+            .items(&model_names)
+            .default(0)
+            .interact()?;
+
+        let llm_model = models[model_idx].name.clone();
+
+        // Select embedding model - OpenRouter doesn't provide embeddings
+        println!("\n{}", "Note: OpenRouter doesn't provide embeddings. Choose an embedding provider:".yellow());
+        let embedding_choice = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select embedding provider")
+            .items(&["OpenAI (requires API key)", "Ollama (local, free)"])
+            .default(0)
+            .interact()?;
+
+        let (embeddings_provider, embedding_model, embeddings_api_key) = if embedding_choice == 0 {
+            let emb_key = Password::with_theme(&ColorfulTheme::default())
+                .with_prompt("OpenAI API Key for embeddings")
+                .interact()?;
+            (EmbeddingsProvider::OpenAI, "text-embedding-3-small".to_string(), Some(emb_key))
+        } else {
+            (EmbeddingsProvider::Ollama, "nomic-embed-text".to_string(), None)
+        };
+
+        // Vector DB
+        let vector_db_config = self.configure_vector_db(qdrant_available).await?;
+
+        Ok(Config {
+            llm: super::config::LlmConfig {
+                provider: LlmProvider::OpenRouter,
+                model: llm_model,
+                api_key: Some(api_key),
+                api_base: Some("https://openrouter.ai/api/v1".to_string()),
+            },
+            embeddings: super::config::EmbeddingsConfig {
+                provider: embeddings_provider,
+                model: embedding_model,
+                api_key: embeddings_api_key,
+            },
+            vector_db: vector_db_config,
+        })
+    }
+
+    async fn configure_huggingface(&self, qdrant_available: bool) -> Result<Config> {
+        println!("\n{}", "(cloud)  Configuring Huggingface...".bright_cyan().bold());
+
+        // Get API key
+        let api_key = Password::with_theme(&ColorfulTheme::default())
+            .with_prompt("Huggingface API Key (get one at https://huggingface.co/settings/tokens)")
+            .interact()?;
+
+        if api_key.is_empty() {
+            anyhow::bail!("API key is required");
+        }
+
+        // Select model
+        let models = ModelDetector::available_huggingface_models();
+        let model_names: Vec<String> = models.iter()
+            .map(|m| format!("{} - {}", m.name, m.description))
+            .collect();
+
+        let model_idx = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select LLM model")
+            .items(&model_names)
+            .default(0)
+            .interact()?;
+
+        let llm_model = models[model_idx].name.clone();
+
+        // Select embedding model
+        println!("\n{}", "Choose embedding provider:".bright_white());
+        let embedding_choice = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Select embedding provider")
+            .items(&["Huggingface (free inference API)", "OpenAI (requires API key)", "Ollama (local, free)"])
+            .default(0)
+            .interact()?;
+
+        let (embeddings_provider, embedding_model, embeddings_api_key) = match embedding_choice {
+            0 => {
+                let hf_emb_models = ModelDetector::available_huggingface_embeddings();
+                let hf_emb_names: Vec<String> = hf_emb_models.iter()
+                    .map(|m| format!("{} - {}", m.name, m.description))
+                    .collect();
+                let emb_idx = Select::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Select embedding model")
+                    .items(&hf_emb_names)
+                    .default(0)
+                    .interact()?;
+                (EmbeddingsProvider::Huggingface, hf_emb_models[emb_idx].name.clone(), Some(api_key.clone()))
+            }
+            1 => {
+                let emb_key = Password::with_theme(&ColorfulTheme::default())
+                    .with_prompt("OpenAI API Key for embeddings")
+                    .interact()?;
+                (EmbeddingsProvider::OpenAI, "text-embedding-3-small".to_string(), Some(emb_key))
+            }
+            _ => {
+                (EmbeddingsProvider::Ollama, "nomic-embed-text".to_string(), None)
+            }
+        };
+
+        // Vector DB
+        let vector_db_config = self.configure_vector_db(qdrant_available).await?;
+
+        Ok(Config {
+            llm: super::config::LlmConfig {
+                provider: LlmProvider::Huggingface,
+                model: llm_model,
+                api_key: Some(api_key),
+                api_base: Some("https://api-inference.huggingface.co/models".to_string()),
+            },
+            embeddings: super::config::EmbeddingsConfig {
+                provider: embeddings_provider,
+                model: embedding_model,
+                api_key: embeddings_api_key,
+            },
+            vector_db: vector_db_config,
+        })
     }
 
     async fn prompt_ollama_model_install(&self) -> Result<String> {
