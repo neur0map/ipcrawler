@@ -1,0 +1,29 @@
+name: nmap-sudo
+description: Comprehensive port scan with service detection and OS fingerprinting (requires sudo)
+enabled: true
+
+command:
+  binary: nmap
+  args:
+    - "-sS"
+    - "-sV"
+    - "-O"
+    - "-T4"
+    - "-p-"
+    - "-oN"
+    - "{{output_dir}}/nmap_full_scan.txt"
+    - "-oX"
+    - "{{output_dir}}/nmap_scan.xml"
+    - "{{target}}"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/nmap_full_scan.txt"
+  - pattern: "{{output_dir}}/nmap_scan.xml"
+
+timeout: 3600
+
+env: {}
+
+requires_sudo: true

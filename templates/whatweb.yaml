@@ -1,0 +1,21 @@
+name: whatweb
+description: Web technology identification
+enabled: true
+
+command:
+  binary: whatweb
+  args:
+    - "-v"
+    - "-a"
+    - "3"
+    - "{{target}}"
+
+depends_on: []
+
+outputs: []
+
+timeout: 300
+
+env: {}
+
+requires_sudo: false

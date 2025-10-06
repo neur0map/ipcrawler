@@ -1,0 +1,20 @@
+name: ping
+description: Basic connectivity check
+enabled: true
+
+command:
+  binary: ping
+  args:
+    - "-c"
+    - "4"
+    - "{{target}}"
+
+depends_on: []
+
+outputs: []
+
+timeout: 30
+
+env: {}
+
+requires_sudo: false

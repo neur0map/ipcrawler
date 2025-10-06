@@ -1,0 +1,26 @@
+name: gobuster
+description: Directory and file brute-forcing
+enabled: false
+
+command:
+  binary: gobuster
+  args:
+    - "dir"
+    - "-u"
+    - "{{target}}"
+    - "-w"
+    - "/usr/share/wordlists/dirb/common.txt"
+    - "-o"
+    - "{{output_dir}}/gobuster_results.txt"
+    - "-q"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/gobuster_results.txt"
+
+timeout: 1800
+
+env: {}
+
+requires_sudo: false

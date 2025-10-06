@@ -1,0 +1,22 @@
+name: nikto
+description: Web server vulnerability scanner
+enabled: true
+
+command:
+  binary: nikto
+  args:
+    - "-h"
+    - "{{target}}"
+    - "-output"
+    - "{{output_dir}}/nikto_results.txt"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/nikto_results.txt"
+
+timeout: 1800
+
+env: {}
+
+requires_sudo: false
