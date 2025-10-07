@@ -1,0 +1,116 @@
+name: Rust Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt
+          override: true
+
+      - name: Check formatting
+        id: fmt_check
+        run: cargo fmt -- --check
+        continue-on-error: true
+
+      - name: Auto-fix formatting (PR only)
+        if: |
+          steps.fmt_check.outcome == 'failure' &&
+          github.event_name == 'pull_request'
+        run: |
+          cargo fmt
+          git config --local user.email \
+            "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A
+          git diff --staged --quiet || \
+            git commit -m "Auto-fix: Apply rustfmt formatting"
+          git push
+
+      - name: Fail if formatting issues found (push to main)
+        if: |
+          steps.fmt_check.outcome == 'failure' &&
+          github.event_name == 'push'
+        run: exit 1
+
+  clippy:
+    name: Clippy Lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+          override: true
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run clippy
+        id: clippy_check
+        run: |
+          cargo clippy --all-targets --all-features -- -D warnings
+        continue-on-error: true
+
+      - name: Auto-fix clippy issues (PR only)
+        if: |
+          steps.clippy_check.outcome == 'failure' &&
+          github.event_name == 'pull_request'
+        run: |
+          cargo clippy --all-targets --all-features --fix \
+            --allow-dirty --allow-staged
+          git config --local user.email \
+            "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A
+          git diff --staged --quiet || \
+            git commit -m "Auto-fix: Apply clippy suggestions"
+          git push
+
+      - name: Fail if clippy issues found (push to main)
+        if: |
+          steps.clippy_check.outcome == 'failure' &&
+          github.event_name == 'push'
+        run: exit 1
