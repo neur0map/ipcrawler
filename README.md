@@ -42,10 +42,13 @@ ipcrawler setup
 
 Guides you through:
 - LLM provider selection (Groq, OpenAI, Anthropic, Ollama)
-- API key configuration
+- API key configuration (hidden input for security)
+- Embedding model configuration (for RAG/semantic search)
 - Default settings (templates directory, verbose mode)
 
 Config stored at: `~/.config/ipcrawler/config.toml` with secure permissions (0600)
+
+**Note:** API keys are entered with hidden input (password-style) for security.
 
 ### View Current Config
 
@@ -112,7 +115,9 @@ Automatically uses privileged templates (e.g., nmap-sudo instead of nmap).
 ipcrawler <target> -o <output_dir> --no-parse
 ```
 
-## Supported LLM Providers
+## LLM Configuration
+
+### Supported Providers
 
 All configured via `ipcrawler setup`:
 
@@ -120,6 +125,20 @@ All configured via `ipcrawler setup`:
 - **OpenAI** - Reliable - https://platform.openai.com
 - **Anthropic** - High quality - https://console.anthropic.com  
 - **Ollama** - Local, free - https://ollama.ai
+
+### Embedding Models
+
+For advanced features like RAG (Retrieval-Augmented Generation) or semantic search, you can configure embedding models during setup:
+
+**Recommended Ollama models:**
+- `nomic-embed-text` - Best overall (v1.5, 768 dim)
+- `mxbai-embed-large` - High accuracy (1024 dim)
+- `all-minilm` - Fast and lightweight (384 dim)
+- `snowflake-arctic-embed` - Strong retrieval (1024 dim)
+
+**Cloud providers:** Default to provider-specific embedding models (text-embedding-ada-002 for OpenAI, etc.)
+
+For detailed information on embedding models, installation, and configuration, see [docs/EMBEDDING_MODELS.md](docs/EMBEDDING_MODELS.md)
 
 ## Output Structure
 
@@ -144,7 +163,11 @@ scan_output/
 
 ## Template System
 
-Templates are YAML files in `templates/` directory:
+IPCrawler uses a YAML-based template system to configure and run security scanning tools. Templates define which tools to execute, their arguments, timeouts, and dependencies.
+
+**Purpose:** Templates let you customize tool behavior without modifying code. The setup wizard asks for a templates directory path (default: `./templates`).
+
+Templates are YAML files in the `templates/` directory:
 
 ```yaml
 name: nmap
@@ -163,6 +186,8 @@ command:
 timeout: 600
 requires_sudo: false
 ```
+
+See [templates/README.md](templates/README.md) for complete template documentation.
 
 ### Variables
 

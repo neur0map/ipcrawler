@@ -8,3 +8,4 @@ Cargo.lock
 /output
 /scans
 .env
+.DS_Store

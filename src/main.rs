@@ -48,6 +48,7 @@ async fn main() -> Result<()> {
     // Handle setup and config commands early (before loading config)
     match &cli.command {
         Some(Commands::Setup) => {
+            println!(); // Ensure clean line before setup
             return config::setup::SetupWizard::run();
         }
         Some(Commands::Config) => {
@@ -140,7 +141,7 @@ async fn run_scan(cli: Cli) -> Result<()> {
             selected_templates.len()
         );
     } else {
-        println!();  // Add newline for cleaner output
+        println!("\nRunning {} tools...\n", selected_templates.len());
     }
 
     let start_time = Utc::now();
@@ -153,11 +154,17 @@ async fn run_scan(cli: Cli) -> Result<()> {
 
     let successful = results.iter().filter(|r| r.success).count();
     let failed = results.len() - successful;
+    
+    // Calculate total time (sum of all individual tool times)
+    let total_time: f64 = results.iter()
+        .map(|r| r.duration.as_secs_f64())
+        .sum();
 
     println!(
-        "\n{} completed, {} failed\n",
+        "\n{} completed, {} failed ({:.2}s)\n",
         successful.to_string().green(),
-        failed.to_string().red()
+        failed.to_string().red(),
+        total_time
     );
 
     // Show error details for failed tools

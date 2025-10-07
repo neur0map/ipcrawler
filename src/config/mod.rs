@@ -19,6 +19,7 @@ pub struct LlmConfig {
     pub provider: String,
     pub api_key: Option<String>,
     pub model: Option<String>,
+    pub embedding_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +43,7 @@ impl Default for LlmConfig {
             provider: "groq".to_string(),
             api_key: None,
             model: None,
+            embedding_model: None,
         }
     }
 }
@@ -134,6 +136,12 @@ impl Config {
             println!("  Model:    {}", model);
         } else {
             println!("  Model:    (default)");
+        }
+        
+        if let Some(ref embed_model) = self.llm.embedding_model {
+            println!("  Embedding: {}", embed_model);
+        } else {
+            println!("  Embedding: (default)");
         }
         
         println!("\nDefault Settings:");

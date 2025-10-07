@@ -1,7 +1,7 @@
 use super::models::Template;
 use anyhow::{Context, Result};
 use std::collections::{HashMap, HashSet};
-use std::io::Write;
+use std::io::{self, Write};
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::fs;
@@ -147,7 +147,20 @@ impl TemplateExecutor {
 
     async fn execute_parallel(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
         use tokio::task::JoinSet;
+        use colored::Colorize;
 
+        // Print all tools that will run (non-verbose mode only)
+        if !self.verbose {
+            for template in &templates {
+                println!("  [ ] {}", template.name.dimmed());
+            }
+            io::stdout().flush().ok();
+        }
+
+        let tool_index: Arc<Mutex<HashMap<String, usize>>> = Arc::new(Mutex::new(
+            templates.iter().enumerate().map(|(i, t)| (t.name.clone(), i)).collect()
+        ));
+        
         let mut set: JoinSet<(ExecutionResult, std::time::Duration)> = JoinSet::new();
         
         for template in templates {
@@ -156,6 +169,8 @@ impl TemplateExecutor {
                 output_dir: self.output_dir.clone(),
                 verbose: self.verbose,
             };
+            let index_map = tool_index.clone();
+            let name = template.name.clone();
 
             set.spawn(async move {
                 let start = std::time::Instant::now();
@@ -173,6 +188,24 @@ impl TemplateExecutor {
                         }
                     }
                 };
+
+                // Update the line for this tool
+                if !executor.verbose {
+                    let index_guard = index_map.lock().await;
+                    if let Some(&line_num) = index_guard.get(&name) {
+                        // Move cursor up to the tool's line, clear it, and rewrite
+                        let lines_up = index_guard.len() - line_num;
+                        print!("\x1B[{}A", lines_up); // Move cursor up
+                        print!("\r\x1B[K"); // Clear line
+                        if result.success {
+                            println!("  [✓] {} ({:.2}s)", name.green(), start.elapsed().as_secs_f64());
+                        } else {
+                            println!("  [X] {} (failed)", name.red());
+                        }
+                        print!("\x1B[{}B", lines_up - 1); // Move cursor back down
+                        io::stdout().flush().ok();
+                    }
+                }
                 
                 (result, start.elapsed())
             });
@@ -181,21 +214,16 @@ impl TemplateExecutor {
         let mut results = Vec::new();
         while let Some(result) = set.join_next().await {
             match result {
-                Ok((exec_result, elapsed)) => {
-                    // Print completion indicator in non-verbose mode
-                    if !self.verbose {
-                        use colored::Colorize;
-                        if exec_result.success {
-                            println!("  {} {} ({:.2}s)", "✓".green().bold(), exec_result.template_name, elapsed.as_secs_f64());
-                        } else {
-                            println!("  {} {} (failed)", "✗".red().bold(), exec_result.template_name);
-                        }
-                        let _ = std::io::stdout().flush();
-                    }
+                Ok((exec_result, _elapsed)) => {
                     results.push(exec_result);
                 }
                 Err(e) => error!("Task join error: {}", e),
             }
+        }
+
+        // Move cursor past all the tool lines
+        if !self.verbose {
+            println!();
         }
 
         results
