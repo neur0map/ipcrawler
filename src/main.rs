@@ -26,12 +26,15 @@ fn print_version() {
     | ||  __/| |___| | | (_| |\ V  V /| |  __/ |   
    |___|_|    \____|_|  \__,_| \_/\_/ |_|\___|_|   
     "#;
-    
+
     println!("{}", art.cyan().bold());
     println!("  {} {}\n", "Version".bold(), VERSION.yellow());
     println!("  Intelligent Penetration Testing Scanner");
     println!("  AI-powered output parsing - No hardcoded regex");
-    println!("\n  {} https://github.com/yourusername/ipcrawler", "Repository:".dimmed());
+    println!(
+        "\n  {} https://github.com/yourusername/ipcrawler",
+        "Repository:".dimmed()
+    );
     println!("  {} MIT\n", "License:".dimmed());
 }
 
@@ -86,7 +89,7 @@ fn init_logging(verbose: bool) {
     let filter = if verbose {
         "ipcrawler=debug"
     } else {
-        "ipcrawler=warn"  // Only warnings and errors in normal mode
+        "ipcrawler=warn" // Only warnings and errors in normal mode
     };
 
     tracing_subscriber::fmt()
@@ -105,7 +108,12 @@ async fn run_scan(cli: Cli) -> Result<()> {
         println!("{}", "IPCrawler".cyan().bold());
         println!("Target: {} | Output: {}", target, output_path.display());
     } else {
-        println!("{}", "IPCrawler - Intelligent Penetration Testing Scanner".cyan().bold());
+        println!(
+            "{}",
+            "IPCrawler - Intelligent Penetration Testing Scanner"
+                .cyan()
+                .bold()
+        );
         println!("{} {}", "Target:".bold(), target);
         println!("{} {}\n", "Output:".bold(), output_path.display());
     }
@@ -115,9 +123,7 @@ async fn run_scan(cli: Cli) -> Result<()> {
 
     info!("Loading templates from: {}", cli.templates_dir.display());
     let parser = TemplateParser::new(cli.templates_dir.clone());
-    let all_templates = parser
-        .load_all()
-        .context("Failed to load templates")?;
+    let all_templates = parser.load_all().context("Failed to load templates")?;
 
     if all_templates.is_empty() {
         error!("No templates found in {}", cli.templates_dir.display());
@@ -154,11 +160,9 @@ async fn run_scan(cli: Cli) -> Result<()> {
 
     let successful = results.iter().filter(|r| r.success).count();
     let failed = results.len() - successful;
-    
+
     // Calculate total time (sum of all individual tool times)
-    let total_time: f64 = results.iter()
-        .map(|r| r.duration.as_secs_f64())
-        .sum();
+    let total_time: f64 = results.iter().map(|r| r.duration.as_secs_f64()).sum();
 
     println!(
         "\n{} completed, {} failed ({:.2}s)\n",
@@ -204,7 +208,11 @@ async fn run_scan(cli: Cli) -> Result<()> {
     }
 
     let llm_parser = if !cli.no_parse {
-        match LlmParser::new(&cli.llm_provider, cli.llm_model.clone(), cli.llm_api_key.clone().unwrap_or_default()) {
+        match LlmParser::new(
+            &cli.llm_provider,
+            cli.llm_model.clone(),
+            cli.llm_api_key.clone().unwrap_or_default(),
+        ) {
             Ok(parser) => {
                 println!("{}", "Parsing outputs with LLM...".cyan());
                 Some(parser)
@@ -226,12 +234,13 @@ async fn run_scan(cli: Cli) -> Result<()> {
         if result.success {
             if let Some(output_file) = &result.output_file {
                 match tokio::fs::read_to_string(output_file).await {
-                    Ok(content) => {
-                        match extractor.extract(&result.template_name, &content).await {
-                            Ok(entities) => all_entities.push(entities),
-                            Err(e) => error!("Failed to extract entities from {}: {}", result.template_name, e),
-                        }
-                    }
+                    Ok(content) => match extractor.extract(&result.template_name, &content).await {
+                        Ok(entities) => all_entities.push(entities),
+                        Err(e) => error!(
+                            "Failed to extract entities from {}: {}",
+                            result.template_name, e
+                        ),
+                    },
                     Err(e) => error!("Failed to read output file {}: {}", output_file, e),
                 }
             }
@@ -242,18 +251,14 @@ async fn run_scan(cli: Cli) -> Result<()> {
 
     ReportManager::save_entities(&merged_entities, &output_manager.get_entities_file()).await?;
 
-    let report = ReportManager::build_report(
-        target.clone(),
-        start_time,
-        results,
-        merged_entities.clone(),
-    );
+    let report =
+        ReportManager::build_report(target.clone(), start_time, results, merged_entities.clone());
 
     ReportManager::save_report(&report, &output_manager.get_report_file()).await?;
 
     // Display human-readable results in terminal
-    use display::{TerminalDisplay, HtmlReport, MarkdownReport};
-    
+    use display::{HtmlReport, MarkdownReport, TerminalDisplay};
+
     TerminalDisplay::display_entities(&merged_entities, target);
     TerminalDisplay::display_summary(
         target,
@@ -277,7 +282,10 @@ async fn run_scan(cli: Cli) -> Result<()> {
     println!("  - {}", output_manager.get_entities_file().display());
     println!("  - {}", output_manager.get_report_file().display());
     println!("  - {}", output_manager.get_html_report_file().display());
-    println!("  - {}", output_manager.get_markdown_report_file().display());
+    println!(
+        "  - {}",
+        output_manager.get_markdown_report_file().display()
+    );
     println!("  - {}/", output_manager.get_raw_dir().display());
     println!();
 
@@ -321,7 +329,11 @@ async fn show_template(cli: &Cli, template_name: &str) -> Result<()> {
     println!("{} {}", "Requires sudo:".bold(), template.requires_sudo());
     println!("{} {}s", "Timeout:".bold(), template.get_timeout());
     println!("\n{}", "Command:".bold());
-    println!("  {} {}", template.command.binary, template.command.args.join(" "));
+    println!(
+        "  {} {}",
+        template.command.binary,
+        template.command.args.join(" ")
+    );
 
     Ok(())
 }
