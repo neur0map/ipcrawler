@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub llm: LlmConfig,
-    
+
     #[serde(default)]
     pub defaults: DefaultsConfig,
 }
@@ -25,15 +25,6 @@ pub struct LlmConfig {
 pub struct DefaultsConfig {
     pub templates_dir: String,
     pub verbose: bool,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            llm: LlmConfig::default(),
-            defaults: DefaultsConfig::default(),
-        }
-    }
 }
 
 impl Default for LlmConfig {
@@ -60,7 +51,7 @@ impl Config {
         let config_dir = dirs::config_dir()
             .context("Failed to get config directory")?
             .join("ipcrawler");
-        
+
         Ok(config_dir)
     }
 
@@ -70,31 +61,26 @@ impl Config {
 
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path()?;
-        
+
         if !config_path.exists() {
             return Ok(Config::default());
         }
 
-        let content = fs::read_to_string(&config_path)
-            .context("Failed to read config file")?;
+        let content = fs::read_to_string(&config_path).context("Failed to read config file")?;
 
-        let config: Config = toml::from_str(&content)
-            .context("Failed to parse config file")?;
+        let config: Config = toml::from_str(&content).context("Failed to parse config file")?;
 
         Ok(config)
     }
 
     pub fn save(&self) -> Result<()> {
         let config_dir = Self::config_dir()?;
-        fs::create_dir_all(&config_dir)
-            .context("Failed to create config directory")?;
+        fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
 
         let config_path = Self::config_path()?;
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize config")?;
+        let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
 
-        fs::write(&config_path, content)
-            .context("Failed to write config file")?;
+        fs::write(&config_path, content).context("Failed to write config file")?;
 
         // Set secure permissions (Unix only)
         #[cfg(unix)]
@@ -119,31 +105,31 @@ impl Config {
     pub fn display_masked(&self) {
         println!("\n[Current Configuration]");
         println!("{}", "-".repeat(60));
-        
+
         println!("\nLLM Settings:");
         println!("  Provider: {}", self.llm.provider);
-        
+
         if let Some(ref key) = self.llm.api_key {
             let masked = Self::mask_api_key(key);
             println!("  API Key:  {}", masked);
         } else {
             println!("  API Key:  (not set)");
         }
-        
+
         if let Some(ref model) = self.llm.model {
             println!("  Model:    {}", model);
         } else {
             println!("  Model:    (default)");
         }
-        
+
         println!("\nDefault Settings:");
         println!("  Templates Dir: {}", self.defaults.templates_dir);
         println!("  Verbose:       {}", self.defaults.verbose);
-        
+
         if let Ok(config_path) = Self::config_path() {
             println!("\nConfig File: {}", config_path.display());
         }
-        
+
         println!();
     }
 
@@ -151,9 +137,9 @@ impl Config {
         if key.len() <= 8 {
             return "*".repeat(key.len());
         }
-        
+
         let prefix = &key[..4];
-        let suffix = &key[key.len()-4..];
+        let suffix = &key[key.len() - 4..];
         format!("{}...{}", prefix, suffix)
     }
 

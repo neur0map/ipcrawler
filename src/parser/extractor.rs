@@ -42,13 +42,17 @@ impl EntityExtractor {
             match parser.parse_output(tool_name, output).await {
                 Ok(json_response) => {
                     debug!("LLM response length: {} bytes", json_response.len());
-                    
+
                     let cleaned = self.extract_json(&json_response);
-                    
+
                     match serde_json::from_str::<ExtractedEntities>(&cleaned) {
                         Ok(entities) => return Ok(entities),
                         Err(e) => {
-                            warn!("Failed to parse LLM JSON response: {}. Response: {}", e, &cleaned[..cleaned.len().min(500)]);
+                            warn!(
+                                "Failed to parse LLM JSON response: {}. Response: {}",
+                                e,
+                                &cleaned[..cleaned.len().min(500)]
+                            );
                             return Ok(ExtractedEntities::default());
                         }
                     }
@@ -70,14 +74,14 @@ impl EntityExtractor {
                 }
             }
         }
-        
+
         if let Some(start) = text.find("```json") {
             let content = &text[start + 7..];
             if let Some(end) = content.find("```") {
                 return content[..end].trim().to_string();
             }
         }
-        
+
         text.trim().to_string()
     }
 

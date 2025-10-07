@@ -6,7 +6,11 @@ pub struct TerminalDisplay;
 impl TerminalDisplay {
     pub fn display_entities(entities: &ExtractedEntities, target: &str) {
         println!("\n{}", "=".repeat(60).cyan());
-        println!("{} {}", "Scan Results for".cyan().bold(), target.yellow().bold());
+        println!(
+            "{} {}",
+            "Scan Results for".cyan().bold(),
+            target.yellow().bold()
+        );
         println!("{}", "=".repeat(60).cyan());
 
         Self::display_ips(&entities.ips);
@@ -65,7 +69,7 @@ impl TerminalDisplay {
         for port_info in ports {
             let service = port_info.service.as_deref().unwrap_or("unknown");
             let version = port_info.version.as_deref().unwrap_or("");
-            
+
             println!(
                 "  {} {}  {} {}",
                 format!("{}", port_info.port).bright_yellow().bold(),
@@ -84,7 +88,7 @@ impl TerminalDisplay {
 
         println!("\n{}", "[Vulnerabilities Found]".red().bold());
         println!("{}", "-".repeat(60).dimmed());
-        
+
         for (i, vuln) in vulns.iter().enumerate() {
             let severity_colored = match vuln.severity.to_lowercase().as_str() {
                 "critical" => vuln.severity.red().bold(),
@@ -94,7 +98,8 @@ impl TerminalDisplay {
                 _ => vuln.severity.normal(),
             };
 
-            println!("\n  {}. {} [{}]",
+            println!(
+                "\n  {}. {} [{}]",
                 i + 1,
                 vuln.name.bright_white().bold(),
                 severity_colored
@@ -125,25 +130,38 @@ impl TerminalDisplay {
         println!("\n{}", "=".repeat(60).cyan());
         println!("{}", "[Scan Summary]".cyan().bold());
         println!("{}", "=".repeat(60).cyan());
-        
+
         println!("\n  {} {}", "Target:".bold(), target.yellow());
         println!("  {} {}s", "Duration:".bold(), duration);
-        println!("  {} {}/{}", "Tools:".bold(), successful.to_string().green(), total_tools);
-        
+        println!(
+            "  {} {}/{}",
+            "Tools:".bold(),
+            successful.to_string().green(),
+            total_tools
+        );
+
         println!("\n  {}", "Discovered:".bold());
         println!("    - {} IPs", entities.ips.len());
         println!("    - {} Domains", entities.domains.len());
         println!("    - {} URLs", entities.urls.len());
         println!("    - {} Open Ports", entities.ports.len());
-        
+
         if entities.vulnerabilities.is_empty() {
-            println!("    - {} {}", entities.vulnerabilities.len(), "Vulnerabilities".green());
+            println!(
+                "    - {} {}",
+                entities.vulnerabilities.len(),
+                "Vulnerabilities".green()
+            );
         } else {
-            println!("    - {} {}", entities.vulnerabilities.len(), "Vulnerabilities".red().bold());
+            println!(
+                "    - {} {}",
+                entities.vulnerabilities.len(),
+                "Vulnerabilities".red().bold()
+            );
         }
-        
+
         println!("    - {} Findings", entities.findings.len());
-        
+
         println!();
     }
 }

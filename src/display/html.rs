@@ -6,12 +6,16 @@ use tokio::fs;
 pub struct HtmlReport;
 
 impl HtmlReport {
-    pub async fn generate(report: &ScanReport, entities: &ExtractedEntities, output_manager: &OutputManager) -> Result<()> {
+    pub async fn generate(
+        report: &ScanReport,
+        entities: &ExtractedEntities,
+        output_manager: &OutputManager,
+    ) -> Result<()> {
         let html = Self::build_html(report, entities);
         let report_path = output_manager.get_html_report_file();
-        
+
         fs::write(&report_path, html).await?;
-        
+
         println!("HTML report saved: {}", report_path.display());
         Ok(())
     }

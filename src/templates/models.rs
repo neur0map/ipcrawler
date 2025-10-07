@@ -44,7 +44,7 @@ impl Template {
             .iter()
             .map(|arg| {
                 arg.replace("{{target}}", target)
-                   .replace("{{output_dir}}", output_dir)
+                    .replace("{{output_dir}}", output_dir)
             })
             .collect()
     }
