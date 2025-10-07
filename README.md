@@ -266,12 +266,49 @@ src/
 
 ## Development
 
+### Code Quality
+
+This project uses automated GitHub Actions workflows to maintain code quality:
+
+**Workflow: Rust Quality Checks** (`.github/workflows/rust-quality.yml`)
+
+Runs on every push and pull request to `main`/`master` branches:
+
+1. **Format Check** - Runs `cargo fmt --check`
+   - Automatically fixes formatting issues on push events
+   - Commits fixes as: "Auto-fix: Apply cargo fmt"
+
+2. **Clippy Check** - Runs `cargo clippy -- -D warnings`
+   - Automatically fixes clippy warnings on push events
+   - Commits fixes as: "Auto-fix: Apply clippy suggestions"
+
+3. **Build & Test** - Runs after format and clippy checks
+   - Verifies the code builds successfully
+   - Runs all tests
+
+**Manual Commands:**
+
 ```bash
 # Build
 cargo build
 
 # Run with debug logging
 cargo run -- <target> -o ./scan -v
+
+# Check formatting
+cargo fmt --check
+
+# Apply formatting
+cargo fmt
+
+# Run clippy
+cargo clippy -- -D warnings
+
+# Auto-fix clippy issues
+cargo clippy --fix
+
+# Run tests
+cargo test
 ```
 
 ## Example Output
