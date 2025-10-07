@@ -272,6 +272,34 @@ cargo build
 
 # Run with debug logging
 cargo run -- <target> -o ./scan -v
+
+# Check code formatting
+cargo fmt --check
+
+# Auto-fix formatting
+cargo fmt
+
+# Run linter (clippy)
+cargo clippy --all-targets --all-features
+
+# Fix clippy warnings automatically
+cargo clippy --fix --all-targets --all-features
+```
+
+### CI/CD
+
+The project uses GitHub Actions to ensure code quality:
+
+- **Format Check**: Runs `cargo fmt --check` to verify code formatting
+- **Clippy Lints**: Runs `cargo clippy` with `-D warnings` to catch potential issues
+
+Both checks run automatically on:
+- Push to `main` branch
+- All pull requests
+
+To ensure your code passes CI before pushing:
+```bash
+cargo fmt && cargo clippy --all-targets --all-features -- -D warnings
 ```
 
 ## Example Output
