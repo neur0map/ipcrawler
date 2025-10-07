@@ -42,8 +42,8 @@ pub struct ReportManager;
 
 impl ReportManager {
     pub async fn save_entities(entities: &ExtractedEntities, path: &Path) -> Result<()> {
-        let json = serde_json::to_string_pretty(entities)
-            .context("Failed to serialize entities")?;
+        let json =
+            serde_json::to_string_pretty(entities).context("Failed to serialize entities")?;
 
         fs::write(path, json)
             .await
@@ -54,8 +54,7 @@ impl ReportManager {
     }
 
     pub async fn save_report(report: &ScanReport, path: &Path) -> Result<()> {
-        let json = serde_json::to_string_pretty(report)
-            .context("Failed to serialize report")?;
+        let json = serde_json::to_string_pretty(report).context("Failed to serialize report")?;
 
         fs::write(path, json)
             .await

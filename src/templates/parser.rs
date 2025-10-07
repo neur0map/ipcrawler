@@ -22,8 +22,8 @@ impl TemplateParser {
         }
 
         let mut templates = Vec::new();
-        let entries = fs::read_dir(&self.templates_dir)
-            .context("Failed to read templates directory")?;
+        let entries =
+            fs::read_dir(&self.templates_dir).context("Failed to read templates directory")?;
 
         for entry in entries {
             let entry = entry?;
@@ -57,7 +57,7 @@ impl TemplateParser {
 
     pub fn find_template(&self, name: &str) -> Result<Template> {
         let yaml_path = self.templates_dir.join(format!("{}.yaml", name));
-        
+
         if yaml_path.exists() {
             self.load_template(&yaml_path)
         } else {

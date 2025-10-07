@@ -6,12 +6,16 @@ use tokio::fs;
 pub struct MarkdownReport;
 
 impl MarkdownReport {
-    pub async fn generate(report: &ScanReport, entities: &ExtractedEntities, output_manager: &OutputManager) -> Result<()> {
+    pub async fn generate(
+        report: &ScanReport,
+        entities: &ExtractedEntities,
+        output_manager: &OutputManager,
+    ) -> Result<()> {
         let markdown = Self::build_markdown(report, entities);
         let report_path = output_manager.get_markdown_report_file();
-        
+
         fs::write(&report_path, markdown).await?;
-        
+
         println!("Markdown report saved: {}", report_path.display());
         Ok(())
     }
@@ -206,7 +210,11 @@ impl MarkdownReport {
         md.push_str("|------|--------|----------|\n");
 
         for tool in tools {
-            let status = if tool.success { "✅ Success" } else { "❌ Failed" };
+            let status = if tool.success {
+                "✅ Success"
+            } else {
+                "❌ Failed"
+            };
             md.push_str(&format!(
                 "| {} | {} | {:.2}s |\n",
                 tool.name, status, tool.duration_secs
