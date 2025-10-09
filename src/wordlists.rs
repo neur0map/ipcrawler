@@ -133,8 +133,9 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(unix)]
     fn test_resolve_direct_path() {
-        // Test that direct paths work
+        // Test that direct paths work (Unix only)
         let path = "/tmp/test.txt";
         std::fs::write(path, "test").unwrap();
 
