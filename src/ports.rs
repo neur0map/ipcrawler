@@ -73,18 +73,21 @@ impl PortSpec {
 
     /// Returns the port specification formatted for nmap
     /// (same as original format)
+    #[allow(dead_code)]
     pub fn for_nmap(&self) -> String {
         self.raw.clone()
     }
 
     /// Returns the port specification formatted for naabu
     /// (same as original format)
+    #[allow(dead_code)]
     pub fn for_naabu(&self) -> String {
         self.raw.clone()
     }
 
     /// Returns the port specification formatted for rustscan
     /// (same as original format)
+    #[allow(dead_code)]
     pub fn for_rustscan(&self) -> String {
         self.raw.clone()
     }
@@ -119,6 +122,7 @@ impl PortSpec {
     }
 
     /// Returns the number of unique ports in the specification
+    #[allow(dead_code)]
     pub fn count(&self) -> Result<usize> {
         Ok(self.expand()?.len())
     }
@@ -126,6 +130,7 @@ impl PortSpec {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

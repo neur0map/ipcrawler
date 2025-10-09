@@ -20,11 +20,13 @@ struct WordlistsSection {
 struct WordlistEntry {
     path: String,
     description: String,
+    #[allow(dead_code)]
     size: String,
 }
 
 pub struct WordlistManager {
     config: WordlistsConfig,
+    #[allow(dead_code)]
     templates_dir: PathBuf,
 }
 
@@ -91,6 +93,7 @@ impl WordlistManager {
     }
 
     /// Get information about a wordlist
+    #[allow(dead_code)]
     pub fn info(&self, name: &str) -> Option<(String, String, String)> {
         self.config.wordlists.lists.get(name).map(|entry| {
             (
@@ -126,6 +129,7 @@ impl WordlistManager {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

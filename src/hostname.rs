@@ -239,7 +239,7 @@ impl HostsFileManager {
 
         // Create backup
         let backup_cmd = Command::new("cp")
-            .args(&["/etc/hosts", "/etc/hosts.ipcrawler.bak"])
+            .args(["/etc/hosts", "/etc/hosts.ipcrawler.bak"])
             .output();
 
         if let Err(e) = backup_cmd {
@@ -298,6 +298,7 @@ impl HostsFileManager {
     }
 
     /// Remove IPCrawler entries from /etc/hosts
+    #[allow(dead_code)]
     pub fn cleanup(ip: &str) -> Result<()> {
         let is_root = unsafe { libc::geteuid() == 0 };
 

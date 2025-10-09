@@ -548,7 +548,7 @@ impl ExecutionResult {
             Some(if !self.stderr.is_empty() {
                 self.stderr.clone()
             } else {
-                format!("Command failed with no error output")
+                "Command failed with no error output".to_string()
             })
         } else {
             None

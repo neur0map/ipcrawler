@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub llm: LlmConfig,
@@ -25,15 +25,6 @@ pub struct LlmConfig {
 pub struct DefaultsConfig {
     pub templates_dir: String,
     pub verbose: bool,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            llm: LlmConfig::default(),
-            defaults: DefaultsConfig::default(),
-        }
-    }
 }
 
 impl Default for LlmConfig {
