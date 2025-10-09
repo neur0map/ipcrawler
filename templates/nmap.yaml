@@ -7,8 +7,7 @@ command:
   args:
     - "-sT"
     - "-T4"
-    - "--top-ports"
-    - "1000"
+    - "{{ports}}"
     - "-oN"
     - "{{output_dir}}/nmap_scan.txt"
     - "{{target}}"

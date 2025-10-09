@@ -35,6 +35,15 @@ pub struct Cli {
 
     #[arg(long = "no-parse", help = "Skip LLM parsing, save raw outputs only")]
     pub no_parse: bool,
+
+    #[arg(long = "consistency-passes", value_name = "N", default_value = "3", help = "Number of LLM parsing passes for consistency (1-5, default: 3)")]
+    pub consistency_passes: usize,
+
+    #[arg(short = 'p', long = "ports", value_name = "PORTS", help = "Port specification (e.g., 22,80,443 or 1-1000). Default: top 1000 most common ports")]
+    pub ports: Option<String>,
+
+    #[arg(short = 'w', long = "wordlist", value_name = "NAME", help = "Wordlist name or path (e.g., common, medium, big, or /path/to/list.txt). Default: common")]
+    pub wordlist: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -53,6 +62,9 @@ pub enum Commands {
 
     #[command(about = "Display current configuration settings")]
     Config,
+
+    #[command(about = "List available wordlists")]
+    Wordlists,
 }
 
 impl Cli {
@@ -64,6 +76,10 @@ impl Cli {
 
         if self.command.is_none() && self.target.is_none() {
             anyhow::bail!("Please provide a target or use a subcommand");
+        }
+
+        if self.consistency_passes == 0 || self.consistency_passes > 5 {
+            anyhow::bail!("Consistency passes must be between 1 and 5 (got: {})", self.consistency_passes);
         }
 
         Ok(())

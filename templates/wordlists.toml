@@ -1,0 +1,62 @@
+# Wordlist Configuration
+# Define wordlist aliases and their file paths for different scanning tools
+
+[wordlists]
+# Default wordlist used when no -w/--wordlist flag is provided
+# Update this to match an available wordlist on your system
+default = "common"
+
+# Common wordlists - add your own paths here
+[wordlists.common]
+path = "/usr/share/wordlists/dirb/common.txt"
+description = "Common directory/file names (4614 entries)"
+size = "small"
+
+[wordlists.medium]
+path = "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"
+description = "Medium directory list (220k entries)"
+size = "medium"
+
+[wordlists.big]
+path = "/usr/share/wordlists/dirbuster/directory-list-2.3-big.txt"
+description = "Big directory list (1.2M entries)"
+size = "large"
+
+[wordlists.small]
+path = "/usr/share/wordlists/dirb/small.txt"
+description = "Small directory list (959 entries)"
+size = "small"
+
+# SecLists wordlists (if installed)
+[wordlists.raft-small]
+path = "/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt"
+description = "SecLists Raft small (43k entries)"
+size = "small"
+
+[wordlists.raft-medium]
+path = "/usr/share/seclists/Discovery/Web-Content/raft-medium-words.txt"
+description = "SecLists Raft medium (63k entries)"
+size = "medium"
+
+[wordlists.raft-large]
+path = "/usr/share/seclists/Discovery/Web-Content/raft-large-words.txt"
+description = "SecLists Raft large (107k entries)"
+size = "large"
+
+# Custom wordlists - add your own
+# [wordlists.custom]
+# path = "/path/to/your/custom/wordlist.txt"
+# description = "Your custom wordlist"
+# size = "custom"
+
+# API endpoints
+[wordlists.api]
+path = "/usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt"
+description = "Common API endpoints"
+size = "small"
+
+# Subdomains
+[wordlists.subdomains]
+path = "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
+description = "Top 5000 subdomains"
+size = "small"

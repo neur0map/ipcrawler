@@ -38,13 +38,31 @@ impl Template {
         self.timeout.unwrap_or(3600)
     }
 
-    pub fn interpolate_args(&self, target: &str, output_dir: &str) -> Vec<String> {
+    pub fn interpolate_args(
+        &self,
+        target: &str,
+        output_dir: &str,
+        ports: Option<&str>,
+        wordlist: Option<&str>,
+    ) -> Vec<String> {
         self.command
             .args
             .iter()
-            .map(|arg| {
-                arg.replace("{{target}}", target)
-                   .replace("{{output_dir}}", output_dir)
+            .flat_map(|arg| {
+                let mut result = arg
+                    .replace("{{target}}", target)
+                    .replace("{{output_dir}}", output_dir);
+                
+                if let Some(port_spec) = ports {
+                    result = result.replace("{{ports}}", port_spec);
+                }
+
+                if let Some(wordlist_path) = wordlist {
+                    result = result.replace("{{wordlist}}", wordlist_path);
+                }
+                
+                // Split on newlines to handle multi-argument replacements
+                result.split('\n').map(|s| s.to_string()).collect::<Vec<_>>()
             })
             .collect()
     }

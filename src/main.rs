@@ -2,8 +2,10 @@ mod cli;
 mod config;
 mod display;
 mod parser;
+mod ports;
 mod storage;
 mod templates;
+mod wordlists;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -56,6 +58,9 @@ async fn main() -> Result<()> {
             cfg.display_masked();
             return Ok(());
         }
+        Some(Commands::Wordlists) => {
+            return list_wordlists(&cli);
+        }
         _ => {}
     }
 
@@ -73,7 +78,7 @@ async fn main() -> Result<()> {
     match &cli.command {
         Some(Commands::List) => list_templates(&cli).await?,
         Some(Commands::Show { template }) => show_template(&cli, template).await?,
-        Some(Commands::Setup) | Some(Commands::Config) => {
+        Some(Commands::Setup) | Some(Commands::Config) | Some(Commands::Wordlists) => {
             // Already handled above
         }
         None => run_scan(cli).await?,
@@ -144,11 +149,67 @@ async fn run_scan(cli: Cli) -> Result<()> {
         println!("\nRunning {} tools...\n", selected_templates.len());
     }
 
+    let port_spec = if let Some(ref ports_str) = cli.ports {
+        match ports::PortSpec::parse(ports_str) {
+            Ok(spec) => {
+                if verbose {
+                    println!("Using custom port specification: -p {}", spec.as_str());
+                }
+                format!("-p\n{}", spec.as_str())
+            }
+            Err(e) => {
+                error!("Invalid port specification: {}", e);
+                eprintln!("{} {}", "Error:".red().bold(), e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        if verbose {
+            println!("Using default: --top-ports 1000 (most common ports)");
+        }
+        "--top-ports\n1000".to_string()
+    };
+
+    // Handle wordlist resolution
+    let wordlist_manager = wordlists::WordlistManager::new(cli.templates_dir.clone())?;
+    let wordlist_path = if let Some(ref wordlist_str) = cli.wordlist {
+        match wordlist_manager.resolve(wordlist_str) {
+            Ok(path) => {
+                if verbose {
+                    println!("Using wordlist: {} -> {}", wordlist_str, path);
+                }
+                path
+            }
+            Err(e) => {
+                error!("Invalid wordlist specification: {}", e);
+                eprintln!("{} {}", "Error:".red().bold(), e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        let default = wordlist_manager.default_wordlist();
+        match wordlist_manager.resolve(default) {
+            Ok(path) => {
+                if verbose {
+                    println!("Using default wordlist: {} -> {}", default, path);
+                }
+                path
+            }
+            Err(e) => {
+                error!("Default wordlist '{}' not found: {}", default, e);
+                eprintln!("{} Default wordlist '{}' not found: {}", "Error:".red().bold(), default, e);
+                std::process::exit(1);
+            }
+        }
+    };
+
     let start_time = Utc::now();
     let executor = TemplateExecutor::new(
         target.clone(),
         output_path.to_string_lossy().to_string(),
         verbose,
+        Some(port_spec),
+        Some(wordlist_path),
     );
     let results = executor.execute_all(selected_templates).await;
 
@@ -207,6 +268,9 @@ async fn run_scan(cli: Cli) -> Result<()> {
         match LlmParser::new(&cli.llm_provider, cli.llm_model.clone(), cli.llm_api_key.clone().unwrap_or_default()) {
             Ok(parser) => {
                 println!("{}", "Parsing outputs with LLM...".cyan());
+                if cli.consistency_passes > 1 {
+                    println!("Running {} consistency passes per tool", cli.consistency_passes);
+                }
                 Some(parser)
             }
             Err(e) => {
@@ -219,7 +283,7 @@ async fn run_scan(cli: Cli) -> Result<()> {
         None
     };
 
-    let extractor = EntityExtractor::new(llm_parser);
+    let extractor = EntityExtractor::new(llm_parser, cli.consistency_passes);
     let mut all_entities = Vec::new();
 
     for result in &results {
@@ -322,6 +386,42 @@ async fn show_template(cli: &Cli, template_name: &str) -> Result<()> {
     println!("{} {}s", "Timeout:".bold(), template.get_timeout());
     println!("\n{}", "Command:".bold());
     println!("  {} {}", template.command.binary, template.command.args.join(" "));
+
+    Ok(())
+}
+
+fn list_wordlists(cli: &Cli) -> Result<()> {
+    let manager = wordlists::WordlistManager::new(cli.templates_dir.clone())?;
+    
+    println!("{}\n", "Available Wordlists:".cyan().bold());
+    println!("{} {}\n", "Default:".bold(), manager.default_wordlist().yellow());
+
+    let wordlists = manager.list_all();
+    
+    for (name, path, description, exists) in wordlists {
+        let status = if exists {
+            "✓".green()
+        } else {
+            "✗ (not found)".red()
+        };
+        
+        let name_display = if name == manager.default_wordlist() {
+            format!("{} (default)", name).yellow()
+        } else {
+            name.normal()
+        };
+        
+        println!("  {} {}", status, name_display.bold());
+        println!("     {}", description.dimmed());
+        println!("     {}", path.dimmed());
+        println!();
+    }
+    
+    println!("{}", "Usage:".cyan().bold());
+    println!("  ipcrawler <target> -w common       # Use 'common' wordlist");
+    println!("  ipcrawler <target> -w medium       # Use 'medium' wordlist");
+    println!("  ipcrawler <target> -w /path/to/wordlist.txt  # Use custom file");
+    println!();
 
     Ok(())
 }

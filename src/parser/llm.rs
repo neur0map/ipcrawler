@@ -188,6 +188,7 @@ Return JSON only:"#,
         struct AnthropicRequest {
             model: String,
             max_tokens: u32,
+            temperature: f32,
             system: String,
             messages: Vec<Message>,
         }
@@ -211,6 +212,7 @@ Return JSON only:"#,
         let request = AnthropicRequest {
             model: self.model.clone(),
             max_tokens: 4096,
+            temperature: 0.1,
             system: self.get_system_prompt(),
             messages: vec![Message {
                 role: "user".to_string(),
@@ -327,6 +329,13 @@ Return JSON only:"#,
             stream: bool,
             system: String,
             format: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            options: Option<OllamaOptions>,
+        }
+
+        #[derive(Serialize)]
+        struct OllamaOptions {
+            temperature: f32,
         }
 
         #[derive(Deserialize)]
@@ -346,6 +355,9 @@ Return JSON only:"#,
             stream: false,
             system: self.get_system_prompt(),
             format: "json".to_string(),
+            options: Some(OllamaOptions {
+                temperature: 0.1,
+            }),
         };
 
         let url = format!("{}/api/generate", base_url);

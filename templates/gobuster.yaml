@@ -1,6 +1,6 @@
 name: gobuster
 description: Directory and file brute-forcing
-enabled: false
+enabled: true
 
 command:
   binary: gobuster
@@ -9,7 +9,7 @@ command:
     - "-u"
     - "{{target}}"
     - "-w"
-    - "/usr/share/wordlists/dirb/common.txt"
+    - "{{wordlist}}"
     - "-o"
     - "{{output_dir}}/gobuster_results.txt"
     - "-q"

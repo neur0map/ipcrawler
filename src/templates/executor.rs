@@ -15,11 +15,25 @@ pub struct TemplateExecutor {
     target: String,
     output_dir: String,
     verbose: bool,
+    port_spec: Option<String>,
+    wordlist: Option<String>,
 }
 
 impl TemplateExecutor {
-    pub fn new(target: String, output_dir: String, verbose: bool) -> Self {
-        Self { target, output_dir, verbose }
+    pub fn new(
+        target: String,
+        output_dir: String,
+        verbose: bool,
+        port_spec: Option<String>,
+        wordlist: Option<String>,
+    ) -> Self {
+        Self {
+            target,
+            output_dir,
+            verbose,
+            port_spec,
+            wordlist,
+        }
     }
 
     pub async fn execute(&self, template: &Template) -> Result<ExecutionResult> {
@@ -30,7 +44,12 @@ impl TemplateExecutor {
             .await
             .context("Failed to create tool output directory")?;
 
-        let args = template.interpolate_args(&self.target, &tool_output_dir);
+        let args = template.interpolate_args(
+            &self.target,
+            &tool_output_dir,
+            self.port_spec.as_deref(),
+            self.wordlist.as_deref(),
+        );
         
         debug!(
             "Running command: {} {}",
@@ -168,6 +187,8 @@ impl TemplateExecutor {
                 target: self.target.clone(),
                 output_dir: self.output_dir.clone(),
                 verbose: self.verbose,
+                port_spec: self.port_spec.clone(),
+                wordlist: self.wordlist.clone(),
             };
             let index_map = tool_index.clone();
             let name = template.name.clone();
@@ -356,6 +377,8 @@ impl TemplateExecutor {
                     target: self.target.clone(),
                     output_dir: self.output_dir.clone(),
                     verbose: self.verbose,
+                    port_spec: self.port_spec.clone(),
+                    wordlist: self.wordlist.clone(),
                 };
 
                 set.spawn(async move {

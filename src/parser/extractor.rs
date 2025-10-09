@@ -1,4 +1,5 @@
 use super::llm::LlmParser;
+use super::consistency::ConsistencyChecker;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
@@ -13,7 +14,7 @@ pub struct ExtractedEntities {
     pub findings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PortInfo {
     pub port: u16,
     pub protocol: String,
@@ -30,55 +31,48 @@ pub struct Vulnerability {
 
 pub struct EntityExtractor {
     llm_parser: Option<LlmParser>,
+    consistency_checker: ConsistencyChecker,
 }
 
 impl EntityExtractor {
-    pub fn new(llm_parser: Option<LlmParser>) -> Self {
-        Self { llm_parser }
+    pub fn new(llm_parser: Option<LlmParser>, consistency_passes: usize) -> Self {
+        Self {
+            llm_parser,
+            consistency_checker: ConsistencyChecker::new(consistency_passes),
+        }
     }
 
     pub async fn extract(&self, tool_name: &str, output: &str) -> Result<ExtractedEntities> {
         if let Some(parser) = &self.llm_parser {
-            match parser.parse_output(tool_name, output).await {
-                Ok(json_response) => {
-                    debug!("LLM response length: {} bytes", json_response.len());
-                    
-                    let cleaned = self.extract_json(&json_response);
-                    
-                    match serde_json::from_str::<ExtractedEntities>(&cleaned) {
-                        Ok(entities) => return Ok(entities),
-                        Err(e) => {
-                            warn!("Failed to parse LLM JSON response: {}. Response: {}", e, &cleaned[..cleaned.len().min(500)]);
-                            return Ok(ExtractedEntities::default());
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!("LLM parsing failed for '{}': {}", tool_name, e);
-                }
+            let validated = self
+                .consistency_checker
+                .parse_with_consistency(parser, tool_name, output)
+                .await?;
+
+            if !validated.warnings.is_empty() {
+                warn!(
+                    "Consistency warnings for '{}': {}",
+                    tool_name,
+                    validated.warnings.join("; ")
+                );
             }
+
+            debug!(
+                "Extracted from '{}': {} IPs, {} domains, {} ports, {} vulnerabilities (consistency: {:.2}, passes: {}/{})",
+                tool_name,
+                validated.entities.ips.len(),
+                validated.entities.domains.len(),
+                validated.entities.ports.len(),
+                validated.entities.vulnerabilities.len(),
+                validated.consistency_score,
+                validated.num_passes,
+                self.consistency_checker.num_passes,
+            );
+
+            return Ok(validated.entities);
         }
 
         Ok(ExtractedEntities::default())
-    }
-
-    fn extract_json(&self, text: &str) -> String {
-        if let Some(start) = text.find('{') {
-            if let Some(end) = text.rfind('}') {
-                if end > start {
-                    return text[start..=end].to_string();
-                }
-            }
-        }
-        
-        if let Some(start) = text.find("```json") {
-            let content = &text[start + 7..];
-            if let Some(end) = content.find("```") {
-                return content[..end].trim().to_string();
-            }
-        }
-        
-        text.trim().to_string()
     }
 
     pub fn merge_entities(&self, all_entities: Vec<ExtractedEntities>) -> ExtractedEntities {

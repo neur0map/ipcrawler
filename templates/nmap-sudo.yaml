@@ -9,7 +9,7 @@ command:
     - "-sV"
     - "-O"
     - "-T4"
-    - "-p-"
+    - "{{ports}}"
     - "-oN"
     - "{{output_dir}}/nmap_full_scan.txt"
     - "-oX"
