@@ -44,13 +44,13 @@ impl TemplateSelector {
             }
 
             let template_name = &template.name;
-            
+
             if self.is_running_as_root() && template_name.ends_with("-sudo") {
                 selected.push(template.clone());
             } else if self.is_running_as_root() && !template_name.ends_with("-sudo") {
-                let sudo_variant_exists = all_templates.iter().any(|t| {
-                    t.name == format!("{}-sudo", template_name) && t.is_enabled()
-                });
+                let sudo_variant_exists = all_templates
+                    .iter()
+                    .any(|t| t.name == format!("{}-sudo", template_name) && t.is_enabled());
 
                 if !sudo_variant_exists {
                     selected.push(template.clone());

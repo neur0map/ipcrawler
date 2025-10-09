@@ -14,9 +14,13 @@ impl TerminalDisplay {
     pub fn display_entities(entities: &ExtractedEntities, target: &str) {
         let width = Self::get_terminal_width();
         let separator = "=".repeat(width.saturating_sub(5).max(20));
-        
+
         println!("\n{}", separator.cyan());
-        println!("{} {}", "Scan Results for".cyan().bold(), target.yellow().bold());
+        println!(
+            "{} {}",
+            "Scan Results for".cyan().bold(),
+            target.yellow().bold()
+        );
         println!("{}", separator.cyan());
 
         Self::display_ips(&entities.ips);
@@ -36,7 +40,7 @@ impl TerminalDisplay {
 
         let width = Self::get_terminal_width();
         let separator = "-".repeat(width.saturating_sub(10).max(15));
-        
+
         println!("\n{}", "[IP Addresses]".green().bold());
         println!("{}", separator.dimmed());
         for (i, ip) in ips.iter().enumerate() {
@@ -51,7 +55,7 @@ impl TerminalDisplay {
 
         let width = Self::get_terminal_width();
         let separator = "-".repeat(width.saturating_sub(10).max(15));
-        
+
         println!("\n{}", "[Domains]".green().bold());
         println!("{}", separator.dimmed());
         for (i, domain) in domains.iter().enumerate() {
@@ -66,7 +70,7 @@ impl TerminalDisplay {
 
         let width = Self::get_terminal_width();
         let separator = "-".repeat(width.saturating_sub(10).max(15));
-        
+
         println!("\n{}", "[URLs Found]".green().bold());
         println!("{}", separator.dimmed());
         for (i, url) in urls.iter().enumerate() {
@@ -81,13 +85,13 @@ impl TerminalDisplay {
 
         let width = Self::get_terminal_width();
         let separator = "-".repeat(width.saturating_sub(10).max(15));
-        
+
         println!("\n{}", "[Open Ports]".green().bold());
         println!("{}", separator.dimmed());
         for port_info in ports {
             let service = port_info.service.as_deref().unwrap_or("unknown");
             let version = port_info.version.as_deref().unwrap_or("");
-            
+
             println!(
                 "  {} {}  {} {}",
                 format!("{}", port_info.port).bright_yellow().bold(),
@@ -106,10 +110,10 @@ impl TerminalDisplay {
 
         let width = Self::get_terminal_width();
         let separator = "-".repeat(width.saturating_sub(10).max(15));
-        
+
         println!("\n{}", "[Vulnerabilities Found]".red().bold());
         println!("{}", separator.dimmed());
-        
+
         for (i, vuln) in vulns.iter().enumerate() {
             let severity_colored = match vuln.severity.to_lowercase().as_str() {
                 "critical" => vuln.severity.red().bold(),
@@ -119,7 +123,8 @@ impl TerminalDisplay {
                 _ => vuln.severity.normal(),
             };
 
-            println!("\n  {}. {} [{}]",
+            println!(
+                "\n  {}. {} [{}]",
                 i + 1,
                 vuln.name.bright_white().bold(),
                 severity_colored
@@ -135,7 +140,7 @@ impl TerminalDisplay {
 
         let width = Self::get_terminal_width();
         let separator = "-".repeat(width.saturating_sub(10).max(15));
-        
+
         println!("\n{}", "[Other Findings]".green().bold());
         println!("{}", separator.dimmed());
         for (i, finding) in findings.iter().enumerate() {

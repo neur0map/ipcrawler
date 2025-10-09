@@ -50,7 +50,7 @@ impl LlmParser {
         }
 
         let prompt = self.build_extraction_prompt(tool_name, output);
-        
+
         info!("Parsing output from '{}' using LLM", tool_name);
         debug!("Output length: {} bytes", output.len());
 
@@ -152,7 +152,7 @@ Return JSON only:"#,
                 Message {
                     role: "user".to_string(),
                     content: prompt.to_string(),
-                }
+                },
             ],
             temperature: 0.1,
             response_format: ResponseFormat {
@@ -290,7 +290,7 @@ Return JSON only:"#,
                 Message {
                     role: "user".to_string(),
                     content: prompt.to_string(),
-                }
+                },
             ],
             temperature: 0.1,
             response_format: ResponseFormat {
@@ -343,11 +343,7 @@ Return JSON only:"#,
             response: String,
         }
 
-        let full_prompt = format!(
-            "{}\n\n{}",
-            self.get_system_prompt(),
-            prompt
-        );
+        let full_prompt = format!("{}\n\n{}", self.get_system_prompt(), prompt);
 
         let request = OllamaRequest {
             model: self.model.clone(),
@@ -355,9 +351,7 @@ Return JSON only:"#,
             stream: false,
             system: self.get_system_prompt(),
             format: "json".to_string(),
-            options: Some(OllamaOptions {
-                temperature: 0.1,
-            }),
+            options: Some(OllamaOptions { temperature: 0.1 }),
         };
 
         let url = format!("{}/api/generate", base_url);

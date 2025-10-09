@@ -54,7 +54,7 @@ impl Template {
                 let mut result = arg
                     .replace("{{target}}", target)
                     .replace("{{output_dir}}", output_dir);
-                
+
                 if let Some(port_spec) = ports {
                     result = result.replace("{{ports}}", port_spec);
                 }
@@ -62,9 +62,12 @@ impl Template {
                 if let Some(wordlist_path) = wordlist {
                     result = result.replace("{{wordlist}}", wordlist_path);
                 }
-                
+
                 // Split on newlines to handle multi-argument replacements
-                result.split('\n').map(|s| s.to_string()).collect::<Vec<_>>()
+                result
+                    .split('\n')
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
             })
             .collect()
     }

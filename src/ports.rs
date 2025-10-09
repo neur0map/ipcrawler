@@ -8,7 +8,7 @@ pub struct PortSpec {
 impl PortSpec {
     pub fn parse(spec: &str) -> Result<Self> {
         let spec = spec.trim();
-        
+
         if spec.is_empty() {
             anyhow::bail!("Port specification cannot be empty");
         }
@@ -16,31 +16,45 @@ impl PortSpec {
         // Validate the port specification
         for part in spec.split(',') {
             let part = part.trim();
-            
+
             if part.contains('-') {
                 // Range format: 80-443
                 let range_parts: Vec<&str> = part.split('-').collect();
                 if range_parts.len() != 2 {
-                    anyhow::bail!("Invalid port range format: '{}'. Expected format: 'start-end'", part);
+                    anyhow::bail!(
+                        "Invalid port range format: '{}'. Expected format: 'start-end'",
+                        part
+                    );
                 }
-                
-                let start = range_parts[0].trim().parse::<u16>()
-                    .with_context(|| format!("Invalid start port in range '{}': '{}'", part, range_parts[0]))?;
-                let end = range_parts[1].trim().parse::<u16>()
-                    .with_context(|| format!("Invalid end port in range '{}': '{}'", part, range_parts[1]))?;
-                
+
+                let start = range_parts[0].trim().parse::<u16>().with_context(|| {
+                    format!(
+                        "Invalid start port in range '{}': '{}'",
+                        part, range_parts[0]
+                    )
+                })?;
+                let end = range_parts[1].trim().parse::<u16>().with_context(|| {
+                    format!("Invalid end port in range '{}': '{}'", part, range_parts[1])
+                })?;
+
                 if start > end {
-                    anyhow::bail!("Invalid port range '{}': start port {} is greater than end port {}", part, start, end);
+                    anyhow::bail!(
+                        "Invalid port range '{}': start port {} is greater than end port {}",
+                        part,
+                        start,
+                        end
+                    );
                 }
-                
+
                 if start == 0 {
                     anyhow::bail!("Port 0 is not valid");
                 }
             } else {
                 // Single port: 80
-                let port = part.parse::<u16>()
+                let port = part
+                    .parse::<u16>()
                     .with_context(|| format!("Invalid port number: '{}'", part))?;
-                
+
                 if port == 0 {
                     anyhow::bail!("Port 0 is not valid");
                 }
@@ -81,12 +95,12 @@ impl PortSpec {
 
         for part in self.raw.split(',') {
             let part = part.trim();
-            
+
             if part.contains('-') {
                 let range_parts: Vec<&str> = part.split('-').collect();
                 let start = range_parts[0].trim().parse::<u16>()?;
                 let end = range_parts[1].trim().parse::<u16>()?;
-                
+
                 for port in start..=end {
                     if !ports.contains(&port) {
                         ports.push(port);

@@ -20,7 +20,7 @@ impl HostnameExtractor {
                     hostnames.insert(domain);
                 }
             }
-            
+
             // Subject Alternative Names
             if line.contains("Subject Alternative Name:") || line.contains("DNS:") {
                 for domain in Self::extract_sans(line) {
@@ -52,14 +52,14 @@ impl HostnameExtractor {
 
         for line in output.lines() {
             let line = line.trim();
-            
+
             // host command: "1.2.3.4.in-addr.arpa domain name pointer example.com."
             if line.contains("domain name pointer") {
                 if let Some(ptr) = Self::extract_ptr(line) {
                     hostnames.insert(ptr);
                 }
             }
-            
+
             // dig command: PTR records
             if line.contains("PTR") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
@@ -70,7 +70,7 @@ impl HostnameExtractor {
                     }
                 }
             }
-            
+
             // dig command: A records (for reverse lookup showing original hostname)
             // Example: "example.com.    300    IN    A    93.184.216.34"
             if line.contains(" IN A ") || line.contains(" IN AAAA ") {
@@ -82,7 +82,7 @@ impl HostnameExtractor {
                     }
                 }
             }
-            
+
             // dig command: MX records contain mail server hostnames
             // Example: "example.com.    300    IN    MX    10 mail.example.com."
             if line.contains(" IN MX ") {
@@ -97,7 +97,7 @@ impl HostnameExtractor {
                     }
                 }
             }
-            
+
             // dig command: NS records contain nameserver hostnames
             // Example: "example.com.    300    IN    NS    ns1.example.com."
             if line.contains(" IN NS ") {
@@ -109,7 +109,7 @@ impl HostnameExtractor {
                     }
                 }
             }
-            
+
             // dig command: CNAME records
             // Example: "www.example.com.    300    IN    CNAME    example.com."
             if line.contains(" IN CNAME ") {
@@ -150,7 +150,7 @@ impl HostnameExtractor {
     /// Extract Subject Alternative Names from certificate
     fn extract_sans(line: &str) -> Vec<String> {
         let mut domains = Vec::new();
-        
+
         // Look for DNS: entries
         for part in line.split(',') {
             if let Some(dns) = part.trim().strip_prefix("DNS:") {
@@ -160,7 +160,7 @@ impl HostnameExtractor {
                 }
             }
         }
-        
+
         domains
     }
 
@@ -205,7 +205,8 @@ impl HostnameExtractor {
         }
 
         // Basic DNS name validation
-        s.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == '_' || c == '*')
+        s.chars()
+            .all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == '_' || c == '*')
     }
 }
 
@@ -222,7 +223,7 @@ impl HostsFileManager {
 
         // Check if we have sudo privileges
         let is_root = unsafe { libc::geteuid() == 0 };
-        
+
         if !is_root {
             info!("Not running as root - skipping /etc/hosts update");
             info!("Discovered hostnames: {}", hostnames.join(", "));
@@ -230,30 +231,33 @@ impl HostsFileManager {
             return Ok(());
         }
 
-        info!("Adding {} hostname(s) to /etc/hosts: {}", hostnames.len(), hostnames.join(", "));
+        info!(
+            "Adding {} hostname(s) to /etc/hosts: {}",
+            hostnames.len(),
+            hostnames.join(", ")
+        );
 
         // Create backup
         let backup_cmd = Command::new("cp")
             .args(&["/etc/hosts", "/etc/hosts.ipcrawler.bak"])
             .output();
-        
+
         if let Err(e) = backup_cmd {
             warn!("Failed to backup /etc/hosts: {}", e);
         }
 
         // Read current /etc/hosts
-        let current = std::fs::read_to_string("/etc/hosts")
-            .unwrap_or_default();
+        let current = std::fs::read_to_string("/etc/hosts").unwrap_or_default();
 
         // Check if entries already exist
         let marker = format!("# IPCrawler - {}", ip);
         let mut entries_to_add = Vec::new();
-        
+
         for hostname in hostnames {
             // Check if hostname already exists in hosts file
-            let already_exists = current.lines().any(|line| {
-                !line.trim().starts_with('#') && line.contains(hostname)
-            });
+            let already_exists = current
+                .lines()
+                .any(|line| !line.trim().starts_with('#') && line.contains(hostname));
 
             if !already_exists {
                 entries_to_add.push(hostname.clone());
@@ -269,16 +273,25 @@ impl HostsFileManager {
 
         // Append new entries
         let entry = format!("\n{}\t{}\t{}\n", marker, ip, entries_to_add.join(" "));
-        
+
         let output = Command::new("sh")
             .arg("-c")
-            .arg(format!("echo '{}' >> /etc/hosts", entry.replace('\'', "'\\''")))
+            .arg(format!(
+                "echo '{}' >> /etc/hosts",
+                entry.replace('\'', "'\\''")
+            ))
             .output()?;
 
         if output.status.success() {
-            info!("Successfully added {} hostname(s) to /etc/hosts", entries_to_add.len());
+            info!(
+                "Successfully added {} hostname(s) to /etc/hosts",
+                entries_to_add.len()
+            );
         } else {
-            warn!("Failed to update /etc/hosts: {}", String::from_utf8_lossy(&output.stderr));
+            warn!(
+                "Failed to update /etc/hosts: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         Ok(())
@@ -287,14 +300,14 @@ impl HostsFileManager {
     /// Remove IPCrawler entries from /etc/hosts
     pub fn cleanup(ip: &str) -> Result<()> {
         let is_root = unsafe { libc::geteuid() == 0 };
-        
+
         if !is_root {
             return Ok(());
         }
 
         let marker = format!("# IPCrawler - {}", ip);
         let current = std::fs::read_to_string("/etc/hosts")?;
-        
+
         let cleaned: Vec<&str> = current
             .lines()
             .filter(|line| !line.contains(&marker) && !line.trim().is_empty())
@@ -322,7 +335,8 @@ mod tests {
 
     #[test]
     fn test_extract_sans() {
-        let line = "| Subject Alternative Name: DNS:example.com, DNS:www.example.com, DNS:api.example.com";
+        let line =
+            "| Subject Alternative Name: DNS:example.com, DNS:www.example.com, DNS:api.example.com";
         let sans = HostnameExtractor::extract_sans(line);
         assert_eq!(sans.len(), 3);
         assert!(sans.contains(&"example.com".to_string()));

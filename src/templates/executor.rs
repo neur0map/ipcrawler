@@ -50,7 +50,7 @@ impl TemplateExecutor {
             self.port_spec.as_deref(),
             self.wordlist.as_deref(),
         );
-        
+
         debug!(
             "Running command: {} {}",
             template.command.binary,
@@ -149,7 +149,7 @@ impl TemplateExecutor {
         }
 
         // Separate pre-scan and main templates
-        let (pre_scan_templates, main_templates): (Vec<_>, Vec<_>) = 
+        let (pre_scan_templates, main_templates): (Vec<_>, Vec<_>) =
             templates.into_iter().partition(|t| t.pre_scan);
 
         let mut all_results = Vec::new();
@@ -158,19 +158,25 @@ impl TemplateExecutor {
         if !pre_scan_templates.is_empty() {
             info!("Pre-scan phase: {} template(s)", pre_scan_templates.len());
             let pre_scan_results = self.execute_phase(pre_scan_templates).await;
-            
+
             // Extract hostnames from pre-scan outputs
             let hostnames = self.extract_hostnames(&pre_scan_results).await;
-            
+
             if !hostnames.is_empty() {
-                info!("Discovered {} hostname(s): {}", hostnames.len(), hostnames.join(", "));
-                
+                info!(
+                    "Discovered {} hostname(s): {}",
+                    hostnames.len(),
+                    hostnames.join(", ")
+                );
+
                 // Update /etc/hosts
-                if let Err(e) = crate::hostname::HostsFileManager::add_entries(&self.target, &hostnames) {
+                if let Err(e) =
+                    crate::hostname::HostsFileManager::add_entries(&self.target, &hostnames)
+                {
                     warn!("Failed to update /etc/hosts: {}", e);
                 }
             }
-            
+
             all_results.extend(pre_scan_results);
         }
 
@@ -185,7 +191,10 @@ impl TemplateExecutor {
     async fn execute_phase(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
         // Check if any template has dependencies
         let has_dependencies = templates.iter().any(|t| {
-            t.depends_on.as_ref().map(|d| !d.is_empty()).unwrap_or(false)
+            t.depends_on
+                .as_ref()
+                .map(|d| !d.is_empty())
+                .unwrap_or(false)
         });
 
         if has_dependencies {
@@ -195,11 +204,9 @@ impl TemplateExecutor {
         }
     }
 
-
-
     async fn execute_parallel(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
-        use tokio::task::JoinSet;
         use colored::Colorize;
+        use tokio::task::JoinSet;
 
         // Print all tools that will run (non-verbose mode only)
         if !self.verbose {
@@ -210,11 +217,15 @@ impl TemplateExecutor {
         }
 
         let tool_index: Arc<Mutex<HashMap<String, usize>>> = Arc::new(Mutex::new(
-            templates.iter().enumerate().map(|(i, t)| (t.name.clone(), i)).collect()
+            templates
+                .iter()
+                .enumerate()
+                .map(|(i, t)| (t.name.clone(), i))
+                .collect(),
         ));
-        
+
         let mut set: JoinSet<(ExecutionResult, std::time::Duration)> = JoinSet::new();
-        
+
         for template in templates {
             let executor = TemplateExecutor {
                 target: self.target.clone(),
@@ -252,7 +263,11 @@ impl TemplateExecutor {
                         print!("\x1B[{}A", lines_up); // Move cursor up
                         print!("\r\x1B[K"); // Clear line
                         if result.success {
-                            println!("  [✓] {} ({:.2}s)", name.green(), start.elapsed().as_secs_f64());
+                            println!(
+                                "  [✓] {} ({:.2}s)",
+                                name.green(),
+                                start.elapsed().as_secs_f64()
+                            );
                         } else {
                             println!("  [X] {} (failed)", name.red());
                         }
@@ -260,7 +275,7 @@ impl TemplateExecutor {
                         io::stdout().flush().ok();
                     }
                 }
-                
+
                 (result, start.elapsed())
             });
         }
@@ -291,11 +306,17 @@ impl TemplateExecutor {
 
         for result in results {
             let combined_output = format!("{}\n{}", result.stdout, result.stderr);
-            
+
             // Extract hostnames based on tool name
-            let hostnames = if result.template_name.contains("nmap") || result.template_name.contains("hostname") {
+            let hostnames = if result.template_name.contains("nmap")
+                || result.template_name.contains("hostname")
+            {
                 HostnameExtractor::from_nmap(&combined_output)
-            } else if result.template_name.contains("dns") || result.template_name.contains("host") || result.template_name.contains("reverse") || result.template_name.contains("dig") {
+            } else if result.template_name.contains("dns")
+                || result.template_name.contains("host")
+                || result.template_name.contains("reverse")
+                || result.template_name.contains("dig")
+            {
                 HostnameExtractor::from_reverse_dns(&combined_output)
             } else {
                 // Try both extractors for unknown tools
@@ -305,7 +326,10 @@ impl TemplateExecutor {
             };
 
             for hostname in hostnames {
-                debug!("Extracted hostname '{}' from template '{}'", hostname, result.template_name);
+                debug!(
+                    "Extracted hostname '{}' from template '{}'",
+                    hostname, result.template_name
+                );
                 all_hostnames.insert(hostname);
             }
         }
@@ -315,18 +339,17 @@ impl TemplateExecutor {
 
     async fn execute_with_dependencies(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
         // Build dependency graph
-        let template_map: HashMap<String, Template> = templates
-            .into_iter()
-            .map(|t| (t.name.clone(), t))
-            .collect();
+        let template_map: HashMap<String, Template> =
+            templates.into_iter().map(|t| (t.name.clone(), t)).collect();
 
         // Track completed templates
-        let completed: Arc<Mutex<HashMap<String, ExecutionResult>>> = 
+        let completed: Arc<Mutex<HashMap<String, ExecutionResult>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let failed: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
 
         // Execute templates respecting dependencies
-        self.execute_dag(template_map, completed.clone(), failed.clone()).await;
+        self.execute_dag(template_map, completed.clone(), failed.clone())
+            .await;
 
         // Return results in order
         let completed_guard = completed.lock().await;
@@ -344,7 +367,7 @@ impl TemplateExecutor {
 
         let template_map = Arc::new(template_map);
         let mut set: JoinSet<(String, ExecutionResult)> = JoinSet::new();
-        let pending: Arc<Mutex<HashSet<String>>> = 
+        let pending: Arc<Mutex<HashSet<String>>> =
             Arc::new(Mutex::new(template_map.keys().cloned().collect()));
 
         loop {
@@ -358,14 +381,14 @@ impl TemplateExecutor {
                     .iter()
                     .filter_map(|name| {
                         let template = template_map.get(name)?;
-                        
+
                         // Check if dependencies are satisfied
                         if let Some(deps) = &template.depends_on {
                             // Check if any dependency failed
                             if deps.iter().any(|dep| failed_guard.contains(dep)) {
                                 return None; // Skip if dependency failed
                             }
-                            
+
                             // Check if all dependencies completed
                             if deps.iter().all(|dep| completed_guard.contains_key(dep)) {
                                 Some(template.clone())
@@ -386,13 +409,15 @@ impl TemplateExecutor {
                 if pending_guard.is_empty() {
                     break; // All done
                 }
-                
+
                 // Check if we have any running tasks
                 if set.is_empty() {
                     // No ready templates and nothing running = dependency cycle or missing deps
-                    error!("Dependency cycle or missing dependencies detected for: {:?}", 
-                        pending_guard.iter().collect::<Vec<_>>());
-                    
+                    error!(
+                        "Dependency cycle or missing dependencies detected for: {:?}",
+                        pending_guard.iter().collect::<Vec<_>>()
+                    );
+
                     // Mark remaining as failed
                     let mut failed_guard = failed.lock().await;
                     for name in pending_guard.iter() {
@@ -400,7 +425,7 @@ impl TemplateExecutor {
                     }
                     break;
                 }
-                
+
                 // Wait for at least one task to complete
                 if let Some(result) = set.join_next().await {
                     match result {
@@ -409,16 +434,21 @@ impl TemplateExecutor {
                             if !self.verbose {
                                 use colored::Colorize;
                                 if exec_result.success {
-                                    println!("  {} {} ({:.2}s)", "✓".green().bold(), name, exec_result.duration.as_secs_f64());
+                                    println!(
+                                        "  {} {} ({:.2}s)",
+                                        "✓".green().bold(),
+                                        name,
+                                        exec_result.duration.as_secs_f64()
+                                    );
                                 } else {
                                     println!("  {} {} (failed)", "✗".red().bold(), name);
                                 }
                                 let _ = std::io::stdout().flush();
                             }
-                            
+
                             let mut pending_guard = pending.lock().await;
                             pending_guard.remove(&name);
-                            
+
                             if exec_result.success {
                                 let mut completed_guard = completed.lock().await;
                                 completed_guard.insert(name, exec_result);
@@ -470,7 +500,7 @@ impl TemplateExecutor {
                     Ok((name, exec_result)) => {
                         let mut pending_guard = pending.lock().await;
                         pending_guard.remove(&name);
-                        
+
                         if exec_result.success {
                             let mut completed_guard = completed.lock().await;
                             completed_guard.insert(name, exec_result);
@@ -531,7 +561,11 @@ impl ExecutionResult {
             self.stdout.clone()
         } else {
             let preview: Vec<&str> = lines.iter().take(max_lines).copied().collect();
-            format!("{}\n... ({} more lines)", preview.join("\n"), lines.len() - max_lines)
+            format!(
+                "{}\n... ({} more lines)",
+                preview.join("\n"),
+                lines.len() - max_lines
+            )
         }
     }
 }

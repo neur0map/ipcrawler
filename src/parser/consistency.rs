@@ -47,7 +47,10 @@ impl ConsistencyChecker {
         let mut errors = Vec::new();
 
         for pass_num in 1..=self.num_passes {
-            match self.parse_single_pass(llm, tool_name, output, pass_num).await {
+            match self
+                .parse_single_pass(llm, tool_name, output, pass_num)
+                .await
+            {
                 Ok(entities) => all_passes.push(entities),
                 Err(e) => {
                     warn!("Pass {}/{} failed: {}", pass_num, self.num_passes, e);
@@ -166,8 +169,11 @@ impl ConsistencyChecker {
             }
 
             for port in &entities.ports {
-                let existing = merged.ports.iter_mut().find(|p| p.port == port.port && p.protocol == port.protocol);
-                
+                let existing = merged
+                    .ports
+                    .iter_mut()
+                    .find(|p| p.port == port.port && p.protocol == port.protocol);
+
                 match existing {
                     Some(existing_port) => {
                         // Merge additional information if this pass has more detail
@@ -185,12 +191,17 @@ impl ConsistencyChecker {
             }
 
             for vuln in &entities.vulnerabilities {
-                let existing = merged.vulnerabilities.iter_mut().find(|v| v.name == vuln.name);
-                
+                let existing = merged
+                    .vulnerabilities
+                    .iter_mut()
+                    .find(|v| v.name == vuln.name);
+
                 match existing {
                     Some(existing_vuln) => {
                         // Prefer more severe rating if different
-                        if existing_vuln.severity.to_lowercase() == "low" && vuln.severity.to_lowercase() != "low" {
+                        if existing_vuln.severity.to_lowercase() == "low"
+                            && vuln.severity.to_lowercase() != "low"
+                        {
                             existing_vuln.severity = vuln.severity.clone();
                         }
                         // Merge description if current is empty or shorter

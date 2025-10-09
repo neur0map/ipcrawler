@@ -31,13 +31,14 @@ pub struct WordlistManager {
 impl WordlistManager {
     pub fn new(templates_dir: PathBuf) -> Result<Self> {
         let config_path = templates_dir.join("wordlists.toml");
-        
-        let content = fs::read_to_string(&config_path)
-            .with_context(|| format!("Failed to read wordlists config: {}", config_path.display()))?;
-        
-        let config: WordlistsConfig = toml::from_str(&content)
-            .context("Failed to parse wordlists.toml")?;
-        
+
+        let content = fs::read_to_string(&config_path).with_context(|| {
+            format!("Failed to read wordlists config: {}", config_path.display())
+        })?;
+
+        let config: WordlistsConfig =
+            toml::from_str(&content).context("Failed to parse wordlists.toml")?;
+
         Ok(Self {
             config,
             templates_dir,
@@ -117,7 +118,7 @@ impl WordlistManager {
                 )
             })
             .collect();
-        
+
         wordlists.sort_by(|a, b| a.0.cmp(&b.0));
         wordlists
     }
@@ -132,7 +133,7 @@ mod tests {
         // Test that direct paths work
         let path = "/tmp/test.txt";
         std::fs::write(path, "test").unwrap();
-        
+
         // Would need to create a test config, skipping for now
         std::fs::remove_file(path).ok();
     }
