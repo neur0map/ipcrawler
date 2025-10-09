@@ -73,7 +73,7 @@ Use these variables in your `args` section:
 | `{{target}}` | The scan target | `192.168.1.1`, `example.com`, `https://example.com` |
 | `{{output_dir}}` | Output directory for results | `/tmp/ipcrawler_scan_123/mytool` |
 | `{{ports}}` | Port specification | `-p 80,443` or `--top-ports 1000` |
-| `{{wordlist}}` | Path to wordlist file | `/usr/share/wordlists/dirb/common.txt` |
+| `{{wordlist}}` | Path to wordlist file | `/usr/share/seclists/Discovery/Web-Content/common.txt` |
 
 ### Template Best Practices
 

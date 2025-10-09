@@ -1,62 +1,87 @@
 # Wordlist Configuration
 # Define wordlist aliases and their file paths for different scanning tools
+# 
+# Standard Kali Linux / HTB paths for SecLists:
+#   /usr/share/seclists/Discovery/Web-Content/
+#   /usr/share/seclists/Discovery/DNS/
+# Install SecLists: sudo apt install seclists
 
 [wordlists]
 # Default wordlist used when no -w/--wordlist flag is provided
-# Update this to match an available wordlist on your system
 default = "common"
 
-# Common wordlists - add your own paths here
+# SecLists - Web Content Discovery (Primary wordlists for Kali/HTB)
 [wordlists.common]
-path = "/usr/share/wordlists/dirb/common.txt"
-description = "Common directory/file names (4614 entries)"
+path = "/usr/share/seclists/Discovery/Web-Content/common.txt"
+description = "SecLists common web content (4k entries) - RECOMMENDED DEFAULT"
 size = "small"
 
 [wordlists.medium]
-path = "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"
-description = "Medium directory list (220k entries)"
+path = "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
+description = "SecLists directory list medium (220k entries)"
 size = "medium"
 
 [wordlists.big]
-path = "/usr/share/wordlists/dirbuster/directory-list-2.3-big.txt"
-description = "Big directory list (1.2M entries)"
+path = "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-big.txt"
+description = "SecLists directory list big (1.2M entries)"
 size = "large"
 
 [wordlists.small]
-path = "/usr/share/wordlists/dirb/small.txt"
-description = "Small directory list (959 entries)"
+path = "/usr/share/seclists/Discovery/Web-Content/common.txt"
+description = "Alias for 'common' - fast scan (4k entries)"
 size = "small"
 
-# SecLists wordlists (if installed)
+# SecLists - Additional wordlists
 [wordlists.raft-small]
 path = "/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt"
-description = "SecLists Raft small (43k entries)"
+description = "SecLists Raft small words (43k entries)"
 size = "small"
 
 [wordlists.raft-medium]
 path = "/usr/share/seclists/Discovery/Web-Content/raft-medium-words.txt"
-description = "SecLists Raft medium (63k entries)"
+description = "SecLists Raft medium words (63k entries)"
 size = "medium"
 
 [wordlists.raft-large]
 path = "/usr/share/seclists/Discovery/Web-Content/raft-large-words.txt"
-description = "SecLists Raft large (107k entries)"
+description = "SecLists Raft large words (107k entries)"
 size = "large"
 
-# Custom wordlists - add your own
+# API & Technology Specific
+[wordlists.api-endpoints]
+path = "/usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt"
+description = "Common API endpoints (30+ entries)"
+size = "small"
+
+# DNS & Subdomain Discovery
+[wordlists.subdomains-top1million-5000]
+path = "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
+description = "Top 5000 most common subdomains"
+size = "small"
+
+# Legacy - DIRB & DirBuster (Fallback for older systems)
+[wordlists.dirb-common]
+path = "/usr/share/wordlists/dirb/common.txt"
+description = "DIRB common directory/file names (4614 entries)"
+size = "small"
+
+[wordlists.dirb-small]
+path = "/usr/share/wordlists/dirb/small.txt"
+description = "DIRB small directory list (959 entries)"
+size = "small"
+
+[wordlists.dirbuster-medium]
+path = "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"
+description = "DirBuster medium directory list (220k entries)"
+size = "medium"
+
+[wordlists.dirbuster-big]
+path = "/usr/share/wordlists/dirbuster/directory-list-2.3-big.txt"
+description = "DirBuster big directory list (1.2M entries)"
+size = "large"
+
+# Custom wordlists - add your own below
 # [wordlists.custom]
 # path = "/path/to/your/custom/wordlist.txt"
 # description = "Your custom wordlist"
 # size = "custom"
-
-# API endpoints
-[wordlists.api]
-path = "/usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt"
-description = "Common API endpoints"
-size = "small"
-
-# Subdomains
-[wordlists.subdomains]
-path = "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
-description = "Top 5000 subdomains"
-size = "small"
