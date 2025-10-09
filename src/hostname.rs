@@ -223,8 +223,11 @@ impl HostsFileManager {
             return Ok(());
         }
 
-        // Check if we have sudo privileges
+        // Check if we have sudo privileges (Unix only)
+        #[cfg(unix)]
         let is_root = unsafe { libc::geteuid() == 0 };
+        #[cfg(not(unix))]
+        let is_root = false;
 
         if !is_root {
             info!("Not running as root - skipping /etc/hosts update");
@@ -302,7 +305,10 @@ impl HostsFileManager {
     /// Remove IPCrawler entries from /etc/hosts
     #[allow(dead_code)]
     pub fn cleanup(ip: &str) -> Result<()> {
+        #[cfg(unix)]
         let is_root = unsafe { libc::geteuid() == 0 };
+        #[cfg(not(unix))]
+        let is_root = false;
 
         if !is_root {
             return Ok(());
