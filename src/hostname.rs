@@ -151,10 +151,12 @@ impl HostnameExtractor {
     fn extract_sans(line: &str) -> Vec<String> {
         let mut domains = Vec::new();
 
-        // Look for DNS: entries
+        // Look for DNS: entries in the line
         for part in line.split(',') {
-            if let Some(dns) = part.trim().strip_prefix("DNS:") {
-                let domain = dns.trim();
+            let trimmed = part.trim();
+            // Find DNS: anywhere in the part (handles "| Subject Alternative Name: DNS:example.com")
+            if let Some(dns_pos) = trimmed.find("DNS:") {
+                let domain = trimmed[dns_pos + 4..].trim();
                 if Self::is_valid_hostname(domain) {
                     domains.push(domain.to_string());
                 }
