@@ -1,41 +1,45 @@
 # IPCrawler
 
-Intelligent automated penetration testing scanner with LLM-powered output parsing. Run multiple security tools concurrently, parse outputs with AI, and get structured reports without hardcoded regex patterns.
+**Modern penetration testing scanner with AI-powered output parsing**
 
-## Features
+IPCrawler runs multiple security tools concurrently and uses LLMs to parse outputs into structured data—no regex patterns, no hardcoded parsers. Add new tools through YAML templates without touching code.
 
-- **AI-Powered Parsing** - Converts tool outputs to structured JSON using LLMs (no regex)
-- **Concurrent Execution** - Tokio-based async tool execution with automatic sudo detection
-- **Multiple Output Formats** - Terminal, HTML, Markdown, and JSON reports
-- **4 LLM Providers** - OpenAI, Groq, Anthropic, Ollama support
-- **YAML Template System** - Easy tool configuration and extensibility
-- **Secure Configuration** - Store API keys with 0600 file permissions
+```bash
+# One command to scan, parse, and report
+ipcrawler 192.168.1.1 -o ./scan
+```
+
+---
+
+## Key Features
+
+**AI-Powered Parsing**  
+Convert any tool output to structured JSON using OpenAI, Groq, Anthropic, or Ollama
+
+**Concurrent Execution**  
+Tokio-based async architecture with automatic pre-scan phase and sudo detection
+
+**Template System**  
+YAML-based tool configuration—add tools without code changes
+
+**Multiple Output Formats**  
+Terminal, HTML, Markdown, and JSON reports
+
+**Smart Consistency**  
+Multi-pass parsing with union merge strategy ensures no findings are missed
+
+---
 
 ## Installation
 
-### Quick Install (Stable)
+### Quick Install
 
 ```bash
+# Stable release
 curl -fsSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh | bash
-```
 
-### Unstable Build (Latest)
-
-```bash
+# Latest unstable build
 curl -fsSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh | bash -s -- --unstable
-```
-
-### Install Options
-
-```bash
-# Install specific version
-curl -fsSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh | bash -s -- --version v1.0.0
-
-# Install to custom directory
-curl -fsSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh | bash -s -- --dir /usr/local/bin
-
-# Force reinstall
-curl -fsSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh | bash -s -- --force
 ```
 
 ### Build from Source
@@ -44,149 +48,193 @@ curl -fsSL https://raw.githubusercontent.com/neur0map/ipcrawler/main/install.sh 
 git clone https://github.com/neur0map/ipcrawler.git
 cd ipcrawler
 cargo build --release
-# Binary at target/release/ipcrawler
+sudo mv target/release/ipcrawler /usr/local/bin/
 ```
+
+---
 
 ## Quick Start
 
 ```bash
-# 1. Configure API keys (one-time setup)
+# 1. Configure LLM provider (one-time)
 ipcrawler setup
 
-# 2. Run a scan
-ipcrawler 192.168.1.1 -o ./scan
+# 2. Run scan
+ipcrawler example.com -o ./scan
 
 # 3. View results
-# - Terminal output displays immediately
-# - Open ./scan/report.html in browser
-# - Read ./scan/report.md for documentation
+open ./scan/report.html
 ```
 
-## Configuration
-
-### Interactive Setup
-
-```bash
-ipcrawler setup
-```
-
-The setup wizard configures:
-- LLM provider (Groq, OpenAI, Anthropic, Ollama)
-- API key (hidden input)
-- Default settings (templates directory, verbose mode)
-
-Configuration is stored at `~/.config/ipcrawler/config.toml` with secure permissions (0600).
-
-### View Configuration
-
-```bash
-ipcrawler config
-```
-
-### Override Configuration
-
-```bash
-# Override provider
-ipcrawler <target> -o ./scan --llm-provider openai
-
-# Override via environment
-export LLM_API_KEY="your-key"
-ipcrawler <target> -o ./scan
-```
+---
 
 ## Usage
+
+### Basic Commands
 
 ```bash
 # Basic scan
 ipcrawler <target> -o <output_dir>
 
-# Scan with verbose output
+# Scan with verbose logging
 ipcrawler <target> -o <output_dir> -v
 
-# Scan specific ports (default: --top-ports 1000 if not specified)
-ipcrawler <target> -p 22,80,443
-ipcrawler <target> -p 1-1000
-ipcrawler <target> -p 22,80,100-200,443,8000-9000
-ipcrawler <target>  # Uses nmap's top 1000 most common ports
-
-# Use custom wordlist (default: common if not specified)
-ipcrawler <target> -w medium              # Use 'medium' wordlist from config
-ipcrawler <target> -w big                 # Use 'big' wordlist
-ipcrawler <target> -w /path/to/custom.txt # Use custom file path
-ipcrawler <target>                        # Uses 'common' wordlist by default
-
-# Sudo for enhanced scans (uses privileged templates)
+# Enhanced scan with sudo (uses privileged templates)
 sudo ipcrawler <target> -o <output_dir>
 
-# Skip LLM parsing
+# Skip LLM parsing (raw outputs only)
 ipcrawler <target> -o <output_dir> --no-parse
+```
 
-# Increase consistency passes (more reliable, slower)
-ipcrawler <target> -o <output_dir> --consistency-passes 5
+### Port Scanning
 
-# Fast single-pass parsing (faster, less reliable)
-ipcrawler <target> -o <output_dir> --consistency-passes 1
+```bash
+# Default: nmap's top 1000 ports
+ipcrawler <target> -o <output>
 
-# List available templates
-ipcrawler list
+# Specific ports
+ipcrawler <target> -p 22,80,443 -o <output>
 
-# Show template details
-ipcrawler show nmap
+# Port ranges
+ipcrawler <target> -p 1-1000 -o <output>
+
+# Mixed syntax
+ipcrawler <target> -p 22,80,100-200,443,8000-9000 -o <output>
+```
+
+### Wordlists
+
+```bash
+# Default: 'common' wordlist (SecLists)
+ipcrawler <target> -o <output>
+
+# Named wordlist
+ipcrawler <target> -w medium -o <output>
+ipcrawler <target> -w big -o <output>
+ipcrawler <target> -w raft-small -o <output>
+
+# Custom file
+ipcrawler <target> -w /path/to/wordlist.txt -o <output>
 
 # List available wordlists
 ipcrawler wordlists
 ```
 
-## LLM Configuration
+### Templates
 
-The LLM is used solely for parsing tool outputs into structured JSON. Configure via `ipcrawler setup`:
+```bash
+# List all templates
+ipcrawler list
 
-- **Groq** - Fast, free tier (recommended) - https://console.groq.com
-- **OpenAI** - Reliable - https://platform.openai.com
-- **Anthropic** - High quality - https://console.anthropic.com  
-- **Ollama** - Local, free - https://ollama.ai
+# Show template details
+ipcrawler show nmap
+```
+
+### Configuration
+
+```bash
+# Interactive setup wizard
+ipcrawler setup
+
+# View current config
+ipcrawler config
+
+# Override provider for single scan
+ipcrawler <target> -o <output> --llm-provider openai
+```
+
+---
+
+## Configuration
+
+### LLM Providers
+
+Get API keys from:
+- **Groq** (recommended, fast, free tier): https://console.groq.com
+- **OpenAI**: https://platform.openai.com
+- **Anthropic**: https://console.anthropic.com
+- **Ollama** (local, free): https://ollama.ai
+
+Configure via `ipcrawler setup` or set environment variables:
+
+```bash
+export LLM_PROVIDER="groq"
+export LLM_API_KEY="your-key-here"
+```
+
+### File Locations
+
+```
+~/.config/ipcrawler/config.toml    # Configuration (0600 permissions)
+./templates/                       # YAML tool templates
+./templates/wordlists.toml         # Wordlist definitions
+```
+
+---
 
 ## Output Structure
 
 ```
 scan_output/
-├── raw/            # Raw tool outputs (nmap/, nikto/, etc.)
-├── entities.json   # Extracted data (JSON)
-├── report.json     # Full report (JSON)
-├── report.html     # HTML report (open in browser)
-└── report.md       # Markdown report (for docs)
+├── raw/              # Raw tool outputs (nmap/, nikto/, etc.)
+├── entities.json     # Extracted entities (IPs, ports, URLs, etc.)
+├── report.json       # Full structured report
+├── report.html       # Interactive HTML report
+└── report.md         # Markdown documentation
 ```
 
-Output formats: Terminal (immediate), HTML (web report), Markdown (docs), JSON (automation)
+---
+
+## How It Works
+
+### Execution Flow
+
+```
+1. Pre-Scan Phase
+   └─ Templates with pre_scan: true run first
+   └─ Discovers hostnames, DNS records, open ports
+   └─ Updates /etc/hosts (if sudo)
+
+2. Main Scan Phase
+   └─ All enabled templates run concurrently
+   └─ Raw outputs saved to ./raw/
+
+3. AI Parsing Phase
+   └─ Multiple consistency passes per tool
+   └─ LLM converts text → structured JSON
+   └─ Union merge strategy (include all findings)
+   └─ Schema validation
+
+4. Report Generation
+   └─ Terminal output (immediate)
+   └─ HTML report (interactive)
+   └─ Markdown report (documentation)
+   └─ JSON report (automation)
+```
+
+### AI Parsing Details
+
+The LLM performs **only text-to-JSON conversion**—no analysis, no recommendations, just data extraction.
+
+**Multi-Pass Consistency:**
+- Default 3 passes per tool output
+- Union merge: include findings from ANY pass
+- Consistency scoring alerts on variations
+- Configurable via `--consistency-passes 1-5`
+
+**Example:**
+```
+Input:  "22/tcp open ssh OpenSSH 8.2"
+Output: {"ports": [{"port": 22, "service": "ssh", "version": "OpenSSH 8.2"}]}
+```
+
+---
 
 ## Template System
 
-YAML-based templates define tool execution, arguments, timeouts, and dependencies. Customize tool behavior without code changes.
+Add new tools through YAML templates—no code changes required.
 
-### Pre-Scan Phase
-
-IPCrawler automatically runs a **pre-scan phase** before the main scan to discover hostnames associated with the target IP. This ensures tools like `gobuster` and `feroxbuster` get better results by using hostnames instead of IPs.
-
-**How it works:**
-1. Pre-scan templates (marked with `pre_scan: true`) run first
-2. Hostnames are extracted from SSL certificates, HTTP headers, and reverse DNS
-3. Discovered hostnames are added to `/etc/hosts` (requires sudo)
-4. Main scan templates automatically benefit from hostname discovery
-
-**Included Pre-Scan Templates:**
-- `dig` - Comprehensive DNS reconnaissance with advanced techniques:
-  - All record types (A, AAAA, MX, TXT, NS, SOA, CAA, DNSSEC, SRV)
-  - Zone transfer attempts (AXFR)
-  - Subdomain enumeration (40+ common subdomains)
-  - Service discovery (SRV records for LDAP, Kerberos, XMPP, SIP, etc.)
-  - Wildcard detection
-  - Email security records (SPF, DMARC, DKIM)
-  - Internal IP leakage detection (RFC1918 addresses)
-  - Queries authoritative nameservers directly
-- `hostname-discovery` - Uses nmap scripts to extract hostnames from SSL certs and HTTP headers
-- `reverse-dns` - Quick reverse DNS lookup (PTR records)
-
-Example template:
+### Basic Template
 
 ```yaml
 name: nmap
@@ -199,104 +247,32 @@ timeout: 600
 requires_sudo: false
 ```
 
-**Template Variables:**
-- `{{target}}` - Scan target (IP, domain, or URL)
-- `{{output_dir}}` - Output directory for this tool
-- `{{ports}}` - Port specification: `--top-ports 1000` (default) or `-p <custom>` from flag
-- `{{wordlist}}` - Wordlist path: resolved from `-w` flag or default `common` wordlist
+### Template Variables
 
-**Port Behavior:**
-- No `-p` flag: Uses `--top-ports 1000` (nmap's 1000 most common ports)
-- With `-p`: Uses custom specification like `-p 22,80,443` or `-p 1-1000`
-- Generic: Works with any port scanner (nmap, naabu, rustscan) via `{{ports}}` variable
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{target}}` | Scan target | `192.168.1.1`, `example.com` |
+| `{{output_dir}}` | Tool output directory | `./scan/raw/nmap` |
+| `{{ports}}` | Port specification | `-p 80,443` or `--top-ports 1000` |
+| `{{wordlist}}` | Wordlist file path | `/usr/share/seclists/...` |
 
-**Wordlist Behavior:**
-- No `-w` flag: Uses `common` wordlist (configured in `templates/wordlists.toml`)
-- With `-w <name>`: Uses named wordlist from configuration (e.g., `medium`, `big`, `raft-small`)
-- With `-w /path`: Uses direct file path
-- Generic: Works with any brute-forcing tool (gobuster, ffuf, wfuzz) via `{{wordlist}}` variable
-- Run `ipcrawler wordlists` to see available wordlists and their status
+### Included Templates
 
-**Sudo Detection:** Create two variants (`tool.yaml` and `tool-sudo.yaml`). IPCrawler auto-selects based on privileges.
+**Pre-Scan:**
+- `dig` - Comprehensive DNS reconnaissance
+- `hostname-discovery` - Extract hostnames from SSL/HTTP
+- `reverse-dns` - PTR record lookups
 
-**Included Templates:** 
-- Pre-scan: dig, hostname-discovery, reverse-dns
-- Main scan: ping, nmap, nmap-sudo, nikto, whatweb, gobuster
+**Main Scan:**
+- `ping` - Connectivity check
+- `nmap` / `nmap-sudo` - Port scanning
+- `nikto` - Web server scanner
+- `whatweb` - Web technology detection
+- `gobuster` - Directory/file brute-forcing
 
-**Pre-Scan Templates:** Set `pre_scan: true` to run a template before the main scan phase. Useful for hostname discovery, port discovery, or any reconnaissance that benefits subsequent tools.
+For complete template documentation, see [templates/README.md](templates/README.md).
 
-**Example Usage:**
-```bash
-# Run with sudo to automatically update /etc/hosts with discovered hostnames
-sudo ipcrawler <target-ip> -o <output>
-
-# Without sudo - hostnames will be discovered but not added to /etc/hosts
-ipcrawler <target-ip> -o <output>
-```
-
-When hostnames are discovered and added to `/etc/hosts`, subsequent tools (like gobuster, feroxbuster, nikto) will automatically use the hostname, resulting in better scan results.
-
-See [templates/README.md](templates/README.md) for complete documentation.
-
-## How AI Parsing Works
-
-**Data Flow:** Tools execute → Raw text → LLM parses (multiple passes) → Validated JSON → Reports
-
-The LLM performs only text-to-JSON conversion. It does NOT analyze vulnerabilities, make security decisions, or provide recommendations. Just data extraction.
-
-Example:
-```
-Input:  "22/tcp open ssh OpenSSH 8.2"
-Output: {"ports": [{"port": 22, "service": "ssh", "version": "OpenSSH 8.2"}]}
-```
-
-### Consistency Pipeline
-
-Since LLMs are non-deterministic, IPCrawler runs multiple parsing passes (default: 3) to ensure consistent results:
-
-1. **Multi-pass parsing** - Parse each tool output multiple times
-2. **Union merge strategy** - Include findings from ANY pass (safer for security)
-3. **Consistency scoring** - Calculate similarity between passes
-4. **Validation** - Schema validation on all outputs
-5. **Warnings** - Alert on low consistency or variations
-
-**Why this matters:**
-- Prevents missing critical vulnerabilities
-- Detects when LLM is being inconsistent
-- No tool-specific hardcoded logic needed
-- Configurable via `--consistency-passes` (1-5)
-
-**Benefits:**
-- Adapts to any tool's output format
-- No regex patterns to maintain
-- Works with tools you haven't configured yet
-- Consistent, reliable results across runs
-
-## Security
-
-- Config stored with 0600 permissions at `~/.config/ipcrawler/config.toml`
-- API keys masked when viewing config
-- Hidden password-style input during setup
-
-## Architecture
-
-```
-src/
-├── main.rs       # Entry point
-├── cli.rs        # CLI parsing
-├── config/       # Configuration (loading, setup wizard)
-├── display/      # Output formatting (terminal, HTML, markdown)
-├── parser/       # AI integration (LLM API, entity extraction)
-├── templates/    # YAML system (loader, sudo detection, executor)
-└── storage/      # Output management (file ops, reports)
-```
-
-## Development
-
-```bash
-cargo build
-cargo run -- <target> -o ./scan -v  # Debug logging
-```
+---
 
 ## Example Output
 
@@ -311,6 +287,10 @@ Scan Results for example.com
 [Open Ports]
   80 (tcp)  http nginx
   443 (tcp)  ssl/http nginx
+
+[URLs]
+  http://example.com
+  https://example.com
 
 [No vulnerabilities detected]
 
@@ -332,17 +312,88 @@ Output Files:
   - ./scan/raw/
 ```
 
+---
+
+## Security
+
+- Config stored with `0600` permissions
+- API keys masked in output
+- Hidden password-style input during setup
+- No credentials in logs or reports
+
+---
+
+## Documentation
+
+- [Template Guide](templates/README.md) - Complete template system documentation
+- [Contributing Guide](CONTRIBUTING.md) - Development guidelines and contribution instructions
+- [Release Notes](RELEASE.md) - Version history and changelog
+
+---
+
+## Development
+
+```bash
+# Build
+cargo build --release
+
+# Run with debug logging
+cargo run -- <target> -o ./scan -v
+
+# Run tests
+cargo test --all-features
+
+# Format and lint
+cargo fmt
+cargo clippy
+```
+
+---
+
 ## Troubleshooting
 
-**TTY warning during setup:** Build the release binary first and run directly instead of through `cargo run`:
+**TTY Warning During Setup**
 
+Build the release binary first:
 ```bash
 cargo build --release
 ./target/release/ipcrawler setup
 ```
 
-**Auto-generated output directories:** If no `-o` flag is provided, output is saved to `./ipcrawler_<target>_<timestamp>`.
+**Auto-Generated Output Directories**
+
+If no `-o` flag is provided, output is saved to `./ipcrawler_<target>_<timestamp>`.
+
+**Wordlist Not Found**
+
+Install SecLists (recommended for Kali/HTB):
+```bash
+sudo apt install seclists
+```
+
+Or use direct file path:
+```bash
+ipcrawler <target> -w /path/to/wordlist.txt
+```
+
+---
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details
+
+---
+
+## Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+**Quick contribution areas:**
+- Add new tool templates (no code required)
+- Improve HTML report styling
+- Add wordlist configurations
+- Enhance documentation
+
+---
+
+**Built with Rust and powered by AI**
