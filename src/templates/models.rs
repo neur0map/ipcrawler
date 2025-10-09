@@ -12,6 +12,8 @@ pub struct Template {
     pub timeout: Option<u64>,
     pub env: Option<HashMap<String, String>>,
     pub requires_sudo: Option<bool>,
+    #[serde(default)]
+    pub pre_scan: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

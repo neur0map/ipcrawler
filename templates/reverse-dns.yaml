@@ -1,0 +1,20 @@
+name: reverse-dns
+description: Reverse DNS lookup to discover hostnames
+enabled: true
+pre_scan: true
+
+command:
+  binary: host
+  args:
+    - "{{target}}"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/reverse_dns.txt"
+
+timeout: 10
+
+env: {}
+
+requires_sudo: false

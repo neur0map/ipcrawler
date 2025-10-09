@@ -163,6 +163,29 @@ Output formats: Terminal (immediate), HTML (web report), Markdown (docs), JSON (
 
 YAML-based templates define tool execution, arguments, timeouts, and dependencies. Customize tool behavior without code changes.
 
+### Pre-Scan Phase
+
+IPCrawler automatically runs a **pre-scan phase** before the main scan to discover hostnames associated with the target IP. This ensures tools like `gobuster` and `feroxbuster` get better results by using hostnames instead of IPs.
+
+**How it works:**
+1. Pre-scan templates (marked with `pre_scan: true`) run first
+2. Hostnames are extracted from SSL certificates, HTTP headers, and reverse DNS
+3. Discovered hostnames are added to `/etc/hosts` (requires sudo)
+4. Main scan templates automatically benefit from hostname discovery
+
+**Included Pre-Scan Templates:**
+- `dig` - Comprehensive DNS reconnaissance with advanced techniques:
+  - All record types (A, AAAA, MX, TXT, NS, SOA, CAA, DNSSEC, SRV)
+  - Zone transfer attempts (AXFR)
+  - Subdomain enumeration (40+ common subdomains)
+  - Service discovery (SRV records for LDAP, Kerberos, XMPP, SIP, etc.)
+  - Wildcard detection
+  - Email security records (SPF, DMARC, DKIM)
+  - Internal IP leakage detection (RFC1918 addresses)
+  - Queries authoritative nameservers directly
+- `hostname-discovery` - Uses nmap scripts to extract hostnames from SSL certs and HTTP headers
+- `reverse-dns` - Quick reverse DNS lookup (PTR records)
+
 Example template:
 
 ```yaml
@@ -196,7 +219,22 @@ requires_sudo: false
 
 **Sudo Detection:** Create two variants (`tool.yaml` and `tool-sudo.yaml`). IPCrawler auto-selects based on privileges.
 
-**Included Templates:** ping, nmap, nmap-sudo, nikto, whatweb, gobuster
+**Included Templates:** 
+- Pre-scan: dig, hostname-discovery, reverse-dns
+- Main scan: ping, nmap, nmap-sudo, nikto, whatweb, gobuster
+
+**Pre-Scan Templates:** Set `pre_scan: true` to run a template before the main scan phase. Useful for hostname discovery, port discovery, or any reconnaissance that benefits subsequent tools.
+
+**Example Usage:**
+```bash
+# Run with sudo to automatically update /etc/hosts with discovered hostnames
+sudo ipcrawler <target-ip> -o <output>
+
+# Without sudo - hostnames will be discovered but not added to /etc/hosts
+ipcrawler <target-ip> -o <output>
+```
+
+When hostnames are discovered and added to `/etc/hosts`, subsequent tools (like gobuster, feroxbuster, nikto) will automatically use the hostname, resulting in better scan results.
 
 See [templates/README.md](templates/README.md) for complete documentation.
 

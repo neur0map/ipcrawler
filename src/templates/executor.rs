@@ -148,16 +148,49 @@ impl TemplateExecutor {
             return Vec::new();
         }
 
+        // Separate pre-scan and main templates
+        let (pre_scan_templates, main_templates): (Vec<_>, Vec<_>) = 
+            templates.into_iter().partition(|t| t.pre_scan);
+
+        let mut all_results = Vec::new();
+
+        // Phase 1: Run pre-scan templates if any
+        if !pre_scan_templates.is_empty() {
+            info!("Pre-scan phase: {} template(s)", pre_scan_templates.len());
+            let pre_scan_results = self.execute_phase(pre_scan_templates).await;
+            
+            // Extract hostnames from pre-scan outputs
+            let hostnames = self.extract_hostnames(&pre_scan_results).await;
+            
+            if !hostnames.is_empty() {
+                info!("Discovered {} hostname(s): {}", hostnames.len(), hostnames.join(", "));
+                
+                // Update /etc/hosts
+                if let Err(e) = crate::hostname::HostsFileManager::add_entries(&self.target, &hostnames) {
+                    warn!("Failed to update /etc/hosts: {}", e);
+                }
+            }
+            
+            all_results.extend(pre_scan_results);
+        }
+
+        // Phase 2: Run main templates
+        if !main_templates.is_empty() {
+            all_results.extend(self.execute_phase(main_templates).await);
+        }
+
+        all_results
+    }
+
+    async fn execute_phase(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
         // Check if any template has dependencies
         let has_dependencies = templates.iter().any(|t| {
             t.depends_on.as_ref().map(|d| !d.is_empty()).unwrap_or(false)
         });
 
         if has_dependencies {
-            info!("Executing templates with dependency resolution");
             self.execute_with_dependencies(templates).await
         } else {
-            info!("Executing {} templates in parallel", templates.len());
             self.execute_parallel(templates).await
         }
     }
@@ -248,6 +281,36 @@ impl TemplateExecutor {
         }
 
         results
+    }
+
+    async fn extract_hostnames(&self, results: &[ExecutionResult]) -> Vec<String> {
+        use crate::hostname::HostnameExtractor;
+        use std::collections::HashSet;
+
+        let mut all_hostnames = HashSet::new();
+
+        for result in results {
+            let combined_output = format!("{}\n{}", result.stdout, result.stderr);
+            
+            // Extract hostnames based on tool name
+            let hostnames = if result.template_name.contains("nmap") || result.template_name.contains("hostname") {
+                HostnameExtractor::from_nmap(&combined_output)
+            } else if result.template_name.contains("dns") || result.template_name.contains("host") || result.template_name.contains("reverse") || result.template_name.contains("dig") {
+                HostnameExtractor::from_reverse_dns(&combined_output)
+            } else {
+                // Try both extractors for unknown tools
+                let mut h = HostnameExtractor::from_nmap(&combined_output);
+                h.extend(HostnameExtractor::from_reverse_dns(&combined_output));
+                h
+            };
+
+            for hostname in hostnames {
+                debug!("Extracted hostname '{}' from template '{}'", hostname, result.template_name);
+                all_hostnames.insert(hostname);
+            }
+        }
+
+        all_hostnames.into_iter().collect()
     }
 
     async fn execute_with_dependencies(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {

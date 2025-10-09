@@ -1,6 +1,7 @@
 mod cli;
 mod config;
 mod display;
+mod hostname;
 mod parser;
 mod ports;
 mod storage;
