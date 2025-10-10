@@ -4,16 +4,24 @@
 # Standard Kali Linux / HTB paths for SecLists:
 #   /usr/share/seclists/Discovery/Web-Content/
 #   /usr/share/seclists/Discovery/DNS/
-# Install SecLists: sudo apt install seclists
+# Install SecLists: 
+#   - Kali/Ubuntu: sudo apt install seclists
+#   - Manual: git clone https://github.com/danielmiessler/SecLists.git /usr/share/seclists
 
 [wordlists]
 # Default wordlist used when no -w/--wordlist flag is provided
-default = "common"
+default = "embedded-common"
 
-# SecLists - Web Content Discovery (Primary wordlists for Kali/HTB)
+# Embedded wordlists (included with ipcrawler - relative to templates directory)
+[wordlists.embedded-common]
+path = "wordlists/common.txt"
+description = "Built-in common web paths (50+ entries) - FAST & ALWAYS AVAILABLE"
+size = "tiny"
+
+# SecLists - Web Content Discovery (requires SecLists installation)
 [wordlists.common]
 path = "/usr/share/seclists/Discovery/Web-Content/common.txt"
-description = "SecLists common web content (4k entries) - RECOMMENDED DEFAULT"
+description = "SecLists common web content (4k entries)"
 size = "small"
 
 [wordlists.medium]

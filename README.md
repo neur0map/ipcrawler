@@ -19,7 +19,7 @@ Runs security tools concurrently, uses LLMs to parse outputs into structured JSO
 
 
 ```bash
-ipcrawler 192.168.1.1 -o ./scan
+ipcrawler 192.168.1.1
 ```
 
 ## Features

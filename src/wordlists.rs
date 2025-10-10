@@ -67,15 +67,30 @@ impl WordlistManager {
         // Otherwise, look it up in the config
         if let Some(entry) = self.config.wordlists.lists.get(name_or_path) {
             let path = Path::new(&entry.path);
-            if path.exists() {
-                Ok(entry.path.clone())
-            } else {
-                anyhow::bail!(
-                    "Wordlist '{}' points to non-existent file: {}\nInstall the wordlist or update templates/wordlists.toml",
-                    name_or_path,
-                    entry.path
-                );
+            
+            // First try absolute path
+            if path.is_absolute() && path.exists() {
+                return Ok(entry.path.clone());
             }
+            
+            // If relative path, try resolving from templates directory
+            let templates_relative = self.templates_dir.join(&entry.path);
+            if templates_relative.exists() {
+                return Ok(templates_relative.to_string_lossy().to_string());
+            }
+            
+            // Finally, try current directory
+            if path.exists() {
+                return Ok(entry.path.clone());
+            }
+            
+            anyhow::bail!(
+                "Wordlist '{}' points to non-existent file: {}\nSearched:\n  - {}\n  - {}\nInstall the wordlist or update templates/wordlists.toml",
+                name_or_path,
+                entry.path,
+                templates_relative.display(),
+                path.display()
+            );
         } else {
             anyhow::bail!(
                 "Unknown wordlist: '{}'\nAvailable: {}\nOr provide a direct file path",
@@ -112,7 +127,17 @@ impl WordlistManager {
             .lists
             .iter()
             .map(|(name, entry)| {
-                let exists = Path::new(&entry.path).exists();
+                let path = Path::new(&entry.path);
+                
+                // Check if file exists (try multiple locations)
+                let exists = if path.is_absolute() {
+                    path.exists()
+                } else {
+                    // Try relative to templates directory first
+                    let templates_relative = self.templates_dir.join(&entry.path);
+                    templates_relative.exists() || path.exists()
+                };
+                
                 (
                     name.clone(),
                     entry.path.clone(),
