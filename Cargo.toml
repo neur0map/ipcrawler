@@ -3,8 +3,14 @@ name = "ipcrawler"
 version = "0.1.1"
 edition = "2021"
 authors = ["neur0map"]
-description = "Intelligent automated penetration testing scanner with ML-based output parsing"
+description = "Intelligent automated penetration testing scanner with AI-powered output parsing"
 license = "MIT"
+repository = "https://github.com/neur0map/ipcrawler"
+homepage = "https://github.com/neur0map/ipcrawler"
+documentation = "https://github.com/neur0map/ipcrawler/blob/main/README.md"
+readme = "README.md"
+keywords = ["security", "pentesting", "scanner", "ai", "llm"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 clap = { version = "4.5", features = ["derive", "env"] }
