@@ -1,8 +1,22 @@
+<div align="center">
+
 # IPCrawler
 
 **AI-powered penetration testing scanner with concurrent execution**
 
+[![Version](https://img.shields.io/github/v/release/neur0map/ipcrawler?style=for-the-badge&logo=github)](https://github.com/neur0map/ipcrawler/releases)
+[![License](https://img.shields.io/github/license/neur0map/ipcrawler?style=for-the-badge)](https://github.com/neur0map/ipcrawler/blob/main/LICENSE)
+[![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue?style=for-the-badge)](https://github.com/neur0map/ipcrawler)
+
 Runs security tools concurrently, uses LLMs to parse outputs into structured JSON, and generates comprehensive reports—all through simple YAML templates.
+
+![Stars](https://img.shields.io/github/stars/neur0map/ipcrawler?style=social)
+![Forks](https://img.shields.io/github/forks/neur0map/ipcrawler?style=social)
+
+</div>
+</parameter>
+
 
 ```bash
 ipcrawler 192.168.1.1 -o ./scan
@@ -16,7 +30,8 @@ ipcrawler 192.168.1.1 -o ./scan
 - **Multiple Formats** - Terminal, HTML, Markdown, and JSON reports
 - **Smart Consistency** - Multi-pass parsing with union merge strategy
 
-**Note:** LLMs are used solely to parse raw tool outputs into structured data. They do not provide security analysis, opinions, or recommendations—only data transformation from unstructured to structured format.
+> [!NOTE]
+> LLMs are used solely to parse raw tool outputs into structured data. They do not provide security analysis, opinions, or recommendations—only data transformation from unstructured to structured format.
 
 ## Installation
 
