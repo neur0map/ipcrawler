@@ -1,6 +1,6 @@
 [package]
 name = "ipcrawler"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["neur0map"]
 description = "Intelligent automated penetration testing scanner with ML-based output parsing"
