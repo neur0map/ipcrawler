@@ -14,6 +14,28 @@ pub struct Template {
     pub requires_sudo: Option<bool>,
     #[serde(default)]
     pub pre_scan: bool,
+    pub parsing: Option<ParsingConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParsingConfig {
+    pub method: ParsingMethod,
+    #[serde(default)]
+    pub regex_patterns: Vec<RegexPattern>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ParsingMethod {
+    Llm,
+    Regex,
+    None,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegexPattern {
+    pub pattern: String,
+    pub extract_as: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

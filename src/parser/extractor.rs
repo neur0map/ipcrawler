@@ -1,5 +1,7 @@
 use super::consistency::ConsistencyChecker;
 use super::llm::LlmParser;
+use super::regex::RegexParser;
+use crate::templates::models::{ParsingConfig, ParsingMethod};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
@@ -31,6 +33,7 @@ pub struct Vulnerability {
 
 pub struct EntityExtractor {
     llm_parser: Option<LlmParser>,
+    regex_parser: RegexParser,
     consistency_checker: ConsistencyChecker,
 }
 
@@ -38,41 +41,65 @@ impl EntityExtractor {
     pub fn new(llm_parser: Option<LlmParser>, consistency_passes: usize) -> Self {
         Self {
             llm_parser,
+            regex_parser: RegexParser::new(),
             consistency_checker: ConsistencyChecker::new(consistency_passes),
         }
     }
 
-    pub async fn extract(&self, tool_name: &str, output: &str) -> Result<ExtractedEntities> {
-        if let Some(parser) = &self.llm_parser {
-            let validated = self
-                .consistency_checker
-                .parse_with_consistency(parser, tool_name, output)
-                .await?;
+    pub async fn extract(
+        &self,
+        tool_name: &str,
+        output: &str,
+        parsing_config: Option<&ParsingConfig>,
+    ) -> Result<ExtractedEntities> {
+        let parsing_method = parsing_config
+            .map(|c| c.method.clone())
+            .unwrap_or(ParsingMethod::Llm);
 
-            if !validated.warnings.is_empty() {
-                warn!(
-                    "Consistency warnings for '{}': {}",
-                    tool_name,
-                    validated.warnings.join("; ")
-                );
+        match parsing_method {
+            ParsingMethod::Llm => {
+                if let Some(parser) = &self.llm_parser {
+                    let validated = self
+                        .consistency_checker
+                        .parse_with_consistency(parser, tool_name, output)
+                        .await?;
+
+                    if !validated.warnings.is_empty() {
+                        warn!(
+                            "Consistency warnings for '{}': {}",
+                            tool_name,
+                            validated.warnings.join("; ")
+                        );
+                    }
+
+                    debug!(
+                        "Extracted from '{}': {} IPs, {} domains, {} ports, {} vulnerabilities (consistency: {:.2}, passes: {}/{})",
+                        tool_name,
+                        validated.entities.ips.len(),
+                        validated.entities.domains.len(),
+                        validated.entities.ports.len(),
+                        validated.entities.vulnerabilities.len(),
+                        validated.consistency_score,
+                        validated.num_passes,
+                        self.consistency_checker.num_passes,
+                    );
+
+                    return Ok(validated.entities);
+                }
+                Ok(ExtractedEntities::default())
             }
-
-            debug!(
-                "Extracted from '{}': {} IPs, {} domains, {} ports, {} vulnerabilities (consistency: {:.2}, passes: {}/{})",
-                tool_name,
-                validated.entities.ips.len(),
-                validated.entities.domains.len(),
-                validated.entities.ports.len(),
-                validated.entities.vulnerabilities.len(),
-                validated.consistency_score,
-                validated.num_passes,
-                self.consistency_checker.num_passes,
-            );
-
-            return Ok(validated.entities);
+            ParsingMethod::Regex => {
+                let patterns = parsing_config
+                    .map(|c| c.regex_patterns.as_slice())
+                    .unwrap_or(&[]);
+                self.regex_parser
+                    .parse_output(tool_name, output, patterns)
+            }
+            ParsingMethod::None => {
+                debug!("Skipping parsing for '{}' (method: none)", tool_name);
+                Ok(ExtractedEntities::default())
+            }
         }
-
-        Ok(ExtractedEntities::default())
     }
 
     pub fn merge_entities(&self, all_entities: Vec<ExtractedEntities>) -> ExtractedEntities {

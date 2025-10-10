@@ -24,3 +24,6 @@ timeout: 1800
 env: {}
 
 requires_sudo: false
+
+parsing:
+  method: regex

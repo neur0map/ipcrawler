@@ -303,17 +303,30 @@ async fn run_scan(cli: Cli) -> Result<()> {
     let extractor = EntityExtractor::new(llm_parser, cli.consistency_passes);
     let mut all_entities = Vec::new();
 
+    // Create parsing config map from templates
+    let all_templates_map = parser.load_all().context("Failed to reload templates")?;
+    let parsing_configs: std::collections::HashMap<String, _> = all_templates_map
+        .into_iter()
+        .map(|t| (t.name.clone(), t.parsing))
+        .collect();
+
     for result in &results {
         if result.success {
             if let Some(output_file) = &result.output_file {
                 match tokio::fs::read_to_string(output_file).await {
-                    Ok(content) => match extractor.extract(&result.template_name, &content).await {
-                        Ok(entities) => all_entities.push(entities),
-                        Err(e) => error!(
-                            "Failed to extract entities from {}: {}",
-                            result.template_name, e
-                        ),
-                    },
+                    Ok(content) => {
+                        let parsing_config = parsing_configs.get(&result.template_name);
+                        match extractor
+                            .extract(&result.template_name, &content, parsing_config.and_then(|c| c.as_ref()))
+                            .await
+                        {
+                            Ok(entities) => all_entities.push(entities),
+                            Err(e) => error!(
+                                "Failed to extract entities from {}: {}",
+                                result.template_name, e
+                            ),
+                        }
+                    }
                     Err(e) => error!("Failed to read output file {}: {}", output_file, e),
                 }
             }

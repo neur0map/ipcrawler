@@ -1,0 +1,22 @@
+name: snmp-check
+description: Comprehensive SNMP enumeration with snmp-check (cleaner output than snmpwalk)
+enabled: false
+
+command:
+  binary: snmp-check
+  args:
+    - "-t"
+    - "{{target}}"
+    - "-c"
+    - "public"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/snmp_check_results.txt"
+
+timeout: 120
+
+env: {}
+
+requires_sudo: false

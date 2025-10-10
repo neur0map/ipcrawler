@@ -1,0 +1,24 @@
+name: traceroute
+description: Network path discovery - maps route to target with hop information
+enabled: true
+pre_scan: true
+
+command:
+  binary: traceroute
+  args:
+    - "-m"
+    - "30"
+    - "-w"
+    - "3"
+    - "{{target}}"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/traceroute_results.txt"
+
+timeout: 90
+
+env: {}
+
+requires_sudo: false

@@ -1,0 +1,28 @@
+name: smbmap
+description: SMB share enumeration - accessible shares, permissions, and file listing
+enabled: true
+
+command:
+  binary: smbmap
+  args:
+    - "-H"
+    - "{{target}}"
+    - "-R"
+    - "--depth"
+    - "5"
+    - "-A"
+    - ".*"
+    - "--exclude"
+    - "ADMIN$"
+    - "IPC$"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/smbmap_results.txt"
+
+timeout: 600
+
+env: {}
+
+requires_sudo: false

@@ -1,0 +1,34 @@
+name: ffuf-subdomain
+description: Subdomain enumeration using ffuf (requires domain target)
+enabled: false
+
+command:
+  binary: ffuf
+  args:
+    - "-u"
+    - "http://FUZZ.{{target}}"
+    - "-w"
+    - "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
+    - "-mc"
+    - "200,204,301,302,307,401,403"
+    - "-t"
+    - "100"
+    - "-o"
+    - "{{output_dir}}/ffuf_subdomain.json"
+    - "-of"
+    - "json"
+    - "-s"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/ffuf_subdomain.json"
+
+timeout: 600
+
+env: {}
+
+requires_sudo: false
+
+parsing:
+  method: regex

@@ -1,0 +1,21 @@
+name: ssh-audit
+description: SSH security audit - weak algorithms, key exchange, ciphers, vulnerabilities
+enabled: true
+
+command:
+  binary: ssh-audit
+  args:
+    - "-j"
+    - "-n"
+    - "{{target}}"
+
+depends_on: []
+
+outputs:
+  - pattern: "{{output_dir}}/ssh_audit_results.json"
+
+timeout: 60
+
+env: {}
+
+requires_sudo: false
