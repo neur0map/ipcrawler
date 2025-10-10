@@ -5,15 +5,9 @@ enabled: true
 command:
   binary: bash
   args:
-    - "-c"
-    - |
-      for community in public private manager; do
-        echo "=== Testing community string: $community ===" >> {{output_dir}}/snmpwalk_results.txt
-        timeout 30 snmpwalk -v 2c -c $community {{target}} 2>&1 >> {{output_dir}}/snmpwalk_results.txt || true
-        if grep -q "Timeout: No Response" {{output_dir}}/snmpwalk_results.txt; then
-          break
-        fi
-      done
+    - "./templates/snmpwalk.sh"
+    - "{{target}}"
+    - "{{output_dir}}/snmpwalk_results.txt"
 
 depends_on: []
 

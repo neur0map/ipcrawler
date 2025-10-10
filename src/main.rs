@@ -300,7 +300,7 @@ async fn run_scan(cli: Cli) -> Result<()> {
         None
     };
 
-    let extractor = EntityExtractor::new(llm_parser, cli.consistency_passes);
+    let extractor = EntityExtractor::new(llm_parser, cli.consistency_passes, verbose);
     let mut all_entities = Vec::new();
 
     // Create parsing config map from templates

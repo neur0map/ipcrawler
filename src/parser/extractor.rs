@@ -35,14 +35,16 @@ pub struct EntityExtractor {
     llm_parser: Option<LlmParser>,
     regex_parser: RegexParser,
     consistency_checker: ConsistencyChecker,
+    verbose: bool,
 }
 
 impl EntityExtractor {
-    pub fn new(llm_parser: Option<LlmParser>, consistency_passes: usize) -> Self {
+    pub fn new(llm_parser: Option<LlmParser>, consistency_passes: usize, verbose: bool) -> Self {
         Self {
             llm_parser,
             regex_parser: RegexParser::new(),
-            consistency_checker: ConsistencyChecker::new(consistency_passes),
+            consistency_checker: ConsistencyChecker::new(consistency_passes, verbose),
+            verbose,
         }
     }
 
@@ -64,7 +66,7 @@ impl EntityExtractor {
                         .parse_with_consistency(parser, tool_name, output)
                         .await?;
 
-                    if !validated.warnings.is_empty() {
+                    if !validated.warnings.is_empty() && self.verbose {
                         warn!(
                             "Consistency warnings for '{}': {}",
                             tool_name,

@@ -1,7 +1,7 @@
 use super::models::Template;
 use anyhow::{Context, Result};
 use std::collections::{HashMap, HashSet};
-use std::io::{self, Write};
+use std::io::Write;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::fs;
@@ -75,10 +75,12 @@ impl TemplateExecutor {
             Ok(Ok(output)) => output,
             Ok(Err(e)) => {
                 if e.kind() == std::io::ErrorKind::NotFound {
-                    warn!(
-                        "Tool '{}' not found. Please ensure it's installed and in PATH.",
-                        template.command.binary
-                    );
+                    if self.verbose {
+                        warn!(
+                            "Tool '{}' not found. Please ensure it's installed and in PATH.",
+                            template.command.binary
+                        );
+                    }
                     return Ok(ExecutionResult {
                         template_name: template.name.clone(),
                         success: false,
@@ -91,7 +93,9 @@ impl TemplateExecutor {
                 return Err(e).context("Failed to execute command");
             }
             Err(_) => {
-                warn!("Command timed out after {} seconds", template.get_timeout());
+                if self.verbose {
+                    warn!("Command timed out after {} seconds", template.get_timeout());
+                }
                 return Ok(ExecutionResult {
                     template_name: template.name.clone(),
                     success: false,
@@ -120,17 +124,21 @@ impl TemplateExecutor {
         }
 
         if success {
-            info!(
-                "Template '{}' completed successfully in {:.2}s",
-                template.name,
-                duration.as_secs_f64()
-            );
+            if self.verbose {
+                info!(
+                    "Template '{}' completed successfully in {:.2}s",
+                    template.name,
+                    duration.as_secs_f64()
+                );
+            }
         } else {
-            error!(
-                "Template '{}' failed with exit code: {:?}",
-                template.name,
-                output.status.code()
-            );
+            if self.verbose {
+                error!(
+                    "Template '{}' failed with exit code: {:?}",
+                    template.name,
+                    output.status.code()
+                );
+            }
         }
 
         Ok(ExecutionResult {
@@ -144,8 +152,29 @@ impl TemplateExecutor {
     }
 
     pub async fn execute_all(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
+        use colored::Colorize;
+        
         if templates.is_empty() {
             return Vec::new();
+        }
+
+        // Build global line index for all templates
+        let line_index: Arc<Mutex<HashMap<String, usize>>> = Arc::new(Mutex::new(
+            templates
+                .iter()
+                .enumerate()
+                .map(|(i, t)| (t.name.clone(), i))
+                .collect(),
+        ));
+        
+        // Mutex for synchronized stdout access
+        let stdout_lock: Arc<Mutex<()>> = Arc::new(Mutex::new(()));
+
+        // Display ALL templates upfront in non-verbose mode
+        if !self.verbose {
+            for template in &templates {
+                println!("  [ ] {}", template.name.dimmed());
+            }
         }
 
         // Separate pre-scan and main templates
@@ -157,7 +186,11 @@ impl TemplateExecutor {
         // Phase 1: Run pre-scan templates if any
         if !pre_scan_templates.is_empty() {
             info!("Pre-scan phase: {} template(s)", pre_scan_templates.len());
-            let pre_scan_results = self.execute_phase(pre_scan_templates).await;
+            let pre_scan_results = self.execute_phase_with_index(
+                pre_scan_templates, 
+                line_index.clone(), 
+                stdout_lock.clone()
+            ).await;
 
             // Extract hostnames from pre-scan outputs
             let hostnames = self.extract_hostnames(&pre_scan_results).await;
@@ -182,13 +215,25 @@ impl TemplateExecutor {
 
         // Phase 2: Run main templates
         if !main_templates.is_empty() {
-            all_results.extend(self.execute_phase(main_templates).await);
+            all_results.extend(
+                self.execute_phase_with_index(main_templates, line_index, stdout_lock).await
+            );
+        }
+        
+        // Move cursor past all tool lines
+        if !self.verbose {
+            println!();
         }
 
         all_results
     }
 
-    async fn execute_phase(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
+    async fn execute_phase_with_index(
+        &self, 
+        templates: Vec<Template>,
+        line_index: Arc<Mutex<HashMap<String, usize>>>,
+        stdout_lock: Arc<Mutex<()>>,
+    ) -> Vec<ExecutionResult> {
         // Check if any template has dependencies
         let has_dependencies = templates.iter().any(|t| {
             t.depends_on
@@ -200,31 +245,20 @@ impl TemplateExecutor {
         if has_dependencies {
             self.execute_with_dependencies(templates).await
         } else {
-            self.execute_parallel(templates).await
+            self.execute_parallel_with_index(templates, line_index, stdout_lock).await
         }
     }
 
-    async fn execute_parallel(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
+    async fn execute_parallel_with_index(
+        &self, 
+        templates: Vec<Template>,
+        line_index: Arc<Mutex<HashMap<String, usize>>>,
+        stdout_lock: Arc<Mutex<()>>,
+    ) -> Vec<ExecutionResult> {
         use colored::Colorize;
         use tokio::task::JoinSet;
 
-        // Print all tools that will run (non-verbose mode only)
-        if !self.verbose {
-            for template in &templates {
-                println!("  [ ] {}", template.name.dimmed());
-            }
-            io::stdout().flush().ok();
-        }
-
-        let tool_index: Arc<Mutex<HashMap<String, usize>>> = Arc::new(Mutex::new(
-            templates
-                .iter()
-                .enumerate()
-                .map(|(i, t)| (t.name.clone(), i))
-                .collect(),
-        ));
-
-        let mut set: JoinSet<(ExecutionResult, std::time::Duration)> = JoinSet::new();
+        let mut set: JoinSet<ExecutionResult> = JoinSet::new();
 
         for template in templates {
             let executor = TemplateExecutor {
@@ -234,15 +268,19 @@ impl TemplateExecutor {
                 port_spec: self.port_spec.clone(),
                 wordlist: self.wordlist.clone(),
             };
-            let index_map = tool_index.clone();
+            let verbose = executor.verbose;
             let name = template.name.clone();
+            let lines = line_index.clone();
+            let stdout = stdout_lock.clone();
 
             set.spawn(async move {
                 let start = std::time::Instant::now();
                 let result = match executor.execute(&template).await {
                     Ok(result) => result,
                     Err(e) => {
-                        error!("Failed to execute template '{}': {}", template.name, e);
+                        if verbose {
+                            error!("Failed to execute template '{}': {}", template.name, e);
+                        }
                         ExecutionResult {
                             template_name: template.name.clone(),
                             success: false,
@@ -254,45 +292,54 @@ impl TemplateExecutor {
                     }
                 };
 
-                // Update the line for this tool
-                if !executor.verbose {
-                    let index_guard = index_map.lock().await;
-                    if let Some(&line_num) = index_guard.get(&name) {
-                        // Move cursor up to the tool's line, clear it, and rewrite
-                        let lines_up = index_guard.len() - line_num;
-                        print!("\x1B[{}A", lines_up); // Move cursor up
+                // Update the line in place for this tool (non-verbose mode)
+                if !verbose {
+                    let _lock = stdout.lock().await; // Synchronize output
+                    let line_map = lines.lock().await;
+                    if let Some(&line_idx) = line_map.get(&name) {
+                        let total_lines = line_map.len();
+                        let lines_to_move_up = total_lines - line_idx;
+                        
+                        // Move cursor up, clear line, rewrite
+                        print!("\x1B[{}A", lines_to_move_up); // Move up
                         print!("\r\x1B[K"); // Clear line
+                        
                         if result.success {
-                            println!(
-                                "  [✓] {} ({:.2}s)",
+                            print!(
+                                "  [+] {} ({:.2}s)",
                                 name.green(),
                                 start.elapsed().as_secs_f64()
                             );
                         } else {
-                            println!("  [X] {} (failed)", name.red());
+                            print!("  [X] {} (failed)", name.red());
                         }
-                        print!("\x1B[{}B", lines_up - 1); // Move cursor back down
-                        io::stdout().flush().ok();
+                        
+                        // Move cursor back down
+                        if lines_to_move_up > 0 {
+                            print!("\x1B[{}B", lines_to_move_up);
+                        }
+                        print!("\r"); // Return to start of line
+                        
+                        let _ = Write::flush(&mut std::io::stdout());
                     }
                 }
 
-                (result, start.elapsed())
+                result
             });
         }
 
         let mut results = Vec::new();
         while let Some(result) = set.join_next().await {
             match result {
-                Ok((exec_result, _elapsed)) => {
+                Ok(exec_result) => {
                     results.push(exec_result);
                 }
-                Err(e) => error!("Task join error: {}", e),
+                Err(e) => {
+                    if self.verbose {
+                        error!("Task join error: {}", e);
+                    }
+                }
             }
-        }
-
-        // Move cursor past all the tool lines
-        if !self.verbose {
-            println!();
         }
 
         results

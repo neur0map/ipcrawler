@@ -3,16 +3,12 @@ description: Directory and file brute-forcing
 enabled: true
 
 command:
-  binary: gobuster
+  binary: bash
   args:
-    - "dir"
-    - "-u"
+    - "./templates/gobuster.sh"
     - "{{target}}"
-    - "-w"
     - "{{wordlist}}"
-    - "-o"
     - "{{output_dir}}/gobuster_results.txt"
-    - "-q"
 
 depends_on: []
 

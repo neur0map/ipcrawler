@@ -3,9 +3,9 @@ description: Comprehensive vulnerability scanning with nuclei - CVEs, exposures,
 enabled: true
 
 command:
-  binary: nuclei
+  binary: bash
   args:
-    - "-u"
+    - "./templates/nuclei.sh"
     - "{{target}}"
     - "-severity"
     - "critical,high,medium"

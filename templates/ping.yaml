@@ -3,11 +3,11 @@ description: Basic connectivity check
 enabled: true
 
 command:
-  binary: ping
+  binary: bash
   args:
-    - "-c"
-    - "4"
+    - "./templates/ping.sh"
     - "{{target}}"
+    - "4"
 
 depends_on: []
 

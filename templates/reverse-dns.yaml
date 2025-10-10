@@ -4,8 +4,9 @@ enabled: true
 pre_scan: true
 
 command:
-  binary: host
+  binary: bash
   args:
+    - "./templates/reverse-dns.sh"
     - "{{target}}"
 
 depends_on: []

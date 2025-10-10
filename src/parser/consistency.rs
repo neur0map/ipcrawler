@@ -14,12 +14,14 @@ pub struct ValidatedEntities {
 
 pub struct ConsistencyChecker {
     pub num_passes: usize,
+    verbose: bool,
 }
 
 impl ConsistencyChecker {
-    pub fn new(num_passes: usize) -> Self {
+    pub fn new(num_passes: usize, verbose: bool) -> Self {
         Self {
             num_passes: num_passes.max(1),
+            verbose,
         }
     }
 
@@ -38,10 +40,12 @@ impl ConsistencyChecker {
             });
         }
 
-        info!(
-            "Running {} consistency passes for '{}'",
-            self.num_passes, tool_name
-        );
+        if self.verbose {
+            info!(
+                "Running {} consistency passes for '{}'",
+                self.num_passes, tool_name
+            );
+        }
 
         let mut all_passes = Vec::new();
         let mut errors = Vec::new();
@@ -53,7 +57,9 @@ impl ConsistencyChecker {
             {
                 Ok(entities) => all_passes.push(entities),
                 Err(e) => {
-                    warn!("Pass {}/{} failed: {}", pass_num, self.num_passes, e);
+                    if self.verbose {
+                        warn!("Pass {}/{} failed: {}", pass_num, self.num_passes, e);
+                    }
                     errors.push(format!("Pass {} failed: {}", pass_num, e));
                 }
             }
@@ -73,12 +79,14 @@ impl ConsistencyChecker {
         let mut warnings = self.generate_warnings(consistency, &all_passes);
         warnings.extend(errors);
 
-        info!(
-            "Consistency check complete: {}/{} passes succeeded, score: {:.2}",
-            all_passes.len(),
-            self.num_passes,
-            consistency
-        );
+        if self.verbose {
+            info!(
+                "Consistency check complete: {}/{} passes succeeded, score: {:.2}",
+                all_passes.len(),
+                self.num_passes,
+                consistency
+            );
+        }
 
         Ok(ValidatedEntities {
             entities: merged,
@@ -395,6 +403,6 @@ impl ConsistencyChecker {
 
 impl Default for ConsistencyChecker {
     fn default() -> Self {
-        Self::new(3)
+        Self::new(3, false)
     }
 }
