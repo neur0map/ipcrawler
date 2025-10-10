@@ -317,7 +317,11 @@ async fn run_scan(cli: Cli) -> Result<()> {
                     Ok(content) => {
                         let parsing_config = parsing_configs.get(&result.template_name);
                         match extractor
-                            .extract(&result.template_name, &content, parsing_config.and_then(|c| c.as_ref()))
+                            .extract(
+                                &result.template_name,
+                                &content,
+                                parsing_config.and_then(|c| c.as_ref()),
+                            )
                             .await
                         {
                             Ok(entities) => all_entities.push(entities),

@@ -25,7 +25,7 @@ impl RegexParser {
 
         for pattern_config in patterns {
             let re = Regex::new(&pattern_config.pattern)?;
-            
+
             for line in output.lines() {
                 if let Some(captures) = re.captures(line) {
                     let value = if captures.len() > 1 {
@@ -91,10 +91,10 @@ impl RegexParser {
 
     fn parse_gobuster(&self, output: &str) -> Result<ExtractedEntities> {
         let mut entities = ExtractedEntities::default();
-        
+
         // Gobuster format: /path (Status: 200) [Size: 1234]
         let re = Regex::new(r"^(/[^\s]+)\s+\(Status:\s+(\d+)\)")?;
-        
+
         for line in output.lines() {
             if let Some(captures) = re.captures(line) {
                 if let Some(path) = captures.get(1) {
@@ -109,24 +109,24 @@ impl RegexParser {
 
         entities.findings.sort();
         entities.findings.dedup();
-        
+
         debug!("Gobuster parsed: {} findings", entities.findings.len());
         Ok(entities)
     }
 
     fn parse_ffuf(&self, output: &str) -> Result<ExtractedEntities> {
         let mut entities = ExtractedEntities::default();
-        
+
         // FFUF output format varies, try to extract URLs and status codes
         let url_re = Regex::new(r"https?://[^\s]+")?;
         let status_re = Regex::new(r"\[Status:\s+(\d+),\s+Size:\s+(\d+)")?;
-        
+
         for line in output.lines() {
             // Extract URLs
             if let Some(url_match) = url_re.find(line) {
                 entities.urls.push(url_match.as_str().to_string());
             }
-            
+
             // Extract findings with status codes
             if let Some(captures) = status_re.captures(line) {
                 if let Some(status) = captures.get(1) {
@@ -143,7 +143,7 @@ impl RegexParser {
         entities.urls.dedup();
         entities.findings.sort();
         entities.findings.dedup();
-        
+
         debug!(
             "FFUF parsed: {} URLs, {} findings",
             entities.urls.len(),
@@ -154,10 +154,10 @@ impl RegexParser {
 
     fn parse_feroxbuster(&self, output: &str) -> Result<ExtractedEntities> {
         let mut entities = ExtractedEntities::default();
-        
+
         // Feroxbuster format: 200 GET 1234l 5678w 91011c http://example.com/path
         let re = Regex::new(r"^(\d+)\s+\w+\s+\d+l\s+\d+w\s+\d+c\s+(https?://[^\s]+)")?;
-        
+
         for line in output.lines() {
             if let Some(captures) = re.captures(line) {
                 if let Some(url) = captures.get(2) {
@@ -175,7 +175,7 @@ impl RegexParser {
         entities.urls.dedup();
         entities.findings.sort();
         entities.findings.dedup();
-        
+
         debug!(
             "Feroxbuster parsed: {} URLs, {} findings",
             entities.urls.len(),
@@ -186,10 +186,10 @@ impl RegexParser {
 
     fn parse_dirb(&self, output: &str) -> Result<ExtractedEntities> {
         let mut entities = ExtractedEntities::default();
-        
+
         // DIRB format: + http://example.com/path (CODE:200|SIZE:1234)
         let re = Regex::new(r"^\+\s+(https?://[^\s]+)\s+\(CODE:(\d+)")?;
-        
+
         for line in output.lines() {
             if let Some(captures) = re.captures(line) {
                 if let Some(url) = captures.get(1) {
@@ -207,7 +207,7 @@ impl RegexParser {
         entities.urls.dedup();
         entities.findings.sort();
         entities.findings.dedup();
-        
+
         debug!(
             "DIRB parsed: {} URLs, {} findings",
             entities.urls.len(),
@@ -218,10 +218,10 @@ impl RegexParser {
 
     fn parse_dirsearch(&self, output: &str) -> Result<ExtractedEntities> {
         let mut entities = ExtractedEntities::default();
-        
+
         // Dirsearch format: [12:34:56] 200 - 1234B - /path
         let re = Regex::new(r"\[\d+:\d+:\d+\]\s+(\d+)\s+-\s+\d+[KMB]?\s+-\s+(/[^\s]+)")?;
-        
+
         for line in output.lines() {
             if let Some(captures) = re.captures(line) {
                 if let Some(path) = captures.get(2) {
@@ -236,28 +236,25 @@ impl RegexParser {
 
         entities.findings.sort();
         entities.findings.dedup();
-        
+
         debug!("Dirsearch parsed: {} findings", entities.findings.len());
         Ok(entities)
     }
 
     fn parse_generic_urls(&self, output: &str) -> Result<ExtractedEntities> {
         let mut entities = ExtractedEntities::default();
-        
+
         // Generic URL extraction
-        let url_re = Regex::new(r"https?://[^\s]+")? ;
-        
+        let url_re = Regex::new(r"https?://[^\s]+")?;
+
         for url_match in url_re.find_iter(output) {
             entities.urls.push(url_match.as_str().to_string());
         }
 
         entities.urls.sort();
         entities.urls.dedup();
-        
-        debug!(
-            "Generic URL extraction: {} found",
-            entities.urls.len()
-        );
+
+        debug!("Generic URL extraction: {} found", entities.urls.len());
         Ok(entities)
     }
 }

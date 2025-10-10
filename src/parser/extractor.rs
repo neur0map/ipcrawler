@@ -92,8 +92,7 @@ impl EntityExtractor {
                 let patterns = parsing_config
                     .map(|c| c.regex_patterns.as_slice())
                     .unwrap_or(&[]);
-                self.regex_parser
-                    .parse_output(tool_name, output, patterns)
+                self.regex_parser.parse_output(tool_name, output, patterns)
             }
             ParsingMethod::None => {
                 debug!("Skipping parsing for '{}' (method: none)", tool_name);
