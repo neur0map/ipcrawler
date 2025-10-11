@@ -122,10 +122,7 @@ impl TemplateExecutor {
 
             // For most tools, < 0.5s execution with minimal output is suspicious
             // Quick tools (ping, dns lookups) are allowed to be fast
-            if !is_quick_tool
-                && duration.as_millis() < 500
-                && stdout.trim().len() < 10
-            {
+            if !is_quick_tool && duration.as_millis() < 500 && stdout.trim().len() < 10 {
                 success = false;
                 stderr = format!(
                     "Tool completed too quickly ({:.3}s) with minimal output. Possible causes: missing dependencies, invalid arguments, or target not responding on expected ports/services.",
@@ -160,14 +157,12 @@ impl TemplateExecutor {
                     duration.as_secs_f64()
                 );
             }
-        } else {
-            if self.verbose {
-                error!(
-                    "Template '{}' failed with exit code: {:?}",
-                    template.name,
-                    output.status.code()
-                );
-            }
+        } else if self.verbose {
+            error!(
+                "Template '{}' failed with exit code: {:?}",
+                template.name,
+                output.status.code()
+            );
         }
 
         Ok(ExecutionResult {
@@ -181,17 +176,15 @@ impl TemplateExecutor {
     }
 
     pub async fn execute_all(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
-        
-        
         if templates.is_empty() {
             return Vec::new();
         }
 
         // Detect if we're in a TTY
         let is_tty = atty::is(atty::Stream::Stdout);
-        
+
         if is_tty && !self.verbose {
-            // Use indicatif for interactive terminal  
+            // Use indicatif for interactive terminal
             self.execute_all_with_tui(templates).await
         } else {
             // Use simple output for piped/verbose mode
@@ -201,15 +194,15 @@ impl TemplateExecutor {
 
     async fn execute_all_with_tui(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
         use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-        
+
         let multi = MultiProgress::new();
-        let progress_bars: Arc<Mutex<HashMap<String, ProgressBar>>> = 
+        let progress_bars: Arc<Mutex<HashMap<String, ProgressBar>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
         let style = ProgressStyle::default_spinner()
             .template("{prefix:>12} {msg}")
             .unwrap();
-        
+
         for template in &templates {
             let pb = multi.add(ProgressBar::new_spinner());
             pb.set_style(style.clone());
@@ -230,14 +223,18 @@ impl TemplateExecutor {
                 .await;
             let hostnames = self.extract_hostnames(&pre_scan_results).await;
             if !hostnames.is_empty() {
-                if let Err(_e) = crate::hostname::HostsFileManager::add_entries(&self.target, &hostnames) {}
+                if let Err(_e) =
+                    crate::hostname::HostsFileManager::add_entries(&self.target, &hostnames)
+                {
+                }
             }
             all_results.extend(pre_scan_results);
         }
 
         if !main_templates.is_empty() {
             all_results.extend(
-                self.execute_phase_with_progress(main_templates, progress_bars).await
+                self.execute_phase_with_progress(main_templates, progress_bars)
+                    .await,
             );
         }
 
@@ -246,7 +243,7 @@ impl TemplateExecutor {
 
     async fn execute_all_simple(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
         use colored::Colorize;
-        
+
         if templates.is_empty() {
             return Vec::new();
         }
@@ -266,7 +263,10 @@ impl TemplateExecutor {
             let pre_scan_results = self.execute_phase_simple(pre_scan_templates).await;
             let hostnames = self.extract_hostnames(&pre_scan_results).await;
             if !hostnames.is_empty() {
-                if let Err(_e) = crate::hostname::HostsFileManager::add_entries(&self.target, &hostnames) {}
+                if let Err(_e) =
+                    crate::hostname::HostsFileManager::add_entries(&self.target, &hostnames)
+                {
+                }
             }
             all_results.extend(pre_scan_results);
         }
@@ -274,7 +274,7 @@ impl TemplateExecutor {
         if !main_templates.is_empty() {
             all_results.extend(self.execute_phase_simple(main_templates).await);
         }
-        
+
         if !self.verbose {
             println!();
         }
@@ -288,19 +288,26 @@ impl TemplateExecutor {
         progress_bars: Arc<Mutex<HashMap<String, indicatif::ProgressBar>>>,
     ) -> Vec<ExecutionResult> {
         let has_dependencies = templates.iter().any(|t| {
-            t.depends_on.as_ref().map(|d| !d.is_empty()).unwrap_or(false)
+            t.depends_on
+                .as_ref()
+                .map(|d| !d.is_empty())
+                .unwrap_or(false)
         });
 
         if has_dependencies {
             self.execute_with_dependencies(templates).await
         } else {
-            self.execute_parallel_with_progress(templates, progress_bars).await
+            self.execute_parallel_with_progress(templates, progress_bars)
+                .await
         }
     }
 
     async fn execute_phase_simple(&self, templates: Vec<Template>) -> Vec<ExecutionResult> {
         let has_dependencies = templates.iter().any(|t| {
-            t.depends_on.as_ref().map(|d| !d.is_empty()).unwrap_or(false)
+            t.depends_on
+                .as_ref()
+                .map(|d| !d.is_empty())
+                .unwrap_or(false)
         });
 
         if has_dependencies {
@@ -332,16 +339,18 @@ impl TemplateExecutor {
 
             set.spawn(async move {
                 let start = std::time::Instant::now();
-                let result = executor.execute(&template).await.unwrap_or_else(|_e| {
-                    ExecutionResult {
-                        template_name: template.name.clone(),
-                        success: false,
-                        duration: Duration::from_secs(0),
-                        stdout: String::new(),
-                        stderr: "Execution error".to_string(),
-                        output_file: None,
-                    }
-                });
+                let result =
+                    executor
+                        .execute(&template)
+                        .await
+                        .unwrap_or_else(|_e| ExecutionResult {
+                            template_name: template.name.clone(),
+                            success: false,
+                            duration: Duration::from_secs(0),
+                            stdout: String::new(),
+                            stderr: "Execution error".to_string(),
+                            output_file: None,
+                        });
 
                 if let Some(pb) = pbs.lock().await.get(&name) {
                     let elapsed = start.elapsed().as_secs_f64();
@@ -388,20 +397,26 @@ impl TemplateExecutor {
 
             set.spawn(async move {
                 let start = std::time::Instant::now();
-                let result = executor.execute(&template).await.unwrap_or_else(|_e| {
-                    ExecutionResult {
-                        template_name: template.name.clone(),
-                        success: false,
-                        duration: Duration::from_secs(0),
-                        stdout: String::new(),
-                        stderr: "Execution error".to_string(),
-                        output_file: None,
-                    }
-                });
+                let result =
+                    executor
+                        .execute(&template)
+                        .await
+                        .unwrap_or_else(|_e| ExecutionResult {
+                            template_name: template.name.clone(),
+                            success: false,
+                            duration: Duration::from_secs(0),
+                            stdout: String::new(),
+                            stderr: "Execution error".to_string(),
+                            output_file: None,
+                        });
 
                 if !verbose {
                     if result.success {
-                        eprintln!("  [+] {} ({:.2}s)", name.green(), start.elapsed().as_secs_f64());
+                        eprintln!(
+                            "  [+] {} ({:.2}s)",
+                            name.green(),
+                            start.elapsed().as_secs_f64()
+                        );
                     } else {
                         eprintln!("  [X] {} (failed)", name.red());
                     }
@@ -421,7 +436,7 @@ impl TemplateExecutor {
         results
     }
 
-        async fn extract_hostnames(&self, results: &[ExecutionResult]) -> Vec<String> {
+    async fn extract_hostnames(&self, results: &[ExecutionResult]) -> Vec<String> {
         use crate::hostname::HostnameExtractor;
         use std::collections::HashSet;
 
