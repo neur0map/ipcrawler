@@ -9,7 +9,7 @@ use std::path::PathBuf;
     long_about = "IPCrawler automates security tool execution and uses AI to parse outputs into structured data.\nNo hardcoded regex patterns - works with any tool output format."
 )]
 #[command(
-    after_help = "EXAMPLES:\n  ipcrawler setup                           Configure API keys and settings\n  ipcrawler 192.168.1.1                    Run scan (auto-generated output dir)\n  ipcrawler example.com -o ./scan          Run scan with custom output dir\n  ipcrawler example.com -v                  Run with verbose output\n  sudo ipcrawler <target>                  Run with elevated privileges"
+    after_help = "EXAMPLES:\n  ipcrawler setup                           Configure API keys and settings\n  ipcrawler update                          Check and install updates\n  ipcrawler update --check                  Check for updates only\n  ipcrawler 192.168.1.1                    Run scan (auto-generated output dir)\n  ipcrawler example.com -o ./scan          Run scan with custom output dir\n  ipcrawler example.com -v                  Run with verbose output\n  sudo ipcrawler <target>                  Run with elevated privileges"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -108,6 +108,18 @@ pub enum Commands {
 
     #[command(about = "List available wordlists")]
     Wordlists,
+
+    #[command(about = "Check for updates and self-update if available")]
+    Update {
+        #[arg(long, help = "Check for updates without installing")]
+        check: bool,
+    },
+
+    #[command(about = "Check tool availability and target reachability")]
+    Preflight {
+        #[arg(value_name = "TARGET", help = "Target to check (optional)")]
+        target: Option<String>,
+    },
 }
 
 impl Cli {

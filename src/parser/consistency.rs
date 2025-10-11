@@ -1,5 +1,6 @@
 use super::extractor::ExtractedEntities;
 use super::llm::LlmParser;
+use super::retry::RetryStrategy;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -50,15 +51,22 @@ impl ConsistencyChecker {
         let mut all_passes = Vec::new();
         let mut errors = Vec::new();
 
+        let retry_strategy = RetryStrategy::new(3);
+
         for pass_num in 1..=self.num_passes {
-            match self
-                .parse_single_pass(llm, tool_name, output, pass_num)
-                .await
-            {
+            // Wrap each pass in retry logic
+            let result = retry_strategy
+                .retry_with_backoff(|| self.parse_single_pass(llm, tool_name, output, pass_num))
+                .await;
+
+            match result {
                 Ok(entities) => all_passes.push(entities),
                 Err(e) => {
                     if self.verbose {
-                        warn!("Pass {}/{} failed: {}", pass_num, self.num_passes, e);
+                        warn!(
+                            "Pass {}/{} failed after retries: {}",
+                            pass_num, self.num_passes, e
+                        );
                     }
                     errors.push(format!("Pass {} failed: {}", pass_num, e));
                 }

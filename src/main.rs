@@ -4,8 +4,10 @@ mod display;
 mod hostname;
 mod parser;
 mod ports;
+mod preflight;
 mod storage;
 mod templates;
+mod update;
 mod wordlists;
 
 use anyhow::{Context, Result};
@@ -65,6 +67,13 @@ async fn main() -> Result<()> {
         Some(Commands::Wordlists) => {
             return list_wordlists(&cli);
         }
+        Some(Commands::Update { check }) => {
+            return handle_update(*check, cli.verbose).await;
+        }
+        Some(Commands::Preflight { target }) => {
+            return handle_preflight(target.as_deref(), cli.verbose, cli.templates_dir.clone())
+                .await;
+        }
         _ => {}
     }
 
@@ -82,7 +91,11 @@ async fn main() -> Result<()> {
     match &cli.command {
         Some(Commands::List) => list_templates(&cli).await?,
         Some(Commands::Show { template }) => show_template(&cli, template).await?,
-        Some(Commands::Setup) | Some(Commands::Config) | Some(Commands::Wordlists) => {
+        Some(Commands::Setup)
+        | Some(Commands::Config)
+        | Some(Commands::Wordlists)
+        | Some(Commands::Update { .. })
+        | Some(Commands::Preflight { .. }) => {
             // Already handled above
         }
         None => run_scan(cli).await?,
@@ -465,5 +478,57 @@ fn list_wordlists(cli: &Cli) -> Result<()> {
     println!("  ipcrawler <target> -w /path/to/wordlist.txt  # Use custom file");
     println!();
 
+    Ok(())
+}
+
+async fn handle_update(check_only: bool, verbose: bool) -> Result<()> {
+    use update::SelfUpdater;
+
+    let updater = SelfUpdater::new(VERSION, verbose);
+
+    if check_only {
+        // Just check for updates
+        updater.check_for_updates().await?;
+    } else {
+        // Check and install updates
+        updater.update().await?;
+    }
+
+    Ok(())
+}
+
+async fn handle_preflight(
+    target: Option<&str>,
+    verbose: bool,
+    templates_dir: std::path::PathBuf,
+) -> Result<()> {
+    use preflight::PreflightChecker;
+    use templates::TemplateParser;
+
+    println!("{}\n", "Pre-flight Check".cyan().bold());
+
+    let checker = PreflightChecker::new(verbose);
+
+    // Get tool names from templates
+    let parser = TemplateParser::new(templates_dir);
+    let templates = parser.load_all()?;
+    let tool_names: Vec<String> = templates.iter().map(|t| t.command.binary.clone()).collect();
+
+    // Remove duplicates
+    let mut unique_tools = tool_names.clone();
+    unique_tools.sort();
+    unique_tools.dedup();
+
+    // Check tools
+    let results = checker.check_tools(&unique_tools);
+    checker.display_tool_results(&results);
+
+    // Check target if provided
+    if let Some(target_str) = target {
+        let status = checker.check_target(target_str).await?;
+        checker.display_target_results(target_str, &status);
+    }
+
+    println!();
     Ok(())
 }

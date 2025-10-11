@@ -22,6 +22,11 @@ impl OutputManager {
             .await
             .context("Failed to create raw output directory")?;
 
+        let logs_dir = self.base_dir.join("logs");
+        fs::create_dir_all(&logs_dir)
+            .await
+            .context("Failed to create logs directory")?;
+
         info!("Initialized output directory: {}", self.base_dir.display());
         Ok(())
     }
