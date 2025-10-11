@@ -109,8 +109,37 @@ impl TemplateExecutor {
 
         let duration = start_time.elapsed();
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let success = output.status.success();
+        let mut stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let mut success = output.status.success();
+
+        // Detect silent failures: tools that exit with 0 but produce no meaningful output
+        // and complete suspiciously quickly
+        if success {
+            let is_quick_tool = matches!(
+                template.name.as_str(),
+                "ping" | "hostname-discovery" | "reverse-dns" | "traceroute"
+            );
+
+            // For most tools, < 0.5s execution with minimal output is suspicious
+            // Quick tools (ping, dns lookups) are allowed to be fast
+            if !is_quick_tool
+                && duration.as_millis() < 500
+                && stdout.trim().len() < 10
+            {
+                success = false;
+                stderr = format!(
+                    "Tool completed too quickly ({:.3}s) with minimal output. Possible causes: missing dependencies, invalid arguments, or target not responding on expected ports/services.",
+                    duration.as_secs_f64()
+                );
+                if self.verbose {
+                    warn!(
+                        "Tool '{}' completed too quickly ({:.3}s) with minimal output - marking as failed",
+                        template.name,
+                        duration.as_secs_f64()
+                    );
+                }
+            }
+        }
 
         let output_file = format!("{}/{}_output.txt", tool_output_dir, template.name);
         let mut file = fs::File::create(&output_file)

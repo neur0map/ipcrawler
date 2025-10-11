@@ -67,8 +67,8 @@ pub struct Cli {
     #[arg(
         long = "consistency-passes",
         value_name = "N",
-        default_value = "3",
-        help = "Number of LLM parsing passes for consistency (1-5, default: 3)"
+        default_value = "2",
+        help = "Number of LLM parsing passes for consistency (1-5, default: 2)"
     )]
     pub consistency_passes: usize,
 
