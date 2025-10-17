@@ -21,13 +21,60 @@ IP-focused reconnaissance tool for penetration testing. IPCrawler leverages exte
 
 ### Installation
 
-#### From Source
+#### From Source (Cross-Platform)
 
 ```bash
 git clone https://github.com/neur0map/ipcrawler.git
 cd ipcrawler
-make install-tools  # Install external dependencies
+make install-tools  # Auto-detects OS and installs dependencies
 make init          # Build and install system-wide
+```
+
+#### Supported Systems
+
+The `make install-tools` command automatically detects and supports:
+
+- **macOS**: Homebrew package manager
+- **Linux**: 
+  - Debian/Ubuntu (apt)
+  - CentOS/RHEL (yum)
+  - Fedora (dnf)
+  - Arch Linux (pacman)
+  - openSUSE (zypper)
+- **FreeBSD**: pkg package manager
+- **Windows**: Chocolatey or winget
+
+#### Manual Installation
+
+If automatic installation fails, install tools manually:
+
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt update
+sudo apt install nmap dnsutils whois traceroute python3-pip
+cargo install rustscan
+pip3 install shodan
+```
+
+**macOS:**
+```bash
+brew install nmap bind-tools
+cargo install rustscan
+pip3 install shodan
+```
+
+**Windows:**
+```bash
+# Using Chocolatey
+choco install nmap python3
+cargo install rustscan
+pip install shodan
+
+# Or using winget
+winget install Insecure.Nmap
+winget install Python.Python.3
+cargo install rustscan
+pip install shodan
 ```
 
 #### Manual Build
@@ -169,9 +216,14 @@ templates/
 
 ## Requirements
 
-- **Operating Systems**: Linux, macOS, Windows
+- **Operating Systems**: 
+  - Linux (Debian, Ubuntu, CentOS, RHEL, Fedora, Arch, openSUSE)
+  - macOS (with Homebrew)
+  - FreeBSD
+  - Windows (with Chocolatey or winget)
 - **Rust**: 1.70+ (for building from source)
-- **External Tools**: Installed via `make install-tools`
+- **External Tools**: Automatically installed via `make install-tools` or manually:
+  - nmap, rustscan, dig/dnsutils/bind-tools, whois, traceroute, shodan
 
 ## License
 
