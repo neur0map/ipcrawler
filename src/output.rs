@@ -5,6 +5,7 @@ use tokio::fs as tokio_fs;
 
 #[derive(Clone)]
 pub struct OutputManager {
+    #[allow(dead_code)]
     output_dir: String,
     raw_dir: String,
     reports_dir: String,
@@ -50,6 +51,7 @@ impl OutputManager {
         Path::new(&self.reports_dir).join(filename).to_string_lossy().to_string()
     }
     
+    #[allow(dead_code)]
     pub fn get_output_dir(&self) -> &str {
         &self.output_dir
     }

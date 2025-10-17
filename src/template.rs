@@ -98,6 +98,7 @@ impl TemplateManager {
         self.templates.values().collect()
     }
     
+    #[allow(dead_code)]
     pub fn get_templates_by_category(&self, category: &str) -> Vec<&ToolTemplate> {
         self.templates
             .values()
@@ -105,6 +106,7 @@ impl TemplateManager {
             .collect()
     }
     
+    #[allow(dead_code)]
     pub fn get_template(&self, name: &str) -> Option<&ToolTemplate> {
         self.templates.get(name)
     }

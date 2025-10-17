@@ -20,6 +20,7 @@ pub struct ToolResult {
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct ExecutionSummary {
     pub targets: Vec<String>,
     pub total_tools: usize,
