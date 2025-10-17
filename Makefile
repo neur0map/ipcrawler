@@ -62,7 +62,6 @@ install-tools:
 		elif command -v zypper >/dev/null 2>&1; then \
 			echo "Using zypper (openSUSE)..."; \
 			sudo zypper install -y nmap bind-utils whois traceroute python3-pip || true; \
-			# Install pipx for better Python package management
 			python3 -m pip install --user pipx || true; \
 			python3 -m pipx ensurepath || true; \
 		else \
