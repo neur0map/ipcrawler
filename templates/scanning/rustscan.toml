@@ -1,0 +1,17 @@
+[tools.rustscan]
+name = "rustscan"
+description = "Fast port scanning with RustScan"
+command = "rustscan"
+args = [
+    "-a",
+    "{target}",
+    "--",
+    "-sV",
+    "-oN",
+    "-",
+    "-oX",
+    "-"
+]
+output_file = "rustscan_{target}.txt"
+category = "scanning"
+dependencies = ["rustscan"]

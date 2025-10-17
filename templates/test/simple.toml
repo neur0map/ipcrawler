@@ -1,0 +1,12 @@
+[tools.test_ping]
+name = "test_ping"
+description = "Simple ping test for verification"
+command = "ping"
+args = [
+    "-c",
+    "2",
+    "{target}"
+]
+output_file = "test_ping_{target}.txt"
+category = "test"
+dependencies = ["ping"]

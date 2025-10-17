@@ -1,0 +1,12 @@
+[tools.ping]
+name = "ping"
+description = "Basic ping test to check connectivity"
+command = "ping"
+args = [
+    "-c",
+    "4",
+    "{target}"
+]
+output_file = "ping_{target}.txt"
+category = "discovery"
+dependencies = ["ping"]

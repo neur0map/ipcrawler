@@ -1,0 +1,10 @@
+[tools.whois]
+name = "whois"
+description = "WHOIS information for the IP address"
+command = "whois"
+args = [
+    "{target}"
+]
+output_file = "whois_{target}.txt"
+category = "discovery"
+dependencies = ["whois"]

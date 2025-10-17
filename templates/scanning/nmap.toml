@@ -1,0 +1,35 @@
+[tools.nmap_basic]
+name = "nmap_basic"
+description = "Basic NMAP scan of common ports"
+command = "nmap"
+args = [
+    "-sV",
+    "-O",
+    "-oN",
+    "-",
+    "-oX",
+    "-",
+    "{target}"
+]
+output_file = "nmap_basic_{target}.txt"
+category = "scanning"
+dependencies = ["nmap"]
+
+[tools.nmap_full]
+name = "nmap_full"
+description = "Comprehensive NMAP scan of all ports"
+command = "nmap"
+args = [
+    "-p-",
+    "-sV",
+    "-O",
+    "-A",
+    "-oN",
+    "-",
+    "-oX",
+    "-",
+    "{target}"
+]
+output_file = "nmap_full_{target}.txt"
+category = "scanning"
+dependencies = ["nmap"]

@@ -1,0 +1,10 @@
+[tools.traceroute]
+name = "traceroute"
+description = "Trace network path to target"
+command = "traceroute"
+args = [
+    "{target}"
+]
+output_file = "traceroute_{target}.txt"
+category = "mapping"
+dependencies = ["traceroute"]

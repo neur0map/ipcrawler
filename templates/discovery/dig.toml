@@ -1,0 +1,25 @@
+[tools.dig_basic]
+name = "dig_basic"
+description = "Basic DNS records lookup using dig"
+command = "dig"
+args = [
+    "+short",
+    "ANY",
+    "{target}"
+]
+output_file = "dig_basic_{target}.txt"
+category = "discovery"
+dependencies = ["dig"]
+
+[tools.dig_reverse]
+name = "dig_reverse"
+description = "Reverse DNS lookup"
+command = "dig"
+args = [
+    "-x",
+    "{target}",
+    "+short"
+]
+output_file = "dig_reverse_{target}.txt"
+category = "discovery"
+dependencies = ["dig"]
