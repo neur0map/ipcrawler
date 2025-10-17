@@ -47,19 +47,24 @@ install-tools:
 		if command -v apt >/dev/null 2>&1; then \
 			echo "Using apt (Debian/Ubuntu)..."; \
 			sudo apt update; \
-			sudo apt install -y nmap dnsutils whois traceroute python3-pip || true; \
+			sudo apt install -y nmap dnsutils whois traceroute python3-pip pipx || true; \
 		elif command -v yum >/dev/null 2>&1; then \
 			echo "Using yum (CentOS/RHEL)..."; \
 			sudo yum install -y nmap bind-utils whois traceroute python3-pip || true; \
+			python3 -m pip install --user pipx || true; \
 		elif command -v dnf >/dev/null 2>&1; then \
 			echo "Using dnf (Fedora)..."; \
 			sudo dnf install -y nmap bind-utils whois traceroute python3-pip || true; \
+			python3 -m pip install --user pipx || true; \
 		elif command -v pacman >/dev/null 2>&1; then \
 			echo "Using pacman (Arch)..."; \
-			sudo pacman -S --noconfirm nmap bind whois traceroute python-pip || true; \
+			sudo pacman -S --noconfirm nmap bind whois traceroute python-pip python-pipx || true; \
 		elif command -v zypper >/dev/null 2>&1; then \
 			echo "Using zypper (openSUSE)..."; \
 			sudo zypper install -y nmap bind-utils whois traceroute python3-pip || true; \
+			# Install pipx for better Python package management
+			python3 -m pip install --user pipx || true; \
+			python3 -m pipx ensurepath || true; \
 		else \
 			echo "Unknown Linux package manager. Please install manually:"; \
 			echo "- nmap: Package manager specific"; \
@@ -100,12 +105,18 @@ install-tools:
 		echo "https://rustup.rs/"; \
 	fi
 	@echo "Installing Python tools..."
-	@if command -v pip3 >/dev/null 2>&1; then \
-		pip3 install shodan || true; \
+	@if command -v pipx >/dev/null 2>&1; then \
+		echo "Using pipx (recommended)..."; \
+		pipx install shodan || pip3 install --user shodan || pip install --user shodan || true; \
+	elif command -v pip3 >/dev/null 2>&1; then \
+		echo "Using pip3 with --user flag..."; \
+		pip3 install --user shodan || pip3 install --break-system-packages shodan || pip3 install shodan || true; \
 	elif command -v pip >/dev/null 2>&1; then \
-		pip install shodan || true; \
+		echo "Using pip with --user flag..."; \
+		pip install --user shodan || pip install --break-system-packages shodan || pip install shodan || true; \
 	else \
 		echo "Pip not found. Please install Python and pip first."; \
+		echo "Alternative: Install shodan via system package manager or use pipx."; \
 	fi
 	@echo "Installation complete!"
 	@echo "Note: Some tools may require manual setup or API keys (e.g., Shodan)."

@@ -51,31 +51,41 @@ If automatic installation fails, install tools manually:
 **Linux (Debian/Ubuntu):**
 ```bash
 sudo apt update
-sudo apt install nmap dnsutils whois traceroute python3-pip
+sudo apt install nmap dnsutils whois traceroute python3-pip pipx
 cargo install rustscan
-pip3 install shodan
+pipx install shodan  # Recommended, or:
+pip3 install --user shodan  # If pipx not available
 ```
 
 **macOS:**
 ```bash
-brew install nmap bind-tools
+brew install nmap bind-tools pipx
 cargo install rustscan
-pip3 install shodan
+pipx install shodan  # Recommended, or:
+pip3 install --user shodan
 ```
 
 **Windows:**
 ```bash
 # Using Chocolatey
-choco install nmap python3
+choco install nmap python3 pipx
 cargo install rustscan
-pip install shodan
+pipx install shodan  # Recommended, or:
+pip install --user shodan
 
 # Or using winget
 winget install Insecure.Nmap
 winget install Python.Python.3
+winget install pipx
 cargo install rustscan
-pip install shodan
+pipx install shodan
 ```
+
+**Note on Python Installation:**
+Modern Python versions may have "externally managed environments" protection. If you encounter this error:
+- Use `pipx` (recommended for CLI tools)
+- Use `pip install --user <package>` for user-level installation
+- Use `pip install --break-system-packages <package>` if necessary (not recommended)
 
 #### Manual Build
 
