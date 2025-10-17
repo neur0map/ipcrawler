@@ -27,9 +27,26 @@ pub struct TemplateManager {
 
 impl TemplateManager {
     pub fn new(templates_dir: &str) -> Result<Self> {
+        // Try current directory first, then relative to executable
+        let current_dir = std::env::current_dir()?;
+        let templates_path = current_dir.join(templates_dir);
+        
+        let templates_dir = if templates_path.exists() {
+            templates_path.to_string_lossy().to_string()
+        } else {
+            // Fallback to relative to executable directory
+            let exe_path = std::env::current_exe()?;
+            let exe_dir = exe_path
+                .parent()
+                .ok_or_else(|| anyhow::anyhow!("Cannot determine executable directory"))?;
+            exe_dir.join(templates_dir)
+                .to_string_lossy()
+                .to_string()
+        };
+        
         let mut manager = TemplateManager {
             templates: HashMap::new(),
-            templates_dir: templates_dir.to_string(),
+            templates_dir,
         };
         
         manager.load_templates()?;
@@ -40,7 +57,11 @@ impl TemplateManager {
         let templates_path = Path::new(&self.templates_dir);
         
         if !templates_path.exists() {
-            return Err(anyhow::anyhow!("Templates directory not found: {}", self.templates_dir));
+            return Err(anyhow::anyhow!(
+                "Templates directory not found: {}\nCurrent directory: {}\nPlease ensure you're running ipcrawler from the project root directory.", 
+                self.templates_dir, 
+                std::env::current_dir()?.display()
+            ));
         }
         
         for entry in fs::read_dir(templates_path)? {
@@ -53,6 +74,13 @@ impl TemplateManager {
                    || path.extension().and_then(|s| s.to_str()) == Some("toml") {
                 self.load_template_file(&path)?;
             }
+        }
+        
+        if self.templates.is_empty() {
+            return Err(anyhow::anyhow!(
+                "No templates found in: {}\nPlease ensure .toml or .yaml files exist in subdirectories.",
+                self.templates_dir
+            ));
         }
         
         Ok(())
