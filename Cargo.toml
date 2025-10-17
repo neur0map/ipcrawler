@@ -2,7 +2,7 @@
 name = "ipcrawler"
 version = "0.1.0"
 edition = "2021"
-authors = ["Carlos M. <carlos@neur0map.io>"]
+authors = ["Neur0map <contact@neur0map.io>"]
 description = "IP-focused reconnaissance tool for penetration testing"
 license = "MIT"
 
