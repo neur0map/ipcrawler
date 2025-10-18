@@ -1,0 +1,33 @@
+[tools.ping_test]
+name = "ping_test"
+description = "Basic connectivity test"
+command = "ping"
+args = [
+    "-c",
+    "4",
+    "{target}"
+]
+output_file = "ping_{target}.txt"
+category = "discovery"
+dependencies = ["ping"]
+parse_strategy = "llm"
+output_format = "json"
+requires_sudo = false
+timeout_seconds = 30
+
+[tools.ping6_test]
+name = "ping6_test"
+description = "IPv6 connectivity test"
+command = "ping6"
+args = [
+    "-c",
+    "4",
+    "{target}"
+]
+output_file = "ping6_{target}.txt"
+category = "discovery"
+dependencies = ["ping6"]
+parse_strategy = "llm"
+output_format = "json"
+requires_sudo = false
+timeout_seconds = 30

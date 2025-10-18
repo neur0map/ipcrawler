@@ -1,0 +1,55 @@
+[providers.openai]
+name = "OpenAI"
+base_url = "https://api.openai.com/v1"
+models.gpt4o_mini.name = "gpt-4o-mini"
+models.gpt4o_mini.cost_per_1k_input = 0.00015
+models.gpt4o_mini.cost_per_1k_output = 0.0006
+models.gpt4o_mini.max_tokens = 128000
+models.gpt4o.name = "gpt-4o"
+models.gpt4o.cost_per_1k_input = 0.005
+models.gpt4o.cost_per_1k_output = 0.015
+models.gpt4o.max_tokens = 128000
+
+[providers.groq]
+name = "Groq"
+base_url = "https://api.groq.com/openai/v1"
+models.llama3_1_70b.name = "llama-3.1-70b-versatile"
+models.llama3_1_70b.cost_per_1k_input = 0.00059
+models.llama3_1_70b.cost_per_1k_output = 0.00079
+models.llama3_1_70b.max_tokens = 131072
+models.llama3_1_8b.name = "llama-3.1-8b-instant"
+models.llama3_1_8b.cost_per_1k_input = 0.00005
+models.llama3_1_8b.cost_per_1k_output = 0.00008
+models.llama3_1_8b.max_tokens = 131072
+
+[providers.openrouter]
+name = "OpenRouter"
+base_url = "https://openrouter.ai/api/v1"
+models.meta_llama3_1_8b.name = "meta-llama/llama-3.1-8b-instruct"
+models.meta_llama3_1_8b.cost_per_1k_input = 0.00003
+models.meta_llama3_1_8b.cost_per_1k_output = 0.00007
+models.meta_llama3_1_8b.max_tokens = 131072
+models.meta_llama3_1_70b.name = "meta-llama/llama-3.1-70b-instruct"
+models.meta_llama3_1_70b.cost_per_1k_input = 0.00059
+models.meta_llama3_1_70b.cost_per_1k_output = 0.00079
+models.meta_llama3_1_70b.max_tokens = 131072
+models.meta_llama3_1_8b_free.name = "meta-llama/llama-3.1-8b-instruct:free"
+models.meta_llama3_1_8b_free.cost_per_1k_input = 0.0
+models.meta_llama3_1_8b_free.cost_per_1k_output = 0.0
+models.meta_llama3_1_8b_free.max_tokens = 131072
+
+[providers.ollama]
+name = "Ollama"
+base_url = "http://localhost:11434"
+models.llama3_1_8b.name = "llama3.1:8b"
+models.llama3_1_8b.cost_per_1k_input = 0.0
+models.llama3_1_8b.cost_per_1k_output = 0.0
+models.llama3_1_8b.max_tokens = 8192
+models.llama3_1_70b.name = "llama3.1:70b"
+models.llama3_1_70b.cost_per_1k_input = 0.0
+models.llama3_1_70b.cost_per_1k_output = 0.0
+models.llama3_1_70b.max_tokens = 8192
+models.code_llama.name = "codellama:7b"
+models.code_llama.cost_per_1k_input = 0.0
+models.code_llama.cost_per_1k_output = 0.0
+models.code_llama.max_tokens = 16384

@@ -1,0 +1,33 @@
+[llm]
+default_provider = "groq"
+fallback_providers = ["openrouter", "openai", "ollama"]
+max_cost_per_request = 0.01
+daily_limit = 1.0
+monthly_limit = 30.0
+enable_caching = true
+cache_ttl_hours = 24
+
+[llm.optimization]
+min_output_length_for_llm = 100
+max_input_length = 4000
+enable_preprocessing = true
+enable_deduplication = true
+
+[execution]
+max_concurrent = 10
+default_timeout_seconds = 300
+max_retries = 3
+retry_delay_seconds = 5
+
+[output]
+default_directory = "."
+save_raw_output = true
+generate_json_report = true
+generate_markdown_report = true
+report_timestamp = true
+
+[logging]
+level = "info"
+file = "ipcrawler.log"
+max_file_size_mb = 10
+max_files = 5

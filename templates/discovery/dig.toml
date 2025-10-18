@@ -1,0 +1,63 @@
+[tools.dig_basic]
+name = "dig_basic"
+description = "Basic DNS enumeration"
+command = "dig"
+args = [
+    "ANY",
+    "{target}"
+]
+output_file = "dig_any_{target}.txt"
+category = "discovery"
+dependencies = ["dig"]
+parse_strategy = "llm"
+output_format = "json"
+requires_sudo = false
+timeout_seconds = 60
+
+[tools.dig_mx]
+name = "dig_mx"
+description = "MX record lookup"
+command = "dig"
+args = [
+    "MX",
+    "{target}"
+]
+output_file = "dig_mx_{target}.txt"
+category = "discovery"
+dependencies = ["dig"]
+parse_strategy = "llm"
+output_format = "json"
+requires_sudo = false
+timeout_seconds = 30
+
+[tools.dig_ns]
+name = "dig_ns"
+description = "NS record lookup"
+command = "dig"
+args = [
+    "NS",
+    "{target}"
+]
+output_file = "dig_ns_{target}.txt"
+category = "discovery"
+dependencies = ["dig"]
+parse_strategy = "llm"
+output_format = "json"
+requires_sudo = false
+timeout_seconds = 30
+
+[tools.dig_txt]
+name = "dig_txt"
+description = "TXT record lookup"
+command = "dig"
+args = [
+    "TXT",
+    "{target}"
+]
+output_file = "dig_txt_{target}.txt"
+category = "discovery"
+dependencies = ["dig"]
+parse_strategy = "llm"
+output_format = "json"
+requires_sudo = false
+timeout_seconds = 30

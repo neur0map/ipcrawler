@@ -1,0 +1,35 @@
+[tools.traceroute_unix]
+name = "traceroute_unix"
+description = "Network path tracing (Unix/Linux)"
+command = "traceroute"
+args = [
+    "{target}"
+]
+output_file = "traceroute_{target}.txt"
+category = "mapping"
+dependencies = ["traceroute"]
+parse_strategy = "llm"
+output_format = "json"
+requires_sudo = false
+timeout_seconds = 120
+
+[tools.traceroute_windows]
+name = "traceroute_windows"
+description = "Network path tracing (Windows)"
+command = "tracert"
+args = [
+    "{target}"
+]
+output_file = "tracert_{target}.txt"
+category = "mapping"
+dependencies = ["tracert"]
+parse_strategy = "llm"
+output_format = "json"
+requires_sudo = false
+timeout_seconds = 120
+
+[tools.traceroute_unix.conditions]
+os = ["linux", "macos"]
+
+[tools.traceroute_windows.conditions]
+os = ["windows"]
