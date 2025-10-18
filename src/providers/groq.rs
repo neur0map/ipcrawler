@@ -160,7 +160,4 @@ impl LLMProvider for GroqProvider {
     fn provider_name(&self) -> &'static str {
         "groq"
     }
-
-
-    }
 }
