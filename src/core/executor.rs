@@ -309,7 +309,7 @@ impl Executor {
             println!("  Missing Tools: {}", missing_tools.len());
             if self.verbose {
                 for tool in missing_tools {
-                    println!("    ✗ {}", tool.name);
+                    println!("    ✗ {}", tool);
                 }
             }
         }

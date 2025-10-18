@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 use chrono::{DateTime, Utc, Datelike};
 use dirs::home_dir;
-use crate::providers::LLMProvider;
+
 use crate::optimization::tokens::{TokenEstimate, CostEstimate};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

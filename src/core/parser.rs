@@ -130,10 +130,7 @@ impl LLMParser {
             };
             
             let actual_cost = crate::optimization::tokens::CostEstimate {
-                input_cost: result.cost.unwrap_or(estimated_cost) * 0.7, // Rough split
-                output_cost: result.cost.unwrap_or(estimated_cost) * 0.3,
                 total_cost: result.cost.unwrap_or(estimated_cost),
-                tokens: actual_tokens.clone(),
             };
             
             cost_tracker.track_usage(provider.provider_name(), &actual_tokens, &actual_cost)?;

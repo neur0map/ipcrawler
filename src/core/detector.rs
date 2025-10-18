@@ -15,6 +15,7 @@ pub enum OS {
     Linux,
     Windows,
     MacOS,
+    Unknown,
 }
 
 #[derive(Debug, Clone)]
@@ -160,7 +161,7 @@ impl SystemDetector {
         Ok(tools)
     }
 
-    fn check_tool(name: &str, version_args: &[&str], system_info: &SystemInfo) -> ToolInfo {
+    fn check_tool(name: &str, version_args: &[&str], _system_info: &SystemInfo) -> ToolInfo {
         let path = Self::which(name);
         let is_available = path.is_some();
         
@@ -170,14 +171,12 @@ impl SystemDetector {
             None
         };
 
-        let requires_sudo = Self::tool_requires_sudo(name, system_info);
+
 
         ToolInfo {
             name: name.to_string(),
             version,
-            path,
             is_available,
-            requires_sudo,
         }
     }
 
@@ -291,25 +290,26 @@ impl SystemDetector {
     }
 
     pub fn get_tool_recommendations(&self) -> Vec<String> {
-        let mut recommendations = vec![];
-        
-        // Essential tools for reconnaissance
-        let essential = ["nmap", "dig", "ping", "curl"];
-        for tool in &essential {
-            if !self.is_tool_available(tool) {
-                recommendations.push(format!("Install {} for basic reconnaissance", tool));
-            }
-        }
-        
-        // Advanced tools
-        let advanced = ["masscan", "sslscan", "nikto"];
-        for tool in &advanced {
-            if !self.is_tool_available(tool) {
-                recommendations.push(format!("Install {} for advanced scanning", tool));
-            }
-        }
-        
-        recommendations
+        // Recommend common tools for network reconnaissance
+        vec![
+            "nmap".to_string(),
+            "dig".to_string(),
+            "ping".to_string(),
+            "traceroute".to_string(),
+            "whois".to_string(),
+        ]
+    }
+
+    pub fn get_available_tools(&self) -> Vec<ToolInfo> {
+        self.tools.clone()
+    }
+
+    pub fn get_missing_tools(&self) -> Vec<String> {
+        self.tools
+            .iter()
+            .filter(|tool| !tool.is_available)
+            .map(|tool| tool.name.clone())
+            .collect()
     }
 }
 

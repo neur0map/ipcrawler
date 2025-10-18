@@ -136,40 +136,6 @@ impl ResultCache {
 
         Ok(())
     }
-
-    
-
-        // Clean up file cache
-        if self.cache_dir.exists() {
-            for entry in fs::read_dir(&self.cache_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_file() {
-                    match fs::read_to_string(&path) {
-                        Ok(content) => {
-                            match serde_json::from_str::<CachedResult>(&content) {
-                                Ok(cached) => {
-                                    if self.is_expired(&cached) {
-                                        let _ = fs::remove_file(&path);
-                                    }
-                                }
-                                Err(_) => {
-                                    // Invalid cache file, remove it
-                                    let _ = fs::remove_file(&path);
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            // Can't read file, remove it
-                            let _ = fs::remove_file(&path);
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
