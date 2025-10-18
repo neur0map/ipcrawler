@@ -158,7 +158,4 @@ impl LLMProvider for OllamaProvider {
     fn provider_name(&self) -> &'static str {
         "ollama"
     }
-
-
-    }
 }

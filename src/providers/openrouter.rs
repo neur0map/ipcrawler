@@ -163,7 +163,4 @@ impl LLMProvider for OpenRouterProvider {
     fn provider_name(&self) -> &'static str {
         "openrouter"
     }
-
-
-    }
 }

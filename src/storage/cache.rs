@@ -170,8 +170,6 @@ impl ResultCache {
 
         Ok(())
     }
-
-    
 }
 
 #[derive(Debug, Serialize, Deserialize)]
