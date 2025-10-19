@@ -119,6 +119,14 @@ impl ReportGenerator {
         self.format_markdown_report(&report)
     }
 
+    pub fn get_json_report_path(&self) -> String {
+        format!("{}/ipcrawler_report.json", self.output_dir)
+    }
+
+    pub fn get_markdown_report_path(&self) -> String {
+        format!("{}/ipcrawler_report.md", self.output_dir)
+    }
+
     fn create_scan_report(&self, results: &[ParsedResult]) -> Result<ScanReport> {
         let start_time = results
             .iter()

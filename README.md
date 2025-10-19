@@ -15,7 +15,24 @@ IP-focused reconnaissance tool with LLM-powered output parsing for penetration t
 
 ## Quick Start
 
-### Installation
+### 🚀 Smart Setup (Recommended)
+
+The easiest way to get started is with our interactive setup wizard:
+
+```bash
+git clone https://github.com/neur0map/ipcrawler.git
+cd ipcrawler
+make init
+```
+
+The setup wizard will:
+- ✅ Build the project automatically
+- ✅ Install required system tools (nmap, dig, etc.)
+- ✅ Set up system-wide access
+- ✅ Configure LLM providers interactively
+- ✅ Test your configuration
+
+### Manual Installation
 
 ```bash
 # Clone the repository
@@ -23,24 +40,29 @@ git clone https://github.com/neur0map/ipcrawler.git
 cd ipcrawler
 
 # Build the project
-cargo build --release
+make build
 
-# Install to system (optional)
-cargo install --path .
+# Install system dependencies
+make install-deps
 ```
 
 ### Configure API Keys
 
 ```bash
 # Set your preferred LLM provider
-ipcrawler keys set --provider groq --key your_groq_api_key
+./target/release/ipcrawler keys set --provider groq --key your_groq_api_key
 
 # Or use OpenAI
-ipcrawler keys set --provider openai --key your_openai_api_key
+./target/release/ipcrawler keys set --provider openai --key your_openai_api_key
 
 # List configured providers
-ipcrawler keys list
+./target/release/ipcrawler keys list
+
+# Test API key
+./target/release/ipcrawler keys test --provider groq
 ```
+
+> 💡 **Tip**: Use `make init` for guided API key setup with automatic testing
 
 ### Basic Usage
 
@@ -220,14 +242,48 @@ default_timeout_seconds = 300
 
 ## Development
 
-### Building
+### Makefile Commands
+
+Our smart Makefile provides convenient commands for development and deployment:
+
+```bash
+# Setup & Building
+make init              # Interactive setup wizard (recommended for first-time users)
+make build             # Build optimized release binary
+make clean             # Clean build artifacts
+make dev-build         # Build in development mode
+make dev-run ARGS="scan example.com"  # Build and run with arguments
+
+# Dependencies
+make install-deps      # Install system dependencies automatically
+make check-deps        # Check if dependencies are installed
+
+# Code Quality
+make test              # Run tests
+make lint              # Run linting with clippy
+make format            # Format code with rustfmt
+make audit             # Check for security vulnerabilities
+
+# Installation
+make install           # Install to system (requires sudo)
+make uninstall         # Remove from system
+make setup-symlink     # Create symlink for system-wide access
+
+# Utilities
+make help              # Show available commands
+make update            # Update Rust dependencies
+make docs              # Generate and open documentation
+make package           # Create release package
+```
+
+### Manual Building
 ```bash
 cargo build --release
 ```
 
 ### Testing
 ```bash
-cargo test
+make test  # or: cargo test
 ```
 
 ### Adding New Tools

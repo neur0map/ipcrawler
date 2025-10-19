@@ -15,6 +15,7 @@ pub enum OS {
     Linux,
     Windows,
     MacOS,
+    #[allow(dead_code)]
     Unknown,
 }
 
@@ -260,7 +261,7 @@ impl SystemDetector {
         None
     }
 
-    fn tool_requires_sudo(tool: &str, system_info: &SystemInfo) -> bool {
+    pub fn tool_requires_sudo(tool: &str, system_info: &SystemInfo) -> bool {
         match tool {
             "nmap" => {
                 // Nmap requires sudo for certain scan types (SYN scan, OS detection, etc.)

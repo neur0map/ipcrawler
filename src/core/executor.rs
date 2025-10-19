@@ -16,6 +16,7 @@ use crate::report::generator::ReportGenerator;
 
 pub struct Executor {
     targets: Vec<String>,
+    #[allow(dead_code)]
     output_dir: String,
     verbose: bool,
     port_range: Option<String>,
@@ -79,7 +80,7 @@ impl Executor {
         
         main_progress.set_style(
             ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg:.dim}")
                 .unwrap()
                 .progress_chars("#>-")
         );
@@ -99,21 +100,28 @@ impl Executor {
                 let semaphore = semaphore.clone();
                 let main_progress = main_progress.clone();
 
+                let template_manager_clone = self.template_manager.clone();
                 let task = tokio::spawn(async move {
                     let _permit = semaphore.acquire().await.unwrap();
                     
                     main_progress.set_message(format!("Running {} on {}", template.name, target));
                     
-                    match Self::execute_tool(&target, &template, port_range.as_deref(), verbose, &system_detector, &llm_parser).await {
-                        Ok(result) => {
-                            main_progress.inc(1);
-                            Some(result)
+                    let result = Executor::execute_tool(&target, &template, port_range.as_deref(), verbose, &system_detector, &llm_parser, &template_manager_clone).await;
+                    
+                    // Increment progress bar regardless of success/failure
+                    main_progress.inc(1);
+                    
+                    match result {
+                        Ok(parsed_result) => {
+                            if verbose {
+                                println!("✓ {} on {} completed successfully", template.name, target);
+                            }
+                            Some(parsed_result)
                         }
                         Err(e) => {
                             if verbose {
-                                eprintln!("{} {} on {} failed: {}", "Warning:".yellow(), template.name, target, e);
+                                eprintln!("✗ {} on {} failed: {}", template.name, target, e);
                             }
-                            main_progress.inc(1);
                             None
                         }
                     }
@@ -151,6 +159,7 @@ impl Executor {
         verbose: bool,
         system_detector: &SystemDetector,
         llm_parser: &LLMParser,
+        template_manager: &TemplateManager,
     ) -> Result<ParsedResult> {
         // Check if tool is available
         if !system_detector.is_tool_available(&template.command) {
@@ -167,15 +176,14 @@ impl Executor {
         }
 
         // Build command
-        let template_manager = crate::template::manager::TemplateManager::new("templates")?;
         let command_str = template_manager.render_command(template, target, port_range)?;
 
         if verbose {
             println!("Executing: {}", command_str);
         }
 
-        // Execute command
-        let output = Self::run_command(&command_str, template.timeout_seconds).await?;
+        // Execute command (templates are pre-filtered for sudo requirements)
+        let output = Executor::run_command(&command_str, template.timeout_seconds, system_detector).await?;
         
         if verbose {
             println!("Command completed, output length: {} bytes", output.len());
@@ -192,21 +200,88 @@ impl Executor {
         let parsed_result = llm_parser.parse(parse_request).await?;
 
         // Save raw output
-        Self::save_raw_output(&template.name, target, &output, system_detector).await?;
+        Executor::save_raw_output(&template.name, target, &output, system_detector, template_manager).await?;
 
         Ok(parsed_result)
     }
 
-    async fn run_command(command_str: &str, timeout_seconds: Option<u64>) -> Result<String> {
+    async fn run_command(command_str: &str, timeout_seconds: Option<u64>, system_detector: &SystemDetector) -> Result<String> {
         let parts: Vec<&str> = command_str.split_whitespace().collect();
         if parts.is_empty() {
             return Err(anyhow::anyhow!("Empty command"));
         }
 
-        let mut cmd = Command::new(parts[0]);
-        for arg in &parts[1..] {
-            cmd.arg(arg);
+        let tool_name = parts[0];
+        let system_info = system_detector.get_system_info();
+        
+        // Check if tool requires sudo and prepend if needed
+        let mut cmd = if SystemDetector::tool_requires_sudo(tool_name, system_info) {
+            let mut sudo_cmd = Command::new("sudo");
+            sudo_cmd.arg(tool_name);
+            for arg in &parts[1..] {
+                sudo_cmd.arg(arg);
+            }
+            sudo_cmd
+        } else {
+            let mut cmd = Command::new(tool_name);
+            for arg in &parts[1..] {
+                cmd.arg(arg);
+            }
+            cmd
+        };
+
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+
+        let timeout = Duration::from_secs(timeout_seconds.unwrap_or(300)); // 5 minutes default
+
+        let output = tokio::time::timeout(timeout, cmd.output()).await
+            .map_err(|_| anyhow::anyhow!("Command timed out after {} seconds", timeout.as_secs()))?
+            .context("Failed to execute command")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            return Err(anyhow::anyhow!(
+                "Command failed with exit code {}: {}\n{}",
+                output.status.code().unwrap_or(-1),
+                stderr,
+                stdout
+            ));
         }
+
+        let stdout = String::from_utf8(output.stdout)
+            .context("Command output was not valid UTF-8")?;
+        
+        let stderr = String::from_utf8(output.stderr)
+            .context("Command stderr was not valid UTF-8")?;
+        
+        Ok(stdout + &stderr)
+    }
+
+    async fn run_command_with_sudo(command_str: &str, timeout_seconds: Option<u64>, needs_sudo: bool) -> Result<String> {
+        let parts: Vec<&str> = command_str.split_whitespace().collect();
+        if parts.is_empty() {
+            return Err(anyhow::anyhow!("Empty command"));
+        }
+
+        let tool_name = parts[0];
+        
+        // Build command with optional sudo
+        let mut cmd = if needs_sudo {
+            let mut sudo_cmd = Command::new("sudo");
+            sudo_cmd.arg(tool_name);
+            for arg in &parts[1..] {
+                sudo_cmd.arg(arg);
+            }
+            sudo_cmd
+        } else {
+            let mut cmd = Command::new(tool_name);
+            for arg in &parts[1..] {
+                cmd.arg(arg);
+            }
+            cmd
+        };
 
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
@@ -244,13 +319,26 @@ impl Executor {
         Ok(combined_output)
     }
 
-    async fn save_raw_output(tool_name: &str, target: &str, output: &str, _system_detector: &SystemDetector) -> Result<()> {
+    async fn save_raw_output(tool_name: &str, target: &str, output: &str, system_detector: &SystemDetector, template_manager: &TemplateManager) -> Result<()> {
         // Create output directory if it doesn't exist
         let output_dir = format!("ipcrawler_results/{}", target.replace('.', "_"));
         tokio::fs::create_dir_all(&output_dir).await?;
 
-        // Save raw output
-        let filename = format!("{}/{}_{}.txt", output_dir, tool_name, chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+        // Get the template for this tool to use custom output file naming
+        let templates = template_manager.get_applicable_templates(system_detector.get_system_info());
+        let filename = if let Some(template) = templates.iter().find(|t| t.name == tool_name) {
+            // Use template's custom output file pattern if available
+            if let Some(custom_filename) = template_manager.render_output_file(template, target)? {
+                format!("{}/{}", output_dir, custom_filename)
+            } else {
+                // Fallback to default naming
+                format!("{}/{}_{}.txt", output_dir, tool_name, chrono::Utc::now().format("%Y%m%d_%H%M%S"))
+            }
+        } else {
+            // Fallback to default naming
+            format!("{}/{}_{}.txt", output_dir, tool_name, chrono::Utc::now().format("%Y%m%d_%H%M%S"))
+        };
+        
         tokio::fs::write(&filename, output).await?;
 
         Ok(())
@@ -329,16 +417,12 @@ impl Executor {
 
         // Generate JSON report
         let json_report = self.report_generator.generate_json_report(&self.results)?;
-        let json_path = format!("{}/ipcrawler_report.json", self.output_dir);
+        let json_path = self.report_generator.get_json_report_path();
         tokio::fs::write(&json_path, json_report).await?;
-        
-        if self.verbose {
-            println!("{} JSON report saved to {}", "✓".green(), json_path);
-        }
 
         // Generate Markdown report
         let markdown_report = self.report_generator.generate_markdown_report(&self.results)?;
-        let markdown_path = format!("{}/ipcrawler_report.md", self.output_dir);
+        let markdown_path = self.report_generator.get_markdown_report_path();
         tokio::fs::write(&markdown_path, markdown_report).await?;
         
         if self.verbose {

@@ -1,10 +1,8 @@
-use clap::{Args, Subcommand};
 use anyhow::Result;
-use clap::Args;
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use colored::*;
 use crate::storage::secure::SecureKeyStore;
-use crate::providers::{LLMProvider, groq::GroqProvider, openai::OpenAIProvider, openrouter::OpenRouterProvider, ollama::OllamaProvider};
+
 
 #[derive(Args)]
 pub struct KeyCommands {
@@ -70,9 +68,12 @@ pub async fn handle_keys_command(cmd: KeyCommands) -> anyhow::Result<()> {
         }
         KeyAction::Test { provider } => {
             match key_store.get_key(&provider)? {
-                Some(_) => {
-                    // TODO: Implement actual API key testing
-                    println!("{} API key test not yet implemented for provider: {}", "Info:".blue(), provider);
+                Some(api_key) => {
+                    println!("{} Testing API key for provider: {}...", "Info:".blue(), provider);
+                    match test_api_key(&provider, &api_key).await {
+                        Ok(()) => println!("{} API key is valid for provider: {}", "Success:".green(), provider),
+                        Err(e) => println!("{} API key test failed for provider {}: {}", "Error:".red(), provider, e),
+                    }
                 }
                 None => println!("{} No API key found for provider: {}", "Error:".red(), provider),
             }
@@ -80,4 +81,142 @@ pub async fn handle_keys_command(cmd: KeyCommands) -> anyhow::Result<()> {
     }
     
     Ok(())
+}
+
+async fn test_api_key(provider: &str, api_key: &str) -> Result<()> {
+    match provider.to_lowercase().as_str() {
+        "groq" => {
+            // Test with a direct API call to verify connectivity
+            let client = reqwest::Client::new();
+            let response = client
+                .post("https://api.groq.com/openai/v1/chat/completions")
+                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Content-Type", "application/json")
+                .json(&serde_json::json!({
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Respond with just 'OK' to test the connection."
+                        }
+                    ],
+                    "max_tokens": 10
+                }))
+                .send()
+                .await?;
+
+            if response.status().is_success() {
+                let json: serde_json::Value = response.json().await?;
+                if let Some(choices) = json["choices"].as_array() {
+                    if let Some(choice) = choices.first() {
+                        if let Some(content) = choice["message"]["content"].as_str() {
+                            if content.contains("OK") {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                Err(anyhow::anyhow!("Unexpected response format: {}", json))
+            } else {
+                Err(anyhow::anyhow!("API error: {}", response.status()))
+            }
+        }
+        "openai" => {
+            let client = reqwest::Client::new();
+            let response = client
+                .post("https://api.openai.com/v1/chat/completions")
+                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Content-Type", "application/json")
+                .json(&serde_json::json!({
+                    "model": "gpt-3.5-turbo",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Respond with just 'OK' to test the connection."
+                        }
+                    ],
+                    "max_tokens": 10
+                }))
+                .send()
+                .await?;
+
+            if response.status().is_success() {
+                let json: serde_json::Value = response.json().await?;
+                if let Some(choices) = json["choices"].as_array() {
+                    if let Some(choice) = choices.first() {
+                        if let Some(content) = choice["message"]["content"].as_str() {
+                            if content.contains("OK") {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                Err(anyhow::anyhow!("Unexpected response format: {}", json))
+            } else {
+                Err(anyhow::anyhow!("API error: {}", response.status()))
+            }
+        }
+        "openrouter" => {
+            let client = reqwest::Client::new();
+            let response = client
+                .post("https://openrouter.ai/api/v1/chat/completions")
+                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Content-Type", "application/json")
+                .json(&serde_json::json!({
+                    "model": "meta-llama/llama-3.1-8b-instruct:free",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Respond with just 'OK' to test the connection."
+                        }
+                    ],
+                    "max_tokens": 10
+                }))
+                .send()
+                .await?;
+
+            if response.status().is_success() {
+                let json: serde_json::Value = response.json().await?;
+                if let Some(choices) = json["choices"].as_array() {
+                    if let Some(choice) = choices.first() {
+                        if let Some(content) = choice["message"]["content"].as_str() {
+                            if content.contains("OK") {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                Err(anyhow::anyhow!("Unexpected response format: {}", json))
+            } else {
+                Err(anyhow::anyhow!("API error: {}", response.status()))
+            }
+        }
+        "ollama" => {
+            // Ollama uses a URL instead of API key, so we test connectivity
+            let client = reqwest::Client::new();
+            let response = client
+                .post(&format!("{}/api/generate", api_key))
+                .header("Content-Type", "application/json")
+                .json(&serde_json::json!({
+                    "model": "llama3.1:8b",
+                    "prompt": "Respond with just 'OK' to test the connection.",
+                    "stream": false
+                }))
+                .send()
+                .await?;
+
+            if response.status().is_success() {
+                let json: serde_json::Value = response.json().await?;
+                if let Some(response) = json["response"].as_str() {
+                    if response.contains("OK") {
+                        return Ok(());
+                    }
+                }
+                Err(anyhow::anyhow!("Unexpected response format: {}", json))
+            } else {
+                Err(anyhow::anyhow!("API error: {}", response.status()))
+            }
+        }
+        _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
+    }
 }

@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
 use aes_gcm::{Aes256Gcm, Key, Nonce, KeyInit};
 use aes_gcm::aead::Aead;
+use aes_gcm::aead::generic_array::GenericArray;
+use typenum::{U12, U32};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -47,7 +49,7 @@ impl SecureKeyStore {
         if key_file.exists() {
             let key_data = fs::read(&key_file)?;
             if key_data.len() == 32 {
-                return Ok(Key::<Aes256Gcm>::from_slice(&key_data).clone());
+                return Ok(Key::<Aes256Gcm>::from(*GenericArray::<u8, U32>::from_slice(&key_data)));
             }
         }
 
@@ -71,17 +73,17 @@ impl SecureKeyStore {
             fs::set_permissions(&key_file, perms)?;
         }
 
-        Ok(Key::<Aes256Gcm>::from_slice(&key_bytes).clone())
+        Ok(Key::<Aes256Gcm>::from(*GenericArray::<u8, U32>::from_slice(&key_bytes)))
     }
 
     fn encrypt_data(&self, data: &str) -> Result<EncryptedData> {
         let cipher = Aes256Gcm::new(&self.encryption_key);
         let mut nonce_bytes = [0u8; 12];
         rand::thread_rng().fill(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = Nonce::from(*GenericArray::<u8, U12>::from_slice(&nonce_bytes));
         
         let ciphertext = cipher
-            .encrypt(nonce, data.as_bytes())
+            .encrypt(&nonce, data.as_bytes())
             .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
 
         Ok(EncryptedData {
@@ -92,10 +94,10 @@ impl SecureKeyStore {
 
     fn decrypt_data(&self, encrypted: &EncryptedData) -> Result<String> {
         let cipher = Aes256Gcm::new(&self.encryption_key);
-        let nonce = Nonce::from_slice(&encrypted.nonce);
+        let nonce = Nonce::from(*GenericArray::<u8, U12>::from_slice(&encrypted.nonce));
         
         let plaintext = cipher
-            .decrypt(nonce, encrypted.ciphertext.as_ref())
+            .decrypt(&nonce, encrypted.ciphertext.as_ref())
             .map_err(|e| anyhow::anyhow!("Decryption failed: {}", e))?;
 
         String::from_utf8(plaintext).map_err(|e| anyhow::anyhow!("Invalid UTF-8: {}", e))

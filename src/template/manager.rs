@@ -35,9 +35,11 @@ pub struct TemplateConfig {
     pub tools: HashMap<String, ToolTemplate>,
 }
 
+#[derive(Clone)]
 pub struct TemplateManager {
     templates: HashMap<String, ToolTemplate>,
     templates_dir: String,
+    #[allow(dead_code)]
     tera: Tera,
 }
 
@@ -81,11 +83,7 @@ impl TemplateManager {
             }
         }
 
-        // Initialize Tera for template rendering
-        self.tera.add_raw_templates(vec![
-            ("command", "{{ command }} {{ args|join(' ') }}"),
-            ("output_file", "{{ output_file }}"),
-        ])?;
+
 
         Ok(())
     }
@@ -100,6 +98,13 @@ impl TemplateManager {
     }
 
     fn is_template_applicable(&self, template: &ToolTemplate, system_info: &crate::core::detector::SystemInfo) -> bool {
+        // Check template-level sudo requirements first
+        if let Some(requires_sudo) = template.requires_sudo {
+            if requires_sudo && !system_info.has_sudo {
+                return false;
+            }
+        }
+
         if let Some(ref conditions) = template.conditions {
             // Check OS conditions
             if let Some(ref os_list) = conditions.os {
@@ -115,7 +120,7 @@ impl TemplateManager {
                 }
             }
 
-            // Check sudo requirements
+            // Check sudo requirements from conditions
             if let Some(required_sudo) = conditions.has_sudo {
                 if required_sudo != system_info.has_sudo {
                     return false;
@@ -134,6 +139,9 @@ impl TemplateManager {
             context.insert("port_range", ports);
         }
 
+        // Render command (in case it contains template variables)
+        let rendered_command = self.render_template_string(&template.command, &context)?;
+
         // Render arguments
         let rendered_args: Result<Vec<String>> = template
             .args
@@ -143,7 +151,7 @@ impl TemplateManager {
         
         let args = rendered_args?;
 
-        Ok(format!("{} {}", template.command, args.join(" ")))
+        Ok(format!("{} {}", rendered_command, args.join(" ")))
     }
 
     pub fn render_output_file(&self, template: &ToolTemplate, target: &str) -> Result<Option<String>> {
@@ -160,21 +168,22 @@ impl TemplateManager {
     }
 
     fn render_template_string(&self, template_str: &str, context: &TeraContext) -> Result<String> {
-        // Simple template rendering for common patterns
-        let mut result = template_str.to_string();
+        // Convert single braces to Tera-compatible double braces
+        let tera_template = template_str
+            .replace("{target}", "{{ target }}")
+            .replace("{port_range}", "{{ port_range }}")
+            .replace("{tool_name}", "{{ tool_name }}");
         
-        // Replace common variables
-        result = result.replace("{target}", &context.get("target").unwrap_or(&tera::Value::String("".to_string())).as_str().unwrap_or(""));
-        result = result.replace("{port_range}", &context.get("port_range").unwrap_or(&tera::Value::String("".to_string())).as_str().unwrap_or(""));
-        result = result.replace("{tool_name}", &context.get("tool_name").unwrap_or(&tera::Value::String("".to_string())).as_str().unwrap_or(""));
+        // Use Tera templating engine for proper template rendering
+        let mut tera = Tera::default();
         
-        // Replace timestamp
-        if result.contains("{timestamp}") {
-            let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-            result = result.replace("{timestamp}", &timestamp.to_string());
-        }
+        // Add the template string as a template
+        tera.add_raw_template("template", &tera_template)
+            .context("Failed to add template to Tera engine")?;
         
-        Ok(result)
+        // Render the template with context
+        tera.render("template", context)
+            .context("Failed to render template with Tera engine")
     }
 
 

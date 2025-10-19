@@ -1401,6 +1401,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "toml",
+ "typenum",
  "uuid",
  "walkdir",
 ]
