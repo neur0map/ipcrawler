@@ -51,7 +51,11 @@ impl LLMParser {
         }
 
         // Preprocess output to reduce tokens
-        let optimized_output = self.preprocessor.optimize_for_llm(&request.raw_output, &request.tool_name);
+        let optimized_output = if let Some(max_tokens) = request.max_tokens {
+            self.preprocessor.optimize_for_llm_with_token_limit(&request.raw_output, &request.tool_name, max_tokens)
+        } else {
+            self.preprocessor.optimize_for_llm(&request.raw_output, &request.tool_name)
+        };
         
         if self.verbose {
             let savings = self.preprocessor.estimate_token_savings(&request.raw_output, &request.tool_name);
@@ -89,7 +93,15 @@ impl LLMParser {
         // Estimate tokens and cost
         let prompt = self.build_prompt(request, optimized_output);
         let token_estimate = self.token_manager.estimate_total_tokens(&prompt, optimized_output, &request.tool_name);
-        let estimated_cost = (token_estimate.total_tokens as f64 / 1000.0) * provider.get_cost_per_1k_tokens();
+        
+        // Calculate more accurate cost estimate (split 70/30 input/output)
+        let cost_per_1k = provider.get_cost_per_1k_tokens();
+        let cost_estimate = self.token_manager.calculate_cost(
+            token_estimate.clone(),
+            cost_per_1k * 0.7,  // Assume 70% of cost is input
+            cost_per_1k * 0.3   // Assume 30% of cost is output
+        );
+        let estimated_cost = cost_estimate.total_cost;
         
         // Check cost limits
         {
@@ -129,8 +141,12 @@ impl LLMParser {
                 total_tokens: result.tokens_used.unwrap_or(token_estimate.total_tokens),
             };
             
+            // Use the calculated cost estimate with actual cost if available
+            let final_cost = result.cost.unwrap_or(cost_estimate.total_cost);
             let actual_cost = crate::optimization::tokens::CostEstimate {
-                total_cost: result.cost.unwrap_or(estimated_cost),
+                input_cost: cost_estimate.input_cost,
+                output_cost: cost_estimate.output_cost,
+                total_cost: final_cost,
             };
             
             cost_tracker.track_usage(provider.provider_name(), &actual_tokens, &actual_cost)?;
@@ -240,8 +256,8 @@ mod tests {
     use super::*;
     use crate::cost::CostTracker;
 
-    #[test]
-    fn test_parser_creation() -> Result<()> {
+    #[tokio::test]
+    async fn test_parser_creation() -> Result<()> {
         let key_store = crate::storage::SecureKeyStore::new()?;
         let cost_tracker = CostTracker::new(0.01)?;
         
@@ -252,7 +268,8 @@ mod tests {
             false,
         )?;
         
-        assert!(parser.get_default_provider().is_some());
+        let provider = parser.get_provider().await?;
+        assert!(provider.provider_name() == "groq");
         
         Ok(())
     }

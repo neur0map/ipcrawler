@@ -179,6 +179,18 @@ impl CostTracker {
         true
     }
 
+    pub fn get_provider_usage(&self, provider: &str) -> Option<&UsageStats> {
+        self.current_usage.get(provider)
+    }
+
+    pub fn get_daily_usage(&self) -> &UsageStats {
+        &self.daily_usage
+    }
+
+    pub fn get_monthly_usage(&self) -> &UsageStats {
+        &self.monthly_usage
+    }
+
     pub fn track_usage(&mut self, provider: &str, tokens: &TokenEstimate, cost: &CostEstimate) -> Result<()> {
         let now = Utc::now();
         
@@ -239,12 +251,11 @@ mod tests {
             input_cost: 0.001,
             output_cost: 0.001,
             total_cost: 0.002,
-            tokens: tokens.clone(),
         };
         
-        tracker.track_usage("test_provider", &tokens, &cost)?;
+        tracker.track_usage("test_provider_unique", &tokens, &cost)?;
         
-        let usage = tracker.get_provider_usage("test_provider").unwrap();
+        let usage = tracker.get_provider_usage("test_provider_unique").unwrap();
         assert_eq!(usage.tokens_used, 150);
         assert_eq!(usage.cost, 0.002);
         assert_eq!(usage.requests, 1);
@@ -254,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_cost_limits() -> Result<()> {
-        let tracker = CostTracker::new(0.01);
+        let tracker = CostTracker::new(0.01)?;
         
         // Should proceed with small cost
         assert!(tracker.should_proceed(0.005, "test"));

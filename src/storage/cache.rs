@@ -24,6 +24,10 @@ pub struct ResultCache {
 
 impl ResultCache {
     pub fn new() -> Result<Self> {
+        Self::with_ttl(Duration::from_secs(3600)) // Default 1 hour TTL
+    }
+
+    pub fn with_ttl(_ttl: Duration) -> Result<Self> {
         let mut cache_dir = dirs::cache_dir()
             .unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
         cache_dir.push("ipcrawler");

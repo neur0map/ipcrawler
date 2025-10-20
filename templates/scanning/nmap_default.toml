@@ -17,7 +17,7 @@ category = "scanning"
 dependencies = ["nmap"]
 parse_strategy = "llm"
 output_format = "json"
-requires_sudo = false
+requires_sudo = true
 timeout_seconds = 300
 
 [tools.nmap_stealth]
@@ -62,7 +62,7 @@ category = "scanning"
 dependencies = ["nmap"]
 parse_strategy = "llm"
 output_format = "json"
-requires_sudo = false
+requires_sudo = true
 timeout_seconds = 600
 
 [tools.rustscan_default]

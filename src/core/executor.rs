@@ -259,65 +259,7 @@ impl Executor {
         Ok(stdout + &stderr)
     }
 
-    async fn run_command_with_sudo(command_str: &str, timeout_seconds: Option<u64>, needs_sudo: bool) -> Result<String> {
-        let parts: Vec<&str> = command_str.split_whitespace().collect();
-        if parts.is_empty() {
-            return Err(anyhow::anyhow!("Empty command"));
-        }
-
-        let tool_name = parts[0];
-        
-        // Build command with optional sudo
-        let mut cmd = if needs_sudo {
-            let mut sudo_cmd = Command::new("sudo");
-            sudo_cmd.arg(tool_name);
-            for arg in &parts[1..] {
-                sudo_cmd.arg(arg);
-            }
-            sudo_cmd
-        } else {
-            let mut cmd = Command::new(tool_name);
-            for arg in &parts[1..] {
-                cmd.arg(arg);
-            }
-            cmd
-        };
-
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
-
-        let timeout = Duration::from_secs(timeout_seconds.unwrap_or(300)); // 5 minutes default
-
-        let output = tokio::time::timeout(timeout, cmd.output()).await
-            .map_err(|_| anyhow::anyhow!("Command timed out after {} seconds", timeout.as_secs()))?
-            .context("Failed to execute command")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            return Err(anyhow::anyhow!(
-                "Command failed with exit code {}: {}\n{}",
-                output.status.code().unwrap_or(-1),
-                stderr,
-                stdout
-            ));
-        }
-
-        let stdout = String::from_utf8(output.stdout)
-            .context("Command output was not valid UTF-8")?;
-        
-        let stderr = String::from_utf8(output.stderr)
-            .context("Command stderr was not valid UTF-8")?;
-
-        // Combine stdout and stderr
-        let combined_output = if stderr.is_empty() {
-            stdout
-        } else {
-            format!("{}\n{}", stdout, stderr)
-        };
-
-        Ok(combined_output)
-    }
+    
 
     async fn save_raw_output(tool_name: &str, target: &str, output: &str, system_detector: &SystemDetector, template_manager: &TemplateManager) -> Result<()> {
         // Create output directory if it doesn't exist

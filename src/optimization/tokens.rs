@@ -71,6 +71,33 @@ impl TokenManager {
         }
     }
 
+    pub fn calculate_cost(&self, tokens: TokenEstimate, input_cost_per_1k: f64, output_cost_per_1k: f64) -> CostEstimate {
+        let input_cost = (tokens.input_tokens as f64 / 1000.0) * input_cost_per_1k;
+        let output_cost = (tokens.output_tokens as f64 / 1000.0) * output_cost_per_1k;
+        
+        CostEstimate {
+            input_cost,
+            output_cost,
+            total_cost: input_cost + output_cost,
+        }
+    }
+
+    pub fn optimize_for_token_limit(&self, text: &str, limit: usize, _language: &str) -> String {
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let estimated_tokens = words.len();
+        
+        if estimated_tokens <= limit {
+            return text.to_string();
+        }
+        
+        // Simple truncation strategy - take first `limit` worth of words
+        let target_words = (limit as f64 * 0.75) as usize; // Leave room for other prompt text
+        words.into_iter()
+            .take(target_words)
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     
 }
 
@@ -89,8 +116,12 @@ pub struct TokenEstimate {
 
 #[derive(Debug, Clone)]
 pub struct CostEstimate {
+    pub input_cost: f64,
+    pub output_cost: f64,
     pub total_cost: f64,
 }
+
+
 
 #[cfg(test)]
 mod tests {

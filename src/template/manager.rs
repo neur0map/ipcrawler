@@ -194,7 +194,7 @@ impl TemplateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::detector::{SystemInfo, OS};
+    
 
     #[test]
     fn test_template_validation() {

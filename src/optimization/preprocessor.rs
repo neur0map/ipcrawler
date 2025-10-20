@@ -1,5 +1,6 @@
 use regex::Regex;
 use std::collections::HashSet;
+use super::tokens::{TokenManager};
 
 #[derive(Clone)]
 pub struct OutputPreprocessor {
@@ -9,6 +10,7 @@ pub struct OutputPreprocessor {
     traceroute_header_regex: Regex,
     empty_line_regex: Regex,
     whitespace_regex: Regex,
+    token_manager: TokenManager,
 }
 
 impl OutputPreprocessor {
@@ -20,6 +22,7 @@ impl OutputPreprocessor {
             traceroute_header_regex: Regex::new(r"(?m)^traceroute to.*\n").unwrap(),
             empty_line_regex: Regex::new(r"(?m)^\s*\n").unwrap(),
             whitespace_regex: Regex::new(r"[ \t]+").unwrap(),
+            token_manager: TokenManager::new(),
         }
     }
 
@@ -42,6 +45,13 @@ impl OutputPreprocessor {
         optimized = self.final_cleanup(optimized);
         
         optimized.trim().to_string()
+    }
+
+    pub fn optimize_for_llm_with_token_limit(&self, raw_output: &str, tool_name: &str, token_limit: usize) -> String {
+        let optimized = self.optimize_for_llm(raw_output, tool_name);
+        
+        // Apply token limit optimization if needed
+        self.token_manager.optimize_for_token_limit(&optimized, token_limit, "english")
     }
 
     fn strip_headers(&self, output: String, tool_name: &str) -> String {

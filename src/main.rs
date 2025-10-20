@@ -37,9 +37,12 @@ async fn main() -> anyhow::Result<()> {
             verbose,
             llm_provider,
             max_cost_per_request,
-            show_stats: _,
+            show_stats,
             reset_stats: _,
         }) => {
+            if show_stats {
+                return show_cost_stats().await;
+            }
             return execute_scan(
                 targets,
                 output,
@@ -120,14 +123,56 @@ async fn execute_scan(
     // Execute reconnaissance
     match executor.execute().await {
         Ok(_) => {
-            println!("\n{} IPCrawler completed successfully!", "✓".green());
-            Ok(())
+            println!("{} Scan completed successfully", "Success:".green());
         }
         Err(e) => {
-            eprintln!("{} {}", "Error:".red(), e);
+            eprintln!("{} Scan failed: {}", "Error:".red(), e);
             process::exit(1);
         }
     }
+
+    Ok(())
+}
+
+async fn show_cost_stats() -> anyhow::Result<()> {
+    let cost_tracker = CostTracker::new(0.01)?;
+    
+    println!("{} Cost Usage Statistics", "Statistics:".cyan());
+    println!("{}", "─".repeat(50));
+    
+    // Show daily usage
+    let daily_usage = cost_tracker.get_daily_usage();
+    println!("{} ${:.4} ({} requests)", "Daily Usage:".green(), daily_usage.cost, daily_usage.requests);
+    
+    // Show monthly usage
+    let monthly_usage = cost_tracker.get_monthly_usage();
+    println!("{} ${:.4} ({} requests)", "Monthly Usage:".green(), monthly_usage.cost, monthly_usage.requests);
+    
+    println!("\n{} Per-Provider Usage:", "Details:".yellow());
+    
+    // Try to show some provider usage (limited without full provider list access)
+    if let Some(openai_usage) = cost_tracker.get_provider_usage("openai") {
+        println!("  OpenAI: ${:.4} ({} requests)", openai_usage.cost, openai_usage.requests);
+    }
+    if let Some(groq_usage) = cost_tracker.get_provider_usage("groq") {
+        println!("  Groq: ${:.4} ({} requests)", groq_usage.cost, groq_usage.requests);
+    }
+    if let Some(openrouter_usage) = cost_tracker.get_provider_usage("openrouter") {
+        println!("  OpenRouter: ${:.4} ({} requests)", openrouter_usage.cost, openrouter_usage.requests);
+    }
+    if let Some(ollama_usage) = cost_tracker.get_provider_usage("ollama") {
+        println!("  Ollama: ${:.4} ({} requests)", ollama_usage.cost, ollama_usage.requests);
+    }
+    
+    // Show message if no provider usage found
+    if cost_tracker.get_provider_usage("openai").is_none() && 
+       cost_tracker.get_provider_usage("groq").is_none() && 
+       cost_tracker.get_provider_usage("openrouter").is_none() && 
+       cost_tracker.get_provider_usage("ollama").is_none() {
+        println!("  No provider usage data available yet.");
+    }
+    
+    Ok(())
 }
 
 fn is_valid_target(target: &str) -> bool {
