@@ -1,0 +1,20 @@
+name: "gobuster"
+description: "Directory and file bruteforcer"
+command: "gobuster dir -u http://{{target}}:{{port}} -w /usr/share/wordlists/dirb/common.txt -o {{output_file}} -q"
+installer:
+  apt: "apt install -y gobuster"
+  yum: "yum install -y gobuster"
+  dnf: "dnf install -y gobuster"
+  brew: "brew install gobuster"
+  pacman: "pacman -S --noconfirm gobuster"
+  zypper: "zypper install -y gobuster"
+timeout: 600
+output:
+  type: "regex"
+  patterns:
+    - name: "found_directory"
+      regex: '(/[^\s]+)\s+\(Status: (200|301|302|401|403)\)'
+      severity: "low"
+    - name: "sensitive_path"
+      regex: '(/.+(?:admin|config|backup|login|upload)[^\s]*)\s+\(Status:'
+      severity: "medium"

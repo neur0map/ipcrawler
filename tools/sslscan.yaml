@@ -1,0 +1,26 @@
+name: "sslscan"
+description: "SSL/TLS configuration scanner"
+command: "sslscan --xml={{output_file}} {{target}}:{{port}}"
+installer:
+  apt: "apt install -y sslscan"
+  yum: "yum install -y sslscan"
+  dnf: "dnf install -y sslscan"
+  brew: "brew install sslscan"
+  pacman: "pacman -S --noconfirm sslscan"
+  zypper: "zypper install -y sslscan"
+timeout: 120
+output:
+  type: "xml"
+  patterns:
+    - name: "weak_cipher"
+      regex: 'cipher="([^"]+)" .*status="accepted" .*strength="weak"'
+      severity: "medium"
+    - name: "ssl_v2_enabled"
+      regex: 'SSLv2.*enabled'
+      severity: "high"
+    - name: "ssl_v3_enabled"
+      regex: 'SSLv3.*enabled'
+      severity: "high"
+    - name: "expired_certificate"
+      regex: 'Certificate: EXPIRED'
+      severity: "medium"

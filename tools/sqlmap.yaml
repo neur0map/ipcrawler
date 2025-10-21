@@ -1,0 +1,23 @@
+name: "sqlmap"
+description: "SQL injection testing tool"
+command: "sqlmap -u http://{{target}}:{{port}} --batch --random-agent --output-dir={{output_file}}"
+installer:
+  apt: "apt install -y sqlmap"
+  yum: "yum install -y sqlmap"
+  dnf: "dnf install -y sqlmap"
+  brew: "brew install sqlmap"
+  pacman: "pacman -S --noconfirm sqlmap"
+  zypper: "zypper install -y sqlmap"
+timeout: 1200
+output:
+  type: "regex"
+  patterns:
+    - name: "sql_injection"
+      regex: 'Parameter: (\w+) \(.*?\) is vulnerable'
+      severity: "critical"
+    - name: "database_identified"
+      regex: 'back-end DBMS: (.+)'
+      severity: "high"
+    - name: "injection_type"
+      regex: 'Type: (.+)'
+      severity: "high"

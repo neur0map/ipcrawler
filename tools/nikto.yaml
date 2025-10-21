@@ -1,0 +1,18 @@
+name: "nikto"
+description: "Web server vulnerability scanner"
+command: "nikto -h {{target}}:{{port}} -Format json -output {{output_file}}"
+installer:
+  apt: "apt install -y nikto"
+  yum: "yum install -y nikto"
+  dnf: "dnf install -y nikto"
+  brew: "brew install nikto"
+  pacman: "pacman -S --noconfirm nikto"
+  zypper: "zypper install -y nikto"
+timeout: 900
+output:
+  type: "json"
+  json_flag: "-Format json"
+  patterns:
+    - name: "vulnerability_found"
+      regex: '"msg":"([^"]+)".*"OSVDB-(\d+)"'
+      severity: "medium"
