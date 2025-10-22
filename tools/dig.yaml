@@ -1,0 +1,26 @@
+name: "dig"
+description: "DNS query and lookup tool"
+command: "dig {{target}} ANY +noall +answer > {{output_file}}"
+installer:
+  apt: "apt install -y dnsutils"
+  yum: "yum install -y bind-utils"
+  dnf: "dnf install -y bind-utils"
+  brew: "brew install bind"
+  pacman: "pacman -S --noconfirm bind-tools"
+  zypper: "zypper install -y bind-utils"
+timeout: 30
+output:
+  type: "regex"
+  patterns:
+    - name: "a_record"
+      regex: '([^\s]+)\s+\d+\s+IN\s+A\s+([0-9.]+)'
+      severity: "info"
+    - name: "mx_record"
+      regex: '([^\s]+)\s+\d+\s+IN\s+MX\s+\d+\s+([^\s]+)'
+      severity: "info"
+    - name: "ns_record"
+      regex: '([^\s]+)\s+\d+\s+IN\s+NS\s+([^\s]+)'
+      severity: "info"
+    - name: "txt_record"
+      regex: '([^\s]+)\s+\d+\s+IN\s+TXT\s+"([^"]+)"'
+      severity: "info"

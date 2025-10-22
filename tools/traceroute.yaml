@@ -1,0 +1,21 @@
+name: "traceroute"
+description: "Network path discovery and hop analysis"
+command: "traceroute -m 20 -w 2 {{target}} > {{output_file}}"
+sudo_command: "traceroute -I -m 20 -w 2 {{target}} > {{output_file}}"
+installer:
+  apt: "apt install -y traceroute"
+  yum: "yum install -y traceroute"
+  dnf: "dnf install -y traceroute"
+  brew: "brew install traceroute"
+  pacman: "pacman -S --noconfirm traceroute"
+  zypper: "zypper install -y traceroute"
+timeout: 120
+output:
+  type: "regex"
+  patterns:
+    - name: "hop_detected"
+      regex: '^\s*(\d+)\s+([^\s]+)\s+\(([0-9.]+)\)'
+      severity: "info"
+    - name: "hop_timeout"
+      regex: '^\s*(\d+)\s+\*\s+\*\s+\*'
+      severity: "low"

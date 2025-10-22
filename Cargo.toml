@@ -2,6 +2,14 @@
 name = "ipcrawler"
 version = "0.1.0"
 edition = "2021"
+authors = ["neur0map <neur0map@prowl.sh>"]
+license = "Apache-2.0"
+description = "A comprehensive IP reconnaissance and network scanning tool"
+repository = "https://github.com/neur0map/ipcrawler"
+homepage = "https://github.com/neur0map/ipcrawler"
+readme = "README.md"
+keywords = ["network", "scanning", "reconnaissance", "security", "tools"]
+categories = ["command-line-utilities", "network-programming"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -17,3 +25,7 @@ handlebars = "6"
 ipnetwork = "0.20"
 colored = "2"
 chrono = "0.4"
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"

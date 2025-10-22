@@ -9,7 +9,7 @@ pub struct TaskId(pub String);
 impl TaskId {
     pub fn new(tool_name: &str, target: &str, port: Option<u16>) -> Self {
         let id = match port {
-            Some(p) => format!("{}_{}_{}",tool_name, target.replace(['.', ':'], "_"), p),
+            Some(p) => format!("{}_{}_{}", tool_name, target.replace(['.', ':'], "_"), p),
             None => format!("{}_{}", tool_name, target.replace(['.', ':'], "_")),
         };
         TaskId(id)
@@ -34,15 +34,26 @@ impl Task {
         target: String,
         port: Option<u16>,
         output_dir: &Path,
+        running_as_root: bool,
+        wordlist: Option<&str>,
     ) -> anyhow::Result<Self> {
         let id = TaskId::new(&tool.name, &target, port);
 
         let output_file = output_dir.join(format!("{}.json", id.0));
 
-        let command = tool.render_command(
+        // Select command based on sudo status
+        let command_template = if running_as_root && tool.sudo_command.is_some() {
+            tool.sudo_command.as_ref().unwrap()
+        } else {
+            &tool.command
+        };
+
+        let command = tool.render_command_with_context(
+            command_template,
             &target,
             port,
             output_file.to_str().unwrap_or("output.json"),
+            wordlist,
         )?;
 
         Ok(Task {
@@ -148,7 +159,7 @@ mod tests {
             timeout: Duration::from_secs(60),
         };
 
-        queue.add_task(task.clone());
+        queue.add_task(task);
         assert_eq!(queue.len(), 1);
 
         let popped = queue.pop().unwrap();

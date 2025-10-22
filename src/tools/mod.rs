@@ -1,5 +1,5 @@
-pub mod registry;
 pub mod installer;
+pub mod registry;
 
-pub use registry::ToolRegistry;
 pub use installer::ToolInstaller;
+pub use registry::ToolRegistry;

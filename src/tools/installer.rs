@@ -33,18 +33,17 @@ impl ToolInstaller {
     }
 
     fn extract_binary_name(&self, command: &str) -> String {
-        command
-            .split_whitespace()
-            .next()
-            .unwrap_or("")
-            .to_string()
+        command.split_whitespace().next().unwrap_or("").to_string()
     }
 
     fn install_tool(&self, tool: &Tool, _binary: &str) -> Result<()> {
-        let package_manager = self.package_manager.as_deref()
+        let package_manager = self
+            .package_manager
+            .as_deref()
             .context("No supported package manager found on this system")?;
 
-        let install_cmd = tool.get_installer_command(package_manager)
+        let install_cmd = tool
+            .get_installer_command(package_manager)
             .with_context(|| {
                 format!(
                     "No installer command found for tool '{}' with package manager '{}'",
@@ -52,10 +51,18 @@ impl ToolInstaller {
                 )
             })?;
 
-        println!("Installing {} using: {}", tool.name, install_cmd);
+        let has_sudo = crate::system::detect::check_command_exists("sudo");
+        let needs_sudo = ["apt", "yum", "dnf", "pacman", "zypper"]
+            .iter()
+            .any(|pm| install_cmd.starts_with(pm));
 
-        execute_installer_command(&install_cmd)
-            .with_context(|| format!("Failed to install tool '{}'", tool.name))?;
+        if has_sudo && needs_sudo {
+            println!("Installing {} using: sudo {}", tool.name, install_cmd);
+        } else {
+            println!("Installing {} using: {}", tool.name, install_cmd);
+        }
+
+        execute_installer_command(&install_cmd)?;
 
         println!("Successfully installed {}", tool.name);
 
@@ -127,13 +134,7 @@ mod tests {
     fn test_extract_binary_name() {
         let installer = ToolInstaller::new(false);
 
-        assert_eq!(
-            installer.extract_binary_name("nmap -sV {target}"),
-            "nmap"
-        );
-        assert_eq!(
-            installer.extract_binary_name("nikto -h {target}"),
-            "nikto"
-        );
+        assert_eq!(installer.extract_binary_name("nmap -sV {target}"), "nmap");
+        assert_eq!(installer.extract_binary_name("nikto -h {target}"), "nikto");
     }
 }

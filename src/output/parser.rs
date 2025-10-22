@@ -83,11 +83,7 @@ impl OutputParser {
         Ok(findings)
     }
 
-    fn parse_json(
-        output: &str,
-        tool: &Tool,
-        result: &TaskResult,
-    ) -> Result<Option<Vec<Finding>>> {
+    fn parse_json(output: &str, tool: &Tool, result: &TaskResult) -> Result<Option<Vec<Finding>>> {
         if output.trim().is_empty() {
             return Ok(None);
         }
@@ -105,17 +101,11 @@ impl OutputParser {
                 );
                 Ok(Some(vec![finding]))
             }
-            Err(_) => {
-                Ok(Some(Self::parse_with_regex(output, tool, result)?))
-            }
+            Err(_) => Ok(Some(Self::parse_with_regex(output, tool, result)?)),
         }
     }
 
-    fn parse_with_regex(
-        output: &str,
-        tool: &Tool,
-        result: &TaskResult,
-    ) -> Result<Vec<Finding>> {
+    fn parse_with_regex(output: &str, tool: &Tool, result: &TaskResult) -> Result<Vec<Finding>> {
         let mut findings = Vec::new();
 
         for pattern in &tool.output.patterns {
@@ -125,11 +115,7 @@ impl OutputParser {
         Ok(findings)
     }
 
-    fn apply_pattern(
-        pattern: &Pattern,
-        output: &str,
-        result: &TaskResult,
-    ) -> Result<Vec<Finding>> {
+    fn apply_pattern(pattern: &Pattern, output: &str, result: &TaskResult) -> Result<Vec<Finding>> {
         let mut findings = Vec::new();
         let regex = Regex::new(&pattern.regex)?;
 
@@ -179,7 +165,8 @@ impl OutputParser {
 
     pub fn sort_by_severity(findings: &mut [Finding]) {
         findings.sort_by(|a, b| {
-            b.severity.cmp(&a.severity)
+            b.severity
+                .cmp(&a.severity)
                 .then_with(|| a.target.cmp(&b.target))
                 .then_with(|| a.port.cmp(&b.port))
         });
@@ -189,9 +176,6 @@ impl OutputParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{InstallerConfig, OutputConfig};
-    use crate::executor::queue::{TaskId, TaskStatus};
-    use std::time::Duration;
 
     #[test]
     fn test_deduplication() {

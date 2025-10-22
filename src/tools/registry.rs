@@ -19,13 +19,11 @@ impl ToolRegistry {
 
     pub fn discover_tools(&mut self) -> Result<usize> {
         if !self.tools_dir.exists() {
-            fs::create_dir_all(&self.tools_dir)
-                .context("Failed to create tools directory")?;
+            fs::create_dir_all(&self.tools_dir).context("Failed to create tools directory")?;
             return Ok(0);
         }
 
-        let entries = fs::read_dir(&self.tools_dir)
-            .context("Failed to read tools directory")?;
+        let entries = fs::read_dir(&self.tools_dir).context("Failed to read tools directory")?;
 
         let mut count = 0;
         for entry in entries {
@@ -33,7 +31,8 @@ impl ToolRegistry {
             let path = entry.path();
 
             if path.extension().and_then(|s| s.to_str()) == Some("yaml")
-                || path.extension().and_then(|s| s.to_str()) == Some("yml") {
+                || path.extension().and_then(|s| s.to_str()) == Some("yml")
+            {
                 match self.load_tool(&path) {
                     Ok(tool) => {
                         self.tools.insert(tool.name.clone(), tool);

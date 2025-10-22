@@ -1,0 +1,31 @@
+# Wordlist configuration for IPCrawler
+# Format: name: path/to/wordlist
+# Use predefined names with -w flag or provide custom path
+
+wordlists:
+  # Web content discovery
+  common: /usr/share/seclists/Discovery/Web-Content/common.txt
+  big: /usr/share/seclists/Discovery/Web-Content/big.txt
+  medium: /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+  small: /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt
+
+  # Subdomain enumeration
+  subdomains: /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
+  subdomains-20k: /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
+
+  # Usernames and passwords
+  usernames: /usr/share/seclists/Usernames/top-usernames-shortlist.txt
+  passwords: /usr/share/seclists/Passwords/Common-Credentials/10-million-password-list-top-100.txt
+
+  # API endpoints
+  api: /usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt
+
+  # Backup files
+  backups: /usr/share/seclists/Discovery/Web-Content/raft-medium-files-lowercase.txt
+
+# Alternative wordlist paths (if SecLists not in default location)
+# You can uncomment and modify these if your wordlists are in different locations
+# alternative_paths:
+#   seclists_base: /opt/seclists
+#   dirb: /usr/share/dirb/wordlists
+#   dirbuster: /usr/share/dirbuster/wordlists

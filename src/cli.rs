@@ -9,7 +9,11 @@ pub struct Cli {
     #[arg(short, long, help = "Target: IP, CIDR, or file path")]
     pub target: String,
 
-    #[arg(short, long, help = "Ports: list (22,80), range (1-1000), or \"common\"")]
+    #[arg(
+        short,
+        long,
+        help = "Ports: list (22,80), range (1-1000), or mode (fast/top-1000/top-10000/all/common)"
+    )]
     pub ports: String,
 
     #[arg(
@@ -26,12 +30,16 @@ pub struct Cli {
     )]
     pub install: bool,
 
-    #[arg(
-        long,
-        help = "Path to tools directory",
-        default_value = "tools"
-    )]
+    #[arg(long, help = "Path to tools directory", default_value = "tools")]
     pub tools_dir: PathBuf,
+
+    #[arg(
+        short = 'w',
+        long,
+        help = "Wordlist: name from config (e.g., 'common', 'big') or custom path",
+        default_value = "common"
+    )]
+    pub wordlist: String,
 }
 
 use anyhow::{Context, Result};
@@ -54,8 +62,7 @@ pub fn parse_targets(input: &str) -> Result<Vec<String>> {
 }
 
 fn parse_targets_from_file(path: &str) -> Result<Vec<String>> {
-    let file = File::open(path)
-        .with_context(|| format!("Failed to open target file: {}", path))?;
+    let file = File::open(path).with_context(|| format!("Failed to open target file: {}", path))?;
 
     let reader = BufReader::new(file);
     let mut targets = Vec::new();
@@ -90,14 +97,18 @@ fn expand_cidr(network: IpNetwork) -> Vec<String> {
 
 pub fn parse_ports(input: &str) -> Result<Vec<u16>> {
     match input.to_lowercase().as_str() {
-        "common" => Ok(common_ports()),
+        "common" | "fast" => Ok(common_ports()),
+        "top-1000" => Ok((1..=1000).collect()),
+        "top-10000" => Ok((1..=10000).collect()),
+        "all" => Ok((1..=65535).collect()),
         _ => {
             if input.contains('-') {
                 parse_port_range(input)
             } else if input.contains(',') {
                 parse_port_list(input)
             } else {
-                let port = input.parse::<u16>()
+                let port = input
+                    .parse::<u16>()
                     .with_context(|| format!("Invalid port number: {}", input))?;
                 Ok(vec![port])
             }
@@ -111,9 +122,13 @@ fn parse_port_range(input: &str) -> Result<Vec<u16>> {
         anyhow::bail!("Invalid port range format: {}", input);
     }
 
-    let start = parts[0].trim().parse::<u16>()
+    let start = parts[0]
+        .trim()
+        .parse::<u16>()
         .with_context(|| format!("Invalid start port: {}", parts[0]))?;
-    let end = parts[1].trim().parse::<u16>()
+    let end = parts[1]
+        .trim()
+        .parse::<u16>()
         .with_context(|| format!("Invalid end port: {}", parts[1]))?;
 
     if start > end {
@@ -127,7 +142,8 @@ fn parse_port_list(input: &str) -> Result<Vec<u16>> {
     input
         .split(',')
         .map(|s| {
-            s.trim().parse::<u16>()
+            s.trim()
+                .parse::<u16>()
                 .with_context(|| format!("Invalid port in list: {}", s))
         })
         .collect()
@@ -179,5 +195,28 @@ mod tests {
         assert_eq!(ports.len(), 15);
         assert!(ports.contains(&80));
         assert!(ports.contains(&443));
+    }
+
+    #[test]
+    fn test_parse_fast_mode() {
+        let ports = parse_ports("fast").unwrap();
+        assert!(!ports.is_empty());
+        assert!(ports.contains(&80));
+    }
+
+    #[test]
+    fn test_parse_top_1000() {
+        let ports = parse_ports("top-1000").unwrap();
+        assert_eq!(ports.len(), 1000);
+        assert!(ports.contains(&80));
+        assert!(ports.contains(&443));
+    }
+
+    #[test]
+    fn test_parse_all_ports() {
+        let ports = parse_ports("all").unwrap();
+        assert_eq!(ports.len(), 65535);
+        assert!(ports.contains(&1));
+        assert!(ports.contains(&65535));
     }
 }

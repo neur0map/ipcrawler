@@ -1,6 +1,6 @@
 name: "gobuster"
 description: "Directory and file bruteforcer"
-command: "gobuster dir -u http://{{target}}:{{port}} -w /usr/share/wordlists/dirb/common.txt -o {{output_file}} -q"
+command: "gobuster dir -u http://{{target}}:{{port}} -w {{wordlist}} -o {{output_file}} -q"
 installer:
   apt: "apt install -y gobuster"
   yum: "yum install -y gobuster"

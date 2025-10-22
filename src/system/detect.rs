@@ -83,7 +83,7 @@ pub fn check_tool_installed(binary: &str) -> bool {
     check_command_exists(binary)
 }
 
-fn check_command_exists(command: &str) -> bool {
+pub fn check_command_exists(command: &str) -> bool {
     Command::new("which")
         .arg(command)
         .output()
@@ -92,18 +92,64 @@ fn check_command_exists(command: &str) -> bool {
 }
 
 pub fn execute_installer_command(command: &str) -> Result<()> {
+    let has_sudo = check_command_exists("sudo");
+
+    let full_command = if has_sudo && needs_sudo(command) {
+        format!("sudo {}", command)
+    } else {
+        command.to_string()
+    };
+
     let output = Command::new("sh")
         .arg("-c")
-        .arg(command)
+        .arg(&full_command)
         .output()
         .context("Failed to execute installer command")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Installer command failed: {}", stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let error_msg = if !stderr.is_empty() {
+            stderr.to_string()
+        } else if !stdout.is_empty() {
+            stdout.to_string()
+        } else {
+            format!("Command exited with status: {:?}", output.status.code())
+        };
+        anyhow::bail!("Installation failed: {}", error_msg.trim());
     }
 
     Ok(())
+}
+
+fn needs_sudo(command: &str) -> bool {
+    let package_managers = ["apt", "yum", "dnf", "pacman", "zypper"];
+    package_managers.iter().any(|pm| command.starts_with(pm))
+}
+
+/// Detects if the current process is running with sudo/root privileges
+pub fn is_running_as_root() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        // Check if effective user ID is 0 (root)
+        unsafe { libc::geteuid() == 0 }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        unsafe { libc::geteuid() == 0 }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Windows doesn't have the same concept, always return false
+        false
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+        false
+    }
 }
 
 #[cfg(test)]

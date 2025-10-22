@@ -55,10 +55,7 @@ impl TerminalUI {
         }
     }
 
-    pub async fn run(
-        &mut self,
-        mut update_rx: UnboundedReceiver<TaskUpdate>,
-    ) -> io::Result<()> {
+    pub async fn run(&mut self, mut update_rx: UnboundedReceiver<TaskUpdate>) -> io::Result<()> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen)?;
@@ -107,7 +104,12 @@ impl TerminalUI {
 
     fn handle_update(&mut self, update: TaskUpdate) {
         match update {
-            TaskUpdate::Started { task_id, tool_name, target, port } => {
+            TaskUpdate::Started {
+                task_id,
+                tool_name,
+                target,
+                port,
+            } => {
                 self.tasks.insert(
                     task_id.0.clone(),
                     TaskInfo {
@@ -129,7 +131,11 @@ impl TerminalUI {
                     task.status = format!("Failed: {}", error);
                 }
             }
-            TaskUpdate::Progress { queued, running, completed } => {
+            TaskUpdate::Progress {
+                queued,
+                running,
+                completed,
+            } => {
                 self.queued_count = queued;
                 self.running_count = running;
                 self.completed_count = completed;
@@ -174,23 +180,22 @@ impl TerminalUI {
         let total = self.queued_count + self.running_count + self.completed_count;
 
         let header_lines = vec![
-            Line::from(vec![
-                Span::styled(
-                    "IPCRAWLER - Automated Penetration Testing",
-                    Style::default()
-                        .fg(Color::Cyan)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ]),
+            Line::from(vec![Span::styled(
+                "IPCRAWLER - Automated Penetration Testing",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )]),
             Line::from(vec![
                 Span::raw("Targets: "),
-                Span::styled(
-                    self.targets.join(", "),
-                    Style::default().fg(Color::Yellow),
-                ),
+                Span::styled(self.targets.join(", "), Style::default().fg(Color::Yellow)),
                 Span::raw(" | Ports: "),
                 Span::styled(
-                    self.ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", "),
+                    self.ports
+                        .iter()
+                        .map(|p| p.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
                     Style::default().fg(Color::Yellow),
                 ),
             ]),
@@ -214,7 +219,13 @@ impl TerminalUI {
     fn draw_task_table(&self, f: &mut Frame, area: Rect) {
         let header_cells = ["Status", "Tool", "Target", "Port", "Duration"]
             .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            .map(|h| {
+                Cell::from(*h).style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+            });
 
         let header = Row::new(header_cells).height(1).bottom_margin(1);
 
@@ -247,7 +258,8 @@ impl TerminalUI {
             };
 
             let port_str = task.port.map_or("-".to_string(), |p| p.to_string());
-            let duration_str = task.duration
+            let duration_str = task
+                .duration
                 .map_or("-".to_string(), |d| format!("{:.1}s", d.as_secs_f64()));
 
             let cells = vec![
@@ -269,9 +281,11 @@ impl TerminalUI {
             Constraint::Length(10),
         ];
 
-        let table = Table::new(rows, widths)
-            .header(header)
-            .block(Block::default().borders(Borders::ALL).title("Tool Execution Status"));
+        let table = Table::new(rows, widths).header(header).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Tool Execution Status"),
+        );
 
         f.render_widget(table, area);
     }
@@ -287,7 +301,9 @@ impl TerminalUI {
             .take(visible_height)
             .map(|finding| {
                 let severity_style = match finding.severity {
-                    Severity::Critical => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                    Severity::Critical => {
+                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                    }
                     Severity::High => Style::default().fg(Color::LightRed),
                     Severity::Medium => Style::default().fg(Color::Yellow),
                     Severity::Low => Style::default().fg(Color::Blue),
@@ -297,10 +313,7 @@ impl TerminalUI {
                 let port_str = finding.port.map_or(String::new(), |p| format!(":{ }", p));
 
                 Line::from(vec![
-                    Span::styled(
-                        format!("[{}] ", finding.severity.as_str()),
-                        severity_style,
-                    ),
+                    Span::styled(format!("[{}] ", finding.severity.as_str()), severity_style),
                     Span::raw(format!(
                         "{} on {}{} ({})",
                         finding.title, finding.target, port_str, finding.tool
@@ -309,12 +322,11 @@ impl TerminalUI {
             })
             .collect();
 
-        let findings_para = Paragraph::new(finding_lines)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Live Findings (↑↓ to scroll, q to quit)"),
-            );
+        let findings_para = Paragraph::new(finding_lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Live Findings (↑↓ to scroll, q to quit)"),
+        );
 
         f.render_widget(findings_para, area);
     }

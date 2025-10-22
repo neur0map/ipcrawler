@@ -26,23 +26,48 @@ impl ReportGenerator {
 
         report.push_str(&format!("**Targets**: {}\n\n", targets.join(", ")));
 
-        report.push_str(&format!("**Ports Scanned**: {}\n\n",
-            ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
+        report.push_str(&format!(
+            "**Ports Scanned**: {}\n\n",
+            ports
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
 
         report.push_str("## Summary\n\n");
         let severity_counts = Self::count_by_severity(findings);
-        report.push_str(&format!("- Critical: {}\n", severity_counts.get(&Severity::Critical).unwrap_or(&0)));
-        report.push_str(&format!("- High: {}\n", severity_counts.get(&Severity::High).unwrap_or(&0)));
-        report.push_str(&format!("- Medium: {}\n", severity_counts.get(&Severity::Medium).unwrap_or(&0)));
-        report.push_str(&format!("- Low: {}\n", severity_counts.get(&Severity::Low).unwrap_or(&0)));
-        report.push_str(&format!("- Info: {}\n\n", severity_counts.get(&Severity::Info).unwrap_or(&0)));
+        report.push_str(&format!(
+            "- Critical: {}\n",
+            severity_counts.get(&Severity::Critical).unwrap_or(&0)
+        ));
+        report.push_str(&format!(
+            "- High: {}\n",
+            severity_counts.get(&Severity::High).unwrap_or(&0)
+        ));
+        report.push_str(&format!(
+            "- Medium: {}\n",
+            severity_counts.get(&Severity::Medium).unwrap_or(&0)
+        ));
+        report.push_str(&format!(
+            "- Low: {}\n",
+            severity_counts.get(&Severity::Low).unwrap_or(&0)
+        ));
+        report.push_str(&format!(
+            "- Info: {}\n\n",
+            severity_counts.get(&Severity::Info).unwrap_or(&0)
+        ));
 
         let open_ports = Self::extract_open_ports(findings);
         if !open_ports.is_empty() {
             report.push_str("## Open Ports\n\n");
-            report.push_str(&format!("Ports: {}\n\n",
-                open_ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
+            report.push_str(&format!(
+                "Ports: {}\n\n",
+                open_ports
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
 
@@ -70,11 +95,7 @@ impl ReportGenerator {
                     let details = finding.description.replace('\n', " ").replace('|', "\\|");
                     report.push_str(&format!(
                         "| {} | {} | {} | {} | {} |\n",
-                        finding.target,
-                        port_str,
-                        finding.title,
-                        finding.tool,
-                        details
+                        finding.target, port_str, finding.title, finding.tool, details
                     ));
                 }
 
@@ -89,12 +110,13 @@ impl ReportGenerator {
         for result in results {
             let port_str = result.port.map_or("-".to_string(), |p| p.to_string());
             let (status_str, duration_str) = match &result.status {
-                crate::executor::queue::TaskStatus::Completed { duration, exit_code } => {
-                    (
-                        format!("Exit {}", exit_code),
-                        format!("{:.1}s", duration.as_secs_f64()),
-                    )
-                }
+                crate::executor::queue::TaskStatus::Completed {
+                    duration,
+                    exit_code,
+                } => (
+                    format!("Exit {}", exit_code),
+                    format!("{:.1}s", duration.as_secs_f64()),
+                ),
                 crate::executor::queue::TaskStatus::Failed { error } => {
                     (format!("Failed: {}", error), "-".to_string())
                 }
@@ -106,11 +128,7 @@ impl ReportGenerator {
 
             report.push_str(&format!(
                 "| {} | {} | {} | {} | {} |\n",
-                result.tool_name,
-                result.target,
-                port_str,
-                status_str,
-                duration_str
+                result.tool_name, result.target, port_str, status_str, duration_str
             ));
         }
 
@@ -150,7 +168,8 @@ impl ReportGenerator {
 
         for result in results {
             let port_str = result.port.map_or("none".to_string(), |p| p.to_string());
-            let filename = format!("{}_{}_{}.log",
+            let filename = format!(
+                "{}_{}_{}.log",
                 result.tool_name,
                 result.target.replace(['.', ':'], "_"),
                 port_str
@@ -161,7 +180,10 @@ impl ReportGenerator {
             let mut content = String::new();
             content.push_str(&format!("Tool: {}\n", result.tool_name));
             content.push_str(&format!("Target: {}\n", result.target));
-            content.push_str(&format!("Port: {}\n", result.port.map_or("N/A".to_string(), |p| p.to_string())));
+            content.push_str(&format!(
+                "Port: {}\n",
+                result.port.map_or("N/A".to_string(), |p| p.to_string())
+            ));
             content.push_str(&format!("Status: {:?}\n\n", result.status));
             content.push_str("=== STDOUT ===\n");
             content.push_str(&result.stdout);
@@ -185,10 +207,7 @@ impl ReportGenerator {
     }
 
     fn extract_open_ports(findings: &[Finding]) -> Vec<u16> {
-        let ports: HashSet<u16> = findings
-            .iter()
-            .filter_map(|f| f.port)
-            .collect();
+        let ports: HashSet<u16> = findings.iter().filter_map(|f| f.port).collect();
 
         let mut port_list: Vec<u16> = ports.into_iter().collect();
         port_list.sort_unstable();

@@ -1,0 +1,26 @@
+name: "whois"
+description: "Domain/IP registration and ownership information lookup"
+command: "whois {{target}} > {{output_file}}"
+installer:
+  apt: "apt install -y whois"
+  yum: "yum install -y whois"
+  dnf: "dnf install -y whois"
+  brew: "brew install whois"
+  pacman: "pacman -S --noconfirm whois"
+  zypper: "zypper install -y whois"
+timeout: 60
+output:
+  type: "regex"
+  patterns:
+    - name: "domain_registered"
+      regex: 'Domain Name: ([^\s]+)'
+      severity: "info"
+    - name: "registrar"
+      regex: 'Registrar: ([^\n]+)'
+      severity: "info"
+    - name: "creation_date"
+      regex: 'Creation Date: ([^\n]+)'
+      severity: "info"
+    - name: "nameservers"
+      regex: 'Name Server: ([^\s]+)'
+      severity: "info"

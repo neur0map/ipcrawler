@@ -6,6 +6,10 @@ pub struct Tool {
     pub name: String,
     pub description: String,
     pub command: String,
+    #[serde(default)]
+    pub sudo_command: Option<String>,
+    #[serde(default)]
+    pub script_path: Option<String>,
     pub installer: InstallerConfig,
     #[serde(default = "default_timeout")]
     pub timeout: u64,
@@ -97,11 +101,13 @@ impl Tool {
         }
     }
 
-    pub fn render_command(
+    pub fn render_command_with_context(
         &self,
+        template: &str,
         target: &str,
         port: Option<u16>,
         output_file: &str,
+        wordlist: Option<&str>,
     ) -> anyhow::Result<String> {
         let mut context = HashMap::new();
         context.insert("target", target.to_string());
@@ -111,8 +117,12 @@ impl Tool {
             context.insert("port", p.to_string());
         }
 
+        if let Some(w) = wordlist {
+            context.insert("wordlist", w.to_string());
+        }
+
         let handlebars = handlebars::Handlebars::new();
-        let rendered = handlebars.render_template(&self.command, &context)?;
+        let rendered = handlebars.render_template(template, &context)?;
 
         Ok(rendered)
     }

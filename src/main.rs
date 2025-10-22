@@ -10,12 +10,14 @@ use anyhow::Result;
 use chrono::Local;
 use clap::Parser;
 use cli::{parse_ports, parse_targets, Cli};
+use config::WordlistConfig;
 use executor::queue::{Task, TaskQueue};
 use executor::runner::TaskRunner;
 use output::parser::OutputParser;
 use output::reporter::ReportGenerator;
 use std::fs;
 use std::path::PathBuf;
+use system::detect::is_running_as_root;
 use tokio::sync::mpsc;
 use tools::{ToolInstaller, ToolRegistry};
 use ui::TerminalUI;
@@ -23,6 +25,34 @@ use ui::TerminalUI;
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // Detect sudo/root privileges at startup
+    let running_as_root = is_running_as_root();
+    if running_as_root {
+        println!("Running with elevated privileges (sudo/root)");
+    } else {
+        println!("Running without elevated privileges");
+        println!("Note: Some tools may require sudo for optimal results");
+    }
+
+    // Load wordlist configuration
+    let wordlist_config = WordlistConfig::load_default().unwrap_or_else(|e| {
+        eprintln!("Warning: Failed to load wordlist config: {}", e);
+        eprintln!("Using default wordlist path");
+        WordlistConfig {
+            wordlists: std::collections::HashMap::new(),
+        }
+    });
+
+    let wordlist_path = wordlist_config.resolve(&cli.wordlist).unwrap_or_else(|_| {
+        eprintln!(
+            "Warning: Wordlist '{}' not found, using as direct path",
+            cli.wordlist
+        );
+        cli.wordlist.clone()
+    });
+
+    println!("Using wordlist: {}", wordlist_path);
 
     let targets = parse_targets(&cli.target)?;
     let ports = parse_ports(&cli.ports)?;
@@ -39,7 +69,10 @@ async fn main() -> Result<()> {
     let tool_count = registry.discover_tools()?;
 
     if tool_count == 0 {
-        eprintln!("No tools found in {}. Please add YAML tool definitions.", cli.tools_dir.display());
+        eprintln!(
+            "No tools found in {}. Please add YAML tool definitions.",
+            cli.tools_dir.display()
+        );
         std::process::exit(1);
     }
 
@@ -65,15 +98,36 @@ async fn main() -> Result<()> {
 
     for tool in registry.get_all_tools() {
         for target in &targets {
-            if tool.command.contains("{{port}}") {
+            // Check both command and sudo_command for port placeholder
+            let needs_port = tool.command.contains("{{port}}")
+                || tool
+                    .sudo_command
+                    .as_ref()
+                    .is_some_and(|c| c.contains("{{port}}"));
+
+            if needs_port {
                 for port in &ports {
-                    match Task::new(tool, target.clone(), Some(*port), &output_dir) {
+                    match Task::new(
+                        tool,
+                        target.clone(),
+                        Some(*port),
+                        &output_dir,
+                        running_as_root,
+                        Some(&wordlist_path),
+                    ) {
                         Ok(task) => queue.add_task(task),
                         Err(e) => eprintln!("Failed to create task: {}", e),
                     }
                 }
             } else {
-                match Task::new(tool, target.clone(), None, &output_dir) {
+                match Task::new(
+                    tool,
+                    target.clone(),
+                    None,
+                    &output_dir,
+                    running_as_root,
+                    Some(&wordlist_path),
+                ) {
                     Ok(task) => queue.add_task(task),
                     Err(e) => eprintln!("Failed to create task: {}", e),
                 }
@@ -103,9 +157,7 @@ async fn main() -> Result<()> {
         task_list
     };
 
-    let ui_handle = tokio::spawn(async move {
-        ui.run(update_rx).await
-    });
+    let ui_handle = tokio::spawn(async move { ui.run(update_rx).await });
 
     let results = runner.run_tasks(tasks.clone(), update_tx).await;
 
@@ -135,13 +187,7 @@ async fn main() -> Result<()> {
 
     println!("\nGenerating reports...");
 
-    ReportGenerator::generate_markdown(
-        &all_findings,
-        &results,
-        &targets,
-        &ports,
-        &output_dir,
-    )?;
+    ReportGenerator::generate_markdown(&all_findings, &results, &targets, &ports, &output_dir)?;
 
     ReportGenerator::save_json(&all_findings, &results, &output_dir)?;
 

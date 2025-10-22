@@ -1,0 +1,23 @@
+name: "whatweb"
+description: "Web technology fingerprinting and identification"
+command: "whatweb -a 3 --log-json={{output_file}} http://{{target}}:{{port}}"
+installer:
+  apt: "apt install -y whatweb"
+  yum: "yum install -y whatweb"
+  dnf: "dnf install -y whatweb"
+  brew: "brew install whatweb"
+  pacman: "pacman -S --noconfirm whatweb"
+  zypper: "zypper install -y whatweb"
+timeout: 120
+output:
+  type: "json"
+  patterns:
+    - name: "technology_detected"
+      regex: '"plugins":\s*\{[^}]*"([^"]+)"'
+      severity: "info"
+    - name: "server_detected"
+      regex: '"HTTPServer":\s*\["([^"]+)"\]'
+      severity: "info"
+    - name: "cms_detected"
+      regex: '"(WordPress|Joomla|Drupal|Magento)"'
+      severity: "medium"

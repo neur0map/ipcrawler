@@ -1,0 +1,23 @@
+name: "dnsenum"
+description: "DNS enumeration and subdomain discovery"
+command: "dnsenum --enum {{target}} -o {{output_file}}"
+installer:
+  apt: "apt install -y dnsenum"
+  yum: "yum install -y dnsenum"
+  dnf: "dnf install -y dnsenum"
+  brew: "brew install dnsenum"
+  pacman: "pacman -S --noconfirm dnsenum"
+  zypper: "zypper install -y dnsenum"
+timeout: 600
+output:
+  type: "regex"
+  patterns:
+    - name: "subdomain_found"
+      regex: '([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s+\d+\s+IN\s+A\s+([0-9.]+)'
+      severity: "info"
+    - name: "nameserver"
+      regex: 'NS servers.*\n.*([a-z0-9.-]+)'
+      severity: "info"
+    - name: "mx_server"
+      regex: 'MX record.*\n.*([a-z0-9.-]+)'
+      severity: "info"
