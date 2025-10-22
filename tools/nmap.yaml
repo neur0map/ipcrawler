@@ -11,7 +11,11 @@ installer:
   zypper: "zypper install -y nmap"
 timeout: 1800
 output:
-  type: "raw"
+  type: "regex"
+  patterns:
+    - name: "open_port"
+      regex: '(\d+)/(tcp|udp)\s+open\s+([^\s]+)'
+      severity: "info"
       port_capture: 1
     - name: "filtered_port"
       regex: '(\d+)/(tcp|udp)\s+filtered'
