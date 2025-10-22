@@ -8,47 +8,36 @@ pub struct ScriptSecurity;
 
 impl ScriptSecurity {
     /// Dangerous commands that should be blocked in scripts
+    /// Only truly destructive operations are included
     const DANGEROUS_COMMANDS: &'static [&'static str] = &[
         "rm -rf /",
+        "rm -rf /*",
         "mkfs",
-        "dd if=",
-        ":(){ :|:& };:", // Fork bomb
-        "wget http",     // Downloading executables
-        "curl http",     // Downloading from internet
-        "/dev/sda",      // Direct disk access
-        "/dev/nvme",     // Direct disk access
-        "format",        // Disk formatting
-        "shutdown",      // System shutdown
-        "reboot",        // System reboot
-        "init 0",        // Shutdown
-        "init 6",        // Reboot
+        "dd if=/dev/zero of=/dev/sd",   // Disk wiping
+        "dd if=/dev/zero of=/dev/nvme", // Disk wiping
+        ":(){ :|:& };:",                // Fork bomb
+        "/dev/sda",                     // Direct disk access
+        "/dev/nvme",                    // Direct disk access (block device)
+        "format c:",                    // Disk formatting (Windows style)
         "systemctl poweroff",
         "systemctl reboot",
-        "userdel",    // Delete users
-        "passwd",     // Change passwords
-        "chmod 777",  // Dangerous permissions
-        "chown root", // Change ownership to root
-        "su -",       // Switch user
-        "sudo su",    // Escalate to root
-        "eval",       // Arbitrary code execution
-        "exec",       // Execute arbitrary commands
+        "userdel root", // Only block deletion of root user
+        "passwd root",  // Only block root password changes
+        "chmod 777 /",  // Only block dangerous root permissions
+        "chown root /", // Only block dangerous root ownership changes
     ];
 
     /// Suspicious patterns that warrant warnings
+    /// Note: Reduced to avoid false positives in legitimate recon scripts
     const SUSPICIOUS_PATTERNS: &'static [&'static str] = &[
-        "base64 -d", // Decode base64 (often used to hide commands)
-        "xxd -r",    // Reverse hex dump
-        "/dev/tcp/", // Network connections
-        "/dev/udp/", // Network connections
-        "nc -l",     // Netcat listener
-        "ncat -l",   // Ncat listener
-        "socat",     // Socket cat (can be used maliciously)
-        "python -c", // Execute Python code
-        "perl -e",   // Execute Perl code
-        "ruby -e",   // Execute Ruby code
-        "php -r",    // Execute PHP code
-        "bash -c",   // Execute bash code
-        "sh -c",     // Execute sh code
+        "base64 -d | bash",               // Decode and execute (truly suspicious)
+        "base64 -d | sh",                 // Decode and execute (truly suspicious)
+        "xxd -r | bash",                  // Reverse hex and execute
+        "nc -l",                          // Netcat listener (reverse shell)
+        "ncat -l",                        // Ncat listener (reverse shell)
+        "python -c 'import os;os.system", // Arbitrary OS commands
+        "curl http://",                   // Only flag if downloading (removed overly broad pattern)
+        "wget http://",                   // Only flag if downloading (removed overly broad pattern)
     ];
 
     /// Validates a script for dangerous commands before execution
@@ -64,11 +53,27 @@ impl ScriptSecurity {
             warnings: Vec::new(),
         };
 
-        // Check for dangerous commands
+        // Check for dangerous commands with improved patterns
         for dangerous in Self::DANGEROUS_COMMANDS {
-            if content.contains(dangerous) {
-                result.is_safe = false;
-                result.dangerous_commands.push(dangerous.to_string());
+            let pattern = if dangerous.contains(' ') {
+                // For multi-word commands, use more flexible matching
+                format!(r"{}([^\w]|$)", regex::escape(dangerous))
+            } else {
+                // For single words, check word boundaries
+                format!(r"\b{}\b", regex::escape(dangerous))
+            };
+
+            if let Ok(re) = regex::Regex::new(&pattern) {
+                if re.is_match(&content) {
+                    result.is_safe = false;
+                    result.dangerous_commands.push(dangerous.to_string());
+                }
+            } else {
+                // Fallback to simple contains if regex fails
+                if content.contains(dangerous) {
+                    result.is_safe = false;
+                    result.dangerous_commands.push(dangerous.to_string());
+                }
             }
         }
 
@@ -134,25 +139,24 @@ pub struct ValidationResult {
 }
 
 impl ValidationResult {
+    /// Print minimal report - only for truly dangerous content
     pub fn print_report(&self) {
         if !self.is_safe {
-            eprintln!("SECURITY WARNING: Script contains dangerous commands!");
-            for cmd in &self.dangerous_commands {
-                eprintln!("  - {}", cmd);
-            }
+            eprintln!(
+                "⚠ Script validation failed: {}",
+                self.dangerous_commands.join(", ")
+            );
         }
+    }
 
-        if !self.suspicious_patterns.is_empty() {
-            eprintln!("WARNING: Script contains suspicious patterns:");
-            for pattern in &self.suspicious_patterns {
-                eprintln!("  - {}", pattern);
-            }
-        }
-
-        if !self.warnings.is_empty() {
-            for warning in &self.warnings {
-                eprintln!("  {}", warning);
-            }
+    /// Get a concise summary for logging
+    pub fn summary(&self) -> String {
+        if !self.is_safe {
+            format!("BLOCKED: {}", self.dangerous_commands.join(", "))
+        } else if !self.suspicious_patterns.is_empty() {
+            format!("Warning: {}", self.suspicious_patterns.join(", "))
+        } else {
+            "OK".to_string()
         }
     }
 }

@@ -1,6 +1,6 @@
 name: "dnsenum"
 description: "DNS enumeration and subdomain discovery"
-command: "dnsenum --enum {{target}} -o {{output_file}}"
+command: "dnsenum2 --enum {{target}} -o {{output_file}}"
 installer:
   apt: "apt install -y dnsenum"
   yum: "yum install -y dnsenum"
@@ -8,6 +8,11 @@ installer:
   brew: "brew install dnsenum"
   pacman: "pacman -S --noconfirm dnsenum"
   zypper: "zypper install -y dnsenum"
+  # AUR helpers (Arch User Repository) - dnsenum is available as dnsenum2
+  yay: "yay -S --noconfirm dnsenum2"
+  paru: "paru -S --noconfirm dnsenum2"
+  pikaur: "pikaur -S --noconfirm dnsenum2"
+  trizen: "trizen -S --noconfirm dnsenum2"
 timeout: 600
 output:
   type: "regex"

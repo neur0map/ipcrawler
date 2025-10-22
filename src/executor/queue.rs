@@ -66,15 +66,61 @@ impl Task {
             timeout: Duration::from_secs(tool.timeout),
         })
     }
+
+    pub fn new_with_ports(
+        tool: &Tool,
+        target: String,
+        ports: &[u16],
+        output_dir: &Path,
+        running_as_root: bool,
+        wordlist: Option<&str>,
+    ) -> anyhow::Result<Self> {
+        let id = TaskId::new(&tool.name, &target, None);
+
+        let output_file = output_dir.join(format!("{}.json", id.0));
+
+        // Select command based on sudo status
+        let command_template = if running_as_root && tool.sudo_command.is_some() {
+            tool.sudo_command.as_ref().unwrap()
+        } else {
+            &tool.command
+        };
+
+        let command = tool.render_command_with_ports(
+            command_template,
+            &target,
+            ports,
+            output_file.to_str().unwrap_or("output.json"),
+            wordlist,
+        )?;
+
+        Ok(Task {
+            id,
+            tool_name: tool.name.clone(),
+            target,
+            port: None, // No single port for multi-port tasks
+            output_file,
+            command,
+            timeout: Duration::from_secs(tool.timeout),
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum TaskStatus {
+    #[allow(dead_code)]
     Queued,
-    Running { started_at: Instant },
-    Completed { duration: Duration, exit_code: i32 },
-    Failed { error: String },
+    Running {
+        #[allow(dead_code)]
+        started_at: Instant,
+    },
+    Completed {
+        duration: Duration,
+        exit_code: i32,
+    },
+    Failed {
+        error: String,
+    },
     TimedOut,
 }
 
@@ -95,7 +141,6 @@ pub struct TaskQueue {
     queue: VecDeque<Task>,
 }
 
-#[allow(dead_code)]
 impl TaskQueue {
     pub fn new() -> Self {
         Self {
@@ -107,6 +152,7 @@ impl TaskQueue {
         self.queue.push_back(task);
     }
 
+    #[allow(dead_code)]
     pub fn add_tasks(&mut self, tasks: Vec<Task>) {
         for task in tasks {
             self.add_task(task);
@@ -121,6 +167,7 @@ impl TaskQueue {
         self.queue.len()
     }
 
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }

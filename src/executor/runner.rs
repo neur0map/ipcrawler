@@ -10,8 +10,8 @@ use tokio::sync::{mpsc, Mutex, Semaphore};
 use tokio::time::timeout;
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct TaskResult {
+    #[allow(dead_code)]
     pub task_id: TaskId,
     pub tool_name: String,
     pub target: String,
@@ -27,7 +27,6 @@ pub type UpdateSender = mpsc::UnboundedSender<TaskUpdate>;
 pub type UpdateReceiver = mpsc::UnboundedReceiver<TaskUpdate>;
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum TaskUpdate {
     Started {
         task_id: TaskId,
@@ -37,11 +36,16 @@ pub enum TaskUpdate {
     },
     Completed {
         task_id: TaskId,
+        #[allow(dead_code)]
         result: String,
+        stdout: String,
+        stderr: String,
     },
     Failed {
         task_id: TaskId,
         error: String,
+        stdout: String,
+        stderr: String,
     },
     Progress {
         queued: usize,
@@ -131,34 +135,29 @@ impl TaskRunner {
                 anyhow::bail!("Script not found: {}", script_path.display());
             }
 
-            // Validate script security
+            // Validate script security (minimal output)
             match ScriptSecurity::validate_script(&script_path) {
                 Ok(validation) => {
-                    validation.print_report();
+                    let summary = validation.summary();
 
+                    // Only block truly dangerous scripts
                     if !validation.is_safe {
-                        anyhow::bail!(
-                            "Script failed security validation: {}. Contains dangerous commands.",
-                            script_path.display()
-                        );
+                        validation.print_report();
+                        anyhow::bail!("Script blocked: {}", script_path.display());
                     }
 
-                    if !validation.suspicious_patterns.is_empty() {
-                        eprintln!(
-                            "WARNING: Script {} contains suspicious patterns. Proceeding with caution...",
-                            script_path.display()
-                        );
+                    // Log validation result for debugging (OK, Warning, or BLOCKED)
+                    if summary != "OK" {
+                        eprintln!("Script validation: {} - {}", script_path.display(), summary);
                     }
                 }
                 Err(e) => {
-                    anyhow::bail!("Failed to validate script: {}", e);
+                    anyhow::bail!("Script validation error: {}", e);
                 }
             }
 
             // Make script executable automatically
-            if let Err(e) = ScriptSecurity::make_executable(&script_path) {
-                eprintln!("Warning: Failed to make script executable: {}", e);
-            }
+            let _ = ScriptSecurity::make_executable(&script_path);
 
             Ok(Some(script_path))
         } else {
@@ -186,19 +185,53 @@ impl TaskRunner {
         });
 
         // Check and prepare script if needed
-        match Self::prepare_script_if_needed(&task.command) {
-            Ok(Some(_script_path)) => {
-                // Script validated and made executable
-                println!("Script validated and prepared for execution");
+        let (program, args) = match Self::prepare_script_if_needed(&task.command) {
+            Ok(Some(script_path)) => {
+                // Script validated and made executable, use script path
+                let script_path_str = script_path.to_string_lossy().to_string();
+                let parts: Vec<&str> = task.command.split_whitespace().collect();
+                let script_args = if parts.len() > 1 { &parts[1..] } else { &[] };
+                (script_path_str, script_args.to_vec())
             }
             Ok(None) => {
                 // Not a script, proceed normally
+                let parts: Vec<&str> = task.command.split_whitespace().collect();
+                if parts.is_empty() {
+                    let error = "Empty command".to_string();
+                    let _ = update_tx.send(TaskUpdate::Failed {
+                        task_id: task.id.clone(),
+                        error: error.clone(),
+                        stdout: String::new(),
+                        stderr: error.clone(),
+                    });
+
+                    let failed_status = TaskStatus::Failed {
+                        error: error.clone(),
+                    };
+                    state
+                        .lock()
+                        .await
+                        .insert(task.id.clone(), failed_status.clone());
+
+                    return TaskResult {
+                        task_id: task.id,
+                        tool_name: task.tool_name,
+                        target: task.target,
+                        port: task.port,
+                        status: failed_status,
+                        stdout: String::new(),
+                        stderr: error,
+                    };
+                }
+                (parts[0].to_string(), parts[1..].to_vec())
             }
             Err(e) => {
                 let error = format!("Script validation failed: {}", e);
                 let _ = update_tx.send(TaskUpdate::Failed {
                     task_id: task.id.clone(),
                     error: error.clone(),
+                    stdout: String::new(),
+                    stderr: error.clone(),
                 });
 
                 let failed_status = TaskStatus::Failed {
@@ -219,37 +252,7 @@ impl TaskRunner {
                     stderr: error,
                 };
             }
-        }
-
-        let parts: Vec<&str> = task.command.split_whitespace().collect();
-        if parts.is_empty() {
-            let error = "Empty command".to_string();
-            let _ = update_tx.send(TaskUpdate::Failed {
-                task_id: task.id.clone(),
-                error: error.clone(),
-            });
-
-            let failed_status = TaskStatus::Failed {
-                error: error.clone(),
-            };
-            state
-                .lock()
-                .await
-                .insert(task.id.clone(), failed_status.clone());
-
-            return TaskResult {
-                task_id: task.id,
-                tool_name: task.tool_name,
-                target: task.target,
-                port: task.port,
-                status: failed_status,
-                stdout: String::new(),
-                stderr: error,
-            };
-        }
-
-        let program = parts[0];
-        let args = &parts[1..];
+        };
 
         let command_result = timeout(
             task.timeout,
@@ -277,6 +280,8 @@ impl TaskRunner {
                 let _ = update_tx.send(TaskUpdate::Completed {
                     task_id: task.id.clone(),
                     result: format!("Exit code: {}", exit_code),
+                    stdout: stdout_str.clone(),
+                    stderr: stderr_str.clone(),
                 });
 
                 (status, stdout_str, stderr_str)
@@ -286,6 +291,8 @@ impl TaskRunner {
                 let _ = update_tx.send(TaskUpdate::Failed {
                     task_id: task.id.clone(),
                     error: error.clone(),
+                    stdout: String::new(),
+                    stderr: error.clone(),
                 });
 
                 (
@@ -301,6 +308,8 @@ impl TaskRunner {
                 let _ = update_tx.send(TaskUpdate::Failed {
                     task_id: task.id.clone(),
                     error: error.clone(),
+                    stdout: String::new(),
+                    stderr: error.clone(),
                 });
 
                 (TaskStatus::TimedOut, String::new(), error)
@@ -318,18 +327,6 @@ impl TaskRunner {
             stdout,
             stderr,
         }
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_status(&self, task_id: &TaskId) -> Option<TaskStatus> {
-        let state = self.state.lock().await;
-        state.get(task_id).cloned()
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_all_statuses(&self) -> HashMap<TaskId, TaskStatus> {
-        let state = self.state.lock().await;
-        state.clone()
     }
 }
 

@@ -8,6 +8,11 @@ installer:
   brew: "brew install whatweb"
   pacman: "pacman -S --noconfirm whatweb"
   zypper: "zypper install -y whatweb"
+  # AUR helpers (Arch User Repository)
+  yay: "yay -S --noconfirm whatweb"
+  paru: "paru -S --noconfirm whatweb"
+  pikaur: "pikaur -S --noconfirm whatweb"
+  trizen: "trizen -S --noconfirm whatweb"
 timeout: 120
 output:
   type: "json"

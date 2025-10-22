@@ -1,5 +1,6 @@
+pub mod checker;
 pub mod installer;
 pub mod registry;
 
-pub use installer::ToolInstaller;
+pub use checker::ToolChecker;
 pub use registry::ToolRegistry;

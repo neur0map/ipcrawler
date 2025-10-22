@@ -30,6 +30,15 @@ pub struct InstallerConfig {
     pub pacman: Option<String>,
     #[serde(default)]
     pub zypper: Option<String>,
+    // AUR helpers (Arch User Repository) - preferred over pacman for AUR packages
+    #[serde(default)]
+    pub yay: Option<String>,
+    #[serde(default)]
+    pub paru: Option<String>,
+    #[serde(default)]
+    pub pikaur: Option<String>,
+    #[serde(default)]
+    pub trizen: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -97,6 +106,27 @@ impl Tool {
             "brew" => self.installer.brew.clone(),
             "pacman" => self.installer.pacman.clone(),
             "zypper" => self.installer.zypper.clone(),
+            // AUR helpers
+            "yay" => self
+                .installer
+                .yay
+                .clone()
+                .or_else(|| self.installer.pacman.clone()),
+            "paru" => self
+                .installer
+                .paru
+                .clone()
+                .or_else(|| self.installer.pacman.clone()),
+            "pikaur" => self
+                .installer
+                .pikaur
+                .clone()
+                .or_else(|| self.installer.pacman.clone()),
+            "trizen" => self
+                .installer
+                .trizen
+                .clone()
+                .or_else(|| self.installer.pacman.clone()),
             _ => None,
         }
     }
@@ -116,6 +146,36 @@ impl Tool {
         if let Some(p) = port {
             context.insert("port", p.to_string());
         }
+
+        if let Some(w) = wordlist {
+            context.insert("wordlist", w.to_string());
+        }
+
+        let handlebars = handlebars::Handlebars::new();
+        let rendered = handlebars.render_template(template, &context)?;
+
+        Ok(rendered)
+    }
+
+    pub fn render_command_with_ports(
+        &self,
+        template: &str,
+        target: &str,
+        ports: &[u16],
+        output_file: &str,
+        wordlist: Option<&str>,
+    ) -> anyhow::Result<String> {
+        let mut context = HashMap::new();
+        context.insert("target", target.to_string());
+        context.insert("output_file", output_file.to_string());
+
+        // Create comma-separated port list
+        let ports_str = ports
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        context.insert("ports", ports_str);
 
         if let Some(w) = wordlist {
             context.insert("wordlist", w.to_string());

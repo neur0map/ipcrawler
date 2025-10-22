@@ -1,42 +1,78 @@
 use crate::config::Tool;
-use crate::system::{check_tool_installed, detect_package_manager, execute_installer_command};
+use crate::system::{
+    check_tool_installed, detect_package_manager, execute_installer_command, is_running_as_root,
+};
 use anyhow::{Context, Result};
 use std::io::{self, Write};
+use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 pub struct ToolInstaller {
     package_manager: Option<String>,
-    auto_install: bool,
 }
 
 impl ToolInstaller {
-    pub fn new(auto_install: bool) -> Self {
+    pub fn new() -> Self {
         let package_manager = detect_package_manager();
-        Self {
-            package_manager,
-            auto_install,
-        }
+        Self { package_manager }
     }
 
-    pub fn ensure_tool_installed(&self, tool: &Tool) -> Result<bool> {
-        let tool_binary = self.extract_binary_name(&tool.command);
-
-        if check_tool_installed(&tool_binary) {
-            return Ok(true);
+    pub fn ensure_sudo_access(&self) -> Result<()> {
+        if is_running_as_root() {
+            return Ok(());
         }
 
-        if self.auto_install {
-            self.install_tool(tool, &tool_binary)?;
-            return Ok(check_tool_installed(&tool_binary));
+        // Check if we can use sudo
+        let output = Command::new("sudo")
+            .arg("-n")
+            .arg("true")
+            .output()
+            .context("Failed to check sudo access")?;
+
+        if !output.status.success() {
+            println!("SECURITY: This installation requires sudo privileges.");
+            print!("Please enter your sudo password: ");
+            io::stdout().flush()?;
+
+            // Validate sudo access by asking for password
+            let output = Command::new("sudo")
+                .arg("true")
+                .output()
+                .context("Failed to validate sudo access")?;
+
+            if !output.status.success() {
+                anyhow::bail!(
+                    "Sudo authentication failed. Please check your password and try again."
+                );
+            }
+
+            println!("SUCCESS: Sudo access validated");
         }
 
-        self.prompt_and_install(tool, &tool_binary)
+        Ok(())
     }
 
-    fn extract_binary_name(&self, command: &str) -> String {
-        command.split_whitespace().next().unwrap_or("").to_string()
+    pub fn start_sudo_keep_alive(&self) -> Result<()> {
+        if is_running_as_root() {
+            return Ok(());
+        }
+
+        println!("INFO: Starting sudo keep-alive for batch installation...");
+
+        // Start a background process to keep sudo alive
+        thread::spawn(|| {
+            loop {
+                let _ = Command::new("sudo").arg("-n").arg("true").output();
+
+                thread::sleep(Duration::from_secs(60)); // Refresh every minute
+            }
+        });
+
+        Ok(())
     }
 
-    fn install_tool(&self, tool: &Tool, _binary: &str) -> Result<()> {
+    pub fn install_tool(&self, tool: &Tool, _binary: &str) -> Result<()> {
         let package_manager = self
             .package_manager
             .as_deref()
@@ -51,25 +87,25 @@ impl ToolInstaller {
                 )
             })?;
 
-        let has_sudo = crate::system::detect::check_command_exists("sudo");
+        // AUR helpers (yay, paru, pikaur, trizen) should NOT be run with sudo
+        // They handle privilege escalation internally when needed
         let needs_sudo = ["apt", "yum", "dnf", "pacman", "zypper"]
             .iter()
             .any(|pm| install_cmd.starts_with(pm));
 
-        if has_sudo && needs_sudo {
-            println!("Installing {} using: sudo {}", tool.name, install_cmd);
-        } else {
-            println!("Installing {} using: {}", tool.name, install_cmd);
+        if needs_sudo && !is_running_as_root() {
+            self.ensure_sudo_access()?;
         }
+
+        println!("Installing {} using: {}", tool.name, install_cmd);
 
         execute_installer_command(&install_cmd)?;
 
-        println!("Successfully installed {}", tool.name);
-
+        // Note: Verification happens in the caller (checker.rs)
         Ok(())
     }
 
-    fn prompt_and_install(&self, tool: &Tool, binary: &str) -> Result<bool> {
+    pub fn prompt_and_install(&self, tool: &Tool, binary: &str) -> Result<bool> {
         let package_manager = match &self.package_manager {
             Some(pm) => pm,
             None => {
@@ -111,30 +147,5 @@ impl ToolInstaller {
             println!("Skipping installation of {}", tool.name);
             Ok(false)
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn check_all_tools(&self, tools: &[&Tool]) -> Vec<(String, bool)> {
-        tools
-            .iter()
-            .map(|tool| {
-                let binary = self.extract_binary_name(&tool.command);
-                let installed = check_tool_installed(&binary);
-                (tool.name.clone(), installed)
-            })
-            .collect()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_binary_name() {
-        let installer = ToolInstaller::new(false);
-
-        assert_eq!(installer.extract_binary_name("nmap -sV {target}"), "nmap");
-        assert_eq!(installer.extract_binary_name("nikto -h {target}"), "nikto");
     }
 }

@@ -19,7 +19,7 @@ use std::fs;
 use std::path::PathBuf;
 use system::detect::is_running_as_root;
 use tokio::sync::mpsc;
-use tools::{ToolInstaller, ToolRegistry};
+use tools::{ToolChecker, ToolRegistry};
 use ui::TerminalUI;
 
 #[tokio::main]
@@ -78,34 +78,95 @@ async fn main() -> Result<()> {
 
     println!("Loaded {} tools", tool_count);
 
-    let installer = ToolInstaller::new(cli.install);
+    // Perform comprehensive tool availability check
+    let checker = ToolChecker::new();
+    let all_tools: Vec<&_> = registry.get_all_tools();
+    let availability_report = checker.check_all_tools(&all_tools);
 
-    println!("Checking tool installations...");
-    for tool in registry.get_all_tools() {
-        match installer.ensure_tool_installed(tool) {
-            Ok(true) => {}
-            Ok(false) => {
-                eprintln!("Tool '{}' not installed. Skipping.", tool.name);
+    println!("\nChecking tool availability...");
+    println!("{}", checker.get_installation_summary(&availability_report));
+
+    if availability_report.missing_count > 0 {
+        let install_all = checker.prompt_install_all(&availability_report)?;
+
+        if install_all {
+            checker.install_missing_tools(&availability_report)?;
+        } else {
+            checker.prompt_individual_installs(&availability_report)?;
+        }
+
+        // Re-check tool availability after installation
+        println!("\nVerifying installed tools...");
+        let all_tools: Vec<&_> = registry.get_all_tools();
+        let verification_report = checker.check_all_tools(&all_tools);
+
+        if verification_report.missing_count > 0 {
+            eprintln!(
+                "\nWARNING: {} tools are still missing after installation:",
+                verification_report.missing_count
+            );
+            for status in &verification_report.tools {
+                if !status.installed {
+                    eprintln!("  ✗ {} (binary: {})", status.name, status.binary);
+                }
             }
-            Err(e) => {
-                eprintln!("Error installing tool '{}': {}", tool.name, e);
-            }
+            eprintln!("\nThe scan will proceed but these tools will be skipped.");
+        } else {
+            println!("✓ All tools are now installed and available!");
         }
     }
 
     println!("\nGenerating tasks...");
     let mut queue = TaskQueue::new();
 
+    // Get final tool availability status
+    let all_tools: Vec<&_> = registry.get_all_tools();
+    let final_check = checker.check_all_tools(&all_tools);
+
+    // Create a hashset of installed tool names for quick lookup
+    let installed_tools: std::collections::HashSet<String> = final_check
+        .tools
+        .iter()
+        .filter(|status| status.installed)
+        .map(|status| status.name.clone())
+        .collect();
+
     for tool in registry.get_all_tools() {
+        // Skip tools that are not installed
+        if !installed_tools.contains(&tool.name) {
+            continue;
+        }
+
         for target in &targets {
-            // Check both command and sudo_command for port placeholder
-            let needs_port = tool.command.contains("{{port}}")
+            // Check if tool needs all ports at once (batch scanning like nmap)
+            let needs_ports_batch = tool.command.contains("{{ports}}")
+                || tool
+                    .sudo_command
+                    .as_ref()
+                    .is_some_and(|c| c.contains("{{ports}}"));
+
+            // Check if tool needs individual port scanning
+            let needs_port_individual = tool.command.contains("{{port}}")
                 || tool
                     .sudo_command
                     .as_ref()
                     .is_some_and(|c| c.contains("{{port}}"));
 
-            if needs_port {
+            if needs_ports_batch {
+                // Create ONE task that scans all ports (efficient for nmap, masscan, etc.)
+                match Task::new_with_ports(
+                    tool,
+                    target.clone(),
+                    &ports,
+                    &output_dir,
+                    running_as_root,
+                    Some(&wordlist_path),
+                ) {
+                    Ok(task) => queue.add_task(task),
+                    Err(e) => eprintln!("Failed to create task: {}", e),
+                }
+            } else if needs_port_individual {
+                // Create one task per port (for port-specific tools like nikto, whatweb)
                 for port in &ports {
                     match Task::new(
                         tool,
@@ -120,6 +181,7 @@ async fn main() -> Result<()> {
                     }
                 }
             } else {
+                // Tool doesn't need ports (like whois, ping, traceroute)
                 match Task::new(
                     tool,
                     target.clone(),

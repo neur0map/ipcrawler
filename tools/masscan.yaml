@@ -1,6 +1,6 @@
 name: "masscan"
 description: "Ultra-fast TCP port scanner (requires sudo)"
-sudo_command: "masscan {{target}} -p {{port}} --rate 1000 -oJ {{output_file}}"
+sudo_command: "masscan {{target}} -p {{ports}} --rate 1000 -oJ {{output_file}}"
 installer:
   apt: "apt install -y masscan"
   yum: "yum install -y masscan"

@@ -14,8 +14,8 @@ output:
   type: "regex"
   patterns:
     - name: "virtual_host_found"
-      regex: 'Found: ([^\s]+\.{{target}})'
+      regex: 'Found: ([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z0-9][-a-zA-Z0-9.]*)'
       severity: "info"
     - name: "interesting_subdomain"
-      regex: 'Found: (?:www|mail|ftp|admin|api|dev|test|staging|blog|shop|forum|vpn|remote|backup|db|mail2|smtp|pop|imap)[^\s]*\.{{target}}'
+      regex: 'Found: (?:www|mail|ftp|admin|api|dev|test|staging|blog|shop|forum|vpn|remote|backup|db|mail2|smtp|pop|imap)[a-zA-Z0-9.-]*'
       severity: "medium"

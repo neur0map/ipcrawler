@@ -1,45 +1,33 @@
 use anyhow::{Context, Result};
-use std::env;
-use std::path::PathBuf;
 use std::process::Command;
 
-#[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
-pub enum OperatingSystem {
-    Linux,
-    MacOS,
-    Windows,
-    Unknown,
-}
-
-#[allow(dead_code)]
-impl OperatingSystem {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            OperatingSystem::Linux => "linux",
-            OperatingSystem::MacOS => "macos",
-            OperatingSystem::Windows => "windows",
-            OperatingSystem::Unknown => "unknown",
-        }
-    }
-}
-
-#[allow(dead_code)]
-pub fn detect_os() -> OperatingSystem {
-    match env::consts::OS {
-        "linux" => OperatingSystem::Linux,
-        "macos" => OperatingSystem::MacOS,
-        "windows" => OperatingSystem::Windows,
-        _ => OperatingSystem::Unknown,
-    }
-}
-
 pub fn detect_package_manager() -> Option<String> {
+    // Check for AUR helpers first (Arch Linux User Repository)
+    // These should be preferred over pacman for AUR packages
+    let aur_helpers = vec![
+        ("yay", "yay"),
+        ("paru", "paru"),
+        ("pikaur", "pikaur"),
+        ("trizen", "trizen"),
+    ];
+
+    // Check if we're on an Arch-based system by checking for pacman
+    if check_command_exists("pacman") {
+        // Try to find an AUR helper first
+        for (name, binary) in aur_helpers {
+            if check_command_exists(binary) {
+                return Some(name.to_string());
+            }
+        }
+        // Fall back to pacman if no AUR helper found
+        return Some("pacman".to_string());
+    }
+
+    // Check other package managers
     let managers = vec![
         ("apt", "apt-get"),
         ("dnf", "dnf"),
         ("yum", "yum"),
-        ("pacman", "pacman"),
         ("zypper", "zypper"),
         ("brew", "brew"),
     ];
@@ -51,32 +39,6 @@ pub fn detect_package_manager() -> Option<String> {
     }
 
     None
-}
-
-#[allow(dead_code)]
-pub fn get_install_paths() -> Vec<PathBuf> {
-    let mut paths = vec![
-        PathBuf::from("/usr/bin"),
-        PathBuf::from("/usr/local/bin"),
-        PathBuf::from("/bin"),
-        PathBuf::from("/usr/sbin"),
-        PathBuf::from("/sbin"),
-    ];
-
-    if let Ok(home) = env::var("HOME") {
-        paths.push(PathBuf::from(home).join(".local/bin"));
-    }
-
-    if let Ok(path_env) = env::var("PATH") {
-        for path in path_env.split(':') {
-            let path_buf = PathBuf::from(path);
-            if !paths.contains(&path_buf) {
-                paths.push(path_buf);
-            }
-        }
-    }
-
-    paths
 }
 
 pub fn check_tool_installed(binary: &str) -> bool {
@@ -123,6 +85,8 @@ pub fn execute_installer_command(command: &str) -> Result<()> {
 }
 
 fn needs_sudo(command: &str) -> bool {
+    // AUR helpers (yay, paru, pikaur, trizen) should NOT be run with sudo
+    // They handle privilege escalation internally when needed
     let package_managers = ["apt", "yum", "dnf", "pacman", "zypper"];
     package_managers.iter().any(|pm| command.starts_with(pm))
 }
@@ -149,22 +113,5 @@ pub fn is_running_as_root() -> bool {
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
         false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_detect_os() {
-        let os = detect_os();
-        assert_ne!(os, OperatingSystem::Unknown);
-    }
-
-    #[test]
-    fn test_get_install_paths() {
-        let paths = get_install_paths();
-        assert!(!paths.is_empty());
     }
 }

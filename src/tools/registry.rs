@@ -79,18 +79,6 @@ impl ToolRegistry {
     pub fn get_all_tools(&self) -> Vec<&Tool> {
         self.tools.values().collect()
     }
-
-    #[allow(dead_code)]
-    pub fn get_tool_names(&self) -> Vec<String> {
-        self.tools.keys().cloned().collect()
-    }
-
-    #[allow(dead_code)]
-    pub fn tool_count(&self) -> usize {
-        self.tools.len()
-    }
-
-
 }
 
 #[cfg(test)]
@@ -104,7 +92,7 @@ mod tests {
     fn test_empty_registry() {
         let dir = tempdir().unwrap();
         let registry = ToolRegistry::new(dir.path());
-        assert_eq!(registry.tool_count(), 0);
+        assert_eq!(registry.get_all_tools().len(), 0);
     }
 
     #[test]

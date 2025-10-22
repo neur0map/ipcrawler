@@ -25,10 +25,12 @@ pub struct TerminalUI {
     start_time: Instant,
     tasks: HashMap<String, TaskInfo>,
     findings: Vec<Finding>,
+    logs: Vec<LogEntry>,
     queued_count: usize,
     running_count: usize,
     completed_count: usize,
     scroll_offset: u16,
+    logs_scroll_offset: u16,
 }
 
 #[derive(Clone)]
@@ -40,6 +42,22 @@ struct TaskInfo {
     duration: Option<Duration>,
 }
 
+#[derive(Clone)]
+struct LogEntry {
+    timestamp: Instant,
+    tool_name: String,
+    target: String,
+    output_type: LogType,
+    content: String,
+}
+
+#[derive(Clone)]
+enum LogType {
+    Stdout,
+    Stderr,
+    Error,
+}
+
 impl TerminalUI {
     pub fn new(targets: Vec<String>, ports: Vec<u16>) -> Self {
         Self {
@@ -48,10 +66,12 @@ impl TerminalUI {
             start_time: Instant::now(),
             tasks: HashMap::new(),
             findings: Vec::new(),
+            logs: Vec::new(),
             queued_count: 0,
             running_count: 0,
             completed_count: 0,
             scroll_offset: 0,
+            logs_scroll_offset: 0,
         }
     }
 
@@ -79,6 +99,18 @@ impl TerminalUI {
                         }
                         KeyCode::Down => {
                             self.scroll_offset += 1;
+                        }
+                        KeyCode::Left => {
+                            if self.logs_scroll_offset > 0 {
+                                self.logs_scroll_offset -= 1;
+                            }
+                        }
+                        KeyCode::Right => {
+                            self.logs_scroll_offset += 1;
+                        }
+                        KeyCode::Tab => {
+                            // Toggle between findings and logs view
+                            // This could be expanded to show different panels
                         }
                         _ => {}
                     }
@@ -121,14 +153,84 @@ impl TerminalUI {
                     },
                 );
             }
-            TaskUpdate::Completed { task_id, .. } => {
-                if let Some(task) = self.tasks.get_mut(&task_id.0) {
+            TaskUpdate::Completed {
+                task_id,
+                stdout,
+                stderr,
+                ..
+            } => {
+                let task_info = if let Some(task) = self.tasks.get_mut(&task_id.0) {
                     task.status = "Completed".to_string();
+                    Some(task.clone())
+                } else {
+                    None
+                };
+
+                // Add outputs to logs
+                if let Some(task) = task_info {
+                    if !stdout.is_empty() {
+                        self.logs.push(LogEntry {
+                            timestamp: Instant::now(),
+                            tool_name: task.tool_name.clone(),
+                            target: task.target.clone(),
+                            output_type: LogType::Stdout,
+                            content: stdout,
+                        });
+                    }
+
+                    if !stderr.is_empty() {
+                        self.logs.push(LogEntry {
+                            timestamp: Instant::now(),
+                            tool_name: task.tool_name.clone(),
+                            target: task.target.clone(),
+                            output_type: LogType::Stderr,
+                            content: stderr,
+                        });
+                    }
                 }
             }
-            TaskUpdate::Failed { task_id, error } => {
-                if let Some(task) = self.tasks.get_mut(&task_id.0) {
+            TaskUpdate::Failed {
+                task_id,
+                error,
+                stdout,
+                stderr,
+            } => {
+                let task_info = if let Some(task) = self.tasks.get_mut(&task_id.0) {
                     task.status = format!("Failed: {}", error);
+                    Some(task.clone())
+                } else {
+                    None
+                };
+
+                // Add error and outputs to logs
+                if let Some(task) = task_info {
+                    self.logs.push(LogEntry {
+                        timestamp: Instant::now(),
+                        tool_name: task.tool_name.clone(),
+                        target: task.target.clone(),
+                        output_type: LogType::Error,
+                        content: error,
+                    });
+
+                    if !stdout.is_empty() {
+                        self.logs.push(LogEntry {
+                            timestamp: Instant::now(),
+                            tool_name: task.tool_name.clone(),
+                            target: task.target.clone(),
+                            output_type: LogType::Stdout,
+                            content: stdout,
+                        });
+                    }
+
+                    if !stderr.is_empty() {
+                        self.logs.push(LogEntry {
+                            timestamp: Instant::now(),
+                            tool_name: task.tool_name.clone(),
+                            target: task.target.clone(),
+                            output_type: LogType::Stderr,
+                            content: stderr,
+                        });
+                    }
                 }
             }
             TaskUpdate::Progress {
@@ -143,22 +245,13 @@ impl TerminalUI {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn add_finding(&mut self, finding: Finding) {
-        self.findings.push(finding);
-    }
-
-    #[allow(dead_code)]
-    pub fn add_findings(&mut self, findings: Vec<Finding>) {
-        self.findings.extend(findings);
-    }
-
     fn draw(&self, f: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(5),
-                Constraint::Min(10),
+                Constraint::Min(8),
+                Constraint::Min(8),
                 Constraint::Min(8),
             ])
             .split(f.area());
@@ -166,6 +259,7 @@ impl TerminalUI {
         self.draw_header(f, chunks[0]);
         self.draw_task_table(f, chunks[1]);
         self.draw_findings(f, chunks[2]);
+        self.draw_logs(f, chunks[3]);
     }
 
     fn draw_header(&self, f: &mut Frame, area: Rect) {
@@ -202,7 +296,7 @@ impl TerminalUI {
             Line::from(vec![
                 Span::raw("Progress: "),
                 Span::styled(
-                    format!("{}/{} tools completed", self.completed_count, total),
+                    format!("{}/{} tasks completed", self.completed_count, total),
                     Style::default().fg(Color::Green),
                 ),
                 Span::raw(" | Elapsed: "),
@@ -329,6 +423,61 @@ impl TerminalUI {
         );
 
         f.render_widget(findings_para, area);
+    }
+
+    fn draw_logs(&self, f: &mut Frame, area: Rect) {
+        let visible_height = area.height.saturating_sub(2) as usize;
+
+        let log_lines: Vec<Line> = self
+            .logs
+            .iter()
+            .rev()
+            .skip(self.logs_scroll_offset as usize)
+            .take(visible_height)
+            .map(|log| {
+                let (type_str, style) = match log.output_type {
+                    LogType::Stdout => ("STDOUT", Style::default().fg(Color::Green)),
+                    LogType::Stderr => ("STDERR", Style::default().fg(Color::Yellow)),
+                    LogType::Error => (
+                        "ERROR",
+                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                    ),
+                };
+
+                let elapsed = log.timestamp.duration_since(self.start_time);
+                let timestamp = format!(
+                    "[{:02}:{:02}:{:02}] ",
+                    elapsed.as_secs() / 3600,
+                    (elapsed.as_secs() % 3600) / 60,
+                    elapsed.as_secs() % 60
+                );
+
+                // Truncate long output lines for display
+                let content = if log.content.len() > 100 {
+                    format!("{}...", &log.content[..97])
+                } else {
+                    log.content.clone()
+                };
+
+                Line::from(vec![
+                    Span::styled(timestamp, Style::default().fg(Color::Gray)),
+                    Span::styled(format!("[{}] ", type_str), style),
+                    Span::styled(
+                        format!("{}@{}: ", log.tool_name, log.target),
+                        Style::default().fg(Color::Cyan),
+                    ),
+                    Span::raw(content),
+                ])
+            })
+            .collect();
+
+        let logs_para = Paragraph::new(log_lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Tool Output Logs (←→ to scroll, q to quit)"),
+        );
+
+        f.render_widget(logs_para, area);
     }
 
     fn status_order(status: &str) -> u8 {

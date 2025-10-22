@@ -26,5 +26,5 @@ output:
       regex: '(/[^\s]+)\s+\(Size: (\d+(?:\.\d+)[KMGT])'
       severity: "info"
     - name: "subdomain_found"
-      regex: 'Found: ([^\s]+\.{{target}})'
+      regex: 'Found: ([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z0-9][-a-zA-Z0-9.]*)'
       severity: "info"
