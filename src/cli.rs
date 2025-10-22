@@ -41,6 +41,53 @@ pub struct Cli {
         default_value = "common"
     )]
     pub wordlist: String,
+
+    #[arg(
+        long,
+        help = "Enable LLM-powered intelligent analysis",
+        default_value = "false"
+    )]
+    pub use_llm: bool,
+
+    #[arg(
+        long,
+        help = "LLM provider (claude, openai, ollama)",
+        default_value = "ollama"
+    )]
+    pub llm_provider: String,
+
+    #[arg(
+        long,
+        help = "LLM API key (or set LLM_API_KEY env var)"
+    )]
+    pub llm_api_key: Option<String>,
+
+    #[arg(
+        long,
+        help = "LLM model name",
+        default_value = "llama3.1"
+    )]
+    pub llm_model: String,
+
+    #[arg(
+        long,
+        help = "LLM base URL"
+    )]
+    pub llm_base_url: Option<String>,
+
+    #[arg(
+        long,
+        help = "Dry run: parse outputs without executing tools",
+        default_value = "false"
+    )]
+    pub dry_run: bool,
+
+    #[arg(
+        long,
+        help = "Verbose mode: show detailed parsing information",
+        default_value = "false"
+    )]
+    pub verbose: bool,
 }
 
 use anyhow::{Context, Result};

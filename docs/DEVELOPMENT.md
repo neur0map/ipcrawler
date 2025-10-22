@@ -84,11 +84,20 @@ cargo fmt -- --check
 # Run with cargo
 cargo run -- -t 192.168.1.1 -p 80
 
+# Run with LLM analysis
+cargo run -- -t 192.168.1.1 -p 80 --use-llm
+
 # Run release build
 cargo run --release -- -t 192.168.1.1 -p 80
 
 # Run with environment variables
 RUST_LOG=debug cargo run -- -t 192.168.1.1 -p 80
+
+# Dry-run mode for testing parsing
+cargo run -- -t 192.168.1.1 -p 80 --dry-run
+
+# Verbose mode with detailed output
+cargo run -- -t 192.168.1.1 -p 80 --verbose --use-llm
 ```
 
 ## Project Structure
@@ -96,22 +105,29 @@ RUST_LOG=debug cargo run -- -t 192.168.1.1 -p 80
 ```
 ipcrawler/
 ├── src/                    # Source code
-│   ├── main.rs            # Entry point
-│   ├── cli.rs             # CLI handling
+│   ├── main.rs            # Entry point with LLM integration
+│   ├── cli.rs             # CLI handling with new options
 │   ├── config/            # Configuration
 │   ├── system/            # System utilities
 │   ├── tools/             # Tool management
 │   ├── executor/          # Task execution
-│   ├── output/            # Output handling
+│   ├── llm/               # LLM integration module
+│   │   ├── client.rs      # LLM client for multiple providers
+│   │   └── prompts.rs     # Security analysis prompts
+│   ├── output/            # Enhanced output handling
+│   │   ├── universal.rs   # Universal Output Parser
+│   │   └── test_universal.rs # Tests for universal parser
 │   └── ui/                # Terminal UI
 ├── tools/                 # Tool YAML definitions
 │   ├── nmap.yaml
-│   ├── nikto.yaml
+│   ├── dig.yaml
 │   └── scripts/           # Custom shell scripts
 ├── config/                # Configuration files
-│   └── wordlists.yaml
+│   ├── wordlists.yaml
+│   └── ports.yaml
 ├── docs/                  # Documentation
 ├── tests/                 # Integration tests
+├── .env.example           # Environment variables template
 ├── Cargo.toml             # Dependencies
 └── README.md              # Main documentation
 ```
@@ -161,6 +177,13 @@ fn test_newtool_parsing() {
     // Test YAML parsing
     // Test command rendering
     // Test output parsing
+}
+
+#[tokio::test]
+async fn test_newtool_llm_integration() {
+    // Test LLM analysis of tool output
+    // Test prompt template rendering
+    // Test context-aware analysis
 }
 ```
 

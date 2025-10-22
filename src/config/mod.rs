@@ -3,5 +3,5 @@ pub mod schema;
 pub mod wordlist;
 
 pub use ports::PortsConfig;
-pub use schema::{OutputType, Pattern, Severity, Tool};
+pub use schema::{Severity, Tool};
 pub use wordlist::WordlistConfig;

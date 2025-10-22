@@ -29,14 +29,14 @@ ifeq ($(OS),Windows_NT)
     REMOVE_CMD := del
 endif
 
-# Color output
-RED := \033[0;31m
-GREEN := \033[0;32m
-YELLOW := \033[0;33m
-BLUE := \033[0;34m
-PURPLE := \033[0;35m
-CYAN := \033[0;36m
-NC := \033[0m # No Color
+# Color output - use printf for better compatibility
+RED := \x1b[0;31m
+GREEN := \x1b[0;32m
+YELLOW := \x1b[0;33m
+BLUE := \x1b[0;34m
+PURPLE := \x1b[0;35m
+CYAN := \x1b[0;36m
+NC := \x1b[0m # No Color
 
 # Cargo flags
 CARGO_BUILD_FLAGS := --release
@@ -64,24 +64,24 @@ help: ## Display this help message
 ##@ Build
 
 build: ## Build optimized release binary and create system symlink
-	@echo "$(BLUE)Building $(PROJECT_NAME) for $(OS)...$(NC)"
+	@printf "$(BLUE)Building $(PROJECT_NAME) for $(OS)...$(NC)\n"
 	@cargo build $(CARGO_BUILD_FLAGS)
-	@echo "$(GREEN)✓ Build complete: $(BINARY_PATH)$(NC)"
-	@echo "$(BLUE)Creating system symlink...$(NC)"
+	@printf "$(GREEN)✓ Build complete: $(BINARY_PATH)$(NC)\n"
+	@printf "$(BLUE)Creating system symlink...$(NC)\n"
 	@if [ -w "$(INSTALL_DIR)" ]; then \
 		$(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME); \
-		echo "$(GREEN)✓ Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)"; \
+		printf "$(GREEN)✓ Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)\n"; \
 	else \
-		echo "$(YELLOW)⚠ Need sudo privileges to create system symlink$(NC)"; \
+		printf "$(YELLOW)⚠ Need sudo privileges to create system symlink$(NC)\n"; \
 		if sudo $(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME) 2>/dev/null; then \
-			echo "$(GREEN)✓ Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)"; \
+			printf "$(GREEN)✓ Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)\n"; \
 		else \
-			echo "$(YELLOW)⚠ Could not create system symlink. You can manually create it with:$(NC)"; \
-			echo "$(YELLOW)  sudo $(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME)$(NC)"; \
-			echo "$(YELLOW)  Or run the binary directly: $(BINARY_PATH)$(NC)"; \
+			printf "$(YELLOW)⚠ Could not create system symlink. You can manually create it with:$(NC)\n"; \
+			printf "$(YELLOW)  sudo $(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME)$(NC)\n"; \
+			printf "$(YELLOW)  Or run the binary directly: $(BINARY_PATH)$(NC)\n"; \
 		fi; \
 	fi
-	@echo "$(GREEN)✓ You can now run: $(BINARY_NAME)$(NC)"
+	@printf "$(GREEN)✓ You can now run: $(BINARY_NAME)$(NC)\n"
 
 build-dev: ## Build development binary (debug mode)
 	@echo "$(BLUE)Building $(PROJECT_NAME) (debug mode)...$(NC)"

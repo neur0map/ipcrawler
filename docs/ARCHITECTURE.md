@@ -8,8 +8,8 @@ IPCrawler is built as a modular, asynchronous Rust application designed for para
 
 ```
 src/
-├── main.rs                # Entry point & orchestration
-├── cli.rs                 # CLI parsing, port/target parsing
+├── main.rs                # Entry point & orchestration with LLM integration
+├── cli.rs                 # CLI parsing, port/target parsing, dry-run & verbose modes
 ├── config/
 │   ├── mod.rs            # Module exports
 │   ├── schema.rs         # YAML schema definitions
@@ -26,12 +26,18 @@ src/
 │   ├── mod.rs            # Module exports
 │   ├── queue.rs          # Task queue management
 │   └── runner.rs         # Parallel task execution with script support
+├── llm/
+│   ├── mod.rs            # LLM module exports
+│   ├── client.rs         # LLM client for OpenAI/Claude/Ollama
+│   └── prompts.rs        # Prompt templates and security analysis
 ├── output/
 │   ├── mod.rs            # Module exports
-│   ├── parser.rs         # Output parsing & deduplication
-│   └── reporter.rs       # Report generation
+│   ├── parser.rs         # Enhanced output parsing with LLM support
+│   ├── universal.rs      # Universal Output Parser with ContentAnalyzer
+│   └── reporter.rs       # Enhanced report generation with narratives
 └── ui/
     ├── mod.rs            # Module exports
+    ├── cli.rs            # CLI interface components
     └── tui.rs            # Terminal UI (ratatui)
 ```
 
@@ -44,11 +50,22 @@ src/
 - Target parsing (IP, CIDR, file-based)
 - Port parsing (lists, ranges, modes)
 - Input validation
+- LLM configuration options
+- Dry-run and verbose mode support
 
 **Key Functions:**
 - `parse_targets()` - Converts input to IP list
 - `parse_ports()` - Converts input to port list
 - `parse_port_mode()` - Maps port modes to nmap flags
+
+**New CLI Options:**
+- `--use-llm` - Enable LLM-powered analysis
+- `--llm-provider` - Choose LLM provider (openai/claude/ollama)
+- `--llm-api-key` - API key for LLM service
+- `--llm-model` - Custom LLM model
+- `--llm-base-url` - Custom LLM endpoint
+- `--dry-run` - Test parsing without execution
+- `--verbose` - Detailed output with alternative parsing
 
 **Port Modes:**
 - `fast` → nmap `-F`
@@ -139,24 +156,54 @@ src/
 3. Completed/Failed/TimedOut
 4. Results collected
 
+### LLM Module (`llm/`)
+
+**Responsibilities:**
+- LLM client abstraction for multiple providers
+- Security-focused prompt templates
+- Context-aware analysis
+- Template-based output analysis
+
+**Key Components:**
+- `LLMClient` - Unified client for OpenAI/Claude/Ollama
+- `PromptTemplate` - Customizable prompt templates
+- `SecurityAnalysisPrompt` - Specialized security analysis prompts
+- `Message` - Conversation context management
+
+**Features:**
+- Multi-provider support (OpenAI, Claude, Ollama)
+- Template-based analysis
+- Context-aware conversations
+- Connection testing and validation
+
 ### Output Module (`output/`)
 
 **Responsibilities:**
-- Parse tool output using patterns
-- Deduplicate findings
-- Generate reports (Markdown, JSON)
+- Enhanced output parsing with LLM integration
+- Universal Output Parser with ContentAnalyzer
+- Deduplicate findings with advanced algorithms
+- Generate reports with narratives and insights
 - Save individual tool logs
 
 **Key Components:**
-- `OutputParser` - Parses tool output
-- `ReportGenerator` - Creates reports
-- Finding deduplication
-- Severity-based sorting
+- `OutputParser` - Enhanced parser with LLM support
+- `UniversalProcessor` - LLM-powered content analysis
+- `ContentAnalyzer` - Specialized analysis methods
+- `ReportGenerator` - Enhanced report generation
+- Finding deduplication with fuzzy matching
+- Severity-based sorting with LLM assessment
+
+**Parsing Methods:**
+- `parse()` - Original parsing with optional LLM
+- `parse_sync()` - Synchronous parsing for dry-run
+- `parse_with_llm()` - Full LLM-powered analysis
+- `analyze_with_llm()` - LLM-only analysis
 
 **Output Types:**
 - JSON - Native parsing
 - XML - Native parsing
 - Regex - Pattern matching
+- LLM - Natural language analysis
 
 ### UI Module (`ui/`)
 
@@ -178,11 +225,14 @@ src/
 
 ```
 main.rs
-  ├─> Parse CLI arguments
+  ├─> Load environment variables (.env support)
+  ├─> Parse CLI arguments (including LLM options)
   ├─> Detect sudo privileges
   ├─> Load wordlist configuration
+  ├─> Create LLM client (if enabled)
+  ├─> Test LLM connection and templates
   ├─> Parse targets and ports
-  └─> Create output directory
+  └─> Create output directory (target_HHMM format)
 ```
 
 ### 2. Tool Discovery Phase
@@ -242,27 +292,32 @@ TaskRunner
 
 ```
 main.rs
-  ├─> Parse each result
-  │   ├─> Match output patterns
-  │   ├─> Extract findings
-  │   └─> Assign severity
-  ├─> Deduplicate findings
-  ├─> Sort by severity
-  └─> Return findings list
+  ├─> Parse each result (method based on mode)
+  │   ├─> Verbose mode: Original parse() with LLM option
+  │   ├─> Normal mode: Enhanced parse_with_llm()
+  │   ├─> Dry-run mode: Synchronous parse_sync()
+  │   ├─> Match output patterns (regex/json/xml)
+  │   ├─> LLM analysis (if enabled)
+  │   ├─> Extract findings with context
+  │   └─> Assign severity with LLM assessment
+  ├─> Advanced deduplication (fuzzy matching)
+  ├─> Sort by severity with LLM priority
+  └─> Return enhanced findings list
 ```
 
 ### 7. Reporting Phase
 
 ```
 ReportGenerator
-  ├─> Generate Markdown report
-  │   ├─> Scan metadata
-  │   ├─> Summary tables
-  │   ├─> Vulnerability lists
-  │   └─> Execution log
+  ├─> Generate enhanced Markdown report
+  │   ├─> Scan metadata with LLM insights
+  │   ├─> Discovery narratives
+  │   ├─> Services analysis sections
+  │   ├─> Enhanced vulnerability lists
+  │   └─> Execution log with LLM context
   ├─> Generate JSON report
-  │   ├─> Structured findings
-  │   └─> Machine-readable
+  │   ├─> Structured findings with LLM analysis
+  │   └─> Machine-readable with enhanced metadata
   └─> Save individual logs
 ```
 
@@ -397,6 +452,11 @@ File System Output
 - `clap` - CLI parsing
 - `serde` - Serialization
 - `anyhow` - Error handling
+
+### LLM Dependencies
+- `reqwest` - HTTP client for LLM APIs
+- `dotenvy` - Environment variable loading
+- `handlebars` - Prompt template rendering
 
 ### UI Dependencies
 - `ratatui` - Terminal UI

@@ -322,7 +322,8 @@ impl ToolChecker {
 mod tests {
     use super::*;
     use crate::config::schema::{InstallerConfig, OutputConfig};
-    use crate::config::{OutputType, Tool};
+    use crate::config::{Tool};
+    use crate::config::schema::OutputType;
 
     fn create_test_tool(name: &str, command: &str) -> Tool {
         Tool {
@@ -345,9 +346,8 @@ mod tests {
             },
             timeout: 60,
             output: OutputConfig {
-                output_type: OutputType::Regex,
+                output_type: OutputType::Raw,
                 json_flag: None,
-                patterns: vec![],
             },
         }
     }

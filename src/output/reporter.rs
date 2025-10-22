@@ -18,51 +18,158 @@ impl ReportGenerator {
         output_dir: &Path,
     ) -> Result<String> {
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let _severity_counts = Self::count_by_severity(findings);
 
         let mut report = String::new();
 
-        report.push_str("# Penetration Test Report\n\n");
+        // Header
+        report.push_str("# Security Reconnaissance Report\n\n");
         report.push_str(&format!("**Generated**: {}\n\n", timestamp));
-
-        report.push_str(&format!("**Targets**: {}\n\n", targets.join(", ")));
-
+        report.push_str(&format!("**Target(s)**: {}\n\n", targets.join(", ")));
         report.push_str(&format!(
-            "**Ports Scanned**: {}\n\n",
-            ports
-                .iter()
-                .map(|p| p.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
+            "**Ports Scanned**: {} ports\n\n",
+            ports.len()
         ));
 
-        report.push_str("## Summary\n\n");
-        let severity_counts = Self::count_by_severity(findings);
-        report.push_str(&format!(
-            "- Critical: {}\n",
-            severity_counts.get(&Severity::Critical).unwrap_or(&0)
-        ));
-        report.push_str(&format!(
-            "- High: {}\n",
-            severity_counts.get(&Severity::High).unwrap_or(&0)
-        ));
-        report.push_str(&format!(
-            "- Medium: {}\n",
-            severity_counts.get(&Severity::Medium).unwrap_or(&0)
-        ));
-        report.push_str(&format!(
-            "- Low: {}\n",
-            severity_counts.get(&Severity::Low).unwrap_or(&0)
-        ));
-        report.push_str(&format!(
-            "- Info: {}\n\n",
-            severity_counts.get(&Severity::Info).unwrap_or(&0)
-        ));
+        report.push_str("---\n\n");
 
+        // Executive Summary
+        report.push_str("## Executive Summary\n\n");
+
+        let total_findings = findings.len();
+        let tools_used: HashSet<_> = findings.iter().map(|f| &f.tool).collect();
+        
+        report.push_str(&format!("This reconnaissance examined {} target(s) using {} tool(s) and generated {} findings.\n\n", 
+            targets.len(), tools_used.len(), total_findings));
+
+        // Add discovery narrative using helper function
         let open_ports = Self::extract_open_ports(findings);
-        if !open_ports.is_empty() {
-            report.push_str("## Open Ports\n\n");
+        Self::add_discovery_narrative(&mut report, findings, &open_ports);
+        
+        // Add services section using helper function
+        Self::add_services_section(&mut report, findings, &open_ports);
+
+        // LLM Analysis Summary (if available)
+        let llm_findings: Vec<_> = findings.iter().filter(|f| f.llm_analysis.is_some()).collect();
+        if !llm_findings.is_empty() {
+            report.push_str("### AI Analysis Summary\n\n");
+            for finding in llm_findings {
+                if let Some(analysis) = &finding.llm_analysis {
+                    report.push_str(&format!("**{} Analysis**:\n{}\n\n", finding.tool, analysis));
+                }
+            }
+            report.push_str("---\n\n");
+        }
+
+        // Tool Execution Summary
+        report.push_str("## Tool Execution Summary\n\n");
+        report.push_str("| Tool | Target | Status | Output Size | Has LLM Analysis |\n");
+        report.push_str("|------|--------|--------|-------------|------------------|\n");
+
+        for finding in findings {
+            let status = if finding.full_stderr.trim().is_empty() { "✓ Success" } else { "⚠ Warnings" };
+            let output_size = finding.full_stdout.len();
+            let llm_status = if finding.llm_analysis.is_some() { "✓" } else { "✗" };
+            
             report.push_str(&format!(
-                "Ports: {}\n\n",
+                "| {} | {} | {} | {} bytes | {} |\n",
+                finding.tool, finding.target, status, output_size, llm_status
+            ));
+        }
+        report.push_str("\n---\n\n");
+
+        // Complete Raw Outputs
+        report.push_str("## Complete Tool Outputs\n\n");
+        report.push_str("All raw output from security tools is preserved below for complete transparency and analysis.\n\n");
+
+        // Group findings by tool
+        let mut tool_groups: std::collections::HashMap<String, Vec<&Finding>> = std::collections::HashMap::new();
+        for finding in findings {
+            tool_groups.entry(finding.tool.clone()).or_insert_with(Vec::new).push(finding);
+        }
+
+        for (tool_name, tool_findings) in tool_groups {
+            report.push_str(&format!("### {}\n\n", tool_name));
+            
+            for (idx, finding) in tool_findings.iter().enumerate() {
+                report.push_str(&format!("#### Execution {} - Target: {}\n\n", idx + 1, finding.target));
+                
+                // Show stderr if present
+                if !finding.full_stderr.trim().is_empty() {
+                    report.push_str("**Errors/Warnings**:\n```\n");
+                    report.push_str(&finding.full_stderr);
+                    report.push_str("\n```\n\n");
+                }
+                
+                // Show stdout
+                report.push_str("**Standard Output**:\n```\n");
+                report.push_str(&finding.full_stdout);
+                report.push_str("\n```\n\n");
+                
+                // Show LLM analysis if available
+                if let Some(analysis) = &finding.llm_analysis {
+                    report.push_str("**AI Analysis**:\n");
+                    report.push_str(analysis);
+                    report.push_str("\n\n");
+                }
+                
+                report.push_str("---\n\n");
+            }
+        }
+
+        // Scan Statistics
+        report.push_str("## Scan Statistics\n\n");
+        report.push_str("| Tool | Target | Status | Duration |\n");
+        report.push_str("|------|--------|--------|----------|\n");
+
+        for result in results {
+            let (status_str, duration_str) = match &result.status {
+                crate::executor::queue::TaskStatus::Completed {
+                    duration,
+                    exit_code,
+                } => {
+                    let status = if *exit_code == 0 { "✓ Success" } else { &format!("⚠ Exit {}", exit_code) };
+                    (status.to_string(), format!("{:.1}s", duration.as_secs_f64()))
+                }
+                crate::executor::queue::TaskStatus::Failed { error } => {
+                    (format!("✗ Failed: {}", error), "-".to_string())
+                }
+                crate::executor::queue::TaskStatus::TimedOut => {
+                    ("⏱ Timeout".to_string(), "-".to_string())
+                }
+                _ => ("Unknown".to_string(), "-".to_string()),
+            };
+
+            report.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                result.tool_name, result.target, status_str, duration_str
+            ));
+        }
+
+        report.push_str("\n---\n\n");
+        report.push_str("*Report generated by IPCrawler*\n");
+
+        let report_path = output_dir.join("report.md");
+        fs::write(&report_path, &report)?;
+
+        Ok(report)
+    }
+
+    fn add_discovery_narrative(report: &mut String, findings: &[Finding], open_ports: &[u16]) {
+        // Generic discovery narrative based on findings data, not specific tool types
+
+        if open_ports.is_empty() {
+            report.push_str("The target appears to be offline or heavily filtered. No services were detected on the scanned ports.\n\n");
+            return;
+        }
+
+        // Open ports narrative
+        if open_ports.len() == 1 {
+            report.push_str(&format!("We discovered **1 open port** (port {}) on the target.\n\n", open_ports[0]));
+        } else {
+            report.push_str(&format!(
+                "We discovered **{} open ports** on the target: {}.\n\n",
+                open_ports.len(),
                 open_ports
                     .iter()
                     .map(|p| p.to_string())
@@ -71,71 +178,105 @@ impl ReportGenerator {
             ));
         }
 
-        report.push_str("## Vulnerabilities\n\n");
+        // Group findings by severity for narrative
+        let high_priority: Vec<_> = findings
+            .iter()
+            .filter(|f| matches!(f.severity, Severity::Critical | Severity::High))
+            .collect();
 
-        for severity in &[
-            Severity::Critical,
-            Severity::High,
-            Severity::Medium,
-            Severity::Low,
-            Severity::Info,
-        ] {
-            let severity_findings: Vec<&Finding> = findings
+        let medium_priority: Vec<_> = findings
+            .iter()
+            .filter(|f| f.severity == Severity::Medium)
+            .collect();
+
+        let informational: Vec<_> = findings
+            .iter()
+            .filter(|f| matches!(f.severity, Severity::Info | Severity::Low))
+            .collect();
+
+        // High priority findings
+        if !high_priority.is_empty() {
+            report.push_str(&format!("**⚠️ {} High Priority Finding(s)**:\n\n", high_priority.len()));
+            for finding in high_priority.iter().take(5) {  // Show top 5
+                report.push_str(&format!("- {}: {}\n", finding.title.replace('_', " "), finding.description));
+            }
+            if high_priority.len() > 5 {
+                report.push_str(&format!("- ...and {} more (see detailed findings below)\n", high_priority.len() - 5));
+            }
+            report.push_str("\n");
+        }
+
+        // Medium priority findings
+        if !medium_priority.is_empty() {
+            report.push_str(&format!("**ℹ️ {} Medium Priority Finding(s)**:\n\n", medium_priority.len()));
+            for finding in medium_priority.iter().take(3) {  // Show top 3
+                report.push_str(&format!("- {}: {}\n", finding.title.replace('_', " "), finding.description));
+            }
+            if medium_priority.len() > 3 {
+                report.push_str(&format!("- ...and {} more (see detailed findings below)\n", medium_priority.len() - 3));
+            }
+            report.push_str("\n");
+        }
+
+        // Informational summary
+        if !informational.is_empty() {
+            report.push_str(&format!("Additionally, **{} informational finding(s)** were recorded, including service versions, configurations, and other technical details.\n\n", informational.len()));
+        }
+    }
+
+    fn add_services_section(report: &mut String, findings: &[Finding], open_ports: &[u16]) {
+        // Generic services section - works with any tool's findings
+        for port in open_ports {
+            report.push_str(&format!("### Port {}\n\n", port));
+
+            // Find all findings related to this port (by port field primarily)
+            let port_findings: Vec<_> = findings
                 .iter()
-                .filter(|f| &f.severity == severity)
+                .filter(|f| f.port == Some(*port))
                 .collect();
 
-            if !severity_findings.is_empty() {
-                report.push_str(&format!("### {}\n\n", severity.as_str()));
-                report.push_str("| Target | Port | Vulnerability | Tool | Details |\n");
-                report.push_str("|--------|------|---------------|------|---------|\n");
-
-                for finding in severity_findings {
-                    let port_str = finding.port.map_or("-".to_string(), |p| p.to_string());
-                    let details = finding.description.replace('\n', " ").replace('|', "\\|");
-                    report.push_str(&format!(
-                        "| {} | {} | {} | {} | {} |\n",
-                        finding.target, port_str, finding.title, finding.tool, details
-                    ));
-                }
-
-                report.push('\n');
+            if port_findings.is_empty() {
+                report.push_str("*Port is open but no additional service details were discovered.*\n\n");
+                continue;
             }
+
+            // Group findings by severity for better organization
+            let critical_high: Vec<_> = port_findings.iter()
+                .filter(|f| matches!(f.severity, Severity::Critical | Severity::High))
+                .collect();
+            let medium: Vec<_> = port_findings.iter()
+                .filter(|f| f.severity == Severity::Medium)
+                .collect();
+            let low_info: Vec<_> = port_findings.iter()
+                .filter(|f| matches!(f.severity, Severity::Low | Severity::Info))
+                .collect();
+
+            // Display findings by severity
+            for finding in critical_high {
+                report.push_str(&format!("**{}** ({}): {}\n",
+                    finding.title.replace('_', " "),
+                    finding.severity.as_str(),
+                    finding.description
+                ));
+            }
+
+            for finding in medium {
+                report.push_str(&format!("**{}** ({}): {}\n",
+                    finding.title.replace('_', " "),
+                    finding.severity.as_str(),
+                    finding.description
+                ));
+            }
+
+            for finding in low_info {
+                report.push_str(&format!("- {}: {}\n",
+                    finding.title.replace('_', " "),
+                    finding.description
+                ));
+            }
+
+            report.push_str("\n");
         }
-
-        report.push_str("## Tool Execution Log\n\n");
-        report.push_str("| Tool | Target | Port | Status | Duration |\n");
-        report.push_str("|------|--------|------|--------|----------|\n");
-
-        for result in results {
-            let port_str = result.port.map_or("-".to_string(), |p| p.to_string());
-            let (status_str, duration_str) = match &result.status {
-                crate::executor::queue::TaskStatus::Completed {
-                    duration,
-                    exit_code,
-                } => (
-                    format!("Exit {}", exit_code),
-                    format!("{:.1}s", duration.as_secs_f64()),
-                ),
-                crate::executor::queue::TaskStatus::Failed { error } => {
-                    (format!("Failed: {}", error), "-".to_string())
-                }
-                crate::executor::queue::TaskStatus::TimedOut => {
-                    ("Timed out".to_string(), "-".to_string())
-                }
-                _ => ("Unknown".to_string(), "-".to_string()),
-            };
-
-            report.push_str(&format!(
-                "| {} | {} | {} | {} | {} |\n",
-                result.tool_name, result.target, port_str, status_str, duration_str
-            ));
-        }
-
-        let report_path = output_dir.join("report.md");
-        fs::write(&report_path, &report)?;
-
-        Ok(report)
     }
 
     pub fn save_json(
@@ -207,7 +348,15 @@ impl ReportGenerator {
     }
 
     fn extract_open_ports(findings: &[Finding]) -> Vec<u16> {
-        let ports: HashSet<u16> = findings.iter().filter_map(|f| f.port).collect();
+        let mut ports: HashSet<u16> = HashSet::new();
+
+        for finding in findings {
+            // Only use ports that are explicitly set in the finding's port field
+            // This avoids false positives from parsing descriptions
+            if let Some(port) = finding.port {
+                ports.insert(port);
+            }
+        }
 
         let mut port_list: Vec<u16> = ports.into_iter().collect();
         port_list.sort_unstable();
@@ -229,7 +378,9 @@ mod tests {
                 severity: Severity::High,
                 title: "test".to_string(),
                 description: "test".to_string(),
-                raw_output: "test".to_string(),
+                full_stdout: "test".to_string(),
+                full_stderr: String::new(),
+                llm_analysis: None,
             },
             Finding {
                 tool: "test".to_string(),
@@ -238,7 +389,9 @@ mod tests {
                 severity: Severity::High,
                 title: "test2".to_string(),
                 description: "test".to_string(),
-                raw_output: "test".to_string(),
+                full_stdout: "test".to_string(),
+                full_stderr: String::new(),
+                llm_analysis: None,
             },
             Finding {
                 tool: "test".to_string(),
@@ -247,7 +400,9 @@ mod tests {
                 severity: Severity::Low,
                 title: "test3".to_string(),
                 description: "test".to_string(),
-                raw_output: "test".to_string(),
+                full_stdout: "test".to_string(),
+                full_stderr: String::new(),
+                llm_analysis: None,
             },
         ];
 
@@ -267,7 +422,9 @@ mod tests {
                 severity: Severity::Info,
                 title: "test".to_string(),
                 description: "test".to_string(),
-                raw_output: "test".to_string(),
+                full_stdout: "test".to_string(),
+                full_stderr: String::new(),
+                llm_analysis: None,
             },
             Finding {
                 tool: "test".to_string(),
@@ -276,7 +433,9 @@ mod tests {
                 severity: Severity::Info,
                 title: "test".to_string(),
                 description: "test".to_string(),
-                raw_output: "test".to_string(),
+                full_stdout: "test".to_string(),
+                full_stderr: String::new(),
+                llm_analysis: None,
             },
             Finding {
                 tool: "test".to_string(),
@@ -285,7 +444,9 @@ mod tests {
                 severity: Severity::Info,
                 title: "test".to_string(),
                 description: "test".to_string(),
-                raw_output: "test".to_string(),
+                full_stdout: "test".to_string(),
+                full_stderr: String::new(),
+                llm_analysis: None,
             },
         ];
 

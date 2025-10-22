@@ -193,31 +193,151 @@ port_ranges:
   corporate: "22,53,80,88,135,139,389,443,445,636,993,995,1433,3306,3389,5432"
 ```
 
+## LLM Configuration
+
+IPCrawler supports multiple LLM providers for enhanced output analysis and security insights.
+
+### Environment Configuration
+
+Create a `.env` file in the project root:
+
+```bash
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-4
+OPENAI_BASE_URL=https://api.openai.com
+
+# Claude Configuration  
+ANTHROPIC_API_KEY=your_claude_api_key
+CLAUDE_MODEL=claude-3-sonnet-20240229
+CLAUDE_BASE_URL=https://api.anthropic.com
+
+# Ollama Configuration
+OLLAMA_MODEL=llama3.1
+OLLAMA_BASE_URL=http://localhost:11434
+
+# Generic LLM Configuration
+LLM_API_KEY=your_generic_api_key
+```
+
+### CLI LLM Options
+
+```bash
+# Enable LLM analysis
+ipcrawler -t 192.168.1.1 -p 80 --use-llm
+
+# Specify LLM provider
+ipcrawler -t 192.168.1.1 -p 80 --use-llm --llm-provider openai
+ipcrawler -t 192.168.1.1 -p 80 --use-llm --llm-provider claude
+ipcrawler -t 192.168.1.1 -p 80 --use-llm --llm-provider ollama
+
+# Custom model and endpoint
+ipcrawler -t 192.168.1.1 -p 80 --use-llm --llm-model gpt-4-turbo
+ipcrawler -t 192.168.1.1 -p 80 --use-llm --llm-base-url http://localhost:8080
+
+# API key via CLI (not recommended for production)
+ipcrawler -t 192.168.1.1 -p 80 --use-llm --llm-api-key your_key
+```
+
+### LLM Features
+
+- **Security Analysis**: Specialized prompts for security tool output
+- **Context Awareness**: Maintains conversation context for better analysis
+- **Template System**: Customizable prompt templates for different tools
+- **Multiple Providers**: Support for OpenAI, Claude, and Ollama
+- **Fallback Handling**: Graceful degradation when LLM is unavailable
+
 ## Output Structure
 
 ### Directory Layout
 
 ```
-ipcrawler-results/YYYYMMDD_HHMMSS/
-├── report.md           # Markdown summary report
-├── results.json        # JSON formatted results
+ipcrawler-results/TARGET_HHMM/
+├── report.md           # Enhanced Markdown summary with LLM insights
+├── results.json        # JSON formatted results with LLM analysis
 └── logs/              # Individual tool outputs
     ├── nmap_192_168_1_1_80.json
     ├── nikto_192_168_1_1_80.json
     └── gobuster_192_168_1_1_80.json
 ```
 
+**Folder Naming:**
+- **Single target**: `{IP}_HHMM` (e.g., `192.168.1.1_1532`)
+- **Multiple targets**: `multiple_HHMM` (e.g., `multiple_1532`)
+
 ### Report Contents
 
 **report.md includes:**
 - Scan metadata (targets, ports, timestamp)
-- Summary counts by severity
-- Open ports and services
-- Vulnerability tables organized by severity
-- Tool execution log with status and duration
+- Discovery narratives with LLM-generated insights
+- Enhanced services analysis sections
+- Vulnerability tables organized by severity with LLM context
+- Tool execution log with status, duration, and LLM analysis
+- Open ports extraction with service identification
+- LLM-powered security assessments and recommendations
 
 **results.json includes:**
-- Structured findings data
-- Tool execution results
+- Structured findings data with LLM analysis
+- Enhanced tool execution results
 - Timestamps and metadata
+- LLM context and conversation history
 - Machine-readable format for integration
+- Severity assessments with LLM confidence scores
+
+## Universal Output Parser
+
+IPCrawler features a Universal Output Parser with optional LLM intelligence for advanced analysis.
+
+### Parsing Methods
+
+#### Standard Parsing (`parse`)
+- Original pattern-based parsing (regex, JSON, XML)
+- Optional LLM enhancement when enabled
+- Best for general use cases
+
+#### Synchronous Parsing (`parse_sync`)
+- Synchronous parsing for testing and dry-run modes
+- No async overhead
+- Used in `--dry-run` mode
+
+#### LLM-Enhanced Parsing (`parse_with_llm`)
+- Full LLM-powered analysis
+- Context-aware processing
+- Enhanced finding extraction and severity assessment
+
+### Content Analysis Features
+
+The `ContentAnalyzer` provides specialized analysis methods:
+
+- **Network Scan Analysis**: Open ports, services, versions
+- **DNS Reconnaissance**: Subdomains, records, misconfigurations
+- **Vulnerability Assessment**: CVE identification, risk scoring
+- **Web Application Analysis**: Technologies, vulnerabilities, headers
+- **Service Enumeration**: Banner grabbing, fingerprinting
+
+### Usage Examples
+
+```bash
+# Standard parsing with optional LLM
+ipcrawler -t 192.168.1.1 -p 80 --use-llm
+
+# Verbose mode uses original parsing method
+ipcrawler -t 192.168.1.1 -p 80 --verbose --use-llm
+
+# Dry-run mode uses synchronous parsing
+ipcrawler -t 192.168.1.1 -p 80 --dry-run
+
+# Normal mode uses enhanced LLM parsing
+ipcrawler -t 192.168.1.1 -p 80 --use-llm
+```
+
+### Advanced Configuration
+
+The Universal Output Parser can be configured through:
+
+1. **CLI Options**: Enable/disable LLM, choose parsing mode
+2. **Environment Variables**: LLM provider settings
+3. **Tool YAML**: Output patterns and parsing rules
+4. **Prompt Templates**: Custom analysis prompts
+
+This creates a flexible system that can work with any security tool output while providing intelligent analysis when LLM is available.

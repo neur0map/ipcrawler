@@ -1,6 +1,7 @@
 mod cli;
 mod config;
 mod executor;
+mod llm;
 mod output;
 mod system;
 mod tools;
@@ -13,10 +14,12 @@ use cli::{parse_ports, parse_targets, Cli};
 use config::WordlistConfig;
 use executor::queue::{Task, TaskQueue};
 use executor::runner::TaskRunner;
+use llm::{LLMClient, LLMProvider, LLMConfig, PromptTemplate, SecurityAnalysisPrompt};
 use output::parser::OutputParser;
 use output::reporter::ReportGenerator;
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 use system::detect::is_running_as_root;
 use tokio::sync::mpsc;
 use tools::{ToolChecker, ToolRegistry};
@@ -24,6 +27,13 @@ use ui::TerminalUI;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load environment variables from .env file if it exists
+    if let Err(e) = dotenvy::dotenv() {
+        if !e.not_found() {
+            eprintln!("Warning: Failed to load .env file: {}", e);
+        }
+    }
+
     let cli = Cli::parse();
 
     // Detect sudo/root privileges at startup
@@ -54,12 +64,106 @@ async fn main() -> Result<()> {
 
     println!("Using wordlist: {}", wordlist_path);
 
+    // Create LLM client if enabled
+    let llm_client = if cli.use_llm {
+        let provider_str = cli.llm_provider.as_str();
+        let provider = match provider_str {
+            "openai" => LLMProvider::OpenAI,
+            "claude" => LLMProvider::Claude,
+            "ollama" => LLMProvider::Ollama,
+            _ => anyhow::bail!("Unsupported LLM provider: {}", cli.llm_provider),
+        };
+
+        // Get API key from CLI argument, then provider-specific env var, then generic LLM_API_KEY
+        let api_key = cli.llm_api_key
+            .or_else(|| std::env::var("OPENAI_API_KEY").ok())
+            .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
+            .or_else(|| std::env::var("LLM_API_KEY").ok());
+        
+        if matches!(provider, LLMProvider::OpenAI | LLMProvider::Claude) && api_key.is_none() {
+            anyhow::bail!(
+                "API key required for {}. Set --llm-api-key or configure in .env file:\n  - For OpenAI: OPENAI_API_KEY=your_key\n  - For Claude: ANTHROPIC_API_KEY=your_key", 
+                cli.llm_provider
+            );
+        }
+
+        // Get model from CLI, then provider-specific env var, then default
+        let model = if !cli.llm_model.is_empty() {
+            cli.llm_model.clone()
+        } else {
+            match provider {
+                LLMProvider::OpenAI => std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4".to_string()),
+                LLMProvider::Claude => std::env::var("CLAUDE_MODEL").unwrap_or_else(|_| "claude-3-sonnet-20240229".to_string()),
+                LLMProvider::Ollama => std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string()),
+            }
+        };
+
+        // Get base URL from CLI, then provider-specific env var, then default
+        let base_url = cli.llm_base_url.clone().or_else(|| {
+            match provider {
+                LLMProvider::OpenAI => std::env::var("OPENAI_BASE_URL").ok(),
+                LLMProvider::Claude => std::env::var("CLAUDE_BASE_URL").ok(),
+                LLMProvider::Ollama => std::env::var("OLLAMA_BASE_URL").ok(),
+            }
+        });
+
+        let config = LLMConfig {
+            provider,
+            api_key,
+            model,
+            base_url,
+            timeout: Duration::from_secs(30),
+        };
+
+        let client = LLMClient::new(config);
+        
+        // Test LLM connection if enabled
+        if let Err(e) = client.test_connection().await {
+            eprintln!("Warning: LLM connection test failed: {}", e);
+            eprintln!("Continuing without LLM analysis...");
+            None
+        } else {
+            println!("✓ LLM connection established");
+            
+            // Test template functionality
+            let template = PromptTemplate::new(
+                "Analyze security tool output".to_string(),
+                "Tool: {tool_name}\nOutput: {output}\n\nProvide security analysis.".to_string(),
+            );
+            
+            if let Ok(_) = client.analyze_with_template(&template, "test", "sample output").await {
+                println!("✓ LLM template analysis working");
+            }
+            
+            // Test build_security_prompt method
+            let test_prompt = client.build_security_prompt("nmap", "22/tcp open ssh");
+            println!("✓ Security prompt generated: {} chars", test_prompt.len());
+            
+            // Test SecurityAnalysisPrompt
+            let system_prompt = SecurityAnalysisPrompt::system_prompt();
+            println!("✓ System prompt available: {} chars", system_prompt.len());
+            
+            // Test get_system_prompt method
+            let template_system_prompt = client.get_security_system_prompt();
+            println!("✓ Template system prompt: {} chars", template_system_prompt.len());
+            
+            Some(client)
+        }
+    } else {
+        None
+    };
+
     let targets = parse_targets(&cli.target)?;
     let ports = parse_ports(&cli.ports)?;
 
     let output_dir = cli.output.unwrap_or_else(|| {
-        let timestamp = Local::now().format("%Y%m%d_%H%M%S");
-        PathBuf::from(format!("./ipcrawler-results/{}", timestamp))
+        let time_str = Local::now().format("%H%M");
+        let target_str = if targets.len() == 1 {
+            targets[0].clone()
+        } else {
+            "multiple".to_string()
+        };
+        PathBuf::from(format!("./ipcrawler-results/{}_{}", target_str, time_str))
     });
 
     fs::create_dir_all(&output_dir)?;
@@ -205,25 +309,62 @@ async fn main() -> Result<()> {
         std::process::exit(1);
     }
 
-    let runner = TaskRunner::new(5);
-
-    let (update_tx, update_rx) = mpsc::unbounded_channel();
-
-    let mut ui = TerminalUI::new(targets.clone(), ports.clone());
-
-    let tasks: Vec<Task> = {
-        let mut task_list = Vec::new();
-        while let Some(task) = queue.pop() {
-            task_list.push(task);
+    let results = if cli.dry_run {
+        println!("DRY RUN MODE: Not executing tools, showing what would be parsed...");
+        
+        // Create sample results for testing parse_sync method
+        let mut sample_results = Vec::new();
+        for tool in registry.get_all_tools().into_iter().take(3) { // Limit to 3 tools for demo
+            if installed_tools.contains(&tool.name) {
+                let sample_result = crate::executor::runner::TaskResult {
+                    task_id: crate::executor::queue::TaskId::new(&tool.name, "192.168.1.1", None),
+                    tool_name: tool.name.clone(),
+                    target: "192.168.1.1".to_string(),
+                    port: None,
+                    status: crate::executor::queue::TaskStatus::Completed {
+                        duration: std::time::Duration::from_millis(100),
+                        exit_code: 0,
+                    },
+                    stdout: format!("Sample output from {}", tool.name),
+                    stderr: String::new(),
+                };
+                
+                // Test parse_sync method
+                match OutputParser::parse_sync(&tool, &sample_result) {
+                    Ok(findings) => {
+                        println!("✓ {} would generate {} findings", tool.name, findings.len());
+                    }
+                    Err(e) => {
+                        println!("✗ Error parsing {}: {}", tool.name, e);
+                    }
+                }
+                
+                sample_results.push(sample_result);
+            }
         }
-        task_list
+        sample_results
+    } else {
+        let runner = TaskRunner::new(5);
+
+        let (update_tx, update_rx) = mpsc::unbounded_channel();
+
+        let mut ui = TerminalUI::new(targets.clone(), ports.clone());
+
+        let tasks: Vec<Task> = {
+            let mut task_list = Vec::new();
+            while let Some(task) = queue.pop() {
+                task_list.push(task);
+            }
+            task_list
+        };
+
+        let ui_handle = tokio::spawn(async move { ui.run(update_rx).await });
+
+        let results = runner.run_tasks(tasks.clone(), update_tx).await;
+
+        let _ = ui_handle.await;
+        results
     };
-
-    let ui_handle = tokio::spawn(async move { ui.run(update_rx).await });
-
-    let results = runner.run_tasks(tasks.clone(), update_tx).await;
-
-    let _ = ui_handle.await;
 
     println!("\nProcessing results...");
 
@@ -231,14 +372,31 @@ async fn main() -> Result<()> {
 
     for result in &results {
         if let Some(tool) = registry.get_tool(&result.tool_name) {
-            match OutputParser::parse(tool, result) {
-                Ok(findings) => {
-                    all_findings.extend(findings);
+            // Use different parsing methods based on verbose mode
+            let findings = if cli.verbose {
+                // Use the original parse method in verbose mode
+                match OutputParser::parse(tool, result, cli.use_llm).await {
+                    Ok(f) => {
+                        println!("✓ Parsed {} output with {} findings", result.tool_name, f.len());
+                        f
+                    }
+                    Err(e) => {
+                        eprintln!("Error parsing output for {}: {}", result.tool_name, e);
+                        Vec::new()
+                    }
                 }
-                Err(e) => {
-                    eprintln!("Error parsing output for {}: {}", result.tool_name, e);
+            } else {
+                // Use the enhanced parse_with_llm method in normal mode
+                match OutputParser::parse_with_llm(tool, result, llm_client.as_ref()).await {
+                    Ok(f) => f,
+                    Err(e) => {
+                        eprintln!("Error parsing output for {}: {}", result.tool_name, e);
+                        Vec::new()
+                    }
                 }
-            }
+            };
+            
+            all_findings.extend(findings);
         }
     }
 

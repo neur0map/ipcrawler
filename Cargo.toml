@@ -26,6 +26,8 @@ ipnetwork = "0.20"
 colored = "2"
 chrono = "0.4"
 libc = "0.2"
+reqwest = { version = "0.12", features = ["json"] }
+dotenvy = "0.15"
 
 [dev-dependencies]
 tempfile = "3"

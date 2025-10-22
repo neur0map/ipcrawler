@@ -1,7 +1,7 @@
 name: "nmap"
-description: "Comprehensive port scanner and service detection"
-command: "nmap -sV -sC -A --version-intensity 9 --script vuln,auth,discovery,default,safe --osscan-guess --reason {{target}} -p {{ports}} -oX {{output_file}}"
-sudo_command: "nmap -sS -sV -sC -A --version-intensity 9 --script vuln,auth,discovery,default,safe,intrusive,exploit,brute --osscan-guess --max-os-tries 10 --reason --packet-trace {{target}} -p {{ports}} -oX {{output_file}}"
+description: "Comprehensive network port scanner and service detection"
+command: "nmap -T4 -sV -sC {{target}} -p {{ports}}"
+sudo_command: "nmap -T4 -sS -sV -sC -O -A --osscan-guess --version-intensity 9 {{target}} -p {{ports}}"
 installer:
   apt: "apt install -y nmap"
   yum: "yum install -y nmap"
@@ -11,32 +11,52 @@ installer:
   zypper: "zypper install -y nmap"
 timeout: 1800
 output:
-  type: "xml"
-  patterns:
-    - name: "open_port"
-      regex: 'port protocol="tcp" portid="(\d+)"><state state="open"'
+  type: "raw"
+      port_capture: 1
+    - name: "filtered_port"
+      regex: '(\d+)/(tcp|udp)\s+filtered'
+      severity: "low"
+    - name: "service_version"
+      regex: '(\d+)/(tcp|udp)\s+open\s+([^\s]+)\s+(.+)'
       severity: "info"
-    - name: "service_detected"
-      regex: 'service name="([^"]+)".*product="([^"]*)".*version="([^"]*)"'
+      port_capture: 1
+    - name: "os_detection"
+      regex: 'OS details: (.+)'
+      severity: "medium"
+      port_capture: 1
+    - name: "os_cpe"
+      regex: 'OS CPE: (cpe:[^\s]+)'
       severity: "info"
-    - name: "os_detected"
-      regex: 'osmatch name="([^"]+)" accuracy="(\d+)"'
+    - name: "hostname"
+      regex: 'Nmap scan report for ([^\s]+) \('
       severity: "info"
-    - name: "vulnerability_found"
-      regex: 'table key="vuln".*elem key="id">([^<]+)'
+    - name: "mac_address"
+      regex: 'MAC Address: ([0-9A-F:]+) \(([^)]+)\)'
+      severity: "info"
+    - name: "script_result"
+      regex: '\|[\s_-]+([^:]+):\s*(.+)'
+      severity: "low"
+    - name: "ssl_cert"
+      regex: 'Subject: (.+)'
+      severity: "info"
+    - name: "ssh_hostkey"
+      regex: '\|\s+(\d+)\s+([0-9A-Fa-f:]+)\s+\(([^)]+)\)'
+      severity: "info"
+    - name: "http_title"
+      regex: '\|_http-title: (.+)'
+      severity: "info"
+    - name: "smb_os"
+      regex: '\|[\s_]+OS: (.+)'
+      severity: "medium"
+    - name: "vulnerable_service"
+      regex: '(ftp|telnet|rlogin|rsh)\s+open'
       severity: "high"
-    - name: "exploit_found"
-      regex: 'script id=".*exploit.*"'
-      severity: "critical"
-    - name: "credential_found"
-      regex: 'script id=".*brute.*".*credentials'
-      severity: "critical"
-    - name: "script_output"
-      regex: 'script id="([^"]+)" output="([^"]*)"'
+    - name: "nse_script_output"
+      regex: '\|[_\s]+([a-zA-Z0-9_-]+):'
+      severity: "low"
+    - name: "warning_message"
+      regex: 'Warning: (.+)'
       severity: "medium"
-    - name: "cpe_found"
-      regex: 'cpe="([^"]+)"'
+    - name: "general_finding"
+      regex: '^(\d+/\w+.+)'
       severity: "info"
-    - name: "interesting_service"
-      regex: 'service name="(ssh|ftp|telnet|smtp|dns|http|https|smb|mysql|postgresql|mongodb|redis|vnc|rdp)"'
-      severity: "medium"

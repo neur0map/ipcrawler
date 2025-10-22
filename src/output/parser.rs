@@ -1,7 +1,8 @@
-use crate::config::{OutputType, Pattern, Severity, Tool};
+use crate::config::{Severity, Tool};
 use crate::executor::runner::TaskResult;
+use crate::llm::LLMClient;
+use crate::output::universal::UniversalProcessor;
 use anyhow::Result;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -13,7 +14,9 @@ pub struct Finding {
     pub severity: Severity,
     pub title: String,
     pub description: String,
-    pub raw_output: String,
+    pub full_stdout: String,
+    pub full_stderr: String,
+    pub llm_analysis: Option<String>,
 }
 
 impl Finding {
@@ -24,7 +27,9 @@ impl Finding {
         severity: Severity,
         title: String,
         description: String,
-        raw_output: String,
+        full_stdout: String,
+        full_stderr: String,
+        llm_analysis: Option<String>,
     ) -> Self {
         Self {
             tool,
@@ -33,7 +38,9 @@ impl Finding {
             severity,
             title,
             description,
-            raw_output,
+            full_stdout,
+            full_stderr,
+            llm_analysis,
         }
     }
 
@@ -51,102 +58,30 @@ impl Finding {
 pub struct OutputParser;
 
 impl OutputParser {
-    pub fn parse(tool: &Tool, result: &TaskResult) -> Result<Vec<Finding>> {
-        let mut findings = Vec::new();
-
-        match tool.output.output_type {
-            OutputType::Json => {
-                if let Some(json_findings) = Self::parse_json(&result.stdout, tool, result)? {
-                    findings.extend(json_findings);
-                }
-            }
-            OutputType::Regex => {
-                findings.extend(Self::parse_with_regex(&result.stdout, tool, result)?);
-            }
-            OutputType::Xml => {
-                findings.extend(Self::parse_with_regex(&result.stdout, tool, result)?);
-            }
+    pub async fn parse(tool: &Tool, result: &TaskResult, use_llm: bool) -> Result<Vec<Finding>> {
+        let processor = UniversalProcessor::new(use_llm);
+        
+        // Use the process method and log if LLM is enabled
+        if processor.is_llm_enabled() {
+            println!("Processing {} with LLM enhancement enabled", tool.name);
         }
-
-        if findings.is_empty() && !result.stdout.is_empty() {
-            findings.push(Finding::new(
-                result.tool_name.clone(),
-                result.target.clone(),
-                result.port,
-                Severity::Info,
-                "Tool output".to_string(),
-                "Raw output from tool execution".to_string(),
-                result.stdout.clone(),
-            ));
-        }
-
-        Ok(findings)
+        
+        processor.process(&tool.name, result).await
     }
 
-    fn parse_json(output: &str, tool: &Tool, result: &TaskResult) -> Result<Option<Vec<Finding>>> {
-        if output.trim().is_empty() {
-            return Ok(None);
-        }
-
-        match serde_json::from_str::<serde_json::Value>(output) {
-            Ok(_json_value) => {
-                let finding = Finding::new(
-                    result.tool_name.clone(),
-                    result.target.clone(),
-                    result.port,
-                    Severity::Info,
-                    format!("{} scan results", tool.name),
-                    "JSON output from tool".to_string(),
-                    output.to_string(),
-                );
-                Ok(Some(vec![finding]))
-            }
-            Err(_) => Ok(Some(Self::parse_with_regex(output, tool, result)?)),
-        }
+    /// Parse tool output using the universal processor with LLM client
+    pub async fn parse_with_llm(tool: &Tool, result: &TaskResult, llm_client: Option<&LLMClient>) -> Result<Vec<Finding>> {
+        let processor = UniversalProcessor::new(llm_client.is_some());
+        processor.process_with_llm(&tool.name, result, llm_client).await
     }
 
-    fn parse_with_regex(output: &str, tool: &Tool, result: &TaskResult) -> Result<Vec<Finding>> {
-        let mut findings = Vec::new();
-
-        for pattern in &tool.output.patterns {
-            findings.extend(Self::apply_pattern(pattern, output, result)?);
-        }
-
-        Ok(findings)
-    }
-
-    fn apply_pattern(pattern: &Pattern, output: &str, result: &TaskResult) -> Result<Vec<Finding>> {
-        let mut findings = Vec::new();
-        let regex = Regex::new(&pattern.regex)?;
-
-        for captures in regex.captures_iter(output) {
-            let matched_text = captures.get(0).map_or("", |m| m.as_str());
-
-            let description = if captures.len() > 1 {
-                captures
-                    .iter()
-                    .skip(1)
-                    .filter_map(|c| c.map(|m| m.as_str()))
-                    .collect::<Vec<_>>()
-                    .join(" | ")
-            } else {
-                matched_text.to_string()
-            };
-
-            let finding = Finding::new(
-                result.tool_name.clone(),
-                result.target.clone(),
-                result.port,
-                pattern.severity,
-                pattern.name.clone(),
-                description,
-                matched_text.to_string(),
-            );
-
-            findings.push(finding);
-        }
-
-        Ok(findings)
+    // Legacy method for backward compatibility - used in dry-run mode
+    pub fn parse_sync(tool: &Tool, result: &TaskResult) -> Result<Vec<Finding>> {
+        let processor = UniversalProcessor::new(false);
+        // Use tokio::task::block_in_place for async in sync context
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(processor.process(&tool.name, result))
+        })
     }
 
     pub fn deduplicate(findings: Vec<Finding>) -> Vec<Finding> {
@@ -155,6 +90,14 @@ impl OutputParser {
 
         for finding in findings {
             let key = finding.dedup_key();
+            
+            // Skip duplicate SSH hostkey findings from script_result pattern
+            // Keep only the specific ssh_hostkey pattern findings
+            if finding.title == "script_result" && 
+               finding.description.contains("ssh-hostkey") {
+                continue;
+            }
+            
             if seen.insert(key) {
                 deduplicated.push(finding);
             }
@@ -177,6 +120,7 @@ impl OutputParser {
 mod tests {
     use super::*;
 
+
     #[test]
     fn test_deduplication() {
         let finding1 = Finding::new(
@@ -187,6 +131,8 @@ mod tests {
             "Open port".to_string(),
             "Port 80 is open".to_string(),
             "raw".to_string(),
+            "".to_string(),
+            None,
         );
 
         let finding2 = finding1.clone();
@@ -208,6 +154,8 @@ mod tests {
                 "test".to_string(),
                 "desc".to_string(),
                 "raw".to_string(),
+                "".to_string(),
+                None,
             ),
             Finding::new(
                 "tool".to_string(),
@@ -217,6 +165,8 @@ mod tests {
                 "test".to_string(),
                 "desc".to_string(),
                 "raw".to_string(),
+                "".to_string(),
+                None,
             ),
         ];
 

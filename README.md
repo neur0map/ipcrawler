@@ -1,8 +1,8 @@
 # IPCrawler
 
-Professional automated penetration testing framework for parallel security tool execution with intelligent privilege management and comprehensive reporting.
+Professional automated penetration testing framework with AI-powered security analysis, parallel tool execution, and comprehensive reporting.
 
-A [prowl.sh](https://prowl.sh) project - comprehensive IP reconnaissance and network scanning tool.
+A [prowl.sh](https://prowl.sh) project - intelligent IP reconnaissance and network scanning platform.
 
 ## Quick Start
 
@@ -10,26 +10,47 @@ A [prowl.sh](https://prowl.sh) project - comprehensive IP reconnaissance and net
 # Basic scan
 ipcrawler -t 192.168.1.1 -p 80,443
 
-# Network range with common ports
-ipcrawler -t 192.168.1.0/24 -p common
+# AI-powered security analysis
+ipcrawler -t 192.168.1.1 -p 80,443 --use-llm
 
-# Fast port scan (top 100 ports)
-ipcrawler -t 10.0.0.1 -p fast
+# Network range with LLM analysis
+ipcrawler -t 192.168.1.0/24 -p common --use-llm --llm-provider openai
 
-# Advanced scan with sudo
-sudo ipcrawler -t 192.168.1.1 -p top-1000 -w big
+# Fast port scan with local AI (Ollama)
+ipcrawler -t 10.0.0.1 -p fast --use-llm --llm-provider ollama
+
+# Advanced scan with sudo and AI
+sudo ipcrawler -t 192.168.1.1 -p top-1000 -w big --use-llm --llm-provider claude
+
+# Dry-run to test parsing
+ipcrawler -t 192.168.1.1 -p 80 --dry-run
 ```
 
 ## Key Features
 
+### 🤖 AI-Powered Analysis
+- **LLM Integration** - Support for OpenAI, Claude, and Ollama
+- **Security-Focused Prompts** - Specialized analysis for different tool types
+- **Universal Output Parser** - Intelligent parsing with context awareness
+- **Enhanced Reporting** - AI-generated insights and recommendations
+
+### ⚡ Performance & Architecture
 - **YAML-Driven Architecture** - Fully extensible, zero hardcoded tool logic
 - **Parallel Execution** - Run up to 5 tools concurrently with intelligent queueing
 - **Sudo Detection** - Automatically selects privileged commands when running with sudo
 - **Script Security** - Built-in validation and sandboxing for custom shell scripts
+
+### 📊 Configuration & Modes
 - **Wordlist Management** - Centralized configuration with predefined SecLists paths
 - **Advanced Port Modes** - Support for nmap scripts (fast, top-1000, top-10000, all)
+- **Dry-Run Mode** - Test parsing without executing tools
+- **Verbose Mode** - Detailed output with alternative parsing methods
+
+### 🎯 User Experience
 - **Modern Terminal UI** - Real-time progress tracking with live vulnerability feed
-- **Comprehensive Reporting** - Markdown and JSON reports with individual tool logs
+- **Comprehensive Reporting** - Enhanced Markdown and JSON reports with AI insights
+- **Smart Folder Naming** - Results organized as `TARGET_HHMM` for easy identification
+- **Environment Support** - `.env` file configuration for API keys and settings
 
 ## Installation
 

@@ -16,7 +16,7 @@ pub struct Tool {
     pub output: OutputConfig,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct InstallerConfig {
     #[serde(default)]
     pub apt: Option<String>,
@@ -47,8 +47,6 @@ pub struct OutputConfig {
     pub output_type: OutputType,
     #[serde(default)]
     pub json_flag: Option<String>,
-    #[serde(default)]
-    pub patterns: Vec<Pattern>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -57,15 +55,10 @@ pub enum OutputType {
     Json,
     Xml,
     Regex,
+    Raw,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Pattern {
-    pub name: String,
-    pub regex: String,
-    #[serde(default = "default_severity")]
-    pub severity: Severity,
-}
+
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "lowercase")]
@@ -93,9 +86,7 @@ fn default_timeout() -> u64 {
     300
 }
 
-fn default_severity() -> Severity {
-    Severity::Info
-}
+
 
 impl Tool {
     pub fn get_installer_command(&self, package_manager: &str) -> Option<String> {
