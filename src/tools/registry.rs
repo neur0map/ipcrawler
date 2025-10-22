@@ -89,6 +89,8 @@ impl ToolRegistry {
     pub fn tool_count(&self) -> usize {
         self.tools.len()
     }
+
+
 }
 
 #[cfg(test)]

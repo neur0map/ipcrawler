@@ -1,0 +1,21 @@
+name: "gobuster-vhost"
+description: "Virtual host bruteforcing"
+command: "gobuster vhost -u http://{{target}}:{{port}} -w {{wordlist}} -o {{output_file}} -q -t 50"
+sudo_command: "gobuster vhost -u http://{{target}}:{{port}} -w {{wordlist}} -o {{output_file}} -q -t 100 --wildcard"
+installer:
+  apt: "apt install -y gobuster"
+  yum: "yum install -y gobuster"
+  dnf: "dnf install -y gobuster"
+  brew: "brew install gobuster"
+  pacman: "pacman -S --noconfirm gobuster"
+  zypper: "zypper install -y gobuster"
+timeout: 900
+output:
+  type: "regex"
+  patterns:
+    - name: "virtual_host_found"
+      regex: 'Found: ([^\s]+\.{{target}})'
+      severity: "info"
+    - name: "interesting_subdomain"
+      regex: 'Found: (?:www|mail|ftp|admin|api|dev|test|staging|blog|shop|forum|vpn|remote|backup|db|mail2|smtp|pop|imap)[^\s]*\.{{target}}'
+      severity: "medium"

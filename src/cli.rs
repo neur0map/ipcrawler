@@ -1,3 +1,4 @@
+use crate::config::PortsConfig;
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -96,10 +97,18 @@ fn expand_cidr(network: IpNetwork) -> Vec<String> {
 }
 
 pub fn parse_ports(input: &str) -> Result<Vec<u16>> {
+    let ports_config = PortsConfig::load_or_default();
+
     match input.to_lowercase().as_str() {
-        "common" | "fast" => Ok(common_ports()),
-        "top-1000" => Ok((1..=1000).collect()),
-        "top-10000" => Ok((1..=10000).collect()),
+        // Check if it's a predefined port range
+        range if ports_config.get_port_range(range).is_some() => {
+            let range_str = ports_config.get_port_range(range).unwrap();
+            parse_port_string(range_str)
+        }
+        // Handle legacy modes for backward compatibility
+        "common" => Ok(common_ports()),
+        "top-1000" => Ok(vec![]),  // Will be handled by nmap directly
+        "top-10000" => Ok(vec![]), // Will be handled by nmap directly
         "all" => Ok((1..=65535).collect()),
         _ => {
             if input.contains('-') {
@@ -113,6 +122,24 @@ pub fn parse_ports(input: &str) -> Result<Vec<u16>> {
                 Ok(vec![port])
             }
         }
+    }
+}
+
+fn parse_port_string(port_str: &str) -> Result<Vec<u16>> {
+    // Handle nmap built-in port selections
+    if port_str == "nmap-top-1000" || port_str == "nmap-top-10000" {
+        return Ok(vec![]); // Empty vector indicates nmap should handle port selection
+    }
+
+    if port_str.contains('-') {
+        parse_port_range(port_str)
+    } else if port_str.contains(',') {
+        parse_port_list(port_str)
+    } else {
+        let port = port_str
+            .parse::<u16>()
+            .with_context(|| format!("Invalid port number: {}", port_str))?;
+        Ok(vec![port])
     }
 }
 
@@ -207,9 +234,7 @@ mod tests {
     #[test]
     fn test_parse_top_1000() {
         let ports = parse_ports("top-1000").unwrap();
-        assert_eq!(ports.len(), 1000);
-        assert!(ports.contains(&80));
-        assert!(ports.contains(&443));
+        assert_eq!(ports.len(), 0); // nmap handles this internally
     }
 
     #[test]

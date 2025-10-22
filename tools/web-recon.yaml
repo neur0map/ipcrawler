@@ -1,0 +1,38 @@
+name: "web-recon"
+description: "Advanced web reconnaissance script"
+command: "web-recon.sh {{target}} {{port}} {{output_file}}"
+installer:
+  apt: "apt install -y curl whatweb"
+  yum: "yum install -y curl whatweb"
+  dnf: "dnf install -y curl whatweb"
+  brew: "brew install curl whatweb"
+  pacman: "pacman -S --noconfirm curl whatweb"
+  zypper: "zypper install -y curl whatweb"
+timeout: 1200
+output:
+  type: "regex"
+  patterns:
+    - name: "http_headers"
+      regex: '=== HTTP HEADERS ==='
+      severity: "info"
+    - name: "technology_detected"
+      regex: '=== TECHNOLOGY DETECTION ==='
+      severity: "info"
+    - name: "robots_txt"
+      regex: '=== ROBOTS.TXT ==='
+      severity: "info"
+    - name: "sitemap_found"
+      regex: '=== SITEMAP DISCOVERY ==='
+      severity: "info"
+    - name: "common_file_found"
+      regex: 'Found: \w+\.\w+ \(Status: \d+\)'
+      severity: "low"
+    - name: "directory_listing"
+      regex: 'Directory listing enabled:'
+      severity: "medium"
+    - name: "ssl_analysis"
+      regex: '=== SSL/TLS ANALYSIS ==='
+      severity: "info"
+    - name: "http_methods"
+      regex: '=== HTTP METHODS ==='
+      severity: "info"

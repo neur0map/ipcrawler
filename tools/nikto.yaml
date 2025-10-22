@@ -1,6 +1,7 @@
 name: "nikto"
-description: "Web server vulnerability scanner"
-command: "nikto -h {{target}}:{{port}} -Format json -output {{output_file}}"
+description: "Advanced web server vulnerability scanner"
+command: "nikto -h {{target}}:{{port}} -Format json -output {{output_file}} -Tuning 1,2,3,4,5,6,7,8,9,a,b,c -Plugins all"
+sudo_command: "nikto -h {{target}}:{{port}} -Format json -output {{output_file}} -Tuning 1,2,3,4,5,6,7,8,9,a,b,c -Plugins all -evasion 1,2,3,4,5,6,7,8"
 installer:
   apt: "apt install -y nikto"
   yum: "yum install -y nikto"
@@ -8,11 +9,20 @@ installer:
   brew: "brew install nikto"
   pacman: "pacman -S --noconfirm nikto"
   zypper: "zypper install -y nikto"
-timeout: 900
+timeout: 1800
 output:
   type: "json"
   json_flag: "-Format json"
   patterns:
     - name: "vulnerability_found"
       regex: '"msg":"([^"]+)".*"OSVDB-(\d+)"'
+      severity: "medium"
+    - name: "critical_vulnerability"
+      regex: '"msg":"([^"]+)".*"OSVDB-(\d+)".*"critical"'
+      severity: "critical"
+    - name: "server_info"
+      regex: '"msg":"Server: ([^"]+)"'
+      severity: "info"
+    - name: "plugin_result"
+      regex: '"id":"([^"]+)".*"msg":"([^"]+)"'
       severity: "medium"

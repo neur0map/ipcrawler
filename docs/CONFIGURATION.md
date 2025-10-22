@@ -144,17 +144,54 @@ IPCrawler will:
 - Avoid dangerous commands (see [Security Documentation](SECURITY.md))
 - Test scripts individually before integration
 
-## Port Scanning Modes
+## Port Configuration
 
-| Mode | Description | Example |
-|------|-------------|---------|
-| `fast` | Nmap fast scan (top 100 ports) | `-p fast` |
-| `common` | 15 most common ports | `-p common` |
-| `top-1000` | Top 1000 most used ports | `-p top-1000` |
-| `top-10000` | Top 10000 most used ports | `-p top-10000` |
-| `all` | All 65535 ports | `-p all` |
-| List | Comma-separated ports | `-p 22,80,443,8080` |
-| Range | Port range | `-p 1-1000` |
+IPCrawler uses a centralized port configuration in `config/ports.yaml`, similar to wordlists.
+
+### Using Predefined Port Ranges
+
+```bash
+ipcrawler -t 192.168.1.1 -p fast
+ipcrawler -t 192.168.1.1 -p web
+ipcrawler -t 192.168.1.1 -p database
+```
+
+### Available Port Range Names
+
+- `fast` - Top 100 most common ports
+- `common` - 15 most common ports for quick recon
+- `top-1000` - Nmap built-in top 1000 ports selection
+- `top-10000` - Nmap built-in top 10000 ports selection
+- `all` - All 65535 TCP ports
+- `web` - Common web server ports (80,443,8000,8080,8443,etc)
+- `database` - Database server ports (1433,3306,5432,etc)
+- `remote` - Remote access ports (22,3389,5900,etc)
+- `mail` - Email server ports (25,110,143,465,587,993,995)
+- `ftp` - FTP and related ports (20,21,989,990)
+
+### Custom Port Specifications
+
+```bash
+# Single port
+ipcrawler -t 192.168.1.1 -p 80
+
+# Port list
+ipcrawler -t 192.168.1.1 -p 22,80,443
+
+# Port range
+ipcrawler -t 192.168.1.1 -p 1-1000
+```
+
+### Customizing Port Ranges
+
+Edit `config/ports.yaml`:
+
+```yaml
+port_ranges:
+  fast: "21,22,23,25,53,80,110,111,135,139,143,443,993,995,1723,3306,3389,5432,5900,8080,8443,9100,10000"
+  custom: "80,443,8080,8443,9000"
+  corporate: "22,53,80,88,135,139,389,443,445,636,993,995,1433,3306,3389,5432"
+```
 
 ## Output Structure
 

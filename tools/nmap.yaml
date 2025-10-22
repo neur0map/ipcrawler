@@ -1,7 +1,7 @@
 name: "nmap"
-description: "Port scanner and service detection"
-command: "nmap -sV -sC {{target}} -p {{port}} -oX {{output_file}}"
-sudo_command: "nmap -sS -sV -sC -O {{target}} -p {{port}} -oX {{output_file}}"
+description: "Comprehensive port scanner and service detection"
+command: "nmap -sV -sC -A --version-intensity 9 --script vuln,auth,discovery,default,safe --osscan-guess --reason {{target}} -p {{port}} -oX {{output_file}}"
+sudo_command: "nmap -sS -sV -sC -A --version-intensity 9 --script vuln,auth,discovery,default,safe,intrusive,exploit,brute --osscan-guess --max-os-tries 10 --reason --packet-trace {{target}} -p {{port}} -oX {{output_file}}"
 installer:
   apt: "apt install -y nmap"
   yum: "yum install -y nmap"
@@ -9,7 +9,7 @@ installer:
   brew: "brew install nmap"
   pacman: "pacman -S --noconfirm nmap"
   zypper: "zypper install -y nmap"
-timeout: 600
+timeout: 1800
 output:
   type: "xml"
   patterns:
@@ -19,3 +19,24 @@ output:
     - name: "service_detected"
       regex: 'service name="([^"]+)".*product="([^"]*)".*version="([^"]*)"'
       severity: "info"
+    - name: "os_detected"
+      regex: 'osmatch name="([^"]+)" accuracy="(\d+)"'
+      severity: "info"
+    - name: "vulnerability_found"
+      regex: 'table key="vuln".*elem key="id">([^<]+)'
+      severity: "high"
+    - name: "exploit_found"
+      regex: 'script id=".*exploit.*"'
+      severity: "critical"
+    - name: "credential_found"
+      regex: 'script id=".*brute.*".*credentials'
+      severity: "critical"
+    - name: "script_output"
+      regex: 'script id="([^"]+)" output="([^"]*)"'
+      severity: "medium"
+    - name: "cpe_found"
+      regex: 'cpe="([^"]+)"'
+      severity: "info"
+    - name: "interesting_service"
+      regex: 'service name="(ssh|ftp|telnet|smtp|dns|http|https|smb|mysql|postgresql|mongodb|redis|vnc|rdp)"'
+      severity: "medium"

@@ -1,6 +1,7 @@
 name: "gobuster"
-description: "Directory and file bruteforcer"
-command: "gobuster dir -u http://{{target}}:{{port}} -w {{wordlist}} -o {{output_file}} -q"
+description: "Advanced directory and file bruteforcer"
+command: "gobuster dir -u http://{{target}}:{{port}} -w {{wordlist}} -o {{output_file}} -q -t 50 -e -r -k -x php,asp,aspx,jsp,html,htm,txt,conf,config,bak,backup,sql,db"
+sudo_command: "gobuster dir -u http://{{target}}:{{port}} -w {{wordlist}} -o {{output_file}} -q -t 100 -e -r -k -x php,asp,aspx,jsp,html,htm,txt,conf,config,bak,backup,sql,db --no-error --wildcard"
 installer:
   apt: "apt install -y gobuster"
   yum: "yum install -y gobuster"
@@ -8,13 +9,22 @@ installer:
   brew: "brew install gobuster"
   pacman: "pacman -S --noconfirm gobuster"
   zypper: "zypper install -y gobuster"
-timeout: 600
+timeout: 1200
 output:
   type: "regex"
   patterns:
     - name: "found_directory"
-      regex: '(/[^\s]+)\s+\(Status: (200|301|302|401|403)\)'
+      regex: '(/[^\s]+)\s+\(Status: (200|201|202|301|302|401|403|405)\)'
       severity: "low"
     - name: "sensitive_path"
-      regex: '(/.+(?:admin|config|backup|login|upload)[^\s]*)\s+\(Status:'
+      regex: '(/.+(?:admin|config|backup|login|upload|api|private|secure)[^\s]*)\s+\(Status:'
       severity: "medium"
+    - name: "file_found"
+      regex: '(/[^\s]+\.(?:php|asp|aspx|jsp|sql|db|conf|config|bak|backup))\s+\(Status: 200\)'
+      severity: "medium"
+    - name: "large_file"
+      regex: '(/[^\s]+)\s+\(Size: (\d+(?:\.\d+)[KMGT])'
+      severity: "info"
+    - name: "subdomain_found"
+      regex: 'Found: ([^\s]+\.{{target}})'
+      severity: "info"
