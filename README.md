@@ -4,6 +4,7 @@ Professional automated penetration testing framework with AI-powered security an
 
 A [prowl.sh](https://prowl.sh) project - intelligent IP reconnaissance and network scanning platform.
 
+## NOTE: LLM are only used for parsing and creating the end report.md, it does not provide any help further than that.
 ## Quick Start
 
 ```bash
