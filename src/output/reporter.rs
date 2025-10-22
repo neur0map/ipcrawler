@@ -67,9 +67,9 @@ impl ReportGenerator {
         report.push_str("|------|--------|--------|-------------|------------------|\n");
 
         for finding in findings {
-            let status = if finding.full_stderr.trim().is_empty() { "✓ Success" } else { "⚠ Warnings" };
+            let status = if finding.full_stderr.trim().is_empty() { "[+] Success" } else { "[!] Warnings" };
             let output_size = finding.full_stdout.len();
-            let llm_status = if finding.llm_analysis.is_some() { "✓" } else { "✗" };
+            let llm_status = if finding.llm_analysis.is_some() { "[+]" } else { "[-]" };
             
             report.push_str(&format!(
                 "| {} | {} | {} | {} bytes | {} |\n",
@@ -128,14 +128,14 @@ impl ReportGenerator {
                     duration,
                     exit_code,
                 } => {
-                    let status = if *exit_code == 0 { "✓ Success" } else { &format!("⚠ Exit {}", exit_code) };
+                    let status = if *exit_code == 0 { "[+] Success" } else { &format!("[!] Exit {}", exit_code) };
                     (status.to_string(), format!("{:.1}s", duration.as_secs_f64()))
                 }
                 crate::executor::queue::TaskStatus::Failed { error } => {
-                    (format!("✗ Failed: {}", error), "-".to_string())
+                    (format!("[-] Failed: {}", error), "-".to_string())
                 }
                 crate::executor::queue::TaskStatus::TimedOut => {
-                    ("⏱ Timeout".to_string(), "-".to_string())
+                    ("[T] Timeout".to_string(), "-".to_string())
                 }
                 _ => ("Unknown".to_string(), "-".to_string()),
             };
@@ -196,7 +196,7 @@ impl ReportGenerator {
 
         // High priority findings
         if !high_priority.is_empty() {
-            report.push_str(&format!("**⚠️ {} High Priority Finding(s)**:\n\n", high_priority.len()));
+            report.push_str(&format!("**[!] {} High Priority Finding(s)**:\n\n", high_priority.len()));
             for finding in high_priority.iter().take(5) {  // Show top 5
                 report.push_str(&format!("- {}: {}\n", finding.title.replace('_', " "), finding.description));
             }
@@ -208,7 +208,7 @@ impl ReportGenerator {
 
         // Medium priority findings
         if !medium_priority.is_empty() {
-            report.push_str(&format!("**ℹ️ {} Medium Priority Finding(s)**:\n\n", medium_priority.len()));
+            report.push_str(&format!("**[*] {} Medium Priority Finding(s)**:\n\n", medium_priority.len()));
             for finding in medium_priority.iter().take(3) {  // Show top 3
                 report.push_str(&format!("- {}: {}\n", finding.title.replace('_', " "), finding.description));
             }

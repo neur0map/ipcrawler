@@ -118,10 +118,10 @@ output:                              # REQUIRED: Output processing configuration
 - **Type**: String (template)
 - **Purpose**: The command to execute
 - **CRITICAL RULES**:
-  - ❌ **DO NOT** use shell redirections (`>`, `>>`, `|`, `&`)
-  - ❌ **DO NOT** use shell features (backticks, `$()`, globs)
-  - ✅ **DO** use template variables (`{{target}}`, `{{port}}`, etc.)
-  - ✅ stdout is captured automatically
+  - [-] **DO NOT** use shell redirections (`>`, `>>`, `|`, `&`)
+  - [-] **DO NOT** use shell features (backticks, `$()`, globs)
+  - [+] **DO** use template variables (`{{target}}`, `{{port}}`, etc.)
+  - [+] stdout is captured automatically
 - **Example**:
   ```yaml
   # CORRECT
@@ -403,7 +403,7 @@ Command::new("nmap")           // Program name
 
 ### Critical Implications
 
-#### ❌ Shell Features Don't Work
+#### [-] Shell Features Don't Work
 
 ```yaml
 # THESE WILL FAIL:
@@ -424,7 +424,7 @@ command: "echo $(whoami)"                  # '$()' treated as literal
 command: "echo $HOME"                      # '$HOME' treated as literal
 ```
 
-#### ✅ What Works
+#### [+] What Works
 
 ```yaml
 # Direct commands with arguments
@@ -802,14 +802,14 @@ echo "=== SCAN COMPLETE ==="
 
 ### 1. Command Design
 
-✅ **DO**:
+[+] **DO**:
 - Use direct commands that output to stdout
 - Include appropriate timeout values
 - Test commands manually before adding to YAML
 - Use specific flags for cleaner output
 - Consider both standard and sudo variants
 
-❌ **DON'T**:
+[-] **DON'T**:
 - Use shell redirections (`>`, `>>`, `|`)
 - Rely on shell variables (`$VAR`, `$()`)
 - Use interactive commands
@@ -818,14 +818,14 @@ echo "=== SCAN COMPLETE ==="
 
 ### 2. Output Patterns
 
-✅ **DO**:
+[+] **DO**:
 - Create specific patterns for important findings
 - Use capture groups to extract useful data
 - Test regex patterns with real output
 - Include patterns for error conditions
 - Use appropriate severity levels
 
-❌ **DON'T**:
+[-] **DON'T**:
 - Make overly broad patterns (`.*`)
 - Forget to escape special regex characters
 - Use patterns that match noise
@@ -833,7 +833,7 @@ echo "=== SCAN COMPLETE ==="
 
 ### 3. Script Writing
 
-✅ **DO**:
+[+] **DO**:
 - Output important results to stdout
 - Include section headers for readability
 - Handle missing commands gracefully
@@ -841,7 +841,7 @@ echo "=== SCAN COMPLETE ==="
 - Validate input parameters
 - Add comments explaining complex logic
 
-❌ **DON'T**:
+[-] **DON'T**:
 - Only write to files (stdout is captured)
 - Assume commands exist without checking
 - Run destructive operations

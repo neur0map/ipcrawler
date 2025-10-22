@@ -72,11 +72,11 @@ build: ## Build optimized release binary and create system symlink
 		$(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME); \
 		printf "$(GREEN)✓ Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)\n"; \
 	else \
-		printf "$(YELLOW)⚠ Need sudo privileges to create system symlink$(NC)\n"; \
+		printf "$(YELLOW)[!] Need sudo privileges to create system symlink$(NC)\n"; \
 		if sudo $(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME) 2>/dev/null; then \
 			printf "$(GREEN)✓ Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)\n"; \
 		else \
-			printf "$(YELLOW)⚠ Could not create system symlink. You can manually create it with:$(NC)\n"; \
+			printf "$(YELLOW)[!] Could not create system symlink. You can manually create it with:$(NC)\n"; \
 			printf "$(YELLOW)  sudo $(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME)$(NC)\n"; \
 			printf "$(YELLOW)  Or run the binary directly: $(BINARY_PATH)$(NC)\n"; \
 		fi; \

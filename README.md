@@ -28,25 +28,25 @@ ipcrawler -t 192.168.1.1 -p 80 --dry-run
 
 ## Key Features
 
-### 🤖 AI-Powered Analysis
+### [AI] AI-Powered Analysis
 - **LLM Integration** - Support for OpenAI, Claude, and Ollama
 - **Security-Focused Prompts** - Specialized analysis for different tool types
 - **Universal Output Parser** - Intelligent parsing with context awareness
 - **Enhanced Reporting** - AI-generated insights and recommendations
 
-### ⚡ Performance & Architecture
+### [⚡] Performance & Architecture
 - **YAML-Driven Architecture** - Fully extensible, zero hardcoded tool logic
 - **Parallel Execution** - Run up to 5 tools concurrently with intelligent queueing
 - **Sudo Detection** - Automatically selects privileged commands when running with sudo
 - **Script Security** - Built-in validation and sandboxing for custom shell scripts
 
-### 📊 Configuration & Modes
+### [⚙] Configuration & Modes
 - **Wordlist Management** - Centralized configuration with predefined SecLists paths
 - **Advanced Port Modes** - Support for nmap scripts (fast, top-1000, top-10000, all)
 - **Dry-Run Mode** - Test parsing without executing tools
 - **Verbose Mode** - Detailed output with alternative parsing methods
 
-### 🎯 User Experience
+### [✓] User Experience
 - **Modern Terminal UI** - Real-time progress tracking with live vulnerability feed
 - **Comprehensive Reporting** - Enhanced Markdown and JSON reports with AI insights
 - **Smart Folder Naming** - Results organized as `TARGET_HHMM` for easy identification

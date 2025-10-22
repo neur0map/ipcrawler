@@ -143,7 +143,7 @@ impl ValidationResult {
     pub fn print_report(&self) {
         if !self.is_safe {
             eprintln!(
-                "⚠ Script validation failed: {}",
+                "[!] Script validation failed: {}",
                 self.dangerous_commands.join(", ")
             );
         }
