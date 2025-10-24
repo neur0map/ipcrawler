@@ -20,6 +20,11 @@ pub struct Finding {
 }
 
 impl Finding {
+    /// Create a new Finding instance
+    ///
+    /// This constructor has many arguments because it directly maps to all struct fields.
+    /// For complex construction scenarios, consider using the struct directly with named fields.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         tool: String,
         target: String,
@@ -60,19 +65,23 @@ pub struct OutputParser;
 impl OutputParser {
     pub async fn parse(tool: &Tool, result: &TaskResult, use_llm: bool) -> Result<Vec<Finding>> {
         let processor = UniversalProcessor::new(use_llm);
-        
+
         // Use the process method and log if LLM is enabled
         if processor.is_llm_enabled() {
             println!("Processing {} with LLM enhancement enabled", tool.name);
         }
-        
+
         processor.process(&tool.name, result).await
     }
 
     /// Parse tool output using the universal processor with LLM client
-    pub async fn parse_with_llm(tool: &Tool, result: &TaskResult, llm_client: Option<&LLMClient>) -> Result<Vec<Finding>> {
+    pub async fn parse_with_llm(
+        tool: &Tool,
+        result: &TaskResult,
+        llm_client: Option<&LLMClient>,
+    ) -> Result<Vec<Finding>> {
         let processor = UniversalProcessor::new(llm_client.is_some());
-        processor.process_with_llm(&tool.name, result, llm_client).await
+        processor.process_with_llm(tool, result, llm_client).await
     }
 
     // Legacy method for backward compatibility - used in dry-run mode
@@ -90,14 +99,13 @@ impl OutputParser {
 
         for finding in findings {
             let key = finding.dedup_key();
-            
+
             // Skip duplicate SSH hostkey findings from script_result pattern
             // Keep only the specific ssh_hostkey pattern findings
-            if finding.title == "script_result" && 
-               finding.description.contains("ssh-hostkey") {
+            if finding.title == "script_result" && finding.description.contains("ssh-hostkey") {
                 continue;
             }
-            
+
             if seen.insert(key) {
                 deduplicated.push(finding);
             }
@@ -119,7 +127,6 @@ impl OutputParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_deduplication() {

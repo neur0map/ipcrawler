@@ -56,23 +56,13 @@ pub struct Cli {
     )]
     pub llm_provider: String,
 
-    #[arg(
-        long,
-        help = "LLM API key (or set LLM_API_KEY env var)"
-    )]
+    #[arg(long, help = "LLM API key (or set LLM_API_KEY env var)")]
     pub llm_api_key: Option<String>,
 
-    #[arg(
-        long,
-        help = "LLM model name",
-        default_value = "llama3.1"
-    )]
+    #[arg(long, help = "LLM model name", default_value = "llama3.1")]
     pub llm_model: String,
 
-    #[arg(
-        long,
-        help = "LLM base URL"
-    )]
+    #[arg(long, help = "LLM base URL")]
     pub llm_base_url: Option<String>,
 
     #[arg(

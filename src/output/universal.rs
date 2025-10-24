@@ -1,7 +1,8 @@
-use crate::config::Severity;
+use crate::config::{Severity, Tool};
 use crate::executor::runner::TaskResult;
 use crate::llm::LLMClient;
 use crate::output::parser::Finding;
+use crate::output::regex_matcher::RegexMatcher;
 use anyhow::Result;
 use std::collections::HashSet;
 
@@ -36,12 +37,17 @@ impl UniversalProcessor {
 
         // If LLM is enabled, enhance with intelligent analysis
         if self.use_llm && !result.stdout.is_empty() {
-            if let Ok(llm_analysis) = self.analyze_with_llm(tool_name, &result.stdout, &result.stderr).await {
+            if let Ok(llm_analysis) = self
+                .analyze_with_llm(tool_name, &result.stdout, &result.stderr)
+                .await
+            {
                 // Add LLM-enhanced findings
-                if let Ok(enhanced_findings) = self.extract_llm_findings(tool_name, result, &llm_analysis) {
+                if let Ok(enhanced_findings) =
+                    self.extract_llm_findings(tool_name, result, &llm_analysis)
+                {
                     findings.extend(enhanced_findings);
                 }
-                
+
                 // Update base finding with LLM analysis
                 if let Some(base_finding) = findings.get_mut(0) {
                     base_finding.llm_analysis = Some(llm_analysis);
@@ -53,16 +59,49 @@ impl UniversalProcessor {
     }
 
     /// Process tool output with provided LLM client
-    pub async fn process_with_llm(&self, tool_name: &str, result: &TaskResult, llm_client: Option<&LLMClient>) -> Result<Vec<Finding>> {
+    pub async fn process_with_llm(
+        &self,
+        tool: &Tool,
+        result: &TaskResult,
+        llm_client: Option<&LLMClient>,
+    ) -> Result<Vec<Finding>> {
         let mut findings = Vec::new();
+
+        // First, apply YAML-defined regex patterns if they exist
+        if let Some(patterns) = &tool.output.patterns {
+            if !patterns.is_empty() {
+                match RegexMatcher::match_patterns(
+                    &tool.name,
+                    &result.target,
+                    result.port,
+                    &result.stdout,
+                    &result.stderr,
+                    patterns,
+                ) {
+                    Ok(pattern_findings) => {
+                        if !pattern_findings.is_empty() {
+                            println!(
+                                "✓ Pattern matcher found {} findings for {}",
+                                pattern_findings.len(),
+                                tool.name
+                            );
+                            findings.extend(pattern_findings);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error applying patterns for {}: {}", tool.name, e);
+                    }
+                }
+            }
+        }
 
         // Always create a base finding with complete raw output preservation
         let base_finding = Finding::new(
-            tool_name.to_string(),
+            tool.name.clone(),
             result.target.clone(),
             result.port,
             Severity::Info,
-            format!("{} execution", tool_name),
+            format!("{} execution", tool.name),
             self.generate_simple_summary(&result.stdout, &result.stderr),
             result.stdout.clone(),
             result.stderr.clone(),
@@ -83,23 +122,31 @@ impl UniversalProcessor {
                 ];
 
                 // Use specialized analysis based on tool type
-                let llm_analysis = if tool_name.contains("nmap") || tool_name.contains("masscan") {
-                    client.analyze_network_scan(tool_name, &result.stdout).await
-                } else if tool_name.contains("dig") || tool_name.contains("nslookup") {
-                    client.analyze_dns_recon(tool_name, &result.stdout).await
-                } else if tool_name.contains("nikto") || tool_name.contains("nuclei") {
-                    client.analyze_vulnerability_scan(tool_name, &result.stdout).await
+                let llm_analysis = if tool.name.contains("nmap") || tool.name.contains("masscan") {
+                    client
+                        .analyze_network_scan(&tool.name, &result.stdout)
+                        .await
+                } else if tool.name.contains("dig") || tool.name.contains("nslookup") {
+                    client.analyze_dns_recon(&tool.name, &result.stdout).await
+                } else if tool.name.contains("nikto") || tool.name.contains("nuclei") {
+                    client
+                        .analyze_vulnerability_scan(&tool.name, &result.stdout)
+                        .await
                 } else {
                     // Use context analysis for generic tools
-                    client.analyze_with_context(tool_name, &result.stdout, &context).await
+                    client
+                        .analyze_with_context(&tool.name, &result.stdout, &context)
+                        .await
                 };
 
                 if let Ok(llm_analysis) = llm_analysis {
                     // Add LLM-enhanced findings
-                    if let Ok(enhanced_findings) = self.extract_llm_findings(tool_name, result, &llm_analysis) {
+                    if let Ok(enhanced_findings) =
+                        self.extract_llm_findings(&tool.name, result, &llm_analysis)
+                    {
                         findings.extend(enhanced_findings);
                     }
-                    
+
                     // Update base finding with LLM analysis
                     if let Some(base_finding) = findings.get_mut(0) {
                         base_finding.llm_analysis = Some(llm_analysis);
@@ -146,16 +193,25 @@ impl UniversalProcessor {
 
         // Extract key lines for content analysis
         let key_lines = ContentAnalyzer::extract_key_lines(stdout);
-        
-        if key_lines.iter().any(|line| line.contains("ssh") || line.contains("ftp") || line.contains("http")) {
+
+        if key_lines
+            .iter()
+            .any(|line| line.contains("ssh") || line.contains("ftp") || line.contains("http"))
+        {
             summary_parts.push("service detection".to_string());
         }
 
-        if key_lines.iter().any(|line| line.contains("vulnerab") || line.contains("CVE") || line.contains("risk")) {
+        if key_lines
+            .iter()
+            .any(|line| line.contains("vulnerab") || line.contains("CVE") || line.contains("risk"))
+        {
             summary_parts.push("security findings".to_string());
         }
 
-        if key_lines.iter().any(|line| line.contains("A ") || line.contains("AAAA") || line.contains("MX")) {
+        if key_lines
+            .iter()
+            .any(|line| line.contains("A ") || line.contains("AAAA") || line.contains("MX"))
+        {
             summary_parts.push("DNS records".to_string());
         }
 
@@ -167,13 +223,18 @@ impl UniversalProcessor {
     }
 
     /// Analyze output with LLM (placeholder for now)
-    async fn analyze_with_llm(&self, tool_name: &str, stdout: &str, _stderr: &str) -> Result<String> {
+    async fn analyze_with_llm(
+        &self,
+        tool_name: &str,
+        stdout: &str,
+        _stderr: &str,
+    ) -> Result<String> {
         // Enhanced analysis using ContentAnalyzer
         let ports = ContentAnalyzer::extract_ports(stdout);
         let has_errors = ContentAnalyzer::has_errors(_stderr);
         let is_structured = ContentAnalyzer::is_structured(stdout);
         let key_lines = ContentAnalyzer::extract_key_lines(stdout);
-        
+
         let analysis = format!(
             "LLM analysis for {}:\n- Output size: {} chars\n- Lines: {}\n- Ports detected: {:?}\n- Has errors: {}\n- Structured data: {}\n- Key findings: {}",
             tool_name,
@@ -188,7 +249,12 @@ impl UniversalProcessor {
     }
 
     /// Extract structured findings from LLM analysis
-    fn extract_llm_findings(&self, tool_name: &str, result: &TaskResult, llm_analysis: &str) -> Result<Vec<Finding>> {
+    fn extract_llm_findings(
+        &self,
+        tool_name: &str,
+        result: &TaskResult,
+        llm_analysis: &str,
+    ) -> Result<Vec<Finding>> {
         let mut findings = Vec::new();
 
         // TODO: Parse structured LLM output
@@ -218,33 +284,44 @@ impl ContentAnalyzer {
     /// Extract potential ports from any text output
     pub fn extract_ports(text: &str) -> Vec<u16> {
         let mut ports = HashSet::new();
-        
+
+        // Compile regex patterns once outside the loop
+        let port_tcp_udp = regex::Regex::new(r"(\d+)/(tcp|udp)").ok();
+        let port_keyword = regex::Regex::new(r"[Pp]ort:?\s+(\d+)").ok();
+        let port_colon = regex::Regex::new(r":(\d+)\b").ok();
+
         // Look for common port patterns
         for line in text.lines() {
             // Pattern: "22/tcp", "80/udp", etc.
-            if let Some(caps) = regex::Regex::new(r"(\d+)/(tcp|udp)").ok().and_then(|re| re.captures(line)) {
-                if let Ok(port) = caps[1].parse::<u16>() {
-                    ports.insert(port);
-                }
-            }
-            
-            // Pattern: "Port: 22", "port 80", etc.
-            if let Some(caps) = regex::Regex::new(r"[Pp]ort:?\s+(\d+)").ok().and_then(|re| re.captures(line)) {
-                if let Ok(port) = caps[1].parse::<u16>() {
-                    ports.insert(port);
-                }
-            }
-            
-            // Pattern: ":22" (but avoid false positives like times)
-            if let Some(caps) = regex::Regex::new(r":(\d+)\b").ok().and_then(|re| re.captures(line)) {
-                if let Ok(port) = caps[1].parse::<u16>() {
-                    if port > 0 {
+            if let Some(re) = &port_tcp_udp {
+                if let Some(caps) = re.captures(line) {
+                    if let Ok(port) = caps[1].parse::<u16>() {
                         ports.insert(port);
                     }
                 }
             }
+
+            // Pattern: "Port: 22", "port 80", etc.
+            if let Some(re) = &port_keyword {
+                if let Some(caps) = re.captures(line) {
+                    if let Ok(port) = caps[1].parse::<u16>() {
+                        ports.insert(port);
+                    }
+                }
+            }
+
+            // Pattern: ":22" (but avoid false positives like times)
+            if let Some(re) = &port_colon {
+                if let Some(caps) = re.captures(line) {
+                    if let Ok(port) = caps[1].parse::<u16>() {
+                        if port > 0 {
+                            ports.insert(port);
+                        }
+                    }
+                }
+            }
         }
-        
+
         let mut result: Vec<u16> = ports.into_iter().collect();
         result.sort_unstable();
         result
@@ -252,18 +329,18 @@ impl ContentAnalyzer {
 
     /// Detect if output contains errors or warnings
     pub fn has_errors(stderr: &str) -> bool {
-        !stderr.trim().is_empty() || 
-        stderr.to_lowercase().contains("error") ||
-        stderr.to_lowercase().contains("failed") ||
-        stderr.to_lowercase().contains("denied")
+        !stderr.trim().is_empty()
+            || stderr.to_lowercase().contains("error")
+            || stderr.to_lowercase().contains("failed")
+            || stderr.to_lowercase().contains("denied")
     }
 
     /// Detect if output looks like structured data (tables, JSON, etc.)
     pub fn is_structured(stdout: &str) -> bool {
-        stdout.contains('|') && stdout.lines().count() > 2 ||
-        stdout.contains('\t') && stdout.lines().count() > 2 ||
-        stdout.trim_start().starts_with('{') && stdout.trim_end().ends_with('}') ||
-        stdout.trim_start().starts_with('<') && stdout.trim_end().ends_with('>')
+        stdout.contains('|') && stdout.lines().count() >= 2
+            || stdout.contains('\t') && stdout.lines().count() >= 2
+            || stdout.trim_start().starts_with('{') && stdout.trim_end().ends_with('}')
+            || stdout.trim_start().starts_with('<') && stdout.trim_end().ends_with('>')
     }
 
     /// Extract key information lines (non-empty, non-header lines)
@@ -272,12 +349,12 @@ impl ContentAnalyzer {
             .lines()
             .filter(|line| {
                 let line = line.trim();
-                !line.is_empty() && 
-                !line.starts_with('#') && 
-                !line.starts_with("Starting") &&
-                !line.starts_with("Nmap done") &&
-                !line.starts_with("---") &&
-                line.len() > 3
+                !line.is_empty()
+                    && !line.starts_with('#')
+                    && !line.starts_with("Starting")
+                    && !line.starts_with("Nmap done")
+                    && !line.starts_with("---")
+                    && line.len() > 3
             })
             .take(20) // Limit to first 20 relevant lines
             .map(|line| line.to_string())
@@ -294,12 +371,13 @@ mod tests {
     #[tokio::test]
     async fn test_universal_processor_basic() {
         let processor = UniversalProcessor::new(false);
-        
+
         let result = TaskResult {
             task_id: crate::executor::queue::TaskId::new("test", "target", None),
             tool_name: "test".to_string(),
             target: "127.0.0.1".to_string(),
             port: Some(80),
+            actual_command: "test command".to_string(),
             status: TaskStatus::Completed {
                 duration: Duration::from_secs(1),
                 exit_code: 0,
@@ -323,7 +401,9 @@ mod tests {
 
     #[test]
     fn test_content_analyzer_structured() {
-        assert!(ContentAnalyzer::is_structured("PORT|STATE|SERVICE\n22|open|ssh"));
+        assert!(ContentAnalyzer::is_structured(
+            "PORT|STATE|SERVICE\n22|open|ssh"
+        ));
         assert!(ContentAnalyzer::is_structured("{\"port\": 22}"));
         assert!(!ContentAnalyzer::is_structured("just plain text"));
     }

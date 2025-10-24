@@ -10,4 +10,69 @@ installer:
   zypper: "zypper install -y bind-utils"
 timeout: 30
 output:
-  type: "raw"
+  type: "regex"
+  patterns:
+    # DNS Trace - successful responses from root/authoritative servers
+    - name: "dns_trace_response"
+      regex: ';; Received (\d+) bytes from ([^\s]+)#\d+\(([^)]+)\) in (\d+) ms'
+      severity: "info"
+
+    # A Records (IPv4)
+    - name: "a_record"
+      regex: '^([^\s]+)\s+\d+\s+IN\s+A\s+(\d+\.\d+\.\d+\.\d+)'
+      severity: "info"
+
+    # AAAA Records (IPv6)
+    - name: "aaaa_record"
+      regex: '^([^\s]+)\s+\d+\s+IN\s+AAAA\s+([0-9a-fA-F:]+)'
+      severity: "info"
+
+    # MX Records (Mail servers)
+    - name: "mx_record"
+      regex: '^([^\s]+)\s+\d+\s+IN\s+MX\s+(\d+)\s+([^\s]+)'
+      severity: "info"
+
+    # NS Records (Name servers)
+    - name: "ns_record"
+      regex: '^([^\s]+)\s+\d+\s+IN\s+NS\s+([^\s]+)'
+      severity: "info"
+
+    # TXT Records
+    - name: "txt_record"
+      regex: '^([^\s]+)\s+\d+\s+IN\s+TXT\s+"([^"]+)"'
+      severity: "info"
+
+    # SOA Record
+    - name: "soa_record"
+      regex: '^([^\s]+)\s+\d+\s+IN\s+SOA\s+([^\s]+)\s+([^\s]+)'
+      severity: "info"
+
+    # CNAME Records
+    - name: "cname_record"
+      regex: '^([^\s]+)\s+\d+\s+IN\s+CNAME\s+([^\s]+)'
+      severity: "info"
+
+    # PTR Records (Reverse DNS)
+    - name: "ptr_record"
+      regex: '^([^\s]+)\s+\d+\s+IN\s+PTR\s+([^\s]+)'
+      severity: "info"
+
+    # Zone transfer success indicator
+    - name: "zone_transfer"
+      regex: ';; XFR size: (\d+) records'
+      severity: "medium"
+
+    # DNSSEC validation
+    - name: "dnssec_status"
+      regex: ';; flags:.*(ad);'
+      severity: "info"
+
+    # Authoritative nameservers found
+    - name: "authoritative_ns"
+      regex: 'Authoritative nameservers:\s*\n([^\n]+)'
+      severity: "info"
+
+    # No records found indicators
+    - name: "no_records"
+      regex: '(No [A-Z]+ records found|no servers could be reached|NXDOMAIN)'
+      severity: "low"

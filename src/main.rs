@@ -14,7 +14,7 @@ use cli::{parse_ports, parse_targets, Cli};
 use config::WordlistConfig;
 use executor::queue::{Task, TaskQueue};
 use executor::runner::TaskRunner;
-use llm::{LLMClient, LLMProvider, LLMConfig, PromptTemplate, SecurityAnalysisPrompt};
+use llm::{LLMClient, LLMConfig, LLMProvider, PromptTemplate, SecurityAnalysisPrompt};
 use output::parser::OutputParser;
 use output::reporter::ReportGenerator;
 use std::fs;
@@ -75,11 +75,12 @@ async fn main() -> Result<()> {
         };
 
         // Get API key from CLI argument, then provider-specific env var, then generic LLM_API_KEY
-        let api_key = cli.llm_api_key
+        let api_key = cli
+            .llm_api_key
             .or_else(|| std::env::var("OPENAI_API_KEY").ok())
             .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
             .or_else(|| std::env::var("LLM_API_KEY").ok());
-        
+
         if matches!(provider, LLMProvider::OpenAI | LLMProvider::Claude) && api_key.is_none() {
             anyhow::bail!(
                 "API key required for {}. Set --llm-api-key or configure in .env file:\n  - For OpenAI: OPENAI_API_KEY=your_key\n  - For Claude: ANTHROPIC_API_KEY=your_key", 
@@ -92,19 +93,22 @@ async fn main() -> Result<()> {
             cli.llm_model.clone()
         } else {
             match provider {
-                LLMProvider::OpenAI => std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4".to_string()),
-                LLMProvider::Claude => std::env::var("CLAUDE_MODEL").unwrap_or_else(|_| "claude-3-sonnet-20240229".to_string()),
-                LLMProvider::Ollama => std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string()),
+                LLMProvider::OpenAI => {
+                    std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4".to_string())
+                }
+                LLMProvider::Claude => std::env::var("CLAUDE_MODEL")
+                    .unwrap_or_else(|_| "claude-3-sonnet-20240229".to_string()),
+                LLMProvider::Ollama => {
+                    std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string())
+                }
             }
         };
 
         // Get base URL from CLI, then provider-specific env var, then default
-        let base_url = cli.llm_base_url.clone().or_else(|| {
-            match provider {
-                LLMProvider::OpenAI => std::env::var("OPENAI_BASE_URL").ok(),
-                LLMProvider::Claude => std::env::var("CLAUDE_BASE_URL").ok(),
-                LLMProvider::Ollama => std::env::var("OLLAMA_BASE_URL").ok(),
-            }
+        let base_url = cli.llm_base_url.clone().or_else(|| match provider {
+            LLMProvider::OpenAI => std::env::var("OPENAI_BASE_URL").ok(),
+            LLMProvider::Claude => std::env::var("CLAUDE_BASE_URL").ok(),
+            LLMProvider::Ollama => std::env::var("OLLAMA_BASE_URL").ok(),
         });
 
         let config = LLMConfig {
@@ -116,7 +120,7 @@ async fn main() -> Result<()> {
         };
 
         let client = LLMClient::new(config);
-        
+
         // Test LLM connection if enabled
         if let Err(e) = client.test_connection().await {
             eprintln!("Warning: LLM connection test failed: {}", e);
@@ -124,29 +128,36 @@ async fn main() -> Result<()> {
             None
         } else {
             println!("✓ LLM connection established");
-            
+
             // Test template functionality
             let template = PromptTemplate::new(
                 "Analyze security tool output".to_string(),
                 "Tool: {tool_name}\nOutput: {output}\n\nProvide security analysis.".to_string(),
             );
-            
-            if let Ok(_) = client.analyze_with_template(&template, "test", "sample output").await {
+
+            if client
+                .analyze_with_template(&template, "test", "sample output")
+                .await
+                .is_ok()
+            {
                 println!("✓ LLM template analysis working");
             }
-            
+
             // Test build_security_prompt method
             let test_prompt = client.build_security_prompt("nmap", "22/tcp open ssh");
             println!("✓ Security prompt generated: {} chars", test_prompt.len());
-            
+
             // Test SecurityAnalysisPrompt
             let system_prompt = SecurityAnalysisPrompt::system_prompt();
             println!("✓ System prompt available: {} chars", system_prompt.len());
-            
+
             // Test get_system_prompt method
             let template_system_prompt = client.get_security_system_prompt();
-            println!("✓ Template system prompt: {} chars", template_system_prompt.len());
-            
+            println!(
+                "✓ Template system prompt: {} chars",
+                template_system_prompt.len()
+            );
+
             Some(client)
         }
     } else {
@@ -311,16 +322,18 @@ async fn main() -> Result<()> {
 
     let results = if cli.dry_run {
         println!("DRY RUN MODE: Not executing tools, showing what would be parsed...");
-        
+
         // Create sample results for testing parse_sync method
         let mut sample_results = Vec::new();
-        for tool in registry.get_all_tools().into_iter().take(3) { // Limit to 3 tools for demo
+        for tool in registry.get_all_tools().into_iter().take(3) {
+            // Limit to 3 tools for demo
             if installed_tools.contains(&tool.name) {
                 let sample_result = crate::executor::runner::TaskResult {
                     task_id: crate::executor::queue::TaskId::new(&tool.name, "192.168.1.1", None),
                     tool_name: tool.name.clone(),
                     target: "192.168.1.1".to_string(),
                     port: None,
+                    actual_command: tool.command.clone(),
                     status: crate::executor::queue::TaskStatus::Completed {
                         duration: std::time::Duration::from_millis(100),
                         exit_code: 0,
@@ -328,9 +341,9 @@ async fn main() -> Result<()> {
                     stdout: format!("Sample output from {}", tool.name),
                     stderr: String::new(),
                 };
-                
+
                 // Test parse_sync method
-                match OutputParser::parse_sync(&tool, &sample_result) {
+                match OutputParser::parse_sync(tool, &sample_result) {
                     Ok(findings) => {
                         println!("✓ {} would generate {} findings", tool.name, findings.len());
                     }
@@ -338,13 +351,13 @@ async fn main() -> Result<()> {
                         println!("✗ Error parsing {}: {}", tool.name, e);
                     }
                 }
-                
+
                 sample_results.push(sample_result);
             }
         }
         sample_results
     } else {
-        let runner = TaskRunner::new(5);
+        let runner = TaskRunner::new(10);
 
         let (update_tx, update_rx) = mpsc::unbounded_channel();
 
@@ -377,7 +390,11 @@ async fn main() -> Result<()> {
                 // Use the original parse method in verbose mode
                 match OutputParser::parse(tool, result, cli.use_llm).await {
                     Ok(f) => {
-                        println!("✓ Parsed {} output with {} findings", result.tool_name, f.len());
+                        println!(
+                            "✓ Parsed {} output with {} findings",
+                            result.tool_name,
+                            f.len()
+                        );
                         f
                     }
                     Err(e) => {
@@ -395,7 +412,7 @@ async fn main() -> Result<()> {
                     }
                 }
             };
-            
+
             all_findings.extend(findings);
         }
     }

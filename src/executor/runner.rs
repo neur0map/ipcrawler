@@ -16,6 +16,7 @@ pub struct TaskResult {
     pub tool_name: String,
     pub target: String,
     pub port: Option<u16>,
+    pub actual_command: String,
     pub status: TaskStatus,
     pub stdout: String,
     pub stderr: String,
@@ -73,6 +74,13 @@ impl TaskRunner {
         let results = Arc::new(Mutex::new(Vec::new()));
 
         let total_tasks = tasks.len();
+
+        // Send initial progress update so TUI shows correct total count from the start
+        let _ = update_tx.send(TaskUpdate::Progress {
+            queued: total_tasks,
+            running: 0,
+            completed: 0,
+        });
 
         for task in tasks {
             let sem_clone = Arc::clone(&semaphore);
@@ -185,13 +193,14 @@ impl TaskRunner {
         });
 
         // Check and prepare script if needed
-        let (program, args) = match Self::prepare_script_if_needed(&task.command) {
+        let (actual_command, program, args) = match Self::prepare_script_if_needed(&task.command) {
             Ok(Some(script_path)) => {
                 // Script validated and made executable, use script path
                 let script_path_str = script_path.to_string_lossy().to_string();
                 let parts: Vec<&str> = task.command.split_whitespace().collect();
                 let script_args = if parts.len() > 1 { &parts[1..] } else { &[] };
-                (script_path_str, script_args.to_vec())
+                let actual_cmd = format!("{} {}", script_path_str, script_args.join(" "));
+                (actual_cmd, script_path_str, script_args.to_vec())
             }
             Ok(None) => {
                 // Not a script, proceed normally
@@ -218,12 +227,17 @@ impl TaskRunner {
                         tool_name: task.tool_name,
                         target: task.target,
                         port: task.port,
+                        actual_command: task.command,
                         status: failed_status,
                         stdout: String::new(),
                         stderr: error,
                     };
                 }
-                (parts[0].to_string(), parts[1..].to_vec())
+                (
+                    task.command.clone(),
+                    parts[0].to_string(),
+                    parts[1..].to_vec(),
+                )
             }
             Err(e) => {
                 let error = format!("Script validation failed: {}", e);
@@ -247,6 +261,7 @@ impl TaskRunner {
                     tool_name: task.tool_name,
                     target: task.target,
                     port: task.port,
+                    actual_command: task.command,
                     status: failed_status,
                     stdout: String::new(),
                     stderr: error,
@@ -323,6 +338,7 @@ impl TaskRunner {
             tool_name: task.tool_name,
             target: task.target,
             port: task.port,
+            actual_command,
             status,
             stdout,
             stderr,

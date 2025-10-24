@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::config::schema::{Tool, OutputType, OutputConfig, InstallerConfig};
-    use crate::OutputParser;
+    use crate::config::schema::{InstallerConfig, OutputConfig, OutputType, Tool};
+    use crate::executor::queue::{TaskId, TaskStatus};
     use crate::executor::runner::TaskResult;
-    use crate::executor::queue::{TaskStatus, TaskId};
+    use crate::OutputParser;
     use std::time::Duration;
 
     #[tokio::test]
@@ -19,6 +19,7 @@ mod tests {
             output: OutputConfig {
                 output_type: OutputType::Raw,
                 json_flag: None,
+                patterns: None,
             },
         };
 
@@ -35,6 +36,7 @@ PORT   STATE SERVICE
             tool_name: "nmap".to_string(),
             target: "192.168.1.1".to_string(),
             port: None,
+            actual_command: "nmap 192.168.1.1".to_string(),
             status: TaskStatus::Completed {
                 duration: Duration::from_millis(100),
                 exit_code: 0,
@@ -44,10 +46,10 @@ PORT   STATE SERVICE
         };
 
         let findings = OutputParser::parse(&tool, &result, false).await.unwrap();
-        
+
         assert!(!findings.is_empty());
         assert_eq!(findings.len(), 1);
-        
+
         let finding = &findings[0];
         assert_eq!(finding.title, "nmap execution");
         assert!(finding.description.contains("port scan results"));
@@ -68,6 +70,7 @@ PORT   STATE SERVICE
             output: OutputConfig {
                 output_type: OutputType::Raw,
                 json_flag: None,
+                patterns: None,
             },
         };
 
@@ -80,6 +83,7 @@ example.com.		3600	IN	AAAA	2606:2800:220:1:248:1893:25c8:1946";
             tool_name: "dig".to_string(),
             target: "example.com".to_string(),
             port: None,
+            actual_command: "dig example.com".to_string(),
             status: TaskStatus::Completed {
                 duration: Duration::from_millis(50),
                 exit_code: 0,
@@ -89,10 +93,10 @@ example.com.		3600	IN	AAAA	2606:2800:220:1:248:1893:25c8:1946";
         };
 
         let findings = OutputParser::parse(&tool, &result, false).await.unwrap();
-        
+
         assert!(!findings.is_empty());
         assert_eq!(findings.len(), 1);
-        
+
         let finding = &findings[0];
         assert_eq!(finding.title, "dig execution");
         assert!(finding.description.contains("lines of output"));
@@ -112,6 +116,7 @@ example.com.		3600	IN	AAAA	2606:2800:220:1:248:1893:25c8:1946";
             output: OutputConfig {
                 output_type: OutputType::Raw,
                 json_flag: None,
+                patterns: None,
             },
         };
 
@@ -123,6 +128,7 @@ Usage: nmap [Scan Type(s)] [Options] {target specification}";
             tool_name: "nmap".to_string(),
             target: "invalid".to_string(),
             port: None,
+            actual_command: "nmap invalid".to_string(),
             status: TaskStatus::Failed {
                 error: "Command failed".to_string(),
             },
@@ -131,10 +137,10 @@ Usage: nmap [Scan Type(s)] [Options] {target specification}";
         };
 
         let findings = OutputParser::parse(&tool, &result, false).await.unwrap();
-        
+
         assert!(!findings.is_empty());
         assert_eq!(findings.len(), 1);
-        
+
         let finding = &findings[0];
         assert_eq!(finding.title, "nmap execution");
         assert!(finding.description.contains("errors/warnings"));

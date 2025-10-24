@@ -1,0 +1,189 @@
+name: "whois"
+description: "Domain and IP registration information lookup"
+command: "whois {{target}}"
+timeout: 60
+installer:
+  apt: "whois"
+  yum: "whois"
+  dnf: "whois"
+  brew: "whois"
+  pacman: "whois"
+  zypper: "whois"
+output:
+  type: "regex"
+  patterns:
+    - name: "domain_name"
+      regex: '^Domain Name:\s*([^\s]+)'
+      severity: "info"
+
+    - name: "registrar"
+      regex: '^Registrar:\s*(.+)'
+      severity: "info"
+
+    - name: "registrar_url"
+      regex: '^Registrar URL:\s*(.+)'
+      severity: "info"
+
+    - name: "creation_date"
+      regex: '^(?:Creation Date|Created|Registered):\s*(.+)'
+      severity: "info"
+
+    - name: "expiration_date"
+      regex: '^(?:Expir(?:ation|y) Date|Expires):\s*(.+)'
+      severity: "info"
+
+    - name: "updated_date"
+      regex: '^(?:Updated Date|Last Updated|Modified):\s*(.+)'
+      severity: "info"
+
+    - name: "name_server"
+      regex: '^(?:Name Server|nserver):\s*([^\s]+)'
+      severity: "info"
+
+    - name: "domain_status"
+      regex: '^(?:Domain )?Status:\s*(.+)'
+      severity: "info"
+
+    - name: "registrant_name"
+      regex: '^Registrant Name:\s*(.+)'
+      severity: "info"
+
+    - name: "registrant_org"
+      regex: '^Registrant Organi[sz]ation:\s*(.+)'
+      severity: "info"
+
+    - name: "registrant_country"
+      regex: '^Registrant Country:\s*(.+)'
+      severity: "info"
+
+    - name: "registrant_email"
+      regex: '^Registrant Email:\s*(.+)'
+      severity: "info"
+
+    - name: "admin_name"
+      regex: '^Admin Name:\s*(.+)'
+      severity: "info"
+
+    - name: "admin_email"
+      regex: '^Admin Email:\s*(.+)'
+      severity: "info"
+
+    - name: "tech_name"
+      regex: '^Tech Name:\s*(.+)'
+      severity: "info"
+
+    - name: "tech_email"
+      regex: '^Tech Email:\s*(.+)'
+      severity: "info"
+
+    - name: "dnssec"
+      regex: '^DNSSEC:\s*(.+)'
+      severity: "info"
+
+    - name: "whois_server"
+      regex: '^(?:Whois Server|WHOIS Server):\s*(.+)'
+      severity: "info"
+
+    - name: "netname"
+      regex: '^NetName:\s*(.+)'
+      severity: "info"
+
+    - name: "nettype"
+      regex: '^NetType:\s*(.+)'
+      severity: "info"
+
+    - name: "organization"
+      regex: '^(?:Organization|OrgName):\s*(.+)'
+      severity: "info"
+
+    - name: "org_id"
+      regex: '^OrgId:\s*(.+)'
+      severity: "info"
+
+    - name: "address"
+      regex: '^Address:\s*(.+)'
+      severity: "info"
+
+    - name: "city"
+      regex: '^City:\s*(.+)'
+      severity: "info"
+
+    - name: "state_province"
+      regex: '^StateProv:\s*(.+)'
+      severity: "info"
+
+    - name: "postal_code"
+      regex: '^PostalCode:\s*(.+)'
+      severity: "info"
+
+    - name: "country"
+      regex: '^Country:\s*(.+)'
+      severity: "info"
+
+    - name: "cidr"
+      regex: '^CIDR:\s*(\d+\.\d+\.\d+\.\d+/\d+)'
+      severity: "info"
+
+    - name: "netrange"
+      regex: '^NetRange:\s*(\d+\.\d+\.\d+\.\d+)\s*-\s*(\d+\.\d+\.\d+\.\d+)'
+      severity: "info"
+
+    - name: "origin_as"
+      regex: '^OriginAS:\s*(AS\d+)'
+      severity: "info"
+
+    - name: "route"
+      regex: '^route:\s*(\d+\.\d+\.\d+\.\d+/\d+)'
+      severity: "info"
+
+    - name: "abuse_contact"
+      regex: '^(?:OrgAbuseEmail|abuse-mailbox):\s*(.+)'
+      severity: "medium"
+
+    - name: "abuse_phone"
+      regex: '^OrgAbusePhone:\s*(.+)'
+      severity: "info"
+
+    - name: "tech_contact"
+      regex: '^(?:OrgTechEmail|tech-c):\s*(.+)'
+      severity: "info"
+
+    - name: "noc_contact"
+      regex: '^OrgNOCEmail:\s*(.+)'
+      severity: "info"
+
+    - name: "mnt_by"
+      regex: '^mnt-by:\s*(.+)'
+      severity: "info"
+
+    - name: "person"
+      regex: '^person:\s*(.+)'
+      severity: "info"
+
+    - name: "role"
+      regex: '^role:\s*(.+)'
+      severity: "info"
+
+    - name: "descr"
+      regex: '^descr:\s*(.+)'
+      severity: "info"
+
+    - name: "remarks"
+      regex: '^remarks:\s*(.+)'
+      severity: "info"
+
+    - name: "inetnum"
+      regex: '^inetnum:\s*(\d+\.\d+\.\d+\.\d+)\s*-\s*(\d+\.\d+\.\d+\.\d+)'
+      severity: "info"
+
+    - name: "inet6num"
+      regex: '^inet6num:\s*([0-9a-fA-F:]+/\d+)'
+      severity: "info"
+
+    - name: "no_match"
+      regex: '(?i)(No match for|NOT FOUND|No entries found|No Data Found)'
+      severity: "low"
+
+    - name: "rate_limit"
+      regex: '(?i)(rate limit|too many requests|quota exceeded)'
+      severity: "medium"

@@ -47,6 +47,17 @@ pub struct OutputConfig {
     pub output_type: OutputType,
     #[serde(default)]
     pub json_flag: Option<String>,
+    #[serde(default)]
+    pub patterns: Option<Vec<Pattern>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Pattern {
+    pub name: String,
+    pub regex: String,
+    pub severity: String,
+    #[serde(default)]
+    pub port_capture: Option<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -57,8 +68,6 @@ pub enum OutputType {
     Regex,
     Raw,
 }
-
-
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "lowercase")]
@@ -85,8 +94,6 @@ impl Severity {
 fn default_timeout() -> u64 {
     300
 }
-
-
 
 impl Tool {
     pub fn get_installer_command(&self, package_manager: &str) -> Option<String> {

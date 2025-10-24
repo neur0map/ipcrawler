@@ -115,7 +115,8 @@ Please provide:
 3. Any notable configurations or versions
 4. Risk assessment (if applicable)
 
-Be concise and factual. Do not invent information.".to_string(),
+Be concise and factual. Do not invent information."
+                .to_string(),
         );
         template.render(tool_name, output)
     }
@@ -138,7 +139,7 @@ impl PromptTemplate {
     pub fn render(&self, tool_name: &str, output: &str) -> String {
         // Use the system_prompt field
         let _prompt_check = format!("System: {}", self.system_prompt);
-        
+
         self.user_prompt_template
             .replace("{tool_name}", tool_name)
             .replace("{output}", output)
@@ -176,7 +177,7 @@ mod tests {
             "You are a helpful assistant.".to_string(),
             "Analyze {tool_name} output: {output}".to_string(),
         );
-        
+
         let rendered = template.render("test-tool", "test output");
         assert_eq!(rendered, "Analyze test-tool output: test output");
     }

@@ -1,0 +1,74 @@
+name: "traceroute"
+description: "Network path discovery and route enumeration tool"
+command: "traceroute -n -m 30 {{target}}"
+sudo_command: "traceroute -I -n -m 30 {{target}}"
+timeout: 120
+installer:
+  apt: "traceroute"
+  yum: "traceroute"
+  dnf: "traceroute"
+  brew: "traceroute"
+  pacman: "traceroute"
+  zypper: "traceroute"
+output:
+  type: "regex"
+  patterns:
+    - name: "hop_with_ip"
+      regex: '^\s*(\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.?\d*)\s*ms'
+      severity: "info"
+
+    - name: "hop_with_hostname"
+      regex: '^\s*(\d+)\s+([a-zA-Z0-9][-a-zA-Z0-9.]+)\s+\((\d+\.\d+\.\d+\.\d+)\)\s+(\d+\.?\d*)\s*ms'
+      severity: "info"
+
+    - name: "hop_timeout"
+      regex: '^\s*(\d+)\s+\*\s+\*\s+\*'
+      severity: "low"
+
+    - name: "hop_partial_response"
+      regex: '^\s*(\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.?\d*)\s*ms\s+\*'
+      severity: "info"
+
+    - name: "destination_reached"
+      regex: '^\s*(\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.?\d*)\s*ms\s+(\d+\.?\d*)\s*ms\s+(\d+\.?\d*)\s*ms'
+      severity: "info"
+
+    - name: "icmp_unreachable"
+      regex: '^\s*(\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+!([HNP])'
+      severity: "medium"
+
+    - name: "icmp_filtered"
+      regex: '^\s*(\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+!X'
+      severity: "medium"
+
+    - name: "asymmetric_route"
+      regex: '^\s*(\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+\((\d+\.\d+\.\d+\.\d+)\)'
+      severity: "info"
+
+    - name: "max_hops_exceeded"
+      regex: 'too many hops'
+      severity: "low"
+
+    - name: "network_unreachable"
+      regex: 'Network is unreachable'
+      severity: "high"
+
+    - name: "host_unreachable"
+      regex: 'Host is unreachable'
+      severity: "high"
+
+    - name: "permission_denied"
+      regex: 'Permission denied'
+      severity: "medium"
+
+    - name: "route_with_rtt_variation"
+      regex: '^\s*(\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.?\d*)\s*ms\s+(\d+\.?\d*)\s*ms\s+(\d+\.?\d*)\s*ms'
+      severity: "info"
+
+    - name: "private_ip_hop"
+      regex: '^\s*(\d+)\s+(10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+)\s+(\d+\.?\d*)\s*ms'
+      severity: "info"
+
+    - name: "traceroute_complete"
+      regex: 'traceroute to ([^\s,]+)'
+      severity: "info"

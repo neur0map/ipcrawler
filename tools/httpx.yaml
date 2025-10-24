@@ -1,0 +1,354 @@
+name: "httpx"
+description: "Advanced HTTP toolkit for comprehensive web reconnaissance and probing"
+command: "httpx -u {{target}} -json -status-code -title -content-length -server -tech-detect -ip -cname -location -response-time -websocket -favicon -hash sha256 -cdn -method -tls-grab -probe -no-fallback -threads 50 -timeout 10 -retries 3"
+sudo_command: "httpx -u {{target}} -json -status-code -title -content-length -server -tech-detect -ip -cname -location -response-time -websocket -favicon -hash sha256 -cdn -method -tls-grab -probe -no-fallback -threads 50 -timeout 10 -retries 3 -system-chrome -screenshot -screenshot-timeout 15"
+installer:
+  go: "go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+  github: "curl -sL https://github.com/projectdiscovery/httpx/releases/latest/download/httpx_$(uname -s)_$(uname -m).zip -o httpx.zip && unzip httpx.zip && sudo mv httpx /usr/local/bin/ && rm httpx.zip"
+  snap: "snap install httpx"
+  aur: "yay -S --noconfirm httpx-bin || paru -S --noconfirm httpx-bin"
+timeout: 300
+output:
+  type: "regex"
+  patterns:
+    # Basic HTTP Information
+    - name: "http_url"
+      regex: '"url":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "status_code"
+      regex: '"status_code":\s*(\d+)'
+      severity: "info"
+      port_capture: 1
+    
+    - name: "title"
+      regex: '"title":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "content_length"
+      regex: '"content_length":\s*(\d+)'
+      severity: "info"
+    
+    - name: "content_type"
+      regex: '"content_type":\s*"([^"]+)"'
+      severity: "info"
+    
+    # Server and Technology Information
+    - name: "web_server"
+      regex: '"webserver":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "technology"
+      regex: '"technology":\s*\[([^\]]+)\]'
+      severity: "info"
+    
+    - name: "tech_detect"
+      regex: '"tech":\s*"([^"]+)"'
+      severity: "info"
+    
+    # Network Information
+    - name: "host_ip"
+      regex: '"host":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "resolved_ip"
+      regex: '"a":\s*\[([^\]]+)\]'
+      severity: "info"
+    
+    - name: "cname"
+      regex: '"cname":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "cdn"
+      regex: '"cdn":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "asn"
+      regex: '"asn":\s*"([^"]+)"'
+      severity: "info"
+    
+    # Response Information
+    - name: "response_time"
+      regex: '"time":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "location_header"
+      regex: '"location":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "request_method"
+      regex: '"method":\s*"([^"]+)"'
+      severity: "info"
+    
+    # Security and Certificate Information
+    - name: "tls_certificate"
+      regex: '"tls_subject":\s*"([^"]+)"'
+      severity: "medium"
+    
+    - name: "tls_issuer"
+      regex: '"tls_issuer":\s*"([^"]+)"'
+      severity: "medium"
+    
+    - name: "tls_version"
+      regex: '"tls_version":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "certificate_valid"
+      regex: '"cert_valid":\s*(true|false)'
+      severity: "medium"
+    
+    # WebSocket Support
+    - name: "websocket"
+      regex: '"websocket":\s*(true|false)'
+      severity: "info"
+    
+    # Hash Information
+    - name: "favicon_hash"
+      regex: '"favicon":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "body_hash"
+      regex: '"hash":\s*"([^"]+)"'
+      severity: "info"
+    
+    # HTTP2 Support
+    - name: "http2"
+      regex: '"http2":\s*(true|false)'
+      severity: "info"
+    
+    # Pipeline Support
+    - name: "pipeline"
+      regex: '"pipeline":\s*(true|false)'
+      severity: "info"
+    
+    # Virtual Host Support
+    - name: "vhost"
+      regex: '"vhost":\s*(true|false)'
+      severity: "info"
+    
+    # Error and Status Information
+    - name: "error_message"
+      regex: '"error":\s*"([^"]+)"'
+      severity: "medium"
+    
+    - name: "failed_probe"
+      regex: '"failed":\s*"([^"]+)"'
+      severity: "medium"
+    
+    # Path Information
+    - name: "path"
+      regex: '"path":\s*"([^"]+)"'
+      severity: "info"
+    
+    - name: "final_url"
+      regex: '"final_url":\s*"([^"]+)"'
+      severity: "info"
+    
+    # Scheme Information
+    - name: "scheme"
+      regex: '"scheme":\s*"([^"]+)"'
+      severity: "info"
+    
+    # Port Information (when custom ports are used)
+    - name: "port"
+      regex: '"port":\s*(\d+)'
+      severity: "info"
+      port_capture: 1
+    
+    # JARM Hash (if available)
+    - name: "jarm_hash"
+      regex: '"jarm":\s*"([^"]+)"'
+      severity: "info"
+    
+    # CSP Header Information
+    - name: "csp_header"
+      regex: '"csp":\s*"([^"]+)"'
+      severity: "medium"
+    
+    # Word and Line Count
+    - name: "word_count"
+      regex: '"words":\s*(\d+)'
+      severity: "info"
+    
+    - name: "line_count"
+      regex: '"lines":\s*(\d+)'
+      severity: "info"
+    
+    # Redirect Chain
+    - name: "redirect_chain"
+      regex: '"chain":\s*\[([^\]]+)\]'
+      severity: "info"
+    
+    # High Severity Findings
+    - name: "exposed_admin_panel"
+      regex: '"title":\s*"(?i)(admin|administrator|dashboard|login|wp-admin|cpanel|plesk)"'
+      severity: "high"
+    
+    - name: "exposed_config_file"
+      regex: '"url":\s*".*\.(?i)(config|conf|cfg|ini|env|yaml|yml|json|xml)"'
+      severity: "high"
+    
+    - name: "backup_file_exposed"
+      regex: '"url":\s*".*\.(?i)(bak|backup|old|orig|save|tmp)"'
+      severity: "high"
+    
+    - name: "database_exposed"
+      regex: '"url":\s*".*\.(?i)(sql|db|mdb|sqlite)"'
+      severity: "high"
+    
+    - name: "error_page_disclosure"
+      regex: '"title":\s*"(?i)(error|exception|stack trace|fatal|warning)"'
+      severity: "medium"
+    
+    - name: "default_credential_page"
+      regex: '"title":\s*"(?i)(sign in|log in|login page|authentication)"'
+      severity: "medium"
+    
+    - name: "development_framework_detected"
+      regex: '"technology":\s*"(?i)(django|rails|laravel|spring|express|flask)"'
+      severity: "low"
+    
+    - name: "cms_detected"
+      regex: '"technology":\s*"(?i)(wordpress|drupal|joomla|magento|shopify)"'
+      severity: "low"
+    
+    - name: "analytics_service"
+      regex: '"technology":\s*"(?i)(google analytics|mixpanel|segment|hotjar)"'
+      severity: "info"
+    
+    - name: "cloud_provider"
+      regex: '"cdn":\s*"(?i)(aws|azure|google cloud|cloudflare|fastly)"'
+      severity: "info"
+    
+    - name: "security_headers_missing"
+      regex: '"csp":\s*""'
+      severity: "medium"
+    
+    - name: "old_tls_version"
+      regex: '"tls_version":\s*"(?i)(ssl|tls1\.0|tls1\.1)"'
+      severity: "high"
+    
+    - name: "self_signed_certificate"
+      regex: '"cert_valid":\s*false'
+      severity: "medium"
+    
+    - name: "large_response_size"
+      regex: '"content_length":\s*(\d+).*"status_code":\s*200'
+      severity: "low"
+    
+    - name: "fast_response_time"
+      regex: '"time":\s*"(\d+)ms"'
+      severity: "info"
+    
+    - name: "slow_response_time"
+      regex: '"time":\s*"(\d+)s"'
+      severity: "medium"
+    
+    # Special Patterns for Common Web Technologies
+    - name: "api_endpoint"
+      regex: '"url":\s*".*/(?i)(api|v1|v2|rest|graphql)"'
+      severity: "info"
+    
+    - name: "web_application_firewall"
+      regex: '"webserver":\s*"(?i)(cloudflare|akamai|imperva|f5|barracuda)"'
+      severity: "info"
+    
+    - name: "load_balancer"
+      regex: '"webserver":\s*"(?i)(nginx|apache|lighthttpd|caddy|envoy)"'
+      severity: "info"
+    
+    - name: "programming_language"
+      regex: '"technology":\s*"(?i)(php|python|ruby|java|node|go|rust)"'
+      severity: "info"
+    
+    - name: "database_backend"
+      regex: '"technology":\s*"(?i)(mysql|postgresql|mongodb|redis|elasticsearch)"'
+      severity: "info"
+    
+    - name: "javascript_framework"
+      regex: '"technology":\s*"(?i)(react|vue|angular|jquery|bootstrap)"'
+      severity: "info"
+    
+    # Status Code Specific Patterns
+    - name: "successful_response"
+      regex: '"status_code":\s*2\d\d'
+      severity: "info"
+    
+    - name: "redirect_response"
+      regex: '"status_code":\s*3\d\d'
+      severity: "info"
+    
+    - name: "client_error"
+      regex: '"status_code":\s*4\d\d'
+      severity: "medium"
+    
+    - name: "server_error"
+      regex: '"status_code":\s*5\d\d'
+      severity: "high"
+    
+    - name: "authentication_required"
+      regex: '"status_code":\s*401'
+      severity: "medium"
+    
+    - name: "forbidden_access"
+      regex: '"status_code":\s*403'
+      severity: "medium"
+    
+    - name: "not_found"
+      regex: '"status_code":\s*404'
+      severity: "low"
+    
+    - name: "server_error_internal"
+      regex: '"status_code":\s*500'
+      severity: "high"
+    
+    - name: "service_unavailable"
+      regex: '"status_code":\s*503'
+      severity: "high"
+    
+    # Content Type Patterns
+    - name: "json_response"
+      regex: '"content_type":\s*".*application/json"'
+      severity: "info"
+    
+    - name: "xml_response"
+      regex: '"content_type":\s*".*application/xml"'
+      severity: "info"
+    
+    - name: "html_response"
+      regex: '"content_type":\s*".*text/html"'
+      severity: "info"
+    
+    - name: "text_response"
+      regex: '"content_type":\s*".*text/plain"'
+      severity: "info"
+    
+    - name: "image_response"
+      regex: '"content_type":\s*".*image/"'
+      severity: "info"
+    
+    - name: "javascript_response"
+      regex: '"content_type":\s*".*javascript"'
+      severity: "info"
+    
+    - name: "css_response"
+      regex: '"content_type":\s*".*css"'
+      severity: "info"
+    
+    # General HTTP Information
+    - name: "http_service_detected"
+      regex: '"url":\s*"https?://[^"]+"'
+      severity: "info"
+    
+    - name: "https_service"
+      regex: '"scheme":\s*"https"'
+      severity: "info"
+    
+    - name: "http_service"
+      regex: '"scheme":\s*"http"'
+      severity: "low"
+    
+    - name: "non_standard_port"
+      regex: '"port":\s*(8080|8443|3000|5000|8000|9000|8888|9999)'
+      severity: "info"
+      port_capture: 1
