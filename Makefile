@@ -66,27 +66,27 @@ help: ## Display this help message
 build: ## Build optimized release binary and create system symlink
 	@printf "$(BLUE)Building $(PROJECT_NAME) for $(OS)...$(NC)\n"
 	@cargo build $(CARGO_BUILD_FLAGS)
-	@printf "$(GREEN)✓ Build complete: $(BINARY_PATH)$(NC)\n"
+	@printf "$(GREEN)Build complete: $(BINARY_PATH)$(NC)\n"
 	@printf "$(BLUE)Creating system symlink...$(NC)\n"
 	@if [ -w "$(INSTALL_DIR)" ]; then \
 		$(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME); \
-		printf "$(GREEN)✓ Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)\n"; \
+		printf "$(GREEN)Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)\n"; \
 	else \
 		printf "$(YELLOW)[!] Need sudo privileges to create system symlink$(NC)\n"; \
 		if sudo $(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME) 2>/dev/null; then \
-			printf "$(GREEN)✓ Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)\n"; \
+			printf "$(GREEN)Symlink created: $(INSTALL_DIR)/$(BINARY_NAME) -> $(BINARY_PATH)$(NC)\n"; \
 		else \
 			printf "$(YELLOW)[!] Could not create system symlink. You can manually create it with:$(NC)\n"; \
 			printf "$(YELLOW)  sudo $(SYMLINK_CMD) $(BINARY_PATH) $(INSTALL_DIR)/$(BINARY_NAME)$(NC)\n"; \
 			printf "$(YELLOW)  Or run the binary directly: $(BINARY_PATH)$(NC)\n"; \
 		fi; \
 	fi
-	@printf "$(GREEN)✓ You can now run: $(BINARY_NAME)$(NC)\n"
+	@printf "$(GREEN)You can now run: $(BINARY_NAME)$(NC)\n"
 
 build-dev: ## Build development binary (debug mode)
 	@echo "$(BLUE)Building $(PROJECT_NAME) (debug mode)...$(NC)"
 	@cargo build
-	@echo "$(GREEN)✓ Debug build complete: target/debug/$(BINARY_NAME)$(NC)"
+	@echo "$(GREEN)Debug build complete: target/debug/$(BINARY_NAME)$(NC)"
 
 rebuild: clean build ## Clean and rebuild from scratch
 
@@ -95,35 +95,35 @@ rebuild: clean build ## Clean and rebuild from scratch
 check: fmt-check clippy cargo-check test ## Run all quality checks (fmt, clippy, cargo check, tests)
 	@echo ""
 	@echo "$(GREEN)═══════════════════════════════════════════════$(NC)"
-	@echo "$(GREEN)✓ All quality checks passed!$(NC)"
+	@echo "$(GREEN)All quality checks passed!$(NC)"
 	@echo "$(GREEN)═══════════════════════════════════════════════$(NC)"
 
 fmt: ## Format code with rustfmt
 	@echo "$(BLUE)Formatting code...$(NC)"
 	@cargo fmt
-	@echo "$(GREEN)✓ Code formatted$(NC)"
+	@echo "$(GREEN)Code formatted$(NC)"
 
 fmt-check: ## Check code formatting without modifying files
 	@echo "$(BLUE)Checking code formatting...$(NC)"
-	@cargo fmt -- --check || (echo "$(RED)✗ Code formatting issues found. Run 'make fmt' to fix.$(NC)" && exit 1)
-	@echo "$(GREEN)✓ Code formatting is correct$(NC)"
+	@cargo fmt -- --check || (echo "$(RED)Code formatting issues found. Run 'make fmt' to fix.$(NC)" && exit 1)
+	@echo "$(GREEN)Code formatting is correct$(NC)"
 
 clippy: ## Run clippy linter
 	@echo "$(BLUE)Running clippy linter...$(NC)"
 	@cargo clippy --all-targets $(CARGO_CLIPPY_FLAGS)
-	@echo "$(GREEN)✓ Clippy checks passed$(NC)"
+	@echo "$(GREEN)Clippy checks passed$(NC)"
 
 cargo-check: ## Run cargo check
 	@echo "$(BLUE)Running cargo check...$(NC)"
 	@cargo check --all-targets
-	@echo "$(GREEN)✓ Cargo check passed$(NC)"
+	@echo "$(GREEN)Cargo check passed$(NC)"
 
 ##@ Testing
 
 test: ## Run all tests
 	@echo "$(BLUE)Running tests...$(NC)"
 	@cargo test $(CARGO_TEST_FLAGS)
-	@echo "$(GREEN)✓ All tests passed$(NC)"
+	@echo "$(GREEN)All tests passed$(NC)"
 
 test-verbose: ## Run tests with verbose output
 	@echo "$(BLUE)Running tests (verbose)...$(NC)"
@@ -136,13 +136,13 @@ bench: ## Run benchmarks
 ##@ Installation
 
 install: build ## Build and install to system (requires sudo)
-	@echo "$(GREEN)✓ $(BINARY_NAME) installed to $(INSTALL_DIR)$(NC)"
+	@echo "$(GREEN)$(BINARY_NAME) installed to $(INSTALL_DIR)$(NC)"
 	@echo "$(YELLOW)Run '$(BINARY_NAME) --help' to get started$(NC)"
 
 uninstall: ## Remove system symlink
 	@echo "$(BLUE)Removing system symlink...$(NC)"
 	@sudo $(REMOVE_CMD) $(INSTALL_DIR)/$(BINARY_NAME)
-	@echo "$(GREEN)✓ $(BINARY_NAME) uninstalled$(NC)"
+	@echo "$(GREEN)$(BINARY_NAME) uninstalled$(NC)"
 
 ##@ Development
 
@@ -162,12 +162,12 @@ watch: ## Watch for changes and rebuild (requires cargo-watch)
 clean: ## Remove build artifacts
 	@echo "$(BLUE)Cleaning build artifacts...$(NC)"
 	@cargo clean
-	@echo "$(GREEN)✓ Build artifacts cleaned$(NC)"
+	@echo "$(GREEN)Build artifacts cleaned$(NC)"
 
 update: ## Update dependencies
 	@echo "$(BLUE)Updating dependencies...$(NC)"
 	@cargo update
-	@echo "$(GREEN)✓ Dependencies updated$(NC)"
+	@echo "$(GREEN)Dependencies updated$(NC)"
 
 outdated: ## Check for outdated dependencies (requires cargo-outdated)
 	@command -v cargo-outdated >/dev/null 2>&1 || (echo "$(RED)cargo-outdated not installed. Run: cargo install cargo-outdated$(NC)" && exit 1)
@@ -199,35 +199,35 @@ doctor: ## Run comprehensive system diagnostics
 	@echo ""
 	@echo "$(PURPLE)Project Status:$(NC)"
 	@if [ -f "$(BINARY_PATH)" ]; then \
-		echo "  Release binary: $(GREEN)✓ exists$(NC) ($(BINARY_PATH))"; \
+		echo "  Release binary: $(GREEN)exists$(NC) ($(BINARY_PATH))"; \
 		ls -lh $(BINARY_PATH) | awk '{print "  Size: " $$5}'; \
 	else \
 		echo "  Release binary: $(YELLOW)not built$(NC)"; \
 	fi
 	@if [ -L "$(INSTALL_DIR)/$(BINARY_NAME)" ]; then \
-		echo "  System symlink: $(GREEN)✓ installed$(NC) ($(INSTALL_DIR)/$(BINARY_NAME))"; \
+		echo "  System symlink: $(GREEN)installed$(NC) ($(INSTALL_DIR)/$(BINARY_NAME))"; \
 		ls -l $(INSTALL_DIR)/$(BINARY_NAME) | awk '{print "  Points to: " $$NF}'; \
 	else \
 		echo "  System symlink: $(YELLOW)not installed$(NC)"; \
 	fi
 	@echo ""
 	@echo "$(PURPLE)Security Tools:$(NC)"
-	@command -v nmap >/dev/null 2>&1 && echo "  nmap: $(GREEN)✓$(NC)" || echo "  nmap: $(RED)✗$(NC)"
-	@command -v nikto >/dev/null 2>&1 && echo "  nikto: $(GREEN)✓$(NC)" || echo "  nikto: $(RED)✗$(NC)"
-	@command -v gobuster >/dev/null 2>&1 && echo "  gobuster: $(GREEN)✓$(NC)" || echo "  gobuster: $(RED)✗$(NC)"
-	@command -v sqlmap >/dev/null 2>&1 && echo "  sqlmap: $(GREEN)✓$(NC)" || echo "  sqlmap: $(RED)✗$(NC)"
-	@command -v masscan >/dev/null 2>&1 && echo "  masscan: $(GREEN)✓$(NC)" || echo "  masscan: $(RED)✗$(NC)"
+	@command -v nmap >/dev/null 2>&1 && echo "  nmap: $(GREEN)OK$(NC)" || echo "  nmap: $(RED)MISSING$(NC)"
+	@command -v nikto >/dev/null 2>&1 && echo "  nikto: $(GREEN)OK$(NC)" || echo "  nikto: $(RED)MISSING$(NC)"
+	@command -v gobuster >/dev/null 2>&1 && echo "  gobuster: $(GREEN)OK$(NC)" || echo "  gobuster: $(RED)MISSING$(NC)"
+	@command -v sqlmap >/dev/null 2>&1 && echo "  sqlmap: $(GREEN)OK$(NC)" || echo "  sqlmap: $(RED)MISSING$(NC)"
+	@command -v masscan >/dev/null 2>&1 && echo "  masscan: $(GREEN)OK$(NC)" || echo "  masscan: $(RED)MISSING$(NC)"
 	@echo ""
 	@echo "$(PURPLE)Wordlists:$(NC)"
 	@if [ -d "/usr/share/seclists" ]; then \
-		echo "  SecLists: $(GREEN)✓ installed$(NC) (/usr/share/seclists)"; \
+		echo "  SecLists: $(GREEN)installed$(NC) (/usr/share/seclists)"; \
 	else \
 		echo "  SecLists: $(YELLOW)not found$(NC)"; \
 	fi
 	@if [ -f "config/wordlists.yaml" ]; then \
-		echo "  Wordlist config: $(GREEN)✓ exists$(NC)"; \
+		echo "  Wordlist config: $(GREEN)exists$(NC)"; \
 	else \
-		echo "  Wordlist config: $(RED)✗ missing$(NC)"; \
+		echo "  Wordlist config: $(RED)missing$(NC)"; \
 	fi
 	@echo ""
 
@@ -257,19 +257,19 @@ size: ## Show binary size
 all: check build ## Run all checks and build release binary
 	@echo ""
 	@echo "$(GREEN)═══════════════════════════════════════════════$(NC)"
-	@echo "$(GREEN)✓ All tasks completed successfully!$(NC)"
+	@echo "$(GREEN)All tasks completed successfully!$(NC)"
 	@echo "$(GREEN)═══════════════════════════════════════════════$(NC)"
 
 dev: fmt clippy test ## Run development workflow (format, lint, test)
-	@echo "$(GREEN)✓ Development checks complete$(NC)"
+	@echo "$(GREEN)Development checks complete$(NC)"
 
 ci: fmt-check clippy cargo-check test ## Run CI/CD workflow (all checks without formatting)
-	@echo "$(GREEN)✓ CI checks complete$(NC)"
+	@echo "$(GREEN)CI checks complete$(NC)"
 
 release: clean ci build ## Full release workflow (clean, check, build)
 	@echo ""
 	@echo "$(GREEN)═══════════════════════════════════════════════$(NC)"
-	@echo "$(GREEN)✓ Release build complete!$(NC)"
+	@echo "$(GREEN)Release build complete!$(NC)"
 	@echo "$(GREEN)Binary: $(BINARY_PATH)$(NC)"
 	@echo "$(GREEN)═══════════════════════════════════════════════$(NC)"
 
@@ -282,7 +282,7 @@ docs: ## Generate and open documentation
 docs-build: ## Generate documentation without opening
 	@echo "$(BLUE)Generating documentation...$(NC)"
 	@cargo doc --no-deps
-	@echo "$(GREEN)✓ Documentation generated$(NC)"
+	@echo "$(GREEN)Documentation generated$(NC)"
 
 readme: ## Display README
 	@if [ -f "README.md" ]; then \

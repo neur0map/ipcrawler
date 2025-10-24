@@ -11,6 +11,33 @@ if [ -z "$TARGET" ]; then
     exit 1
 fi
 
+# Check if this is a web port - if not, exit early with info finding
+WEB_PORTS="80,443,8080,8443,8000,8888,3000,5000,9000,9090"
+if [[ -n "$PORT" ]] && [[ "$PORT" != "none" ]]; then
+    if ! echo "$WEB_PORTS" | grep -q "\b$PORT\b"; then
+        # Not a web port, create info finding and exit
+        cat <<EOF
+{
+  "findings": [
+    {
+      "severity": "info",
+      "title": "Non-web port skipped",
+      "description": "Port $PORT is not a common web port, skipping HTTP enumeration",
+      "port": $PORT
+    }
+  ],
+  "metadata": {
+    "scan_type": "http_enumeration",
+    "target": "$TARGET",
+    "url": "http://$TARGET:$PORT",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+}
+EOF
+        exit 0
+    fi
+fi
+
 # Build target URL
 if [ -n "$PORT" ] && [ "$PORT" != "none" ]; then
     if [ "$PORT" = "443" ] || [ "$PORT" = "8443" ]; then

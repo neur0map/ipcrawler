@@ -31,6 +31,8 @@ pub struct TerminalUI {
     completed_count: usize,
     scroll_offset: u16,
     logs_scroll_offset: u16,
+    // Track tool-level progress
+    tool_progress: HashMap<String, ToolProgress>,
 }
 
 #[derive(Clone)]
@@ -40,6 +42,15 @@ struct TaskInfo {
     port: Option<u16>,
     status: String,
     duration: Option<Duration>,
+}
+
+#[derive(Clone, Default)]
+struct ToolProgress {
+    total_tasks: usize,
+    completed_tasks: usize,
+    running_tasks: usize,
+    failed_tasks: usize,
+    targets: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -72,6 +83,7 @@ impl TerminalUI {
             completed_count: 0,
             scroll_offset: 0,
             logs_scroll_offset: 0,
+            tool_progress: HashMap::new(),
         }
     }
 
@@ -142,10 +154,18 @@ impl TerminalUI {
                 target,
                 port,
             } => {
+                // Update tool progress
+                let progress = self.tool_progress.entry(tool_name.clone()).or_default();
+                progress.total_tasks += 1;
+                progress.running_tasks += 1;
+                if !progress.targets.contains(&target) {
+                    progress.targets.push(target.clone());
+                }
+
                 self.tasks.insert(
                     task_id.0.clone(),
                     TaskInfo {
-                        tool_name,
+                        tool_name: tool_name.clone(),
                         target,
                         port,
                         status: "Running".to_string(),
@@ -160,6 +180,14 @@ impl TerminalUI {
                 ..
             } => {
                 let task_info = if let Some(task) = self.tasks.get_mut(&task_id.0) {
+                    // Update tool progress
+                    let progress = self
+                        .tool_progress
+                        .entry(task.tool_name.clone())
+                        .or_default();
+                    progress.running_tasks = progress.running_tasks.saturating_sub(1);
+                    progress.completed_tasks += 1;
+
                     task.status = "Completed".to_string();
                     Some(task.clone())
                 } else {
@@ -196,6 +224,14 @@ impl TerminalUI {
                 stderr,
             } => {
                 let task_info = if let Some(task) = self.tasks.get_mut(&task_id.0) {
+                    // Update tool progress
+                    let progress = self
+                        .tool_progress
+                        .entry(task.tool_name.clone())
+                        .or_default();
+                    progress.running_tasks = progress.running_tasks.saturating_sub(1);
+                    progress.failed_tasks += 1;
+
                     task.status = format!("Failed: {}", error);
                     Some(task.clone())
                 } else {
@@ -311,7 +347,7 @@ impl TerminalUI {
     }
 
     fn draw_task_table(&self, f: &mut Frame, area: Rect) {
-        let header_cells = ["Status", "Tool", "Target", "Port", "Duration"]
+        let header_cells = ["Status", "Tool", "Targets", "Progress", "Duration"]
             .iter()
             .map(|h| {
                 Cell::from(*h).style(
@@ -323,44 +359,48 @@ impl TerminalUI {
 
         let header = Row::new(header_cells).height(1).bottom_margin(1);
 
-        let mut task_list: Vec<_> = self.tasks.values().collect();
-        task_list.sort_by(|a, b| {
-            let a_order = Self::status_order(&a.status);
-            let b_order = Self::status_order(&b.status);
-            a_order.cmp(&b_order)
-        });
+        // Group tasks by tool name
+        let mut tool_list: Vec<_> = self.tool_progress.iter().collect();
+        tool_list.sort_by(|a, b| a.0.cmp(b.0));
 
-        let rows = task_list.iter().map(|task| {
-            let status_icon = if task.status.contains("Completed") {
-                "✓"
-            } else if task.status.contains("Running") {
-                "►"
-            } else if task.status.contains("Failed") {
-                "✗"
+        let rows = tool_list.iter().map(|(tool_name, progress)| {
+            // Determine overall status based on task counts
+            let (status_icon, status_style) = if progress.running_tasks > 0 {
+                (">", Style::default().fg(Color::Cyan))
+            } else if progress.failed_tasks > 0 && progress.completed_tasks == 0 {
+                ("X", Style::default().fg(Color::Red))
+            } else if progress.completed_tasks > 0 {
+                ("OK", Style::default().fg(Color::Green))
             } else {
-                "⋯"
+                ("...", Style::default().fg(Color::Gray))
             };
 
-            let status_style = if task.status.contains("Completed") {
-                Style::default().fg(Color::Green)
-            } else if task.status.contains("Running") {
-                Style::default().fg(Color::Cyan)
-            } else if task.status.contains("Failed") {
-                Style::default().fg(Color::Red)
+            // Show targets as comma-separated list (truncated if too long)
+            let targets_str = if progress.targets.len() > 2 {
+                format!(
+                    "{}, ... ({} total)",
+                    progress.targets[0],
+                    progress.targets.len()
+                )
             } else {
-                Style::default().fg(Color::Gray)
+                progress.targets.join(", ")
             };
 
-            let port_str = task.port.map_or("-".to_string(), |p| p.to_string());
-            let duration_str = task
-                .duration
-                .map_or("-".to_string(), |d| format!("{:.1}s", d.as_secs_f64()));
+            // Show progress as completed/total
+            let progress_str = format!("{}/{}", progress.completed_tasks, progress.total_tasks);
+
+            // Calculate average duration or show running indicator
+            let duration_str = if progress.running_tasks > 0 {
+                "Running".to_string()
+            } else {
+                "Completed".to_string()
+            };
 
             let cells = vec![
                 Cell::from(status_icon).style(status_style),
-                Cell::from(task.tool_name.clone()),
-                Cell::from(task.target.clone()),
-                Cell::from(port_str),
+                Cell::from(tool_name.as_str()),
+                Cell::from(targets_str),
+                Cell::from(progress_str),
                 Cell::from(duration_str),
             ];
 
@@ -369,10 +409,10 @@ impl TerminalUI {
 
         let widths = [
             Constraint::Length(8),
-            Constraint::Length(12),
             Constraint::Length(15),
-            Constraint::Length(6),
+            Constraint::Length(20),
             Constraint::Length(10),
+            Constraint::Length(12),
         ];
 
         let table = Table::new(rows, widths).header(header).block(

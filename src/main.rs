@@ -17,6 +17,7 @@ use executor::runner::TaskRunner;
 use llm::{LLMClient, LLMConfig, LLMProvider, PromptTemplate, SecurityAnalysisPrompt};
 use output::parser::OutputParser;
 use output::reporter::ReportGenerator;
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -83,7 +84,7 @@ async fn main() -> Result<()> {
 
         if matches!(provider, LLMProvider::OpenAI | LLMProvider::Claude) && api_key.is_none() {
             anyhow::bail!(
-                "API key required for {}. Set --llm-api-key or configure in .env file:\n  - For OpenAI: OPENAI_API_KEY=your_key\n  - For Claude: ANTHROPIC_API_KEY=your_key", 
+                "API key required for {}. Set --llm-api-key or configure in .env file:\n  - For OpenAI: OPENAI_API_KEY=your_key\n  - For Claude: ANTHROPIC_API_KEY=your_key",
                 cli.llm_provider
             );
         }
@@ -127,7 +128,7 @@ async fn main() -> Result<()> {
             eprintln!("Continuing without LLM analysis...");
             None
         } else {
-            println!("✓ LLM connection established");
+            println!("OK LLM connection established");
 
             // Test template functionality
             let template = PromptTemplate::new(
@@ -140,21 +141,21 @@ async fn main() -> Result<()> {
                 .await
                 .is_ok()
             {
-                println!("✓ LLM template analysis working");
+                println!("OK LLM template analysis working");
             }
 
             // Test build_security_prompt method
             let test_prompt = client.build_security_prompt("nmap", "22/tcp open ssh");
-            println!("✓ Security prompt generated: {} chars", test_prompt.len());
+            println!("OK Security prompt generated: {} chars", test_prompt.len());
 
             // Test SecurityAnalysisPrompt
             let system_prompt = SecurityAnalysisPrompt::system_prompt();
-            println!("✓ System prompt available: {} chars", system_prompt.len());
+            println!("OK System prompt available: {} chars", system_prompt.len());
 
             // Test get_system_prompt method
             let template_system_prompt = client.get_security_system_prompt();
             println!(
-                "✓ Template system prompt: {} chars",
+                "OK Template system prompt: {} chars",
                 template_system_prompt.len()
             );
 
@@ -222,12 +223,12 @@ async fn main() -> Result<()> {
             );
             for status in &verification_report.tools {
                 if !status.installed {
-                    eprintln!("  ✗ {} (binary: {})", status.name, status.binary);
+                    eprintln!("  X {} (binary: {})", status.name, status.binary);
                 }
             }
             eprintln!("\nThe scan will proceed but these tools will be skipped.");
         } else {
-            println!("✓ All tools are now installed and available!");
+            println!("OK All tools are now installed and available!");
         }
     }
 
@@ -345,10 +346,14 @@ async fn main() -> Result<()> {
                 // Test parse_sync method
                 match OutputParser::parse_sync(tool, &sample_result) {
                     Ok(findings) => {
-                        println!("✓ {} would generate {} findings", tool.name, findings.len());
+                        println!(
+                            "OK {} would generate {} findings",
+                            tool.name,
+                            findings.len()
+                        );
                     }
                     Err(e) => {
-                        println!("✗ Error parsing {}: {}", tool.name, e);
+                        println!("ERROR: Error parsing {}: {}", tool.name, e);
                     }
                 }
 
@@ -382,6 +387,7 @@ async fn main() -> Result<()> {
     println!("\nProcessing results...");
 
     let mut all_findings = Vec::new();
+    let mut tool_findings_count: HashMap<String, usize> = HashMap::new();
 
     for result in &results {
         if let Some(tool) = registry.get_tool(&result.tool_name) {
@@ -390,11 +396,11 @@ async fn main() -> Result<()> {
                 // Use the original parse method in verbose mode
                 match OutputParser::parse(tool, result, cli.use_llm).await {
                     Ok(f) => {
-                        println!(
-                            "✓ Parsed {} output with {} findings",
-                            result.tool_name,
-                            f.len()
-                        );
+                        // Track findings by tool for summary
+                        let count = tool_findings_count
+                            .entry(result.tool_name.clone())
+                            .or_insert(0);
+                        *count += f.len();
                         f
                     }
                     Err(e) => {
@@ -405,7 +411,14 @@ async fn main() -> Result<()> {
             } else {
                 // Use the enhanced parse_with_llm method in normal mode
                 match OutputParser::parse_with_llm(tool, result, llm_client.as_ref()).await {
-                    Ok(f) => f,
+                    Ok(f) => {
+                        // Track findings by tool for summary
+                        let count = tool_findings_count
+                            .entry(result.tool_name.clone())
+                            .or_insert(0);
+                        *count += f.len();
+                        f
+                    }
                     Err(e) => {
                         eprintln!("Error parsing output for {}: {}", result.tool_name, e);
                         Vec::new()
@@ -415,6 +428,11 @@ async fn main() -> Result<()> {
 
             all_findings.extend(findings);
         }
+    }
+
+    // Print tool-level summary instead of individual task completions
+    for (tool_name, count) in &tool_findings_count {
+        println!("OK Parsed {} JSON findings from {}", count, tool_name);
     }
 
     all_findings = OutputParser::deduplicate(all_findings);

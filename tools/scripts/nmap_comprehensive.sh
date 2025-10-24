@@ -18,10 +18,11 @@ findings_json="[]"
 QUICK_SCAN=$(mktemp)
 SERVICE_SCAN=$(mktemp)
 SCRIPT_SCAN=$(mktemp)
+SERVICE_OUTPUT=$(mktemp)
 
 # Cleanup function
 cleanup() {
-    rm -f "$QUICK_SCAN" "$SERVICE_SCAN" "$SCRIPT_SCAN"
+    rm -f "$QUICK_SCAN" "$SERVICE_SCAN" "$SCRIPT_SCAN" "$SERVICE_OUTPUT"
 }
 trap cleanup EXIT
 
@@ -74,7 +75,12 @@ echo "" >&2
 # Phase 2: Service and version detection
 if [ -n "$open_ports" ]; then
     echo "=== Phase 2: Service Detection ===" >&2
-    if timeout 600 nmap -sV -sC -T4 "$TARGET" -p "$open_ports" -oX "$SERVICE_SCAN" 2>&1 >&2; then
+    # Run service detection and capture both XML and normal output
+SERVICE_OUTPUT=$(mktemp)
+if timeout 600 nmap -sV -sC -T4 "$TARGET" -p "$open_ports" -oX "$SERVICE_SCAN" 2>&1 | tee "$SERVICE_OUTPUT" >&2; then
+
+        # Display the service scan output
+        cat "$SERVICE_OUTPUT" >&2
 
         # Parse XML output for services
         if command -v xmllint &> /dev/null && [ -s "$SERVICE_SCAN" ]; then
@@ -118,9 +124,6 @@ EOF
                 findings_json=$(echo "$findings_json" | jq --argjson new "$service_findings" '. + $new' 2>/dev/null || echo "$findings_json")
             fi
         fi
-
-        # Display service scan output
-        cat "$SERVICE_SCAN" >&2
     else
         echo "Service detection failed or timed out" >&2
     fi

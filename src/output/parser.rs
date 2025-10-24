@@ -106,6 +106,25 @@ impl OutputParser {
                 continue;
             }
 
+            // Skip duplicate "Non-web port skipped" findings - keep only one
+            if finding.title == "Non-web port skipped" {
+                if seen.contains("non_web_port_skipped") {
+                    continue;
+                } else {
+                    seen.insert("non_web_port_skipped".to_string());
+                }
+            }
+
+            // For security headers findings, consolidate by title and description pattern
+            if finding.title.contains("Missing security headers") {
+                let consolidated_key = format!("security_headers:{}", finding.description);
+                if seen.contains(&consolidated_key) {
+                    continue;
+                } else {
+                    seen.insert(consolidated_key);
+                }
+            }
+
             if seen.insert(key) {
                 deduplicated.push(finding);
             }

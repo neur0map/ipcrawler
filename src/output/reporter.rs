@@ -324,37 +324,107 @@ impl ReportGenerator {
 
                 report.push_str(&format!("### {} {}\n\n", emoji, title));
 
-                // Sort findings by port then by description
-                let mut sorted_findings = group_findings.clone();
-                sorted_findings.sort_by(|a, b| {
-                    match (a.port, b.port) {
-                        (Some(pa), Some(pb)) => pa.cmp(&pb),
-                        (Some(_), None) => std::cmp::Ordering::Less,
-                        (None, Some(_)) => std::cmp::Ordering::Greater,
-                        (None, None) => a.description.cmp(&b.description),
-                    }
-                });
-
-                for finding in sorted_findings {
-                    let clean_desc = Self::extract_clean_description(&finding.description);
-                    
-                    if finding.port.is_some() {
-                        report.push_str(&format!(
-                            "- **[{}] {}** (port {})\n",
-                            finding.severity.as_str().to_uppercase(),
-                            finding.title,
-                            finding.port.unwrap()
-                        ));
+                // Consolidate similar findings
+                let mut consolidated = std::collections::HashMap::new();
+                
+                for finding in group_findings {
+                    let key = if finding.title.contains("Missing security headers") {
+                        "security_headers".to_string()
+                    } else if finding.title.contains("Non-web port skipped") {
+                        "non_web_ports".to_string()
+                    } else if finding.title.contains("Open port") {
+                        format!("open_port:{}", finding.port.unwrap_or(0))
+                    } else if finding.title.contains("Service:") {
+                        format!("service:{}", finding.port.unwrap_or(0))
                     } else {
-                        report.push_str(&format!(
-                            "- **[{}] {}**\n",
-                            finding.severity.as_str().to_uppercase(),
-                            finding.title
-                        ));
-                    }
+                        format!("{}:{}", finding.title, finding.port.unwrap_or(0))
+                    };
                     
-                    if !clean_desc.is_empty() && clean_desc != finding.title {
-                        report.push_str(&format!("  - {}\n", clean_desc));
+                    consolidated.entry(key).or_insert_with(Vec::new).push(finding);
+                }
+
+                // Display consolidated findings
+                for (key, related_findings) in consolidated {
+                    match key.as_str() {
+                        "security_headers" => {
+                            // Consolidate all security header findings
+                            let ports: Vec<u16> = related_findings.iter()
+                                .filter_map(|f| f.port)
+                                .collect();
+                            report.push_str(&format!(
+                                "- **[{}] Missing security headers** (ports: {})\n",
+                                severity.as_str().to_uppercase(),
+                                ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
+                            ));
+                            if let Some(first_finding) = related_findings.first() {
+                                let clean_desc = Self::extract_clean_description(&first_finding.description);
+                                if !clean_desc.is_empty() {
+                                    report.push_str(&format!("  - {}\n", clean_desc));
+                                }
+                            }
+                        }
+                        "non_web_ports" => {
+                            // Count non-web ports
+                            let count = related_findings.len();
+                            report.push_str(&format!(
+                                "- **[{}] Non-web ports skipped** ({} ports)\n",
+                                severity.as_str().to_uppercase(),
+                                count
+                            ));
+                        }
+                        key if key.starts_with("open_port:") => {
+                            // Individual open port findings
+                            if let Some(finding) = related_findings.first() {
+                                if let Some(port) = finding.port {
+                                    report.push_str(&format!(
+                                        "- **[{}] Open port discovered** (port {})\n",
+                                        finding.severity.as_str().to_uppercase(),
+                                        port
+                                    ));
+                                }
+                            }
+                        }
+                        key if key.starts_with("service:") => {
+                            // Service findings
+                            if let Some(finding) = related_findings.first() {
+                                let clean_desc = Self::extract_clean_description(&finding.description);
+                                if let Some(port) = finding.port {
+                                    report.push_str(&format!(
+                                        "- **[{}] Service detected** (port {})\n",
+                                        finding.severity.as_str().to_uppercase(),
+                                        port
+                                    ));
+                                    if !clean_desc.is_empty() {
+                                        report.push_str(&format!("  - {}\n", clean_desc));
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            // Other individual findings
+                            if let Some(finding) = related_findings.first() {
+                                let clean_desc = Self::extract_clean_description(&finding.description);
+                                
+                                if finding.port.is_some() {
+                                    report.push_str(&format!(
+                                        "- **[{}] {}** (port {})\n",
+                                        finding.severity.as_str().to_uppercase(),
+                                        finding.title,
+                                        finding.port.unwrap()
+                                    ));
+                                } else {
+                                    report.push_str(&format!(
+                                        "- **[{}] {}**\n",
+                                        finding.severity.as_str().to_uppercase(),
+                                        finding.title
+                                    ));
+                                }
+                                
+                                if !clean_desc.is_empty() && clean_desc != finding.title {
+                                    report.push_str(&format!("  - {}\n", clean_desc));
+                                }
+                            }
+                        }
                     }
                 }
                 report.push('\n');
@@ -421,12 +491,17 @@ impl ReportGenerator {
             .filter(|f| f.tool == "nmap_comprehensive")
             .collect();
 
-        if !nmap_findings.is_empty() {
+        // Also get raw nmap output from results
+        let nmap_results: Vec<_> = results.iter()
+            .filter(|r| r.tool_name == "nmap_comprehensive")
+            .collect();
+
+        if !nmap_findings.is_empty() || !nmap_results.is_empty() {
             report.push_str("**Results:**\n");
             
             // Port findings
             let port_findings: Vec<_> = nmap_findings.iter()
-                .filter(|f| f.title.contains("Open port"))
+                .filter(|f| f.title.contains("Open port") || f.title.contains("Open port discovered"))
                 .collect();
             
             if !port_findings.is_empty() {
@@ -440,7 +515,7 @@ impl ReportGenerator {
 
             // Service findings
             let service_findings: Vec<_> = nmap_findings.iter()
-                .filter(|f| f.description.contains("| tcp |"))
+                .filter(|f| f.title.contains("Service:") || f.description.contains("| tcp |"))
                 .collect();
             
             if !service_findings.is_empty() {
@@ -455,7 +530,7 @@ impl ReportGenerator {
 
             // OS detection
             let os_findings: Vec<_> = nmap_findings.iter()
-                .filter(|f| f.title.to_lowercase().contains("os") || f.description.to_lowercase().contains("linux"))
+                .filter(|f| f.title.to_lowercase().contains("os") || f.description.to_lowercase().contains("linux") || f.description.to_lowercase().contains("windows"))
                 .collect();
             
             if !os_findings.is_empty() {
@@ -467,6 +542,23 @@ impl ReportGenerator {
                     }
                 }
             }
+
+            // If no structured findings, try to extract from raw output
+            if port_findings.is_empty() && service_findings.is_empty() {
+                report.push_str("- **Raw scan output:**\n");
+                for result in &nmap_results {
+                    if !result.stdout.is_empty() {
+                        // Extract some key info from raw output
+                        for line in result.stdout.lines().take(10) {
+                            if line.contains("open") && line.contains("tcp") {
+                                report.push_str(&format!("  - {}\n", line.trim()));
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            report.push_str("No nmap scan results available.\n");
         }
         report.push('\n');
     }
@@ -523,11 +615,51 @@ impl ReportGenerator {
             report.push_str("**Result:** No DNS records found (IP address lookup)\n\n");
         } else {
             report.push_str("**Records Found:**\n");
-            for finding in dig_findings {
-                if finding.title.contains("record") {
-                    report.push_str(&format!("- {}: {}\n", finding.title, 
-                        Self::extract_clean_description(&finding.description)));
+            
+            // Group findings by type
+            let mut record_types = std::collections::HashMap::new();
+            for finding in &dig_findings {
+                if finding.title.contains("record") || finding.title.contains("subdomain") || finding.title.contains("Zone transfer") || finding.title.contains("Reverse DNS") {
+                    let record_type = if finding.title.contains("A records") {
+                        "A Records"
+                    } else if finding.title.contains("AAAA") {
+                        "AAAA Records" 
+                    } else if finding.title.contains("MX") {
+                        "MX Records"
+                    } else if finding.title.contains("NS") {
+                        "NS Records"
+                    } else if finding.title.contains("TXT") {
+                        "TXT Records"
+                    } else if finding.title.contains("SOA") {
+                        "SOA Record"
+                    } else if finding.title.contains("CNAME") {
+                        "CNAME Records"
+                    } else if finding.title.contains("SRV") {
+                        "SRV Records"
+                    } else if finding.title.contains("CAA") {
+                        "CAA Records"
+                    } else if finding.title.contains("subdomain") {
+                        "Subdomains"
+                    } else if finding.title.contains("Zone transfer") {
+                        "Zone Transfer"
+                    } else if finding.title.contains("Reverse DNS") {
+                        "Reverse DNS"
+                    } else {
+                        "Other Records"
+                    };
+                    
+                    record_types.entry(record_type).or_insert_with(Vec::new).push(finding);
                 }
+            }
+            
+            // Display grouped findings
+            for (record_type, type_findings) in record_types {
+                report.push_str(&format!("- **{}:** ", record_type));
+                let descriptions: Vec<String> = type_findings.iter()
+                    .map(|f| Self::extract_clean_description(&f.description))
+                    .collect();
+                report.push_str(&descriptions.join(", "));
+                report.push('\n');
             }
             report.push('\n');
         }
