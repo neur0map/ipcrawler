@@ -199,21 +199,57 @@ output:
       severity: "info"
 ```
 
-#### 2. `json`
-- **Use**: For tools that output JSON
-- **Behavior**: Validates JSON, then applies regex patterns
-- **Fallback**: If JSON invalid, treats as regex
-- **Best for**: Modern tools with `--json` flag
+#### 2. `json` (Structured Findings)
+- **Use**: For structured JSON output with findings array
+- **Behavior**: Parses JSON directly into Finding objects
+- **Best for**: Shell scripts and custom tools with JSON output
+- **Schema**: Expects `{"findings": [...]}` format
 
 ```yaml
 output:
-  type: "json"
-  json_flag: "-o json"  # Flag to enable JSON output
-  patterns:
-    - name: "vulnerability"
-      regex: '"severity":"(high|critical)"'
-      severity: "high"
+  type: "json"  # Enables JSON parsing
 ```
+
+**JSON Output Format**:
+```json
+{
+  "findings": [
+    {
+      "severity": "info|low|medium|high|critical",
+      "title": "Short finding title",
+      "description": "Detailed description",
+      "port": 80  // Optional
+    }
+  ],
+  "metadata": {  // Optional, not parsed but preserved
+    "scan_type": "custom",
+    "timestamp": "2025-01-23T12:00:00Z"
+  }
+}
+```
+
+**Marker-Based Output** (for LLM analysis):
+```bash
+#!/bin/bash
+# Raw tool output goes to stderr between markers
+echo "===START_RAW_OUTPUT===" >&2
+nmap -sV "$TARGET" -p "$PORT" >&2  # Raw output for LLM
+echo "===END_RAW_OUTPUT===" >&2
+
+# Structured JSON goes to stdout
+cat <<EOF
+{
+  "findings": [
+    {"severity": "info", "title": "Port open", "description": "Port 80 open"}
+  ]
+}
+EOF
+```
+
+**How it works**:
+1. JSON findings → Parsed into structured report
+2. Marked raw output → Sent to LLM (if enabled)
+3. Full stdout → Saved to logs/ directory
 
 #### 3. `xml`
 - **Use**: For XML output (like nmap `-oX`)
@@ -571,7 +607,7 @@ Scripts in `tools/scripts/` are automatically scanned and made executable by IPC
 
 **DO NOT** manually set execute permissions - leave scripts as `-rw-r--r--` (644).
 
-### Shell Script Template
+### Shell Script Template (JSON Output)
 
 ```bash
 #!/bin/bash
@@ -586,30 +622,81 @@ OUTPUT_FILE="${3:-}"
 
 # Validate input
 if [ -z "$TARGET" ]; then
-    echo "ERROR: Target is required"
+    echo "ERROR: Target is required" >&2
     exit 1
 fi
 
-# Header (for readability in logs)
-echo "=== TOOL SCAN FOR $TARGET ==="
-echo "Started at: $(date)"
-echo ""
+# Initialize JSON findings array
+findings_json="[]"
 
-# Main logic - output to stdout
-echo "=== PHASE 1: Basic Checks ==="
-timeout 10 command1 "$TARGET" || echo "Command 1 failed"
-echo ""
+# Start raw output marker (for logs and LLM)
+echo "===START_RAW_OUTPUT===" >&2
+echo "=== TOOL SCAN FOR $TARGET ===" >&2
+echo "Started at: $(date)" >&2
+echo "" >&2
 
-echo "=== PHASE 2: Deep Scan ==="
-timeout 30 command2 "$TARGET" "$PORT" || echo "Command 2 failed"
-echo ""
+# Main logic - raw output to stderr
+echo "=== PHASE 1: Basic Checks ===" >&2
+result1=$(timeout 10 command1 "$TARGET" 2>&1 || echo "Command 1 failed")
+echo "$result1" >&2
 
-# Footer
-echo "=== SCAN COMPLETED ==="
-echo "Finished at: $(date)"
+# Parse results and build JSON findings
+if echo "$result1" | grep -q "success"; then
+  finding=$(cat <<EOF
+{
+  "severity": "info",
+  "title": "Phase 1 completed",
+  "description": "Basic checks passed for $TARGET"
+}
+EOF
+)
+  findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+fi
+
+echo "" >&2
+echo "=== PHASE 2: Deep Scan ===" >&2
+result2=$(timeout 30 command2 "$TARGET" "$PORT" 2>&1 || echo "Command 2 failed")
+echo "$result2" >&2
+
+# Parse phase 2 results
+if echo "$result2" | grep -q "vulnerable"; then
+  finding=$(cat <<EOF
+{
+  "severity": "high",
+  "title": "Vulnerability detected",
+  "description": "Phase 2 scan found security issue",
+  "port": ${PORT:-0}
+}
+EOF
+)
+  findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+fi
+
+echo "" >&2
+echo "=== SCAN COMPLETED ===" >&2
+echo "Finished at: $(date)" >&2
+echo "===END_RAW_OUTPUT===" >&2
+
+# Output JSON findings to stdout
+cat <<EOF
+{
+  "findings": $findings_json,
+  "metadata": {
+    "scan_type": "custom_scan",
+    "target": "$TARGET",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+}
+EOF
 
 exit 0
 ```
+
+**Key Points**:
+- **stderr with markers**: Raw tool output between `===START_RAW_OUTPUT===` and `===END_RAW_OUTPUT===`
+- **stdout**: Structured JSON findings
+- **jq dependency**: Use `jq` to build JSON arrays dynamically
+- **Error handling**: Failures logged to stderr, non-zero exit on critical errors
 
 ---
 

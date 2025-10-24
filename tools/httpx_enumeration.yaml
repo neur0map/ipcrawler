@@ -1,0 +1,14 @@
+name: "httpx_enumeration"
+description: "Comprehensive HTTP(S) enumeration with technology detection and security analysis"
+command: "httpx_enumeration.sh {{target}} {{port}} {{output_file}}"
+timeout: 300
+installer:
+  go: "go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+  github: "curl -sL https://github.com/projectdiscovery/httpx/releases/latest/download/httpx_$(uname -s)_$(uname -m).zip -o httpx.zip && unzip httpx.zip && sudo mv httpx /usr/local/bin/ && rm httpx.zip"
+  snap: "snap install httpx"
+  yay: "yay -S --noconfirm httpx-bin && yay -S --noconfirm jq curl openssl"
+  paru: "paru -S --noconfirm httpx-bin && paru -S --noconfirm jq curl openssl"
+  apt: "apt install -y jq curl openssl"
+  pacman: "pacman -S --noconfirm jq curl openssl"
+output:
+  type: "json"

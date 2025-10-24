@@ -82,12 +82,66 @@ output:
 - `{{wordlist}}` - Resolved wordlist path
 
 **Output Types:**
-- `json` - Native JSON output
-- `xml` - XML output
-- `regex` - Plain text with regex patterns
+- `json` - Structured JSON output with findings array (recommended for shell scripts)
+- `regex` - Plain text with regex patterns (for traditional CLI tools)
+- `xml` - XML output (legacy support)
 
 **Severity Levels:**
 - `critical`, `high`, `medium`, `low`, `info`
+
+### JSON Output Format (Recommended)
+
+For modern tools and shell scripts, use JSON output for structured findings:
+
+```yaml
+output:
+  type: "json"  # Enables JSON parsing
+```
+
+**JSON Schema** your script should output:
+
+```json
+{
+  "findings": [
+    {
+      "severity": "info|low|medium|high|critical",
+      "title": "Short finding title",
+      "description": "Detailed description of the finding",
+      "port": 80  // Optional - port number if applicable
+    }
+  ],
+  "metadata": {  // Optional - not parsed but preserved in logs
+    "scan_type": "custom",
+    "timestamp": "2025-01-23T12:00:00Z"
+  }
+}
+```
+
+**Marker-Based Output** for LLM analysis and logs:
+
+```bash
+#!/bin/bash
+# Output markers separate raw tool output from JSON findings
+
+echo "===START_RAW_OUTPUT===" >&2
+echo "Running nmap scan..." >&2
+nmap -sV "$TARGET" -p "$PORT" 2>&1 >&2  # Raw output to stderr
+echo "===END_RAW_OUTPUT===" >&2
+
+# JSON findings to stdout
+cat <<EOF
+{
+  "findings": [
+    {"severity": "info", "title": "Scan complete", "description": "Found 3 open ports"}
+  ]
+}
+EOF
+```
+
+**How it works:**
+1. **JSON findings** (stdout) → Parsed into structured report.md
+2. **Marked raw output** (stderr) → Sent to LLM for analysis (if `--use-llm` enabled)
+3. **Complete output** → Saved to logs/ directory
 
 ## Custom Shell Scripts
 
@@ -95,32 +149,62 @@ IPCrawler supports custom shell scripts with built-in security validation.
 
 ### Creating Custom Scripts
 
-1. Create script in `tools/scripts/` directory:
+1. Create script in `tools/scripts/` directory with JSON output:
 
 ```bash
 #!/bin/bash
 # custom-scan.sh
 TARGET="$1"
 PORT="$2"
-OUTPUT_FILE="$3"
 
-echo "Scanning $TARGET:$PORT" > "$OUTPUT_FILE"
-nmap -sV "$TARGET" -p "$PORT" >> "$OUTPUT_FILE"
+# Initialize findings
+findings_json="[]"
+
+# Raw output to stderr with markers
+echo "===START_RAW_OUTPUT===" >&2
+echo "Scanning $TARGET:$PORT" >&2
+result=$(nmap -sV "$TARGET" -p "$PORT" 2>&1)
+echo "$result" >&2
+echo "===END_RAW_OUTPUT===" >&2
+
+# Parse results into JSON
+if echo "$result" | grep -q "open"; then
+  finding=$(cat <<EOF
+{
+  "severity": "info",
+  "title": "Port scan complete",
+  "description": "Found open port on $TARGET:$PORT",
+  "port": $PORT
+}
+EOF
+)
+  findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+fi
+
+# Output JSON to stdout
+cat <<EOF
+{
+  "findings": $findings_json,
+  "metadata": {
+    "scan_type": "custom_scan",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+}
+EOF
 ```
 
 2. Reference in tool YAML:
 
 ```yaml
 name: "custom-scan"
-description: "Custom scanning script"
-command: "custom-scan.sh {{target}} {{port}} {{output_file}}"
+description: "Custom scanning script with JSON output"
+command: "custom-scan.sh {{target}} {{port}}"
 timeout: 300
+installer:
+  apt: "apt install -y nmap jq"
+  pacman: "pacman -S --noconfirm nmap jq"
 output:
-  type: "regex"
-  patterns:
-    - name: "scan_result"
-      regex: "open"
-      severity: "info"
+  type: "json"  # Enable JSON parsing
 ```
 
 3. Run normally:

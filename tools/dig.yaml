@@ -2,15 +2,16 @@ name: "dig"
 description: "DNS query and lookup tool for comprehensive record enumeration"
 command: "dig.sh {{target}}"
 installer:
-  apt: "apt install -y dnsutils"
-  yum: "yum install -y bind-utils"
-  dnf: "dnf install -y bind-utils"
-  brew: "brew install bind"
-  pacman: "pacman -S --noconfirm bind-tools"
-  zypper: "zypper install -y bind-utils"
+  apt: "apt install -y dnsutils jq"
+  yum: "yum install -y bind-utils jq"
+  dnf: "dnf install -y bind-utils jq"
+  brew: "brew install bind jq"
+  pacman: "pacman -S --noconfirm bind-tools jq"
+  zypper: "zypper install -y bind-utils jq"
 timeout: 30
 output:
-  type: "regex"
+  type: "json"
+  # Keeping patterns for backward compatibility with regex mode
   patterns:
     # DNS Trace - successful responses from root/authoritative servers
     - name: "dns_trace_response"

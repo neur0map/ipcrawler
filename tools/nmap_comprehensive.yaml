@@ -1,0 +1,13 @@
+name: "nmap_comprehensive"
+description: "Multi-phase comprehensive network port scanner with service and OS detection"
+command: "nmap_comprehensive.sh {{target}} {{ports}} {{output_file}}"
+timeout: 1800
+installer:
+  apt: "apt install -y nmap jq xmllint"
+  yum: "yum install -y nmap jq libxml2"
+  dnf: "dnf install -y nmap jq libxml2"
+  brew: "brew install nmap jq"
+  pacman: "pacman -S --noconfirm nmap jq libxml2"
+  zypper: "zypper install -y nmap jq libxml2"
+output:
+  type: "json"

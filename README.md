@@ -146,24 +146,32 @@ Available: `common`, `big`, `medium`, `small`, `subdomains`, `api`, `backups`
 
 ## Supported Tools
 
-### Network Reconnaissance
-- **nmap** - Port scanner and service detection
-- **masscan** - Ultra-fast TCP port scanner (requires sudo)
-- **ping** - ICMP connectivity testing
-- **traceroute** - Network path discovery
+### Comprehensive Multi-Phase Tools (JSON Output)
+- **nmap_comprehensive** - Advanced multi-phase port scanning
+  - Phase 1: Fast SYN scan for port discovery
+  - Phase 2: Service and version detection
+  - Phase 3: OS detection and aggressive scans (sudo)
+  - Intelligent severity assignment (HIGH for insecure protocols)
 
-### DNS Enumeration
-- **dig** - DNS query and lookup
-- **host** - Simple DNS lookup
-- **whois** - Domain/IP registration
-- **dnsenum** - DNS enumeration and subdomain discovery
+- **httpx_enumeration** - Complete HTTP(S) reconnaissance
+  - Technology detection and fingerprinting
+  - Security headers analysis (CSP, HSTS, X-Frame-Options)
+  - TLS certificate validation with expiry warnings
+  - Discovery file detection (robots.txt, sitemap.xml)
 
-### Web Application Testing
-- **nikto** - Web server vulnerability scanner
-- **gobuster** - Directory and file bruteforcer
-- **whatweb** - Web technology fingerprinting
-- **sqlmap** - SQL injection testing
-- **sslscan** - SSL/TLS configuration scanner
+- **dig** - Comprehensive DNS reconnaissance
+  - 17 DNS record types (A, AAAA, MX, NS, TXT, SOA, CNAME, etc.)
+  - Subdomain enumeration (15 common subdomains)
+  - Zone transfer attempts with security flagging
+  - DNSSEC validation and DNS tracing
+
+### Network Analysis Tools
+- **traceroute** - Network path discovery and hop analysis
+- **whois** - Domain and IP registration information
+
+### Tool Architecture
+All tools automatically discovered from `tools/` directory - **no configuration needed**.
+Each tool outputs structured JSON findings + raw output for comprehensive analysis.
 
 See [Tool Documentation](docs/TOOLS.md) for detailed information.
 
@@ -190,7 +198,7 @@ output:
       severity: "high"
 ```
 
-### Custom Shell Scripts
+### Custom Shell Scripts with JSON Output
 
 Create `tools/scripts/custom.sh`:
 
@@ -200,18 +208,61 @@ TARGET="$1"
 PORT="$2"
 OUTPUT_FILE="$3"
 
-echo "Scanning $TARGET:$PORT" > "$OUTPUT_FILE"
-nmap -sV "$TARGET" -p "$PORT" >> "$OUTPUT_FILE"
+# Initialize findings array
+findings_json="[]"
+
+# Output raw tool execution to stderr (for logs and LLM)
+echo "===START_RAW_OUTPUT===" >&2
+echo "Scanning $TARGET:$PORT" >&2
+
+# Run your tool
+result=$(nmap -sV "$TARGET" -p "$PORT" 2>&1)
+echo "$result" >&2
+
+# Parse findings and build JSON
+if echo "$result" | grep -q "open"; then
+  finding=$(cat <<EOF
+{
+  "severity": "info",
+  "title": "Open port detected",
+  "description": "Port $PORT is open on $TARGET",
+  "port": $PORT
+}
+EOF
+)
+  findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+fi
+
+echo "===END_RAW_OUTPUT===" >&2
+
+# Output JSON findings to stdout
+cat <<EOF
+{
+  "findings": $findings_json,
+  "metadata": {
+    "scan_type": "custom_scan",
+    "target": "$TARGET",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+}
+EOF
 ```
 
-Reference in YAML:
+Reference in YAML with JSON output type:
 
 ```yaml
 name: "custom-script"
 command: "custom.sh {{target}} {{port}} {{output_file}}"
+timeout: 60
+output:
+  type: "json"  # Enable JSON parsing
 ```
 
-IPCrawler automatically validates and makes scripts executable.
+**Key Features:**
+- JSON findings parsed automatically into structured reports
+- Raw output between markers sent to LLM for analysis
+- Full output preserved in logs/ directory
+- IPCrawler validates and makes scripts executable
 
 See [Configuration Guide](docs/CONFIGURATION.md) for details.
 
@@ -230,11 +281,29 @@ See [Security Documentation](docs/SECURITY.md) for complete details.
 ## Output Structure
 
 ```
-ipcrawler-results/YYYYMMDD_HHMMSS/
-├── report.md           # Markdown summary
-├── results.json        # Machine-readable results
-└── logs/              # Individual tool outputs
+ipcrawler-results/TARGET_HHMM/
+├── report.md                              # Structured Markdown report with findings
+│                                          # - Grouped by tool and severity
+│                                          # - LLM analysis sections (if enabled)
+│                                          # - Host summaries with key findings
+│
+├── results.json                           # Machine-readable JSON data
+│                                          # - All findings with metadata
+│                                          # - Task execution status
+│
+└── logs/                                  # Full tool outputs for each execution
+    ├── nmap_comprehensive_target_22,80,443.log
+    ├── httpx_enumeration_target_80.log
+    ├── dig_target_none.log
+    ├── traceroute_target_none.log
+    └── whois_target_none.log
 ```
+
+**Output Features:**
+- **Structured findings** - JSON-parsed results in report.md
+- **Raw preservation** - Complete tool outputs in logs/
+- **LLM analysis** - AI insights when `--use-llm` enabled
+- **Deduplication** - Automatic removal of duplicate findings
 
 ## Documentation
 
@@ -262,29 +331,66 @@ sudo ipcrawler -t 192.168.1.0/24 -p top-1000
 ipcrawler -t targets.txt -p common -w medium
 ```
 
-### Custom Script Integration
+### Custom Script Integration with JSON
 ```bash
-# Create custom script
+# Create custom banner-grabbing script
 cat > tools/scripts/banner-grab.sh << 'EOF'
 #!/bin/bash
-timeout 5 nc -v "$1" "$2" 2>&1 > "$3"
+TARGET="$1"
+PORT="$2"
+
+findings_json="[]"
+
+echo "===START_RAW_OUTPUT===" >&2
+echo "Grabbing banner from $TARGET:$PORT" >&2
+
+# Grab banner
+banner=$(timeout 5 nc -v "$TARGET" "$PORT" 2>&1)
+echo "$banner" >&2
+echo "===END_RAW_OUTPUT===" >&2
+
+# Parse banner and create finding
+if [ -n "$banner" ]; then
+  finding=$(cat <<EOFINDING
+{
+  "severity": "info",
+  "title": "Banner grabbed",
+  "description": "TCP banner: $banner",
+  "port": $PORT
+}
+EOFINDING
+)
+  findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+fi
+
+# Output JSON
+cat <<EOFINAL
+{
+  "findings": $findings_json,
+  "metadata": {
+    "scan_type": "banner_grab",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+}
+EOFINAL
 EOF
 
 # Define tool YAML
 cat > tools/banner-grab.yaml << 'EOF'
 name: "banner-grab"
-description: "TCP banner grabbing"
-command: "banner-grab.sh {{target}} {{port}} {{output_file}}"
+description: "TCP banner grabbing with JSON output"
+command: "banner-grab.sh {{target}} {{port}}"
 timeout: 30
 output:
-  type: "regex"
-  patterns:
-    - name: "banner"
-      regex: "(.+)"
-      severity: "info"
+  type: "json"
+installer:
+  apt: "apt install -y netcat jq"
+  pacman: "pacman -S --noconfirm gnu-netcat jq"
 EOF
 
-# Run scan
+chmod +x tools/scripts/banner-grab.sh
+
+# Run scan - automatically includes banner-grab tool
 ipcrawler -t 192.168.1.1 -p 22,80,443
 ```
 

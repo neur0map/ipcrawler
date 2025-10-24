@@ -1,5 +1,5 @@
 use super::queue::{Task, TaskId, TaskStatus};
-use crate::system::ScriptSecurity;
+use crate::system::{get_command_path, ScriptSecurity};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -233,11 +233,12 @@ impl TaskRunner {
                         stderr: error,
                     };
                 }
-                (
-                    task.command.clone(),
-                    parts[0].to_string(),
-                    parts[1..].to_vec(),
-                )
+
+                // Get the full path to the binary, especially important when running as root
+                let binary = parts[0];
+                let program = get_command_path(binary).unwrap_or_else(|| binary.to_string());
+
+                (task.command.clone(), program, parts[1..].to_vec())
             }
             Err(e) => {
                 let error = format!("Script validation failed: {}", e);

@@ -200,10 +200,49 @@ src/
 - `analyze_with_llm()` - LLM-only analysis
 
 **Output Types:**
-- JSON - Native parsing
-- XML - Native parsing
-- Regex - Pattern matching
-- LLM - Natural language analysis
+- `json` - Structured JSON findings parsing (recommended)
+- `regex` - Pattern matching with regex (traditional tools)
+- `xml` - XML parsing (legacy support)
+- LLM enhancement - Natural language analysis (optional)
+
+**JSON Parsing Architecture:**
+
+```
+Shell Script Output
+│
+├─> stdout: JSON findings
+│   └─> Parsed by UniversalProcessor::parse_json_findings()
+│       └─> Creates Finding objects from JSON array
+│
+├─> stderr with markers: Raw tool output
+│   └─> Extracted by extract_marked_content()
+│       ├─> Between ===START_RAW_OUTPUT=== and ===END_RAW_OUTPUT===
+│       └─> Sent to LLM for analysis (if enabled)
+│
+└─> Complete output: Saved to logs/
+    └─> Full stdout + stderr in logs/{tool}_{target}_{port}.log
+```
+
+**JSON Findings Schema:**
+```json
+{
+  "findings": [
+    {
+      "severity": "info|low|medium|high|critical",
+      "title": "Finding title",
+      "description": "Detailed description",
+      "port": 80  // Optional
+    }
+  ],
+  "metadata": {}  // Optional, preserved but not parsed
+}
+```
+
+**Marker-Based Extraction:**
+- Markers separate raw tool output from JSON findings
+- Raw output between markers sent to LLM for AI analysis
+- Enables both structured parsing AND intelligent analysis
+- Complete output always preserved in logs/
 
 ### UI Module (`ui/`)
 

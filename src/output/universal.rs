@@ -1,9 +1,10 @@
-use crate::config::{Severity, Tool};
+use crate::config::{OutputType, Severity, Tool};
 use crate::executor::runner::TaskResult;
 use crate::llm::LLMClient;
 use crate::output::parser::Finding;
 use crate::output::regex_matcher::RegexMatcher;
 use anyhow::Result;
+use serde_json::Value as JsonValue;
 use std::collections::HashSet;
 
 /// Universal output processor - tool-agnostic parsing with optional LLM enhancement
@@ -67,31 +68,55 @@ impl UniversalProcessor {
     ) -> Result<Vec<Finding>> {
         let mut findings = Vec::new();
 
-        // First, apply YAML-defined regex patterns if they exist
-        if let Some(patterns) = &tool.output.patterns {
-            if !patterns.is_empty() {
-                match RegexMatcher::match_patterns(
-                    &tool.name,
-                    &result.target,
-                    result.port,
-                    &result.stdout,
-                    &result.stderr,
-                    patterns,
-                ) {
-                    Ok(pattern_findings) => {
-                        if !pattern_findings.is_empty() {
-                            println!(
-                                "✓ Pattern matcher found {} findings for {}",
-                                pattern_findings.len(),
-                                tool.name
-                            );
-                            findings.extend(pattern_findings);
-                        }
+        // Extract marked content if present (for LLM analysis)
+        let (raw_content, _json_content) = Self::extract_marked_content(&result.stdout);
+        let llm_analysis_text = raw_content.as_ref().unwrap_or(&result.stdout);
+
+        // Choose parsing strategy based on output type
+        match tool.output.output_type {
+            OutputType::Json => {
+                // Parse JSON findings
+                match self.parse_json_findings(tool, result) {
+                    Ok(json_findings) => {
+                        findings.extend(json_findings);
                     }
                     Err(e) => {
-                        eprintln!("Error applying patterns for {}: {}", tool.name, e);
+                        eprintln!("Error parsing JSON for {}: {}", tool.name, e);
                     }
                 }
+            }
+            OutputType::Regex => {
+                // Apply YAML-defined regex patterns if they exist
+                if let Some(patterns) = &tool.output.patterns {
+                    if !patterns.is_empty() {
+                        match RegexMatcher::match_patterns(
+                            &tool.name,
+                            &result.target,
+                            result.port,
+                            &result.stdout,
+                            &result.stderr,
+                            patterns,
+                        ) {
+                            Ok(pattern_findings) => {
+                                if !pattern_findings.is_empty() {
+                                    println!(
+                                        "✓ Pattern matcher found {} findings for {}",
+                                        pattern_findings.len(),
+                                        tool.name
+                                    );
+                                    findings.extend(pattern_findings);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Error applying patterns for {}: {}", tool.name, e);
+                            }
+                        }
+                    }
+                }
+            }
+            OutputType::Raw | OutputType::Xml => {
+                // For Raw and Xml, we don't apply specific parsers
+                // LLM will handle the analysis if enabled
             }
         }
 
@@ -112,7 +137,7 @@ impl UniversalProcessor {
 
         // If LLM client is provided and output is not empty, enhance with intelligent analysis
         if let Some(client) = llm_client {
-            if !result.stdout.is_empty() {
+            if !llm_analysis_text.is_empty() {
                 // Create a context message for analysis
                 let context = vec![
                     crate::llm::prompts::Message {
@@ -124,18 +149,20 @@ impl UniversalProcessor {
                 // Use specialized analysis based on tool type
                 let llm_analysis = if tool.name.contains("nmap") || tool.name.contains("masscan") {
                     client
-                        .analyze_network_scan(&tool.name, &result.stdout)
+                        .analyze_network_scan(&tool.name, llm_analysis_text)
                         .await
                 } else if tool.name.contains("dig") || tool.name.contains("nslookup") {
-                    client.analyze_dns_recon(&tool.name, &result.stdout).await
+                    client
+                        .analyze_dns_recon(&tool.name, llm_analysis_text)
+                        .await
                 } else if tool.name.contains("nikto") || tool.name.contains("nuclei") {
                     client
-                        .analyze_vulnerability_scan(&tool.name, &result.stdout)
+                        .analyze_vulnerability_scan(&tool.name, llm_analysis_text)
                         .await
                 } else {
                     // Use context analysis for generic tools
                     client
-                        .analyze_with_context(&tool.name, &result.stdout, &context)
+                        .analyze_with_context(&tool.name, llm_analysis_text, &context)
                         .await
                 };
 
@@ -161,6 +188,131 @@ impl UniversalProcessor {
     /// Check if LLM is enabled for this processor
     pub fn is_llm_enabled(&self) -> bool {
         self.use_llm
+    }
+
+    /// Extract content between START and END markers
+    /// Returns (raw_content, remaining_output)
+    fn extract_marked_content(stdout: &str) -> (Option<String>, String) {
+        const START_MARKER: &str = "===START_RAW_OUTPUT===";
+        const END_MARKER: &str = "===END_RAW_OUTPUT===";
+
+        if let Some(start_pos) = stdout.find(START_MARKER) {
+            let after_start = start_pos + START_MARKER.len();
+
+            if let Some(end_pos) = stdout[after_start..].find(END_MARKER) {
+                let raw_content = &stdout[after_start..after_start + end_pos];
+
+                // Remove markers from the output
+                let before_marker = &stdout[..start_pos];
+                let after_marker = &stdout[after_start + end_pos + END_MARKER.len()..];
+                let remaining = format!("{}{}", before_marker, after_marker);
+
+                return (Some(raw_content.trim().to_string()), remaining);
+            }
+        }
+
+        (None, stdout.to_string())
+    }
+
+    /// Parse JSON findings from tool output
+    /// Supports both array format and object with "findings" key
+    fn parse_json_findings(&self, tool: &Tool, result: &TaskResult) -> Result<Vec<Finding>> {
+        let mut findings = Vec::new();
+
+        // Extract raw content if markers are present (json_content has markers removed)
+        let (_raw_content, json_content) = Self::extract_marked_content(&result.stdout);
+
+        // Try to parse JSON from the output
+        let json: JsonValue = match serde_json::from_str(json_content.trim()) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Failed to parse JSON output from {}: {}", tool.name, e);
+                eprintln!("Output: {}", &json_content[..json_content.len().min(200)]);
+                return Ok(findings);
+            }
+        };
+
+        // Handle both direct array and object with "findings" key
+        let findings_array = if json.is_array() {
+            json.as_array().unwrap()
+        } else if let Some(findings_obj) = json.get("findings") {
+            if let Some(arr) = findings_obj.as_array() {
+                arr
+            } else {
+                eprintln!("JSON 'findings' field is not an array");
+                return Ok(findings);
+            }
+        } else {
+            eprintln!("JSON output is neither an array nor an object with 'findings' key");
+            return Ok(findings);
+        };
+
+        // Parse each finding
+        for (idx, item) in findings_array.iter().enumerate() {
+            let severity = item
+                .get("severity")
+                .and_then(|v| v.as_str())
+                .and_then(Self::parse_severity)
+                .unwrap_or(Severity::Info);
+
+            let title = item
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&format!("Finding {}", idx + 1))
+                .to_string();
+
+            let description = item
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let port = item
+                .get("port")
+                .and_then(|v| v.as_u64())
+                .map(|p| p as u16)
+                .or(result.port);
+
+            findings.push(Finding::new(
+                tool.name.clone(),
+                result.target.clone(),
+                port,
+                severity,
+                title,
+                description,
+                result.stdout.clone(),
+                result.stderr.clone(),
+                None,
+            ));
+        }
+
+        // If no findings were parsed, log it
+        if findings.is_empty() {
+            eprintln!(
+                "Warning: JSON output contained no findings for {}",
+                tool.name
+            );
+        } else {
+            println!(
+                "✓ Parsed {} JSON findings from {}",
+                findings.len(),
+                tool.name
+            );
+        }
+
+        Ok(findings)
+    }
+
+    /// Parse severity string to Severity enum
+    fn parse_severity(s: &str) -> Option<Severity> {
+        match s.to_lowercase().as_str() {
+            "critical" => Some(Severity::Critical),
+            "high" => Some(Severity::High),
+            "medium" => Some(Severity::Medium),
+            "low" => Some(Severity::Low),
+            "info" | "information" => Some(Severity::Info),
+            _ => None,
+        }
     }
 
     /// Generate simple heuristic summary without LLM

@@ -1,3 +1,4 @@
 /target
 /ipcrawler-results
 .env
+output/
