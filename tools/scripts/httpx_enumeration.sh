@@ -51,13 +51,35 @@ if timeout 120 httpx -u "$URL" -json -status-code -title -content-length \
 
     # Parse httpx JSON output
     if [ -s "$HTTPX_OUTPUT" ]; then
-        status_code=$(jq -r '.status_code // "unknown"' "$HTTPX_OUTPUT" 2>/dev/null)
-        title=$(jq -r '.title // ""' "$HTTPX_OUTPUT" 2>/dev/null)
-        server=$(jq -r '.webserver // ""' "$HTTPX_OUTPUT" 2>/dev/null)
-        technologies=$(jq -r '.tech[]? // ""' "$HTTPX_OUTPUT" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+        # Get the first valid JSON line from httpx output
+        first_json=$(head -n1 "$HTTPX_OUTPUT" 2>/dev/null)
+        
+        if [ -n "$first_json" ] && echo "$first_json" | jq . >/dev/null 2>&1; then
+            # Check if httpx returned successful response or error
+            failed_check=$(echo "$first_json" | jq -r '.failed // false' 2>/dev/null)
+            error_msg=$(echo "$first_json" | jq -r '.error // ""' 2>/dev/null)
+            
+            if [ "$failed_check" = "true" ] || [ -n "$error_msg" ]; then
+                # Create finding for failed HTTP connection
+                error_finding=$(cat <<EOF
+{
+  "severity": "info",
+  "title": "HTTP service not responding",
+  "description": "Connection failed: ${error_msg:-Unknown error}",
+  "port": ${PORT:-80}
+}
+EOF
+)
+            findings_json=$(echo "$findings_json" | jq --argjson new "[$error_finding]" '. + $new' 2>/dev/null || echo "$findings_json" | jq '. + [{"severity": "info", "title": "HTTP service not responding", "description": "Connection failed", "port": '${PORT:-80}'}]')
+            else
+                # Parse successful response
+                status_code=$(echo "$first_json" | jq -r '.status_code // "unknown"' 2>/dev/null)
+                title=$(echo "$first_json" | jq -r '.title // ""' 2>/dev/null)
+                server=$(echo "$first_json" | jq -r '.webserver // ""' 2>/dev/null)
+                technologies=$(echo "$first_json" | jq -r '.tech[]? // ""' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
 
-        # Create finding for HTTP response
-        response_finding=$(cat <<EOF
+                # Create finding for HTTP response
+                response_finding=$(cat <<EOF
 {
   "severity": "info",
   "title": "HTTP service responsive",
@@ -66,11 +88,11 @@ if timeout 120 httpx -u "$URL" -json -status-code -title -content-length \
 }
 EOF
 )
-        findings_json=$(echo "$findings_json" | jq --argjson new "[$response_finding]" '. + $new')
+                findings_json=$(echo "$findings_json" | jq --argjson new "[$response_finding]" '. + $new' 2>/dev/null || echo "$findings_json")
 
-        # Technology findings
-        if [ -n "$technologies" ]; then
-            tech_finding=$(cat <<EOF
+                # Technology findings
+                if [ -n "$technologies" ]; then
+                    tech_finding=$(cat <<EOF
 {
   "severity": "info",
   "title": "Technologies detected",
@@ -79,7 +101,21 @@ EOF
 }
 EOF
 )
-            findings_json=$(echo "$findings_json" | jq --argjson new "[$tech_finding]" '. + $new')
+                    findings_json=$(echo "$findings_json" | jq --argjson new "[$tech_finding]" '. + $new' 2>/dev/null || echo "$findings_json")
+                fi
+            fi
+        else
+            # No valid JSON found, create a generic finding
+            error_finding=$(cat <<EOF
+{
+  "severity": "info",
+  "title": "HTTP service check completed",
+  "description": "No HTTP service detected on port ${PORT:-80}",
+  "port": ${PORT:-80}
+}
+EOF
+)
+            findings_json=$(echo "$findings_json" | jq --argjson new "[$error_finding]" '. + $new' 2>/dev/null || echo "$findings_json")
         fi
     fi
 else
@@ -102,7 +138,7 @@ for path in robots.txt sitemap.xml; do
 }
 EOF
 )
-        findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+        findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new' 2>/dev/null || echo "$findings_json")
     fi
 done
 echo "" >&2
@@ -130,7 +166,7 @@ if [ -n "$missing_headers" ]; then
 }
 EOF
 )
-    findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+    findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new' 2>/dev/null || echo "$findings_json")
 else
     echo "All common security headers present" >&2
 fi
@@ -162,7 +198,7 @@ if [[ "$URL" == https://* ]]; then
 }
 EOF
 )
-                findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+                findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new' 2>/dev/null || echo "$findings_json")
             elif [ "$days_until_expiry" -le 0 ]; then
                 finding=$(cat <<EOF
 {
@@ -173,7 +209,7 @@ EOF
 }
 EOF
 )
-                findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
+                findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new' 2>/dev/null || echo "$findings_json")
             fi
         fi
     else

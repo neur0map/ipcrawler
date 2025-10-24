@@ -30,9 +30,18 @@ echo "=== COMPREHENSIVE NMAP SCAN FOR $TARGET ===" >&2
 echo "Scan started at: $(date)" >&2
 echo "" >&2
 
-# Phase 1: Quick SYN scan to discover open ports
+# Phase 1: Quick scan to discover open ports
 echo "=== Phase 1: Port Discovery ===" >&2
-if timeout 300 nmap -sS -T4 --open "$TARGET" -p "$PORTS" -oG "$QUICK_SCAN" 2>&1 >&2; then
+# Use SYN scan if root, otherwise TCP connect scan
+if [ "$(id -u)" -eq 0 ]; then
+    SCAN_TYPE="-sS"
+    echo "Using SYN scan (requires root privileges)" >&2
+else
+    SCAN_TYPE="-sT"
+    echo "Using TCP connect scan (no root required)" >&2
+fi
+
+if timeout 300 nmap $SCAN_TYPE -T4 --open "$TARGET" -p "$PORTS" -oG "$QUICK_SCAN" 2>&1 >&2; then
     open_ports=$(grep -oP '\d+/open' "$QUICK_SCAN" | cut -d/ -f1 | tr '\n' ',' | sed 's/,$//')
 
     if [ -n "$open_ports" ]; then
@@ -51,7 +60,7 @@ if timeout 300 nmap -sS -T4 --open "$TARGET" -p "$PORTS" -oG "$QUICK_SCAN" 2>&1 
 EOF
         done | jq -s .)
 
-        findings_json=$(echo "$findings_json" | jq --argjson new "$port_findings" '. + $new')
+        findings_json=$(echo "$findings_json" | jq --argjson new "$port_findings" '. + $new' 2>/dev/null || echo "$findings_json")
     else
         echo "No open ports found in quick scan" >&2
         open_ports="$PORTS"
@@ -106,7 +115,7 @@ EOF
             done | jq -s .)
 
             if [ -n "$service_findings" ] && [ "$service_findings" != "[]" ]; then
-                findings_json=$(echo "$findings_json" | jq --argjson new "$service_findings" '. + $new')
+                findings_json=$(echo "$findings_json" | jq --argjson new "$service_findings" '. + $new' 2>/dev/null || echo "$findings_json")
             fi
         fi
 
