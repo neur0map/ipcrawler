@@ -1,65 +1,60 @@
+<div align="center">
+
 # IPCrawler
 
-Professional automated penetration testing framework with AI-powered security analysis, parallel tool execution, and comprehensive reporting.
+**Automated reconnaissance framework for penetration testing**
 
-A [prowl.sh](https://prowl.sh) project - intelligent IP reconnaissance and network scanning platform.
+*Parallel tool execution • JSON output • Extensible architecture*
 
-## NOTE: LLM are only used for parsing and creating the end report.md, it does not provide any help further than that.
+[![prowl.sh](https://img.shields.io/badge/prowl-sh-blue)](https://prowl.sh)
+
+</div>
+
+---
+
 ## Quick Start
 
 ```bash
 # Basic scan
 ipcrawler -t 192.168.1.1 -p 80,443
 
-# AI-powered security analysis
-ipcrawler -t 192.168.1.1 -p 80,443 --use-llm
+# Network range scan
+sudo ipcrawler -t 192.168.1.0/24 -p common
 
-# Network range with LLM analysis
-ipcrawler -t 192.168.1.0/24 -p common --use-llm --llm-provider openai
+# Comprehensive scan with wordlist
+sudo ipcrawler -t target.com -p top-1000 -w big
 
-# Fast port scan with local AI (Ollama)
-ipcrawler -t 10.0.0.1 -p fast --use-llm --llm-provider ollama
-
-# Advanced scan with sudo and AI
-sudo ipcrawler -t 192.168.1.1 -p top-1000 -w big --use-llm --llm-provider claude
-
-# Dry-run to test parsing
-ipcrawler -t 192.168.1.1 -p 80 --dry-run
+# Optional: Enhanced reports with LLM analysis
+ipcrawler -t 192.168.1.1 -p 80,443 --use-llm --llm-provider ollama
 ```
 
-## Key Features
+## Core Features
 
-### [AI] AI-Powered Analysis
-- **LLM Integration** - Support for OpenAI, Claude, and Ollama
-- **Security-Focused Prompts** - Specialized analysis for different tool types
-- **Universal Output Parser** - Intelligent parsing with context awareness
-- **Enhanced Reporting** - AI-generated insights and recommendations
+**🔍 Reconnaissance Tools**
+- Multi-phase port scanning (nmap)
+- HTTP(S) enumeration and security analysis
+- DNS reconnaissance with zone transfer detection
+- Network path discovery and whois lookups
 
-### [⚡] Performance & Architecture
-- **YAML-Driven Architecture** - Fully extensible, zero hardcoded tool logic
-- **Parallel Execution** - Run up to 5 tools concurrently with intelligent queueing
-- **Sudo Detection** - Automatically selects privileged commands when running with sudo
-- **Script Security** - Built-in validation and sandboxing for custom shell scripts
+**⚡ Performance**
+- Parallel execution (up to 5 tools concurrently)
+- Automatic tool discovery from YAML configs
+- Privilege escalation detection (sudo/root)
+- Smart timeout and retry handling
 
-### [⚙] Configuration & Modes
-- **Wordlist Management** - Centralized configuration with predefined SecLists paths
-- **Advanced Port Modes** - Support for nmap scripts (fast, top-1000, top-10000, all)
-- **Dry-Run Mode** - Test parsing without executing tools
-- **Verbose Mode** - Detailed output with alternative parsing methods
+**📊 Output**
+- Structured JSON findings
+- Markdown reports with severity grouping
+- Complete raw logs preserved
+- Optional LLM-enhanced analysis for reports
 
-### [✓] User Experience
-- **Modern Terminal UI** - Real-time progress tracking with live vulnerability feed
-- **Comprehensive Reporting** - Enhanced Markdown and JSON reports with AI insights
-- **Smart Folder Naming** - Results organized as `TARGET_HHMM` for easy identification
-- **Environment Support** - `.env` file configuration for API keys and settings
+**🔧 Extensibility**
+- YAML-driven tool configuration
+- Custom shell script support
+- Zero hardcoded tool logic
+- Built-in script security validation
 
 ## Installation
-
-### Prerequisites
-
-- Rust 1.70+ ([install from rustup.rs](https://rustup.rs))
-- Package manager: apt, yum, dnf, brew, pacman, or zypper
-- SecLists wordlists (recommended): `/usr/share/seclists`
 
 ### Build from Source
 
@@ -67,274 +62,99 @@ ipcrawler -t 192.168.1.1 -p 80 --dry-run
 git clone https://github.com/neur0map/ipcrawler.git
 cd ipcrawler
 make build
+cargo install --path .
 ```
 
-Binary location: `target/release/ipcrawler`
+**Requirements:**
+- Rust 1.70+ ([rustup.rs](https://rustup.rs))
+- Tools auto-installed on first run (or manual install)
 
-### Install Security Tools
+## Included Tools
 
-IPCrawler can auto-install missing tools, or install manually:
+**Network Scanning:**
+- `nmap_comprehensive` - Multi-phase port scanning with service detection
+- `traceroute` - Network path analysis
 
-```bash
-# Arch Linux
-sudo pacman -S nmap nikto gobuster sqlmap sslscan masscan whatweb dnsenum
+**HTTP Analysis:**
+- `httpx_enumeration` - Security headers, TLS certs, technology detection
 
-# Debian/Ubuntu
-sudo apt install nmap nikto gobuster sqlmap sslscan masscan whatweb dnsenum
+**DNS Reconnaissance:**
+- `dig` - 17 DNS record types, subdomain enum, zone transfers
 
-# macOS
-brew install nmap nikto gobuster sqlmap sslscan masscan whatweb dnsenum
-```
+**Information Gathering:**
+- `whois` - Domain registration and ownership
+
+See [Tool Documentation](docs/TOOLS.md) for complete details.
 
 ## Usage
 
-### Command Line
+### Basic Scans
 
-```
-ipcrawler -t <TARGET> -p <PORTS> [OPTIONS]
+```bash
+# Single target
+ipcrawler -t 192.168.1.1 -p 80,443
 
-Required:
-  -t, --target <TARGET>        IP, CIDR, or file path
-  -p, --ports <PORTS>          Port list, range, or mode
+# CIDR range
+ipcrawler -t 192.168.1.0/24 -p common
 
-Options:
-  -w, --wordlist <NAME/PATH>   Wordlist name or custom path (default: common)
-  -o, --output <DIR>           Output directory
-  --install                    Auto-install missing tools
-  --tools-dir <PATH>           Tools directory (default: tools)
+# Multiple targets from file
+ipcrawler -t targets.txt -p fast
 ```
 
 ### Port Modes
 
 | Mode | Description |
 |------|-------------|
-| `fast` | Top 100 ports (nmap -F) |
 | `common` | 15 most common ports |
+| `fast` | Top 100 ports (nmap -F) |
 | `top-1000` | Top 1000 ports |
-| `top-10000` | Top 10000 ports |
 | `all` | All 65535 ports |
+| `22,80,443` | Custom port list |
 | `1-1000` | Port range |
-| `22,80,443` | Port list |
 
-### Target Formats
-
-```bash
-# Single IP
-ipcrawler -t 192.168.1.1 -p 80
-
-# CIDR range
-ipcrawler -t 192.168.1.0/24 -p common
-
-# File-based targets
-echo "192.168.1.1" > targets.txt
-echo "10.0.0.0/24" >> targets.txt
-ipcrawler -t targets.txt -p fast
-```
-
-### Wordlist Options
+### Advanced Options
 
 ```bash
-# Predefined wordlists
-ipcrawler -t 192.168.1.1 -p 80 -w common
-ipcrawler -t 192.168.1.1 -p 80 -w big
+# With custom wordlist
+ipcrawler -t example.com -p 80 -w /path/to/wordlist.txt
 
-# Custom wordlist
-ipcrawler -t 192.168.1.1 -p 80 -w /path/to/wordlist.txt
+# Output directory
+ipcrawler -t target.com -p common -o /tmp/scan-results
+
+# Tools directory (custom tools)
+ipcrawler -t target.com -p 80 --tools-dir ./custom-tools
 ```
-
-Available: `common`, `big`, `medium`, `small`, `subdomains`, `api`, `backups`
-
-## Supported Tools
-
-### Comprehensive Multi-Phase Tools (JSON Output)
-- **nmap_comprehensive** - Advanced multi-phase port scanning
-  - Phase 1: Fast SYN scan for port discovery
-  - Phase 2: Service and version detection
-  - Phase 3: OS detection and aggressive scans (sudo)
-  - Intelligent severity assignment (HIGH for insecure protocols)
-
-- **httpx_enumeration** - Complete HTTP(S) reconnaissance
-  - Technology detection and fingerprinting
-  - Security headers analysis (CSP, HSTS, X-Frame-Options)
-  - TLS certificate validation with expiry warnings
-  - Discovery file detection (robots.txt, sitemap.xml)
-
-- **dig** - Comprehensive DNS reconnaissance
-  - 17 DNS record types (A, AAAA, MX, NS, TXT, SOA, CNAME, etc.)
-  - Subdomain enumeration (15 common subdomains)
-  - Zone transfer attempts with security flagging
-  - DNSSEC validation and DNS tracing
-
-### Network Analysis Tools
-- **traceroute** - Network path discovery and hop analysis
-- **whois** - Domain and IP registration information
-
-### Tool Architecture
-All tools automatically discovered from `tools/` directory - **no configuration needed**.
-Each tool outputs structured JSON findings + raw output for comprehensive analysis.
-
-See [Tool Documentation](docs/TOOLS.md) for detailed information.
-
-## Configuration
-
-### Adding Custom Tools
-
-Create `tools/custom.yaml`:
-
-```yaml
-name: "custom-scanner"
-description: "My custom scanner"
-command: "scanner {{target}} -p {{port}} -o {{output_file}}"
-sudo_command: "scanner {{target}} -p {{port}} --privileged -o {{output_file}}"
-installer:
-  apt: "apt install -y scanner"
-  pacman: "pacman -S --noconfirm scanner"
-timeout: 300
-output:
-  type: "json"
-  patterns:
-    - name: "finding"
-      regex: "VULN: (.+)"
-      severity: "high"
-```
-
-### Custom Shell Scripts with JSON Output
-
-Create `tools/scripts/custom.sh`:
-
-```bash
-#!/bin/bash
-TARGET="$1"
-PORT="$2"
-OUTPUT_FILE="$3"
-
-# Initialize findings array
-findings_json="[]"
-
-# Output raw tool execution to stderr (for logs and LLM)
-echo "===START_RAW_OUTPUT===" >&2
-echo "Scanning $TARGET:$PORT" >&2
-
-# Run your tool
-result=$(nmap -sV "$TARGET" -p "$PORT" 2>&1)
-echo "$result" >&2
-
-# Parse findings and build JSON
-if echo "$result" | grep -q "open"; then
-  finding=$(cat <<EOF
-{
-  "severity": "info",
-  "title": "Open port detected",
-  "description": "Port $PORT is open on $TARGET",
-  "port": $PORT
-}
-EOF
-)
-  findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
-fi
-
-echo "===END_RAW_OUTPUT===" >&2
-
-# Output JSON findings to stdout
-cat <<EOF
-{
-  "findings": $findings_json,
-  "metadata": {
-    "scan_type": "custom_scan",
-    "target": "$TARGET",
-    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  }
-}
-EOF
-```
-
-Reference in YAML with JSON output type:
-
-```yaml
-name: "custom-script"
-command: "custom.sh {{target}} {{port}} {{output_file}}"
-timeout: 60
-output:
-  type: "json"  # Enable JSON parsing
-```
-
-**Key Features:**
-- JSON findings parsed automatically into structured reports
-- Raw output between markers sent to LLM for analysis
-- Full output preserved in logs/ directory
-- IPCrawler validates and makes scripts executable
-
-See [Configuration Guide](docs/CONFIGURATION.md) for details.
-
-## Security
-
-IPCrawler implements comprehensive security for custom scripts:
-
-- **Dangerous Commands Blocked** - Prevents disk wipes, system shutdowns, privilege escalation
-- **Suspicious Patterns Warned** - Detects obfuscation, network backdoors, code execution
-- **Script Size Limits** - Maximum 1MB per script
-- **Automatic Validation** - All scripts scanned before execution
-- **Privilege Management** - Explicit sudo detection, no automatic escalation
-
-See [Security Documentation](docs/SECURITY.md) for complete details.
 
 ## Output Structure
 
 ```
 ipcrawler-results/TARGET_HHMM/
-├── report.md                              # Structured Markdown report with findings
-│                                          # - Grouped by tool and severity
-│                                          # - LLM analysis sections (if enabled)
-│                                          # - Host summaries with key findings
-│
-├── results.json                           # Machine-readable JSON data
-│                                          # - All findings with metadata
-│                                          # - Task execution status
-│
-└── logs/                                  # Full tool outputs for each execution
-    ├── nmap_comprehensive_target_22,80,443.log
-    ├── httpx_enumeration_target_80.log
-    ├── dig_target_none.log
-    ├── traceroute_target_none.log
-    └── whois_target_none.log
+├── report.md           # Structured findings by tool and severity
+├── results.json        # Machine-readable JSON output
+└── logs/               # Full raw output from each tool
+    ├── nmap_comprehensive_target_ports.log
+    ├── httpx_enumeration_target_port.log
+    └── dig_target_none.log
 ```
 
-**Output Features:**
-- **Structured findings** - JSON-parsed results in report.md
-- **Raw preservation** - Complete tool outputs in logs/
-- **LLM analysis** - AI insights when `--use-llm` enabled
-- **Deduplication** - Automatic removal of duplicate findings
+## Adding Custom Tools
 
-## Documentation
+Create `tools/custom.yaml`:
 
-- [Configuration Guide](docs/CONFIGURATION.md) - Custom tools, scripts, wordlists
-- [Security Guide](docs/SECURITY.md) - Security features, sudo usage, validation
-- [Tool Reference](docs/TOOLS.md) - Complete tool list and specifications
-- [Architecture](docs/ARCHITECTURE.md) - System design and implementation
-- [Development](docs/DEVELOPMENT.md) - Contributing, building, testing
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
-
-## Example Workflows
-
-### Basic Web Application Scan
-```bash
-ipcrawler -t webapp.example.com -p 80,443 -w big
+```yaml
+name: "banner-grab"
+description: "TCP banner grabbing"
+command: "banner-grab.sh {{target}} {{port}}"
+timeout: 60
+installer:
+  apt: "apt install -y netcat jq"
+output:
+  type: "json"
 ```
 
-### Full Network Discovery
-```bash
-sudo ipcrawler -t 192.168.1.0/24 -p top-1000
-```
+Create `tools/scripts/banner-grab.sh`:
 
-### Targeted Vulnerability Assessment
 ```bash
-ipcrawler -t targets.txt -p common -w medium
-```
-
-### Custom Script Integration with JSON
-```bash
-# Create custom banner-grabbing script
-cat > tools/scripts/banner-grab.sh << 'EOF'
 #!/bin/bash
 TARGET="$1"
 PORT="$2"
@@ -342,57 +162,53 @@ PORT="$2"
 findings_json="[]"
 
 echo "===START_RAW_OUTPUT===" >&2
-echo "Grabbing banner from $TARGET:$PORT" >&2
-
-# Grab banner
 banner=$(timeout 5 nc -v "$TARGET" "$PORT" 2>&1)
 echo "$banner" >&2
 echo "===END_RAW_OUTPUT===" >&2
 
-# Parse banner and create finding
 if [ -n "$banner" ]; then
-  finding=$(cat <<EOFINDING
-{
-  "severity": "info",
-  "title": "Banner grabbed",
-  "description": "TCP banner: $banner",
-  "port": $PORT
-}
-EOFINDING
+  finding=$(cat <<EOF
+{"severity": "info", "title": "Banner grabbed", "description": "Banner: $banner", "port": $PORT}
+EOF
 )
   findings_json=$(echo "$findings_json" | jq --argjson new "[$finding]" '. + $new')
 fi
 
-# Output JSON
-cat <<EOFINAL
-{
-  "findings": $findings_json,
-  "metadata": {
-    "scan_type": "banner_grab",
-    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  }
-}
-EOFINAL
+cat <<EOF
+{"findings": $findings_json}
 EOF
-
-# Define tool YAML
-cat > tools/banner-grab.yaml << 'EOF'
-name: "banner-grab"
-description: "TCP banner grabbing with JSON output"
-command: "banner-grab.sh {{target}} {{port}}"
-timeout: 30
-output:
-  type: "json"
-installer:
-  apt: "apt install -y netcat jq"
-  pacman: "pacman -S --noconfirm gnu-netcat jq"
-EOF
-
-chmod +x tools/scripts/banner-grab.sh
-
-# Run scan - automatically includes banner-grab tool
-ipcrawler -t 192.168.1.1 -p 22,80,443
 ```
+
+**Tool auto-discovered on next run.**
+
+See [Configuration Guide](docs/CONFIGURATION.md) for complete examples.
+
+## Optional: LLM Enhancement
+
+LLM integration is **optional** and only enhances report generation with AI analysis of raw tool output.
+
+```bash
+# Setup (one-time)
+echo 'OPENAI_API_KEY=your_key' > .env
+
+# Run with LLM report enhancement
+ipcrawler -t target.com -p 80 --use-llm --llm-provider openai
+
+# Use local LLM (Ollama)
+ipcrawler -t target.com -p 80 --use-llm --llm-provider ollama
+```
+
+**Supported providers:** OpenAI, Claude, Ollama (local)
+
+LLM analyzes raw output and adds insights to `report.md`. Core scanning functionality works identically with or without LLM.
+
+## Documentation
+
+- **[Configuration Guide](docs/CONFIGURATION.md)** - Custom tools, JSON format, wordlists
+- **[Tool Reference](docs/TOOLS.md)** - Complete tool specifications
+- **[Architecture](docs/ARCHITECTURE.md)** - System design and data flow
+- **[Security](docs/SECURITY.md)** - Script validation and sudo usage
+- **[Development](docs/DEVELOPMENT.md)** - Contributing and building
 
 ## Development
 
@@ -403,54 +219,33 @@ cargo build
 # Test
 cargo test
 
-# Lint
-cargo clippy
+# Quality checks
+make check
 
 # Format
-cargo fmt
-
-# Run
-cargo run -- -t 192.168.1.1 -p 80
+make fmt
 ```
-
-See [Development Guide](docs/DEVELOPMENT.md) for details.
-
-## Contributing
-
-Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-Priority areas:
-- Additional tool definitions
-- Enhanced output parsers
-- UI improvements
-- Security enhancements
-- Documentation updates
 
 ## Legal Notice
 
-IPCrawler is designed for authorized security testing only:
-- Penetration testing engagements
-- Security research
-- CTF competitions
-- Educational purposes
+**For authorized security testing only:**
+- Penetration testing with permission
+- Security research and CTF competitions
 - Defensive security operations
+- Educational purposes
 
-**Do not use for unauthorized scanning or malicious activities.**
+**Do not use for unauthorized scanning.**
 
 ## License
 
-Licensed under the Apache License 2.0. See [LICENSE](LICENSE) file for details.
-
-## Code of Conduct
-
-Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
-
-## Acknowledgments
-
-Built with Rust for performance and safety. Integrates industry-standard security tools. Inspired by professional penetration testing workflows.
+Apache License 2.0 - See [LICENSE](LICENSE) file.
 
 ---
 
-**IPCrawler** is part of the [prowl.sh](https://prowl.sh) ecosystem of professional security tools.
+<div align="center">
+
+**IPCrawler** is part of the [prowl.sh](https://prowl.sh) security tools ecosystem
 
 Maintained by [neur0map](mailto:neur0map@prowl.sh)
+
+</div>
