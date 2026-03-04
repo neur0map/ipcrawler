@@ -1,0 +1,6 @@
+name: "Nmap SV Scan"
+description: "TCP SYN scan with service version detection"
+command: "nmap -sV {target}"
+category: "network"
+timeout: "300s"
+tags: ["ports", "services", "tcp"]

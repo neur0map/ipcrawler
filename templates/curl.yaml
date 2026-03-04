@@ -1,0 +1,6 @@
+name: "Curl Headers"
+description: "Fetch HTTP response headers from target"
+command: "curl -I -s -L {target}"
+category: "web"
+timeout: "30s"
+tags: ["http", "headers", "web"]

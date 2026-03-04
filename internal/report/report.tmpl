@@ -1,0 +1,34 @@
+# IPCrawler Report
+
+**Target:** {{ .Target }}
+**Date:** {{ .Date }}
+
+---
+{{- range .Results }}
+
+## [{{ .Category }}] {{ .Name }}
+
+> {{ .Description }}
+
+**Command:** `{{ .Command }}`
+**Status:** {{ .Status }} | **Duration:** {{ .Duration }}
+{{- if .Failed }}
+{{- if .Stderr }}
+
+{{ codeBlock .Stderr }}
+{{- else }}
+
+_No error output captured._
+{{- end }}
+{{- else }}
+{{- if .Output }}
+
+{{ codeBlock .Output }}
+{{- else }}
+
+_No output captured._
+{{- end }}
+{{- end }}
+
+---
+{{- end }}

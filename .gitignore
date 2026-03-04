@@ -1,0 +1,5 @@
+scans/
+ipcrawler
+*.exe
+.DS_Store
+.prowl/

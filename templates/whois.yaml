@@ -1,0 +1,6 @@
+name: "Whois"
+description: "Query domain/IP registration and ownership info"
+command: "whois {target}"
+category: "dns"
+timeout: "30s"
+tags: ["registration", "ownership", "domain"]

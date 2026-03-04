@@ -1,0 +1,6 @@
+name: "Ping"
+description: "ICMP echo request to verify host is alive"
+command: "ping -c 4 {target}"
+category: "network"
+timeout: "30s"
+tags: ["icmp", "connectivity", "alive"]
