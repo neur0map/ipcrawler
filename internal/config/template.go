@@ -14,7 +14,12 @@ type Template struct {
 	Command     string   `yaml:"command"`
 	Category    string   `yaml:"category"`
 	Timeout     string   `yaml:"timeout"`
-	Tags        []string `yaml:"tags"`
+	Tags         []string `yaml:"tags"`
+	TargetType   string   `yaml:"target_type"` // "ip", "domain", or "both"
+	Sudo         bool     `yaml:"sudo"`
+	OutputFormat string   `yaml:"output_format"`
+	Priority     int      `yaml:"priority"`     // execution wave: lower runs first (default 50)
+	DependsOn    []string `yaml:"depends_on"`   // tool names that must finish before this runs
 }
 
 // TimeoutDuration parses the timeout string into a time.Duration.

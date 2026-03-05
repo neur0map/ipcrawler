@@ -22,8 +22,13 @@ _No error output captured._
 {{- end }}
 {{- else }}
 {{- if .Output }}
+{{- if .IsFormatted }}
+
+{{ .Output }}
+{{- else }}
 
 {{ codeBlock .Output }}
+{{- end }}
 {{- else }}
 
 _No output captured._

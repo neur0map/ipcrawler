@@ -3,4 +3,6 @@ description: "Fetch HTTP response headers from target"
 command: "curl -I -s -L {target}"
 category: "web"
 timeout: "30s"
+target_type: "both"
 tags: ["http", "headers", "web"]
+priority: 20

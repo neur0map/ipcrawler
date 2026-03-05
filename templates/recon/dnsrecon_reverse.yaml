@@ -1,0 +1,8 @@
+name: "DNSRecon PTR Lookup"
+description: "Standard reverse DNS sweeps"
+command: "dnsrecon -r {target}/32 -t rvl -c {raw_dir}/dnsrecon.csv > /dev/null && awk -F, 'NR>1 {print $2, $1}' {raw_dir}/dnsrecon.csv >> {raw_dir}/dns_resolved.txt && cat {raw_dir}/dns_resolved.txt"
+category: "recon"
+timeout: "120s"
+target_type: "ip"
+tags: ["dns", "ptr", "active"]
+priority: 15

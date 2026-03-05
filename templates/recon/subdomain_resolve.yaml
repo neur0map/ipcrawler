@@ -1,0 +1,8 @@
+name: "Subdomain Resolver"
+description: "Enumerate subdomains and resolve to IPs"
+command: "subfinder -d {target} -silent | dnsx -a -resp -silent | awk '{gsub(/\\[|\\]/, \"\", $2); print $2, $1}' >> {raw_dir}/dns_resolved.txt && cat {raw_dir}/dns_resolved.txt"
+category: "recon"
+timeout: "120s"
+target_type: "domain"
+tags: ["dns", "subdomains", "recon"]
+priority: 15

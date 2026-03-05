@@ -1,0 +1,8 @@
+name: "Dig Comprehensive"
+description: "Perform a comprehensive DNS scan using dig"
+command: "dig {target} ANY +noall +answer"
+category: "dns"
+timeout: "30s"
+target_type: "both"
+tags: ["dns", "recon", "records", "domain"]
+priority: 20

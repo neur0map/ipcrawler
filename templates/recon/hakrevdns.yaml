@@ -1,0 +1,8 @@
+name: "Hakrevdns rDNS"
+description: "Discover domains pointing to IP via passive sources"
+command: "echo {target} | hakrevdns -d | awk -v ip={target} '{print ip, $1}' >> {raw_dir}/dns_resolved.txt && cat {raw_dir}/dns_resolved.txt"
+category: "recon"
+timeout: "60s"
+target_type: "ip"
+tags: ["dns", "rdns", "passive"]
+priority: 15

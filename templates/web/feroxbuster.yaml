@@ -1,0 +1,8 @@
+name: "Feroxbuster Dir Scan"
+description: "Recursive directory brute-force"
+command: "feroxbuster -u http://{target} -w {wordlist} -o {raw_dir}/feroxbuster.txt --no-state --silent"
+category: "web"
+timeout: "600s"
+target_type: "both"
+tags: ["dirs", "web", "brute"]
+priority: 25

@@ -1,0 +1,8 @@
+name: "Gobuster VHost Scan"
+description: "Discover virtual hosts via brute-force"
+command: "gobuster vhost -u http://{target} -w {wordlist} --append-domain -o {raw_dir}/gobuster_vhost.txt"
+category: "web"
+timeout: "300s"
+target_type: "both"
+tags: ["vhost", "web", "brute"]
+priority: 25

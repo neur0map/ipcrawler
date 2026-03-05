@@ -3,4 +3,6 @@ description: "Query domain/IP registration and ownership info"
 command: "whois {target}"
 category: "dns"
 timeout: "30s"
+target_type: "both"
 tags: ["registration", "ownership", "domain"]
+priority: 20

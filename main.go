@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/neur0map/ipcrawler/internal/config"
 	"github.com/neur0map/ipcrawler/internal/report"
@@ -19,33 +21,18 @@ import (
 	"github.com/neur0map/ipcrawler/internal/wizard"
 )
 
-//go:embed templates/*.yaml
+//go:embed templates/*/*.yaml
 var templateFS embed.FS
 
 // --- Home Depot Orange palette ---
 
 var (
 	orange = lipgloss.Color("#F96302")
-	white  = lipgloss.Color("#FFFFFF")
-	cyan   = lipgloss.Color("#00FFFF")
 
 	bannerStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(orange)
 
-	successBox = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(orange).
-			Padding(1, 2).
-			MarginTop(1)
-
-	successLabel = lipgloss.NewStyle().
-			Foreground(white).
-			Bold(true).
-			Width(10)
-
-	successValue = lipgloss.NewStyle().
-			Foreground(cyan)
 )
 
 func main() {
@@ -71,6 +58,12 @@ func main() {
 	}
 
 	// --- Execute ---
+
+	// Sort tools by priority (lowest first) so both runner and tracker
+	// see the same execution-wave order.
+	sort.SliceStable(runCfg.Tools, func(i, j int) bool {
+		return runCfg.Tools[i].Priority < runCfg.Tools[j].Priority
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -114,11 +107,31 @@ func main() {
 
 	// --- Report ---
 
-	if err := report.Compile(runCfg.OutputDir, buildReportData(runCfg, r.Results())); err != nil {
+	reportData := buildReportData(runCfg, r.Results())
+	if err := report.Compile(runCfg.OutputDir, reportData); err != nil {
 		fmt.Fprintf(os.Stderr, "Error compiling report: %v\n", err)
 	}
 
-	fmt.Println(renderSummary(runCfg))
+	// Render the report to terminal via glamour
+	reportPath := filepath.Join(runCfg.OutputDir, "report.md")
+	if md, err := os.ReadFile(reportPath); err == nil {
+		renderer, _ := glamour.NewTermRenderer(
+			glamour.WithStylePath("dark"),
+			glamour.WithWordWrap(0),
+		)
+		if rendered, err := renderer.Render(string(md)); err == nil {
+			fmt.Print(rendered)
+		}
+	}
+
+	// Final save prompt
+	savePrompt := lipgloss.NewStyle().
+		Foreground(orange).
+		Bold(true).
+		Padding(0, 1).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(orange)
+	fmt.Println(savePrompt.Render("Report saved to " + reportPath))
 }
 
 func buildReportData(cfg *wizard.RunConfig, results []runner.JobResult) report.ReportData {
@@ -132,14 +145,56 @@ func buildReportData(cfg *wizard.RunConfig, results []runner.JobResult) report.R
 		res := resultMap[t.Name]
 		safeName := config.SanitizeName(t.Name)
 
-		raw, _ := os.ReadFile(filepath.Join(cfg.OutputDir, "raw", safeName+".txt"))
-		errData, _ := os.ReadFile(filepath.Join(cfg.OutputDir, "errors", safeName+"_err.txt"))
-
+		// Determine status string
 		status := "Success"
 		failed := false
-		if res.Status == runner.StatusFailed {
+		switch res.Status {
+		case runner.StatusFailed:
 			status = "Failed"
 			failed = true
+		case runner.StatusSkipped:
+			status = "Skipped"
+			failed = true
+		}
+
+		// Skipped tools have no output files — just record the skip reason
+		if res.Status == runner.StatusSkipped {
+			errMsg := ""
+			if res.Err != nil {
+				errMsg = res.Err.Error()
+			}
+			toolResults = append(toolResults, report.ToolResult{
+				Name:        t.Name,
+				Category:    strings.ToUpper(t.Category),
+				Description: t.Description,
+				Command:     cfg.Commands[t.Name],
+				Status:      status,
+				Duration:    fmtDuration(res.Duration),
+				Stderr:      errMsg,
+				Failed:      failed,
+			})
+			continue
+		}
+
+		errData, _ := os.ReadFile(filepath.Join(cfg.OutputDir, "errors", safeName+"_err.txt"))
+
+		var output string
+		var isFormatted bool
+
+		switch t.OutputFormat {
+		case "nmap_xml":
+			formatted, err := report.FormatNmapXML(filepath.Join(cfg.OutputDir, "raw", "nmap.xml"))
+			if err != nil {
+				// Fallback: read raw stdout capture
+				raw, _ := os.ReadFile(filepath.Join(cfg.OutputDir, "raw", safeName+".txt"))
+				output = strings.TrimRight(string(raw), "\n")
+			} else {
+				output = strings.TrimRight(formatted, "\n")
+				isFormatted = true
+			}
+		default:
+			raw, _ := os.ReadFile(filepath.Join(cfg.OutputDir, "raw", safeName+".txt"))
+			output = strings.TrimRight(string(raw), "\n")
 		}
 
 		toolResults = append(toolResults, report.ToolResult{
@@ -149,9 +204,10 @@ func buildReportData(cfg *wizard.RunConfig, results []runner.JobResult) report.R
 			Command:     cfg.Commands[t.Name],
 			Status:      status,
 			Duration:    fmtDuration(res.Duration),
-			Output:      strings.TrimRight(string(raw), "\n"),
+			Output:      output,
 			Stderr:      strings.TrimRight(string(errData), "\n"),
 			Failed:      failed,
+			IsFormatted: isFormatted,
 		})
 	}
 
@@ -169,17 +225,3 @@ func fmtDuration(d time.Duration) string {
 	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
-func renderSummary(cfg *wizard.RunConfig) string {
-	content := fmt.Sprintf(
-		"%s  %s\n%s  %s\n%s  %s\n%s  %s",
-		successLabel.Render("Status:"),
-		successValue.Render("Complete"),
-		successLabel.Render("Report:"),
-		successValue.Render(filepath.Join(cfg.OutputDir, "report.md")),
-		successLabel.Render("Raw:"),
-		successValue.Render(filepath.Join(cfg.OutputDir, "raw/")),
-		successLabel.Render("Logs:"),
-		successValue.Render(filepath.Join(cfg.OutputDir, "logs/")),
-	)
-	return successBox.Render(content)
-}

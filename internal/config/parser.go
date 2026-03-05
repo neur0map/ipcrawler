@@ -3,41 +3,50 @@ package config
 import (
 	"embed"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"sort"
 
 	"gopkg.in/yaml.v3"
 )
 
-// ParseTemplates reads all .yaml files from the embedded filesystem,
-// validates them, and returns them sorted by category then name.
-func ParseTemplates(fs embed.FS) ([]Template, error) {
-	entries, err := fs.ReadDir("templates")
-	if err != nil {
-		return nil, fmt.Errorf("reading templates directory: %w", err)
-	}
-
+// ParseTemplates walks the embedded templates directory tree, reading
+// all .yaml files from category subdirectories (e.g. templates/dns/*.yaml).
+func ParseTemplates(fsys embed.FS) ([]Template, error) {
 	var templates []Template
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
-			continue
+
+	err := fs.WalkDir(fsys, "templates", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || filepath.Ext(d.Name()) != ".yaml" {
+			return nil
 		}
 
-		data, err := fs.ReadFile(filepath.Join("templates", entry.Name()))
+		data, err := fsys.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("reading %s: %w", entry.Name(), err)
+			return fmt.Errorf("reading %s: %w", path, err)
 		}
 
 		var t Template
 		if err := yaml.Unmarshal(data, &t); err != nil {
-			return nil, fmt.Errorf("parsing %s: %w", entry.Name(), err)
+			return fmt.Errorf("parsing %s: %w", path, err)
 		}
 
-		if err := validate(t, entry.Name()); err != nil {
-			return nil, err
+		if err := validate(t, d.Name()); err != nil {
+			return err
+		}
+
+		// Default priority to 50 if not specified
+		if t.Priority == 0 {
+			t.Priority = 50
 		}
 
 		templates = append(templates, t)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	sort.Slice(templates, func(i, j int) bool {

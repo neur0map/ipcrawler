@@ -1,0 +1,8 @@
+name: "Amass Intel rDNS"
+description: "Discover domains linked to IP via OSINT APIs"
+command: "amass intel -addr {target} | awk -v ip={target} '{print ip, $1}' >> {raw_dir}/dns_resolved.txt && cat {raw_dir}/dns_resolved.txt"
+category: "recon"
+timeout: "300s"
+target_type: "ip"
+tags: ["dns", "rdns", "osint"]
+priority: 15

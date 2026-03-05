@@ -1,0 +1,10 @@
+name: "Nmap SV Scan"
+description: "SYN scan + service detection (top 100)"
+command: "nmap -sS -sV -Pn --top-ports 100 -oA {raw_dir}/nmap {target}"
+output_format: "nmap_xml"
+category: "network"
+timeout: "300s"
+target_type: "both"
+tags: ["ports", "services", "tcp"]
+sudo: true
+priority: 50

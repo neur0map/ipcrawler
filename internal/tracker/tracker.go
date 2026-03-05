@@ -22,13 +22,19 @@ var (
 	gray   = lipgloss.Color("#6C6C6C")
 	white  = lipgloss.Color("#FFFFFF")
 
+	yellow = lipgloss.Color("#FFD700")
+
 	pendingIconStyle = lipgloss.NewStyle().Foreground(gray)
 	pendingNameStyle = lipgloss.NewStyle().Foreground(gray)
+	waitingIconStyle = lipgloss.NewStyle().Foreground(yellow)
+	waitingNameStyle = lipgloss.NewStyle().Foreground(yellow)
 	activeNameStyle  = lipgloss.NewStyle().Foreground(orange).Bold(true)
 	doneIconStyle    = lipgloss.NewStyle().Foreground(green)
 	doneNameStyle    = lipgloss.NewStyle().Foreground(green)
 	failIconStyle    = lipgloss.NewStyle().Foreground(red)
 	failNameStyle    = lipgloss.NewStyle().Foreground(red)
+	skipIconStyle    = lipgloss.NewStyle().Foreground(gray)
+	skipNameStyle    = lipgloss.NewStyle().Foreground(gray)
 	dimStyle         = lipgloss.NewStyle().Foreground(gray)
 	liveLineStyle    = lipgloss.NewStyle().Foreground(white)
 	durationStyle    = lipgloss.NewStyle().Foreground(orange).Bold(true)
@@ -55,11 +61,12 @@ var toolColors = []lipgloss.Color{
 type doneMsg struct{}
 
 type jobState struct {
-	name     string
-	status   runner.JobStatus
-	lastLine string
-	err      error
-	duration time.Duration
+	name      string
+	status    runner.JobStatus
+	lastLine  string
+	waitingOn string // dependency name when status == StatusWaiting
+	err       error
+	duration  time.Duration
 }
 
 // Model is the bubbletea model for the live progress view.
@@ -129,6 +136,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if msg.Line != "" && msg.Stream == runner.StreamStdout {
 					m.jobs[i].lastLine = msg.Line
 				}
+				if msg.WaitingOn != "" {
+					m.jobs[i].waitingOn = msg.WaitingOn
+				}
 				if msg.Err != nil {
 					m.jobs[i].err = msg.Err
 				}
@@ -179,6 +189,16 @@ func (m Model) View() string {
 			detail := dimStyle.Render("waiting")
 			line = fmt.Sprintf("  %s  %s  %s", icon, name, detail)
 
+		case runner.StatusWaiting:
+			icon := waitingIconStyle.Render("◷")
+			name := waitingNameStyle.Render(paddedName)
+			depInfo := "waiting on dependency"
+			if j.waitingOn != "" {
+				depInfo = "waiting on " + j.waitingOn
+			}
+			detail := waitingNameStyle.Render(depInfo)
+			line = fmt.Sprintf("  %s  %s  %s", icon, name, detail)
+
 		case runner.StatusRunning:
 			icon := m.spinner.View()
 			name := activeNameStyle.Render(paddedName)
@@ -220,6 +240,15 @@ func (m Model) View() string {
 			} else {
 				line = fmt.Sprintf("  %s  %s  %s", icon, name, dur)
 			}
+
+		case runner.StatusSkipped:
+			icon := skipIconStyle.Render("⊘")
+			name := skipNameStyle.Render(paddedName)
+			detail := dimStyle.Render("skipped")
+			if j.err != nil {
+				detail = dimStyle.Render(smartTruncate(j.err.Error(), detailWidth))
+			}
+			line = fmt.Sprintf("  %s  %s  %s", icon, name, detail)
 		}
 
 		sb.WriteString(line)
@@ -277,6 +306,20 @@ func RunVerbose(updates <-chan runner.JobUpdate) {
 		}
 
 		switch {
+		case update.Status == runner.StatusWaiting:
+			dep := update.WaitingOn
+			if dep == "" {
+				dep = "dependency"
+			}
+			logger.Info("◷ waiting on " + dep)
+
+		case update.Status == runner.StatusSkipped:
+			if update.Err != nil {
+				logger.Warn("⊘ " + update.Err.Error())
+			} else {
+				logger.Warn("⊘ skipped")
+			}
+
 		case update.Line != "" && update.Stream == runner.StreamStdout:
 			logger.Info(update.Line)
 

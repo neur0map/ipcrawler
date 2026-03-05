@@ -3,4 +3,6 @@ description: "ICMP echo request to verify host is alive"
 command: "ping -c 4 {target}"
 category: "network"
 timeout: "30s"
+target_type: "both"
 tags: ["icmp", "connectivity", "alive"]
+priority: 10

@@ -1,0 +1,10 @@
+name: "Hosts Updater"
+description: "Add resolved domains to /etc/hosts (reversible via markers)"
+command: "[ -s {raw_dir}/dns_resolved.txt ] && sudo sed -i.bak '/^# ipcrawler START/,/^# ipcrawler END/d' /etc/hosts && sudo sh -c 'echo \"# ipcrawler START\" >> /etc/hosts' && sort -u {raw_dir}/dns_resolved.txt | sudo tee -a /etc/hosts > /dev/null && sudo sh -c 'echo \"# ipcrawler END\" >> /etc/hosts' && echo 'Updated /etc/hosts successfully.' || echo 'No subdomains resolved, skipping /etc/hosts update.'"
+category: "recon"
+timeout: "30s"
+target_type: "both"
+tags: ["hosts", "dns", "config"]
+sudo: false
+priority: 17
+depends_on: ["Subdomain Resolver", "Hakrevdns rDNS", "Amass Intel rDNS", "DNSRecon PTR Lookup"]
